@@ -1,0 +1,338 @@
+# Jeeves — task entrypoint for the three-language repo.
+#
+# Install just:  brew install just      (or cargo install just)
+#
+# Convention: this file only orchestrates; business logic lives in jeeves-rs/.
+
+python := if os_family() == "windows" { "python" } else { "python3" }
+rust_dir := justfile_directory() / "jeeves-rs"
+ts_dir := justfile_directory() / "jeeves-ts"
+
+# List all tasks
+help:
+    @just -l
+
+# ---- Protocol: single source of truth ----------------------------------------------------
+# Regenerate TypeScript and JSON Schema from the Rust types in jeeves-rs/jeeves-protocol.
+# Run this whenever the protocol changes, or the frontend silently drifts.
+write-app-server-schema *args:
+    {{ python }} {{ justfile_directory() }}/scripts/write_schema.py {{args}}
+
+# Only check whether the generated artifacts are stale (CI; writes nothing)
+check-app-server-schema:
+    {{ python }} {{ justfile_directory() }}/scripts/write_schema.py --check
+
+# ---- Docs: one number, three places ------------------------------------------------------
+# The tool count appears in the code, in docs/internals/04-tools.md (inventory + heading) and
+# in both READMEs. Three copies drift; this is the one that notices. Why a script and not a
+# cargo test: these Markdown files are not inside a crate, and a packaged crate should not go
+# red because a repository document was reworded.
+check-env-reads:
+    {{ python }} {{ justfile_directory() }}/scripts/check_env_reads.py
+
+# The one-way boundaries in AGENTS.md are only worth as much as the check that
+# fails when code drifts past them: no engine→shell dependency, no platform
+# cfg outside the two OS-capability adapters, no shell importing another shell.
+check-architecture:
+    {{ python }} {{ justfile_directory() }}/scripts/check_architecture.py
+
+# The codebase is the agent's long-term memory: a stale `//` becomes the next
+# agent's example. Doc comments stay; corrections go into lint errors or test names.
+check-comments:
+    {{ python }} {{ justfile_directory() }}/scripts/check_comments.py
+
+check-doc-paths:
+    {{ python }} {{ justfile_directory() }}/scripts/check_doc_paths.py
+
+check-doc-links:
+    {{ python }} {{ justfile_directory() }}/scripts/check_doc_links.py
+
+check-tool-docs:
+    {{ python }} {{ justfile_directory() }}/scripts/check_tool_docs.py
+
+# The dashboard's English table must cover every string the code uses. `t()` falls back to
+# Chinese, so a missing entry never throws — it just leaves one Chinese label on an English
+# screen, which is exactly the kind of thing nobody notices in review.
+check-i18n:
+    {{ python }} {{ justfile_directory() }}/scripts/check_i18n.py
+
+# Every `JEEVES_*` the code can read must exist in `.env.example` and in both configuration docs.
+# Same reason as above: four copies of one knob (code + sample + two docs) is four places to
+# forget, and a knob missing from the sample is a feature nobody can turn on.
+check-config-docs:
+    {{ python }} {{ justfile_directory() }}/scripts/check_config_docs.py
+
+# ---- Feishu CLI -------------------------------------------------------------
+# Install the official Feishu CLI locally; native CLI credentials remain unchanged.
+install-feishu-cli:
+    npm install --prefix "{{ justfile_directory() }}/.jeeves/tools/lark-cli" --save-exact @larksuite/cli@1.0.100 --no-audit --no-fund
+
+# Pass arguments to the installed CLI (for example: just feishu-cli auth status).
+feishu-cli *args:
+    "{{ justfile_directory() }}/.jeeves/tools/lark-cli/node_modules/.bin/lark-cli" {{args}}
+
+# ---- Rust ------------------------------------------------------------------
+fmt:
+    cd {{ rust_dir }} && cargo fmt --all
+
+fmt-check:
+    cd {{ rust_dir }} && cargo fmt --all -- --check
+
+# Reclaim build debris without losing compiled dependencies: incremental sessions
+# (one directory per compilation unit per rebuild) and cross-target artefacts.
+# Keeps `target/debug/deps`, so the next build only redoes what actually changed.
+# `find -delete` rather than `rm -rf`: some environments wrap `rm` with a bulk-delete
+# confirmation that a Makefile-style recipe cannot answer.
+tidy:
+    @find {{ rust_dir }}/target/debug/incremental -depth -delete 2>/dev/null || true
+    @rm -rf {{ rust_dir }}/target/x86_64-* {{ rust_dir }}/target/aarch64-* 2>/dev/null || true
+    @du -sh {{ rust_dir }}/target 2>/dev/null || true
+
+clippy *args:
+    cd {{ rust_dir }} && cargo clippy --workspace --all-targets {{args}}
+
+fix *args:
+    cd {{ rust_dir }} && cargo clippy --fix --allow-dirty --workspace --all-targets {{args}}
+
+build *args:
+    cd {{ rust_dir }} && cargo build --workspace {{args}}
+
+# Regular tests. Protocol export tests are #[ignore]d (they write files); not run here.
+test *args:
+    cd {{ rust_dir }} && cargo test --workspace {{args}}
+
+# Only the protocol crate
+test-protocol *args:
+    cd {{ rust_dir }} && cargo test -p jeeves-protocol {{args}}
+
+# End to end: really start app-server, feed JSON-RPC via stdin, check every reply.
+smoke: build dashboard-build
+    {{ justfile_directory() }}/scripts/smoke.sh
+
+# kill -9 mid-turn, then a fresh process reconciles and resumes the checkpoint (POSIX).
+smoke-resume: build
+    {{ justfile_directory() }}/scripts/smoke-resume.sh
+
+# The live-reliability research case's publication gate, offline (no network, no model).
+test-research-publication:
+    {{ python }} {{ justfile_directory() }}/scripts/test-research-publication.py
+
+# Real SIGKILL boundaries with isolated local provider/MCP fixtures (POSIX).
+smoke-recovery: build
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-recovery.py
+
+# Dashboard process lifecycle: SSE, startup ownership, and child exit (POSIX).
+smoke-lifecycle: dashboard-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-lifecycle.py
+
+# ---- Evals: the diamond before a release --------------------------------------------------
+# Deterministic eval: scripted models + assertions, offline 0/1. **Must pass 100%** —
+# this is the release gate: exit 0 = releasable. Cases live in evals/deterministic/.
+# Cases load from relative `evals/…` paths, so eval/judge run from the repo root (not jeeves-rs).
+eval: build
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ rust_dir }}/Cargo.toml --bin jeeves -- eval
+
+# Replay eval: recorded conversations + expected event order (compaction, approval timeout,
+# streamed output, MCP disconnects). A gate like the deterministic eval: it pins "what happens
+# before what", the thing most likely to drift unnoticed.
+eval-replay: build
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ rust_dir }}/Cargo.toml --bin jeeves -- eval --replay
+
+# Long-task benchmarks: same scripted harness, asks "did autonomous task work get better or
+# worse". **Records, never blocks** — exit 0 even when cases fail. Cases live in evals/long/.
+bench: build
+    cd {{ justfile_directory() }} && {{ rust_dir }}/target/debug/jeeves bench
+
+# judge: a real model answers one turn; a small judge model scores 0-10 by rubric. Needs a key;
+# the score doesn't block releases — it answers "how good", not "can we ship".
+judge: build
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ rust_dir }}/Cargo.toml --bin jeeves -- judge
+
+# ---- TypeScript ------------------------------------------------------------
+# Install TS-side deps (npm workspace: client, gateways and dashboard frontend in one go)
+ts-install:
+    cd {{ ts_dir }} && npm install
+
+# Type check and unit tests for the TS side. Generated artifacts are how TS consumes the protocol,
+# so this also catches protocol drift — though the drift check above is the real guard.
+ts-check: ts-install
+    cd {{ ts_dir }} && npm run typecheck
+    cd {{ ts_dir }} && npm test
+    cd {{ justfile_directory() }}/control-plane && npm test
+    node --test {{ justfile_directory() }}/packaging/npm/install.test.cjs
+
+# End to end: really start app-server, have the TS gateway ask it one thing.
+smoke-gateway: build
+    {{ justfile_directory() }}/scripts/smoke-gateway.sh
+
+# Start the WeChat gateway. Needs WECHAT_TOKEN and WECHAT_APP_ID; WeChat wants a public address
+# (only 80 / 443), so run local tunnels first for local runs.
+gateway-wechat *args:
+    cd {{ ts_dir }} && npm run gateway:wechat {{args}}
+
+# Start the Lark gateway. Needs LARK_APP_ID and LARK_APP_SECRET; LARK_ALLOW takes open_ids
+# (the ou_… string, not the App ID); add LARK_DOMAIN=lark for the international Lark.
+# The app also needs bot capability enabled, a subscription to im.message.receive_v1, and
+# **long connection as the subscription mode** — miss one and it "connects but never responds".
+gateway-lark *args:
+    cd {{ ts_dir }} && npm run gateway:lark {{args}}
+
+# Telegram bot gateway (long polling; needs TELEGRAM_BOT_TOKEN, see docs/guide.md).
+gateway-telegram *args:
+    cd {{ ts_dir }} && npm run gateway:telegram {{args}}
+
+# ---- Dashboard -----------------------------------------------------------------
+# Build the Web workbench: Vue typecheck + Vite + static/PWA assets; output lands in
+# jeeves-ts/packages/dashboard/dist, read directly by `jeeves dashboard`.
+# Browsers can't read .ts, so this is the only TS package that needs building.
+dashboard-build: ts-install
+    cd {{ ts_dir }} && npm run build --workspace @jeeves/dashboard
+
+# Offline authenticated Web workflow: typed settings, policies, stream and approval.
+smoke-web: dashboard-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-web.py
+
+# Apple PWA approval fixtures in the bundled Chromium, including an offline cold launch.
+smoke-approval-notice: dashboard-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    node {{ justfile_directory() }}/scripts/smoke-approval-notice.mjs
+
+# Offline main conversation → task workspaces → follow-up and worker approval.
+smoke-interaction: dashboard-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-interaction.py
+
+# One npm workspace owns both the Web cockpit and the desktop UI.
+desktop-install:
+    cd {{ ts_dir }} && npm ci
+
+# One vector source for the UI and all currently shipped platform icon formats.
+desktop-icons:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    icon_tmp=$(mktemp -d)
+    trap 'rm -rf "$icon_tmp"' EXIT
+    cargo tauri icon jeeves-ts/packages/dashboard/src/ui/assets/jeeves-icon.svg --output "$icon_tmp"
+    for asset in "$icon_tmp"/*; do
+        if [[ -f "$asset" ]]; then cp "$asset" desktop/src-tauri/icons/; fi
+    done
+
+desktop-check:
+    cd desktop/src-tauri && cargo fmt -- --check && cargo test && cargo clippy --all-targets -- -D warnings
+
+# Offline provider fixture; no credentials or real user data are used.
+smoke-desktop:
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-desktop.py
+
+# Opt-in acceptance using the packaged app's foreground window and synthetic loopback services.
+smoke-mac-cockpit: desktop-build
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-mac-cockpit.py
+
+# The shell starts `jeeves dashboard` itself; JEEVES_RUNTIME_URL attaches to a running Runtime instead.
+desktop-dev:
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd desktop/src-tauri && cargo tauri dev
+
+# Build the optional single-window adapter without starting AppKit or requesting permissions.
+desktop-window-helper:
+    mkdir -p jeeves-rs/target/debug
+    xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/*.swift -o jeeves-rs/target/debug/jeeves-window
+    @echo "{{justfile_directory()}}/jeeves-rs/target/debug/jeeves-window"
+
+# Open two disposable native windows for operator acceptance on a Mac.
+desktop-window-fixture: desktop-window-helper build dashboard-build
+    mkdir -p jeeves-rs/target/debug
+    xcrun swiftc desktop/tests/WindowFixture.swift -o jeeves-rs/target/debug/JeevesWindowFixture
+    {{ python }} scripts/manual-window.py
+
+# Opt-in regression with real AppKit windows. Requires Accessibility and Screen Recording.
+smoke-mac-window:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="{{justfile_directory()}}/jeeves-rs/target/native-window-check"
+    mkdir -p "$out"
+    xcrun swiftc desktop/tests/WindowFixture.swift -o "$out/JeevesWindowFixture"
+    xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/Window.swift desktop/tests/NativeWindowCheck.swift -o "$out/native-window-check"
+    "$out/native-window-check" "$out/JeevesWindowFixture"
+
+# Bundle the local runtime with the desktop app, for the current Rust host target.
+[positional-arguments]
+desktop-build *configs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd jeeves-rs
+    cargo build --release -p jeeves-cli --bin jeeves
+    cd ..
+    target=$(rustc -vV | sed -n 's/^host: //p')
+    test -n "$target"
+    mkdir -p desktop/src-tauri/binaries
+    cp jeeves-rs/target/release/jeeves "desktop/src-tauri/binaries/jeeves-$target"
+    cd jeeves-ts && npm run build --workspace @jeeves/dashboard && cd ..
+    flags=(--config sidecar.conf.json)
+    if [[ "$(uname -s)" == Darwin ]]; then
+        just desktop-window-helper
+        cp jeeves-rs/target/debug/jeeves-window "desktop/src-tauri/binaries/jeeves-window-$target"
+        flags+=(--config mac-window.conf.json)
+    fi
+    cd desktop/src-tauri
+    cargo tauri build --bundles app "${flags[@]}" "$@"
+
+# Start the dashboard → http://localhost:7777 (JEEVES_PORT changes the port).
+dashboard *args:
+    cd {{ rust_dir }} && cargo run --bin jeeves -- dashboard {{args}}
+
+# End to end: the Feishu connector against a scripted Feishu server, through the shipped binary.
+smoke-connector: build
+    {{ justfile_directory() }}/scripts/smoke-connector.sh
+
+# End to end: start a real dashboard, use curl as a browser against both endpoints.
+smoke-dashboard: build dashboard-build
+    {{ justfile_directory() }}/scripts/smoke-dashboard.sh
+
+# End to end: the business form — task API (/api/run), inbound webhooks, tier routing.
+smoke-business: build dashboard-build
+    {{ justfile_directory() }}/scripts/smoke-business.sh
+
+# Refresh the Homebrew formula's url/sha256 for a tag (after `git tag v0.8.0 && git push --tags`).
+# Computes the checksum from the same archive URL Homebrew fetches. See packaging/RELEASING.md.
+release-hash *args:
+    {{ justfile_directory() }}/packaging/release-hash.sh {{args}}
+
+# Fake-clock, sourced-output and one-shot delivery fixtures for the resident morning duty.
+eval-morning-briefing:
+    cd {{ rust_dir }} && cargo test -p jeeves-app-server scheduler::morning::tests
+
+# Advance a controlled clock over persisted responsibility contracts and reopen the same database.
+eval-responsibility:
+    cd {{ rust_dir }} && cargo test -p jeeves-app-server responsibility::tests
+
+# ---- Run all checks in one command ----------------------------------------------
+# gate sits last: beyond green tests and lint, the deterministic eval must also pass 100%.
+check: fmt-check check-app-server-schema check-architecture check-comments check-doc-paths check-doc-links check-env-reads check-tool-docs check-config-docs check-i18n ts-check eval eval-replay eval-morning-briefing eval-responsibility
+    cd {{ rust_dir }} && cargo clippy --workspace --all-targets -- -D warnings
+    cd {{ rust_dir }} && cargo test --workspace
+
+# Optional components: official Node + locked Playwright + its matching Chromium.
+browser-runtime: ts-install
+    {{ python }} {{ justfile_directory() }}/scripts/prepare-browser-runtime.py
+
+# Browser-enabled app; the standard desktop-build remains lightweight.
+desktop-build-browser: browser-runtime
+    just desktop-build --config browser.conf.json
+
+smoke-browser:
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    PLAYWRIGHT_BROWSERS_PATH="{{ justfile_directory() }}/desktop/src-tauri/browser-runtime/browsers" JEEVES_BROWSER_REQUIRED=1 node --test jeeves-ts/packages/browser-worker/test/*.test.ts
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-browser.py
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-remote-browser.py
+
+# Resident research report with a loopback Feishu service and real approval/read-back.
+smoke-weekly-report: build
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-weekly-report.py
+
+# Idle resident MCP OAuth renewal against a loopback token issuer.
+smoke-mcp-renewal: build
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-mcp-renewal.py

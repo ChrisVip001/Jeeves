@@ -1,0 +1,33 @@
+[package]
+name = "jeeves-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The `jeeves` command-line entry point."
+
+# The binary is just `jeeves`: a persona's name, short and easy to type.
+[[bin]]
+name = "jeeves"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+jeeves-app-server = { workspace = true }
+jeeves-config = { workspace = true }
+jeeves-connector = { workspace = true }
+jeeves-eval = { workspace = true }
+jeeves-memory = { workspace = true }
+jeeves-mcp = { workspace = true }
+jeeves-ops = { workspace = true }
+jeeves-protocol = { workspace = true }
+jeeves-provider = { workspace = true }
+jeeves-state = { workspace = true }
+jeeves-tools = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

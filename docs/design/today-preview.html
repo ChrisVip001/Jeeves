@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jeeves「今天」首页：配色与字体对比</title>
+<style>
+/* M0-12 static preview. Self-contained: no build, no network, local font stacks only.
+   Each palette defines the same token names once for light and once for dark (dark is tuned on its own,
+   not inverted). Everything below the token block references tokens only. Contrast ratios on the page are
+   computed in the script from these exact values, so editing a hex here updates the table.
+   Pick a palette with the controls or the URL hash, e.g. #p=indigo&f=serif&m=dark. */
+
+/* Baseline: warm grey + forest green, values exactly as DESIGN.md / palette-preview.html ship them,
+   including the white badge text on amber that palette-preview.html uses. Kept unmodified on purpose. */
+[data-palette="base"][data-mode="light"] {
+  --bg:#f4f2ee; --panel:#ebe8e2; --surface:#fbfaf8; --hover:#f0ede8; --line:#e0dcd4;
+  --text:#23211d; --text-2:#5a564f; --text-3:#726d63;
+  --accent:#2f6b4f; --accent-hover:#285c44; --on-accent:#ffffff;
+  --warn:#9a6514; --on-warn:#ffffff; --bad:#b4433c;
+}
+[data-palette="base"][data-mode="dark"] {
+  --bg:#161513; --panel:#1d1c19; --surface:rgba(255,255,255,.035); --hover:rgba(255,255,255,.06); --line:rgba(255,255,255,.08);
+  --text:#e9e6df; --text-2:#a39e94; --text-3:#8a857c;
+  --accent:#5fa37f; --accent-hover:#6fb18e; --on-accent:#10140f;
+  --warn:#d9a441; --on-warn:#ffffff; --bad:#e0786f;
+}
+
+/* 墨蓝 Indigo: cream paper, ink-blue accent. Reads as stationery; the blue is far from the amber. */
+[data-palette="indigo"][data-mode="light"] {
+  --bg:#f5f2ea; --panel:#ece8de; --surface:#fbf9f4; --hover:#f1eee6; --line:#e0dbd0;
+  --text:#1f2129; --text-2:#535663; --text-3:#63656f;
+  --accent:#2c4a7c; --accent-hover:#243e69; --on-accent:#ffffff;
+  --warn:#8a5a0f; --on-warn:#ffffff; --bad:#a63d36;
+}
+[data-palette="indigo"][data-mode="dark"] {
+  --bg:#14161b; --panel:#1a1d23; --surface:#20232a; --hover:#262a32; --line:#2a2e36;
+  --text:#e6e4de; --text-2:#a4a6ad; --text-3:#8a8d96;
+  --accent:#8aa6d8; --accent-hover:#9db5e0; --on-accent:#10141c;
+  --warn:#d9a441; --on-warn:#1a1306; --bad:#e07a70;
+}
+
+/* 黛青 Teal: cool-neutral grey with a deep blue-green. Closest to the baseline in mood, cooler surfaces. */
+[data-palette="teal"][data-mode="light"] {
+  --bg:#f1f2f0; --panel:#e7e9e6; --surface:#f9faf8; --hover:#eef0ed; --line:#dcdfdb;
+  --text:#1c2220; --text-2:#4f5856; --text-3:#5e6865;
+  --accent:#1d6563; --accent-hover:#175553; --on-accent:#ffffff;
+  --warn:#8c5b0c; --on-warn:#ffffff; --bad:#a8403a;
+}
+[data-palette="teal"][data-mode="dark"] {
+  --bg:#121615; --panel:#181d1c; --surface:#1e2423; --hover:#242b2a; --line:#29302f;
+  --text:#e3e8e5; --text-2:#9fa9a6; --text-3:#85908d;
+  --accent:#6cb5ae; --accent-hover:#80c2bb; --on-accent:#0c1413;
+  --warn:#dba646; --on-warn:#1a1306; --bad:#e27d72;
+}
+
+/* 茄紫 Plum: warm paper, muted aubergine accent. The most "personal" of the set, least like a tool. */
+[data-palette="plum"][data-mode="light"] {
+  --bg:#f5f1ec; --panel:#ece6df; --surface:#fcfaf7; --hover:#f1ece6; --line:#e2dbd3;
+  --text:#241f22; --text-2:#5a5156; --text-3:#685e63;
+  --accent:#6a3a5f; --accent-hover:#5a3051; --on-accent:#ffffff;
+  --warn:#8a5a0f; --on-warn:#ffffff; --bad:#a8433b;
+}
+[data-palette="plum"][data-mode="dark"] {
+  --bg:#171416; --panel:#1e1a1d; --surface:#241f23; --hover:#2a2529; --line:#302a2e;
+  --text:#ebe5e8; --text-2:#aaa0a5; --text-3:#8f868b;
+  --accent:#c99bbd; --accent-hover:#d6aecb; --on-accent:#1a1018;
+  --warn:#d9a441; --on-warn:#1a1306; --bad:#e47b72;
+}
+
+/* 素墨 Ink: near-monochrome. The accent is ink itself, so amber is the only hue on screen. */
+[data-palette="ink"][data-mode="light"] {
+  --bg:#f3f2ef; --panel:#e9e8e4; --surface:#fafaf8; --hover:#efeeea; --line:#dddcd7;
+  --text:#1e1e1f; --text-2:#555456; --text-3:#626163;
+  --accent:#26262a; --accent-hover:#3a3a40; --on-accent:#f6f5f1;
+  --warn:#8f5c0a; --on-warn:#ffffff; --bad:#a8403a;
+}
+[data-palette="ink"][data-mode="dark"] {
+  --bg:#141414; --panel:#1b1b1b; --surface:#212121; --hover:#272727; --line:#2c2c2c;
+  --text:#e8e6e1; --text-2:#a5a39e; --text-3:#8b8985;
+  --accent:#e4e1da; --accent-hover:#f2f0ea; --on-accent:#161616;
+  --warn:#dca545; --on-warn:#161006; --bad:#e27d72;
+}
+
+/* Font schemes. Local stacks only; nothing is downloaded. */
+[data-font="serif"] {
+  --font-display: "Iowan Old Style", "Charter", "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", Georgia, serif;
+  --display-weight: 500;
+}
+[data-font="sans"] {
+  --font-display: "PingFang SC", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display-weight: 600;
+}
+:root {
+  --font-body: "PingFang SC", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --shadow-overlay: 0 8px 32px rgba(35,33,29,.12);
+  --grain-opacity: .025;
+  --frost: rgba(255,255,255,.55);
+  --frost-highlight: rgba(255,255,255,.7);
+}
+[data-mode="dark"] {
+  --shadow-overlay: 0 8px 32px rgba(0,0,0,.45);
+  --grain-opacity: .03;
+  --frost: rgba(255,255,255,.04);
+  --frost-highlight: rgba(255,255,255,.06);
+}
+
+* { box-sizing: border-box; margin: 0; }
+html { background: var(--bg); }
+body {
+  font: 15px/1.65 var(--font-body); color: var(--text); background: var(--bg);
+  text-autospace: normal; text-spacing-trim: normal;  /* CJK/Latin spacing and punctuation squeeze where supported */
+  min-height: 100vh;  /* no theme crossfade: only the mark moves on its own */
+}
+/* Paper grain: an inline SVG noise tile, barely visible. */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+[data-mode="dark"] body::before { filter: invert(1); }
+.tnum { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- Preview controls (not part of the product) ---------- */
+.controls {
+  position: relative; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 12px 24px; display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: flex-start; font-size: 13px;
+}
+.controls fieldset { border: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.controls legend { float: left; color: var(--text-2); margin-right: 8px; padding: 0; line-height: 30px; }
+.chip { position: relative; }
+.chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.chip span {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--text); background: transparent; white-space: nowrap;
+}
+.chip input:checked + span { background: var(--surface); border-color: var(--text-3); font-weight: 500; }
+.chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip .swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px var(--line); }
+.chip .fail-tag { color: var(--bad); font-weight: 600; }
+.ctl-btn {
+  font: inherit; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: transparent; color: var(--text); cursor: pointer;
+}
+.ctl-btn:hover { background: var(--hover); }
+.verdict { flex-basis: 100%; color: var(--text-2); }
+.verdict strong { color: var(--bad); font-weight: 600; }
+.verdict .ok { color: var(--text); font-weight: 500; }
+/* ---------- The Today page ---------- */
+.page { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; padding: 48px 24px 120px; }
+.topline { display: flex; align-items: center; gap: 10px; color: var(--text-2); font-size: 13px; margin-bottom: 28px; }
+.topline .brand { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 16px; color: var(--text); }
+.topline .date { margin-left: auto; }
+
+/* The mark: the only element that moves on its own. */
+.mark { width: 28px; height: 28px; flex: none; display: block; }
+.mark .ring { fill: none; stroke: var(--accent); stroke-width: 2; transform-origin: 14px 14px;
+              transition: stroke 250ms var(--ease), transform 400ms var(--ease), opacity 400ms var(--ease); }
+.mark .core { fill: var(--accent); transform-origin: 14px 14px; transition: fill 250ms var(--ease), transform 400ms var(--ease); }
+.mark[data-state="working"] .ring { animation: breathe 2.8s ease-in-out infinite; }
+.mark[data-state="waiting"] .ring { stroke: var(--warn); }
+.mark[data-state="waiting"] .core { fill: var(--warn); }
+.mark[data-state="done"] .ring { transform: scale(.32); opacity: 0; }
+.mark[data-state="done"] .core { transform: scale(1.35); }
+@keyframes breathe { 0%,100% { transform: scale(.9); opacity: .5; } 50% { transform: scale(1); opacity: 1; } }
+
+.greeting { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 30px; line-height: 1.35;
+            letter-spacing: 0; color: var(--text); }
+.greeting-sub { font-size: 15px; color: var(--text-2); margin-top: 8px; }
+
+.block { margin-top: 44px; }
+.block-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 500; color: var(--text-2); margin-bottom: 12px; }
+.block-head .count { font-variant-numeric: tabular-nums; color: var(--text-3); font-weight: 400; }
+.block.needs .block-head { color: var(--warn); }
+.block.needs .block-head .count { background: var(--warn); color: var(--on-warn); border-radius: 999px; padding: 0 7px; font-size: 12px; font-weight: 600; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.card + .card, .card + .row, .row + .row, .row + .card { margin-top: 8px; }
+.card.confirm { border-left: 3px solid var(--warn); }
+.card h3 { font-size: 15px; font-weight: 600; line-height: 1.5; }
+.card .meta { font-size: 12px; color: var(--text-3); }
+
+/* Approval card: action, destination, identity, preview, one primary button. */
+.approval-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 12px 0; font-size: 13px; }
+.facts dt { color: var(--text-3); }
+.facts dd { color: var(--text); min-width: 0; }
+.preview-box { border-radius: 8px; background: var(--bg); border: 1px solid var(--line-soft, var(--line)); padding: 10px 12px;
+               font-size: 13px; color: var(--text-2); }
+.preview-box b { color: var(--text); font-weight: 500; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; align-items: center; }
+.actions .meta { margin-right: auto; }
+.btn { font: inherit; font-size: 13px; min-height: 34px; padding: 0 16px; border-radius: 8px; cursor: pointer;
+       border: 1px solid var(--line); background: transparent; color: var(--text);
+       transition: background-color 150ms var(--ease); }
+.btn:hover { background: var(--hover); }
+.btn.primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 600; }
+.btn.primary:hover { background: var(--accent-hover); }
+
+/* Rows: dot + title + one grey progress phrase. Title truncates; the action never does. */
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: var(--surface);
+       border: 1px solid var(--line); border-radius: 12px; }
+.row .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--accent); }
+.row .dot.warn { background: var(--warn); }
+.row .dot.idle { background: var(--text-3); }
+.row .body { min-width: 0; flex: 1; }
+.row .title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .phrase { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .when { font-size: 12px; color: var(--text-3); white-space: nowrap; flex: none; text-align: right; }
+.row .btn { flex: none; }
+.row.collapsing { animation: collapse 400ms var(--ease) forwards; overflow: hidden; }
+@keyframes collapse { to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; border-width: 0; } }
+.done-line { display: flex; gap: 10px; align-items: baseline; font-size: 14px; color: var(--text-2); padding: 4px 2px; animation: fade 250ms var(--ease); }
+.done-line .serif { font-family: var(--font-display); color: var(--text); font-size: 15px; }
+.done-line a { color: var(--accent); }
+@keyframes fade { from { opacity: 0; transform: translateY(2px); } }
+
+.today-list { list-style: none; padding: 0; }
+.today-list li { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--line); align-items: baseline; }
+.today-list li:first-child { border-top: 0; }
+.today-list time { font-variant-numeric: tabular-nums; color: var(--text-3); font-size: 13px; }
+.today-list a, .link { color: var(--accent); text-decoration: none; font-size: 13px; }
+.today-list a:hover, .link:hover { text-decoration: underline; }
+
+.all-set { margin-top: 56px; font-family: var(--font-display); font-size: 20px; color: var(--text-2); }
+
+/* Composer: the one frosted surface on the page. */
+.composer-wrap { position: fixed; z-index: 3; left: 0; right: 0; bottom: 0; padding: 0 24px 20px; pointer-events: none; }
+.composer { pointer-events: auto; max-width: 712px; margin: 0 auto; display: flex; gap: 8px; align-items: center;
+            border-radius: 16px; border: 1px solid var(--line); padding: 8px 8px 8px 16px;
+            background: color-mix(in srgb, var(--surface) 72%, transparent);
+            -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+            box-shadow: inset 0 1px 0 var(--frost-highlight), var(--shadow-overlay); }
+.composer:focus-within { border-color: var(--accent); }
+.composer input { flex: 1; min-width: 0; font: inherit; border: 0; background: transparent; color: var(--text); outline: none; height: 36px; }
+.composer input::placeholder { color: var(--text-3); }
+
+/* ---------- Contrast report ---------- */
+.report { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto 140px; padding: 0 24px; font-size: 13px; }
+.report h2 { font-family: var(--font-display); font-weight: var(--display-weight); font-size: 20px; margin-bottom: 6px; }
+.report p { color: var(--text-2); margin-bottom: 12px; max-width: 72ch; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+thead th { color: var(--text-2); font-weight: 500; font-size: 12px; vertical-align: bottom; }
+tbody tr.current { background: var(--hover); }
+td.fail { color: var(--bad); font-weight: 600; }
+td.fail::after { content: " 未达标"; font-weight: 500; font-size: 11px; }
+td.large-ok::after { content: " 仅大字"; color: var(--text-3); font-size: 11px; }
+.tokens { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
+
+@media (max-width: 720px) {
+  .page { padding: 28px 16px 120px; }
+  .greeting { font-size: 26px; }
+  .controls { padding: 10px 16px; }
+  .row { flex-wrap: wrap; }
+  .row .when { order: 3; flex-basis: 100%; text-align: left; padding-left: 19px; }
+  .actions { flex-direction: column-reverse; align-items: stretch; }
+  .actions .btn { min-height: 44px; }
+  .actions .meta { margin: 4px 0 0; text-align: center; }
+  .composer-wrap { padding: 0 12px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .mark[data-state="working"] .ring { opacity: 1; transform: none; }
+}
+.reduced-motion-forced *, .reduced-motion-forced *::before, .reduced-motion-forced *::after { animation: none !important; transition: none !important; }
+</style>
+</head>
+<body>
+<form class="controls" aria-label="预览设置（不属于产品界面）" onsubmit="return false">
+  <fieldset id="palette-set"><legend>色板</legend></fieldset>
+  <fieldset><legend>字体</legend>
+    <label class="chip"><input type="radio" name="font" value="serif" checked><span>宋体标题 + 苹方正文</span></label>
+    <label class="chip"><input type="radio" name="font" value="sans"><span>全部苹方</span></label>
+  </fieldset>
+  <fieldset><legend>明暗</legend>
+    <label class="chip"><input type="radio" name="mode" value="light" checked><span>亮色</span></label>
+    <label class="chip"><input type="radio" name="mode" value="dark"><span>暗色</span></label>
+  </fieldset>
+  <fieldset><legend>内容</legend>
+    <label class="chip"><input type="radio" name="content" value="busy" checked><span>有事要做</span></label>
+    <label class="chip"><input type="radio" name="content" value="clear"><span>没有事</span></label>
+  </fieldset>
+  <fieldset><legend>标记</legend>
+    <label class="chip"><input type="radio" name="mark" value="working"><span>工作中</span></label>
+    <label class="chip"><input type="radio" name="mark" value="waiting" checked><span>等你</span></label>
+    <label class="chip"><input type="radio" name="mark" value="done"><span>完成</span></label>
+    <button type="button" class="ctl-btn" id="demo-done">演示一次完成</button>
+    <label class="chip"><input type="checkbox" id="reduce"><span>模拟减少动效</span></label>
+  </fieldset>
+  <p class="verdict" id="verdict" role="status" aria-live="polite"></p>
+</form>
+
+<main class="page" id="today">
+  <div class="topline">
+    <svg class="mark" id="mark" data-state="waiting" viewBox="0 0 28 28" role="img" aria-label="Jeeves：等你">
+      <circle class="ring" cx="14" cy="14" r="11"/>
+      <circle class="core" cx="14" cy="14" r="4"/>
+    </svg>
+    <span class="brand">Jeeves</span>
+    <span class="date tnum">11 月 18 日 周三</span>
+  </div>
+
+  <h1 class="greeting" id="greeting">早上好。昨晚的研究做完了，等你看结论。</h1>
+  <p class="greeting-sub" id="greeting-sub">另外有一条周报等你确认再发。</p>
+
+  <div id="busy">
+    <section class="block needs" aria-labelledby="h-needs">
+      <h2 class="block-head" id="h-needs">需要你的 <span class="count tnum" aria-label="2 项">2</span></h2>
+
+      <article class="card confirm" aria-labelledby="ap-title">
+        <div class="approval-head">
+          <h3 id="ap-title">把本周周报发到飞书「产品组」</h3>
+          <span class="meta tnum">20 分钟后过期</span>
+        </div>
+        <dl class="facts">
+          <dt>动作</dt><dd>发送一条消息，发出后不能撤回</dd>
+          <dt>发到</dt><dd>飞书群「产品组」，12 人</dd>
+          <dt>身份</dt><dd>你的机器人 Jeeves Bot</dd>
+          <dt>预览</dt>
+          <dd><div class="preview-box"><b>本周进展：</b>登录超时修复已合并（#142），测试 48/48 通过。春节行程比价完成 3/5 步，
+            13 号晚上走比 14 号便宜 400。下周一前要定酒店。</div></dd>
+        </dl>
+        <div class="actions">
+          <button type="button" class="btn">先改一下</button>
+          <button type="button" class="btn primary">发送</button>
+        </div>
+      </article>
+
+      <div class="row">
+        <i class="dot warn" aria-hidden="true"></i>
+        <div class="body">
+          <div class="title">春节行程：订酒店要你登录携程</div>
+          <div class="phrase">验证码只能你来输，输完我接着比价</div>
+        </div>
+        <button type="button" class="btn">去登录</button>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="h-progress">
+      <h2 class="block-head" id="h-progress">在推进的 <span class="count tnum">3</span></h2>
+      <div id="progress-list">
+        <div class="row" id="row-research">
+          <i class="dot" aria-hidden="true"></i>
+          <div class="body">
+            <div class="title">本地向量库选型调研：对比 LanceDB、sqlite-vec 和 Qdrant 的嵌入式模式</div>
+            <div class="phrase">写结论中 · 已读 14 个来源，2 条主张还缺出处</div>
+          </div>
+          <span class="when tnum">10:30 再看</span>
+        </div>
+        <div class="row">
+          <i class="dot" aria-hidden="true"></i>
+          <div class="body">
+            <div class="title">修复 dashboard 断线重连跳动</div>
+            <div class="phrase">跑测试中 · 112/118 通过，6 个还没跑完</div>
+          </div>
+          <span class="when tnum">约 8 分钟</span>
+        </div>
+        <div class="row">
+          <i class="dot idle" aria-hidden="true"></i>
+          <div class="body">
+            <div class="title">盯 Sony A7C II 价格</div>
+            <div class="phrase">京东 ¥11,299，比上周低 ¥300，没到你说的 ¥10,800</div>
+          </div>
+          <span class="when tnum">每 6 小时</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="h-today">
+      <h2 class="block-head" id="h-today">今天的</h2>
+      <ul class="today-list">
+        <li><time>09:00</time><span>晨报：3 件事有变化</span><a href="#today">看晨报</a></li>
+        <li><time>14:00</time><span>和 Lin 过 Q1 规划，会议室 3F-2</span><span class="meta">还有 5 小时</span></li>
+        <li><time>18:30</time><span>提醒：取快递，丰巢 2 号柜</span><span class="meta"></span></li>
+      </ul>
+    </section>
+  </div>
+
+  <p class="all-set" id="clear" hidden>都安排好了。</p>
+</main>
+
+<div class="composer-wrap">
+  <label class="composer">
+    <span class="sr">和 Jeeves 说</span>
+    <input type="text" placeholder="说一件要办的事，或者随便聊聊">
+  </label>
+</div>
+
+<section class="report" aria-labelledby="h-report">
+  <h2 id="h-report">对比度（WCAG 2.x）</h2>
+  <p>从本页实际 token 值计算，半透明表面先叠在 <code>--bg</code> 上再算。文字要求 4.5:1；状态点、左缘这类非文字图形要求 3:1。
+     标红的格子未达标，色板按钮上同时显示未达标项数，不会悄悄过关。</p>
+  <div class="table-scroll"><table id="ratios"></table></div>
+</section>
+<script>
+// Preview wiring only. State lives on <html> data attributes and in the URL hash.
+const PALETTES = [
+  { id: "base",   name: "对照：暖灰 + 森林绿", note: "DESIGN.md 现值，原样保留" },
+  { id: "indigo", name: "墨蓝", note: "米色纸面，墨水蓝" },
+  { id: "teal",   name: "黛青", note: "中性灰，深青绿" },
+  { id: "plum",   name: "茄紫", note: "暖纸面，低饱和茄紫" },
+  { id: "ink",    name: "素墨", note: "近乎单色，琥珀是唯一彩色" },
+];
+// [foreground, background, minimum, where it is used]. 4.5 = text, 3 = non-text graphics.
+const PAIRS = [
+  ["--text", "--bg", 4.5, "正文 / 画布"],
+  ["--text", "--surface", 4.5, "正文 / 卡片"],
+  ["--text-2", "--bg", 4.5, "次要文字 / 画布"],
+  ["--text-2", "--surface", 4.5, "次要文字 / 卡片"],
+  ["--text-2", "--panel", 4.5, "次要文字 / 侧栏"],
+  ["--text-3", "--bg", 4.5, "元数据 / 画布"],
+  ["--text-3", "--surface", 4.5, "元数据 / 卡片"],
+  ["--text-3", "--panel", 4.5, "元数据 / 侧栏"],
+  ["--accent", "--bg", 4.5, "链接 / 画布"],
+  ["--accent", "--surface", 4.5, "链接 / 卡片"],
+  ["--on-accent", "--accent", 4.5, "主按钮文字"],
+  ["--on-accent", "--accent-hover", 4.5, "主按钮悬停"],
+  ["--warn", "--bg", 4.5, "「需要你的」标题"],
+  ["--on-warn", "--warn", 4.5, "琥珀徽标数字"],
+  ["--bad", "--surface", 4.5, "错误文字 / 卡片"],
+  ["--warn", "--surface", 3, "琥珀左缘、状态点"],
+  ["--accent", "--surface", 3, "进行中状态点"],
+];
+const TOKENS = ["--bg", "--panel", "--surface", "--text", "--text-2", "--text-3", "--accent", "--on-accent", "--warn", "--on-warn", "--bad"];
+const root = document.documentElement;
+const $ = (s) => document.querySelector(s);
+
+// --- colour maths -------------------------------------------------------
+function parseColor(str) {
+  str = str.trim();
+  if (str.startsWith("#")) {
+    let h = str.slice(1);
+    if (h.length === 3) h = [...h].map((c) => c + c).join("");
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(1);
+  }
+  const m = str.match(/rgba?\(([^)]+)\)/);
+  if (!m) throw new Error("unparsed colour " + str);
+  const p = m[1].split(/[ ,/]+/).filter(Boolean).map(Number);
+  return [p[0], p[1], p[2], p[3] ?? 1];
+}
+const over = (fg, bg) => fg[3] >= 1 ? fg : [0, 1, 2].map((i) => fg[i] * fg[3] + bg[i] * (1 - fg[3])).concat(1);
+const lum = (c) => {
+  const [r, g, b] = c.slice(0, 3).map((v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const toHex = (c) => "#" + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+
+// Read the declared token values for a palette/mode from a hidden probe, so the table tracks the CSS.
+const probe = document.createElement("div");
+probe.hidden = true;
+document.body.append(probe);
+function tokensFor(palette, mode) {
+  probe.dataset.palette = palette;
+  probe.dataset.mode = mode;
+  const cs = getComputedStyle(probe);
+  const raw = Object.fromEntries(TOKENS.concat("--accent-hover").map((t) => [t, cs.getPropertyValue(t).trim()]));
+  const bg = parseColor(raw["--bg"]);
+  const solid = {};
+  for (const [t, v] of Object.entries(raw)) solid[t] = t === "--bg" ? bg : over(parseColor(v), bg);
+  return { raw, solid };
+}
+function evaluate(palette, mode) {
+  const { raw, solid } = tokensFor(palette, mode);
+  const results = PAIRS.map(([fg, bgTok, min, use]) => {
+    const r = ratio(solid[fg], solid[bgTok]);
+    return { fg, bg: bgTok, min, use, r, pass: r >= min };
+  });
+  return { raw, solid, results, fails: results.filter((x) => !x.pass) };
+}
+const ALL = {};
+for (const p of PALETTES) for (const m of ["light", "dark"]) ALL[p.id + ":" + m] = evaluate(p.id, m);
+
+// --- controls -----------------------------------------------------------
+const paletteSet = $("#palette-set");
+for (const p of PALETTES) {
+  const fails = ALL[p.id + ":light"].fails.length + ALL[p.id + ":dark"].fails.length;
+  const label = document.createElement("label");
+  label.className = "chip";
+  label.innerHTML = `<input type="radio" name="palette" value="${p.id}"><span>` +
+    `<i class="swatch" style="background:${toHex(ALL[p.id + ":light"].solid["--accent"])}"></i>` +
+    `<i class="swatch" style="background:${toHex(ALL[p.id + ":dark"].solid["--accent"])}"></i>` +
+    `${p.name}${fails ? ` <span class="fail-tag">${fails} 项未达标</span>` : ""}</span>`;
+  label.title = p.note;
+  paletteSet.append(label);
+}
+
+function readHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  return {
+    palette: PALETTES.some((p) => p.id === h.get("p")) ? h.get("p") : "base",
+    font: h.get("f") === "sans" ? "sans" : "serif",
+    mode: h.get("m") === "dark" ? "dark" : h.get("m") === "light" ? "light"
+      : (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+  };
+}
+function apply(state) {
+  root.dataset.palette = state.palette;
+  root.dataset.font = state.font;
+  root.dataset.mode = state.mode;
+  for (const [name, v] of Object.entries({ palette: state.palette, font: state.font, mode: state.mode })) {
+    const input = document.querySelector(`input[name="${name}"][value="${v}"]`);
+    if (input) input.checked = true;
+  }
+  history.replaceState(null, "", `#p=${state.palette}&f=${state.font}&m=${state.mode}`);
+  renderVerdict(state);
+  renderTable(state);
+}
+const current = () => ({ palette: root.dataset.palette, font: root.dataset.font, mode: root.dataset.mode });
+document.querySelectorAll('input[name="palette"], input[name="font"], input[name="mode"]').forEach((input) =>
+  input.addEventListener("change", () => apply({ ...current(), [input.name]: input.value })));
+
+function renderVerdict(state) {
+  const p = PALETTES.find((x) => x.id === state.palette);
+  const ev = ALL[state.palette + ":" + state.mode];
+  const v = $("#verdict");
+  const modeName = state.mode === "dark" ? "暗色" : "亮色";
+  if (!ev.fails.length) {
+    v.innerHTML = `<span class="ok">${p.name}（${modeName}）：${ev.results.length} 组配对全部达到 WCAG AA。</span>`;
+  } else {
+    v.innerHTML = `<strong>${p.name}（${modeName}）有 ${ev.fails.length} 组未达 AA：</strong>` +
+      ev.fails.map((f) => `${f.use} ${f.r.toFixed(2)}:1（要求 ${f.min}）`).join("；") + "。";
+  }
+}
+
+function renderTable(state) {
+  const t = $("#ratios");
+  let html = "<thead><tr><th>色板</th>" +
+    PAIRS.map(([fg, bg, min, use]) => `<th title="${fg} 对 ${bg}">${use}<br><span class="meta">≥ ${min}</span></th>`).join("") +
+    "</tr></thead><tbody>";
+  for (const p of PALETTES) for (const m of ["light", "dark"]) {
+    const ev = ALL[p.id + ":" + m];
+    const cur = p.id === state.palette && m === state.mode;
+    html += `<tr class="${cur ? "current" : ""}"${cur ? ' aria-current="true"' : ""}><td>${p.name} · ${m === "dark" ? "暗" : "亮"}` +
+      `<div class="tokens">${TOKENS.map((k) => `${k.slice(2)} ${ev.raw[k]}`).join(" · ")}</div></td>` +
+      ev.results.map((r) => `<td class="${r.pass ? "" : "fail"}">${r.r.toFixed(2)}</td>`).join("") + "</tr>";
+  }
+  t.innerHTML = html + "</tbody>";
+}
+
+// --- content and mark ---------------------------------------------------
+const mark = $("#mark");
+const MARK_LABEL = { working: "Jeeves：工作中", waiting: "Jeeves：等你", done: "Jeeves：做完了" };
+function setMark(state) {
+  mark.dataset.state = state;
+  mark.setAttribute("aria-label", MARK_LABEL[state]);
+  $(`input[name="mark"][value="${state}"]`).checked = true;
+}
+document.querySelectorAll('input[name="mark"]').forEach((i) => i.addEventListener("change", () => setMark(i.value)));
+
+document.querySelectorAll('input[name="content"]').forEach((i) => i.addEventListener("change", () => {
+  const clear = i.value === "clear";
+  $("#busy").hidden = clear;
+  $("#clear").hidden = !clear;
+  $("#greeting").textContent = clear ? "早上好。" : "早上好。昨晚的研究做完了，等你看结论。";
+  $("#greeting-sub").hidden = clear;
+  setMark(clear ? "done" : "waiting");
+}));
+
+// Completion: the row collapses, the mark folds in, one result line appears with a link to the output.
+$("#demo-done").addEventListener("click", () => {
+  const row = $("#row-research");
+  if (!row) return;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches || root.classList.contains("reduced-motion-forced");
+  const finish = () => {
+    const line = document.createElement("div");
+    line.className = "done-line";
+    line.setAttribute("role", "status");
+    line.innerHTML = '<span class="serif">选型调研做完了</span><span>推荐 sqlite-vec，14 个来源都有出处。</span><a href="#today">查看结论</a>';
+    row.replaceWith(line);
+    line.querySelector("a").focus();
+    setMark("done");
+  };
+  setMark("working");
+  if (reduced) return finish();
+  row.style.maxHeight = row.offsetHeight + "px";
+  row.classList.add("collapsing");
+  row.addEventListener("animationend", finish, { once: true });
+});
+
+$("#reduce").addEventListener("change", (e) => root.classList.toggle("reduced-motion-forced", e.target.checked));
+
+apply(readHash());
+window.addEventListener("hashchange", () => apply(readHash()));
+// Exposed for inspection in devtools / automated checks.
+window.__contrast = ALL;
+</script>
+</body>
+</html>

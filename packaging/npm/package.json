@@ -1,0 +1,21 @@
+{
+  "name": "jeeves",
+  "version": "0.17.0",
+  "description": "The npm shim for Jeeves: at install time it fetches the `jeeves` binary for your platform from GitHub Releases (Jeeves itself is Rust; npm only puts it on your PATH)",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChrisVip001/Jeeves.git"
+  },
+  "bin": {
+    "jeeves": "./bin/jeeves.js"
+  },
+  "scripts": {
+    "install": "node ./install.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": ["agent", "assistant", "local-first", "jeeves"],
+  "files": ["install.js", "bin/jeeves.js", "README.md"]
+}

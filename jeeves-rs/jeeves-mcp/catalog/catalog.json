@@ -1,0 +1,299 @@
+{
+  "entries": [
+    {
+      "id": "calendar",
+      "title": "CalDAV / ICS",
+      "documentationUrl": "https://github.com/ChrisVip001/Jeeves/blob/main/docs/configuration.md",
+      "setup": "builtin",
+      "endpoint": null,
+      "manifest": {
+        "category": "calendar",
+        "tools": {
+          "calendar_list": {
+            "effect": "read",
+            "resource": "calendar"
+          }
+        },
+        "verbs": {
+          "calendar.list_events": "calendar_list"
+        }
+      }
+    },
+    {
+      "id": "email",
+      "title": "IMAP / SMTP",
+      "documentationUrl": "https://github.com/ChrisVip001/Jeeves/blob/main/docs/configuration.md",
+      "setup": "builtin",
+      "endpoint": null,
+      "manifest": {
+        "category": "mail",
+        "tools": {
+          "email_read": {
+            "effect": "read",
+            "resource": "email"
+          },
+          "email_send": {
+            "effect": "send",
+            "resource": "email"
+          }
+        },
+        "verbs": {
+          "mail.send": "email_send"
+        }
+      }
+    },
+    {
+      "id": "feishu",
+      "title": "Feishu / Lark",
+      "documentationUrl": "https://github.com/ChrisVip001/Jeeves/blob/main/docs/configuration.md",
+      "setup": "builtin",
+      "endpoint": null,
+      "manifest": {
+        "category": "other",
+        "tools": {
+          "feishu_send": {
+            "effect": "send",
+            "resource": "feishu"
+          }
+        },
+        "verbs": {}
+      }
+    },
+    {
+      "id": "gmail",
+      "title": "Gmail",
+      "documentationUrl": "https://developers.google.com/workspace/gmail/api/reference/mcp",
+      "setup": "providerSetup",
+      "endpoint": "https://gmailmcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "mail",
+        "tools": {
+          "get_message": {
+            "effect": "read",
+            "resource": "gmail"
+          },
+          "search_threads": {
+            "effect": "read",
+            "resource": "gmail"
+          },
+          "create_draft": {
+            "effect": "draft",
+            "resource": "gmail"
+          }
+        },
+        "verbs": {
+          "mail.search": "search_threads",
+          "mail.draft_reply": "create_draft"
+        }
+      }
+    },
+    {
+      "id": "google-calendar",
+      "title": "Google Calendar",
+      "documentationUrl": "https://developers.google.com/workspace/calendar/api/v3/reference/mcp",
+      "setup": "providerSetup",
+      "endpoint": "https://calendarmcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "calendar",
+        "tools": {
+          "list_events": {
+            "effect": "read",
+            "resource": "google-calendar"
+          }
+        },
+        "verbs": {
+          "calendar.list_events": "list_events"
+        }
+      }
+    },
+    {
+      "id": "google-drive",
+      "title": "Google Drive",
+      "documentationUrl": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "setup": "providerSetup",
+      "endpoint": "https://drivemcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "files",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "google-docs",
+      "title": "Google Docs",
+      "documentationUrl": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "setup": "providerSetup",
+      "endpoint": "https://docsmcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "notes",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "google-sheets",
+      "title": "Google Sheets",
+      "documentationUrl": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "setup": "providerSetup",
+      "endpoint": "https://sheetsmcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "files",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "google-slides",
+      "title": "Google Slides",
+      "documentationUrl": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "setup": "providerSetup",
+      "endpoint": "https://slidesmcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "files",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "google-chat",
+      "title": "Google Chat",
+      "documentationUrl": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "setup": "providerSetup",
+      "endpoint": "https://chatmcp.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "other",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "google-contacts",
+      "title": "Google People",
+      "documentationUrl": "https://developers.google.com/workspace/guides/configure-mcp-servers",
+      "setup": "providerSetup",
+      "endpoint": "https://people.googleapis.com/mcp/v1",
+      "manifest": {
+        "category": "contacts",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "github",
+      "title": "GitHub",
+      "documentationUrl": "https://github.com/github/github-mcp-server",
+      "setup": "bearer",
+      "endpoint": "https://api.githubcopilot.com/mcp/",
+      "manifest": {
+        "category": "files",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "notion",
+      "title": "Notion",
+      "documentationUrl": "https://developers.notion.com/guides/mcp/get-started-with-mcp",
+      "setup": "oauth",
+      "endpoint": "https://mcp.notion.com/mcp",
+      "manifest": {
+        "category": "notes",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "linear",
+      "title": "Linear",
+      "documentationUrl": "https://linear.app/docs/mcp",
+      "setup": "oauth",
+      "endpoint": "https://mcp.linear.app/mcp",
+      "manifest": {
+        "category": "tasks",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "sentry",
+      "title": "Sentry",
+      "documentationUrl": "https://mcp.sentry.dev/",
+      "setup": "oauth",
+      "endpoint": "https://mcp.sentry.dev/mcp",
+      "manifest": {
+        "category": "other",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "stripe",
+      "title": "Stripe",
+      "documentationUrl": "https://docs.stripe.com/mcp",
+      "setup": "oauth",
+      "endpoint": "https://mcp.stripe.com",
+      "manifest": {
+        "category": "other",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "microsoft-learn",
+      "title": "Microsoft Learn",
+      "documentationUrl": "https://learn.microsoft.com/en-us/training/support/mcp",
+      "setup": "none",
+      "endpoint": "https://learn.microsoft.com/api/mcp",
+      "manifest": {
+        "category": "notes",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "parallel",
+      "title": "Parallel",
+      "documentationUrl": "https://docs.parallel.ai/integrations/mcp/quickstart",
+      "setup": "none",
+      "endpoint": "https://mcp.parallel.ai/mcp",
+      "manifest": {
+        "category": "other",
+        "tools": {
+          "web_fetch": {
+            "effect": "read",
+            "resource": "parallel"
+          },
+          "web_search": {
+            "effect": "read",
+            "resource": "parallel"
+          }
+        },
+        "verbs": {}
+      }
+    },
+    {
+      "id": "figma",
+      "title": "Figma",
+      "documentationUrl": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+      "setup": "oauth",
+      "endpoint": "https://mcp.figma.com/mcp",
+      "manifest": {
+        "category": "files",
+        "tools": {},
+        "verbs": {}
+      }
+    },
+    {
+      "id": "atlassian",
+      "title": "Atlassian",
+      "documentationUrl": "https://support.atlassian.com/atlassian-ai-gateway/docs/get-started-with-the-atlassian-remote-mcp-server/",
+      "setup": "oauth",
+      "endpoint": "https://mcp.atlassian.com/v2/mcp",
+      "manifest": {
+        "category": "tasks",
+        "tools": {},
+        "verbs": {}
+      }
+    }
+  ]
+}

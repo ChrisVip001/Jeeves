@@ -1,0 +1,72 @@
+# Rust
+target/
+
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Node
+node_modules/
+
+# Runtime state (memory store, calendar, outbox, and traces all live here)
+.jeeves/
+
+# Note: jeeves-rs/jeeves-protocol/schema/ is deliberately *not* ignored.
+# It is a generated artifact from the Rust protocol definition; checking it in
+# makes "the protocol changed but the schema wasn't regenerated" show up
+# directly in the PR diff. To check for drift: just check-app-server-schema
+
+# Dashboard build output. The opposite of the rule above: this is JS produced
+# by `tsc + esbuild` and can be regenerated with one command, while what we
+# actually care about (.ts sources) is already tracked in git. The generated
+# schema artifact can drift, so it is checked in; build output cannot, so it
+# is not checked in.
+jeeves-ts/packages/dashboard/dist/
+
+# Credentials: the real .env must never be committed (the .env.example
+# template is an intentional exception and is tracked). Jeeves itself doesn't
+# read .env, but people source it, so the leak risk is real.
+.env
+.env.local
+!.env.example
+.commitmsg
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+
+# Screenshots and snapshots from browser validation (tool artifacts, not source)
+.playwright-cli/
+.playwright-mcp/
+/snap.yaml
+
+# Local state for editors/assistants (same kind of thing as other agents'
+# .claude/): holds local session data, not project content, and shouldn't be
+# committed just because a directory isn't ignored.
+.codebuddy/
+
+# macOS thumbnails + local agent index / MCP state: not committed.
+.DS_Store
+.codegraph/
+.cursor/
+.claude/
+
+# Local planning notes: kept on disk, never in the repository.
+docs/planning/
+
+# AOCI local cognition index and runtime (rebuilt via aoci init/scan + MCP).
+.aoci/
+aoci.txt
+aoci.meta.txt
+aoci.code.txt
+aoci.database.txt
+.gitattributes
+
+# Local browser validation artifacts.
+/output/playwright/
+
+# Desktop UI build artifacts and packaged sidecars.
+desktop/src-tauri/binaries/
+desktop/src-tauri/browser-runtime/
+desktop/src-tauri/browser-runtime.old/
+desktop/src-tauri/jeeves-browser-*/
+.claude/worktrees/

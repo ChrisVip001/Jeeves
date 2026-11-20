@@ -1,0 +1,153 @@
+//! Human-owned recurring duties. The claim and its wake are one SQLite commit.
+use sqlx::{FromRow, SqlitePool};
+
+#[derive(Debug, FromRow)]
+pub struct ResponsibilityRow {
+    pub id: String,
+    pub purpose: String,
+    pub sources_json: String,
+    pub cron: String,
+    pub expires_ms: i64,
+    pub budget_json: String,
+    pub weekly_report_json: Option<String>,
+    pub status: String,
+    pub last_slot: Option<i64>,
+}
+
+#[derive(Clone, Copy)]
+pub struct Responsibilities<'a>(pub &'a SqlitePool);
+
+impl Responsibilities<'_> {
+    pub async fn register(&self, row: &ResponsibilityRow, now: i64) -> sqlx::Result<bool> {
+        let result = sqlx::query(
+            "INSERT INTO responsibilities
+             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, weekly_report_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+        )
+        .bind(&row.id)
+        .bind(&row.purpose)
+        .bind(&row.sources_json)
+        .bind(&row.cron)
+        .bind(row.expires_ms)
+        .bind(&row.budget_json)
+        .bind(now)
+        .bind(&row.weekly_report_json)
+        .execute(self.0)
+        .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    pub async fn list(&self) -> sqlx::Result<Vec<ResponsibilityRow>> {
+        sqlx::query_as("SELECT * FROM responsibilities ORDER BY id")
+            .fetch_all(self.0)
+            .await
+    }
+
+    pub async fn candidates(&self, now: i64) -> sqlx::Result<Vec<(String, String)>> {
+        sqlx::query_as(
+            "SELECT id, cron FROM responsibilities
+             WHERE status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
+             ORDER BY id",
+        )
+        .bind(now)
+        .bind(now.div_euclid(60_000))
+        .fetch_all(self.0)
+        .await
+    }
+
+    /// Retain outstanding wakes for review. Resuming cannot deliver a wake from before a stop.
+    async fn stop_wakes(tx: &mut sqlx::SqliteConnection, id: &str) -> sqlx::Result<()> {
+        sqlx::query(
+            "UPDATE wake_inbox SET state='reconcile', settled_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE target_task=? AND state='pending' AND source_key LIKE 'responsibility:%'",
+        )
+        .bind(format!("responsibility:{id}"))
+        .execute(tx)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn expire(&self, now: i64) -> sqlx::Result<Vec<String>> {
+        let due: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM responsibilities WHERE status!='expired' AND expires_ms<=?)",
+        )
+        .bind(now)
+        .fetch_one(self.0)
+        .await?;
+        if !due {
+            return Ok(Vec::new());
+        }
+        let mut tx = self.0.begin().await?;
+        let ids: Vec<String> = sqlx::query_scalar(
+            "UPDATE responsibilities SET status='expired'
+             WHERE status!='expired' AND expires_ms<=? RETURNING id",
+        )
+        .bind(now)
+        .fetch_all(&mut *tx)
+        .await?;
+        for id in &ids {
+            Self::stop_wakes(&mut tx, id).await?;
+        }
+        tx.commit().await?;
+        Ok(ids)
+    }
+
+    pub async fn set_paused(
+        &self,
+        id: &str,
+        paused: bool,
+        now: i64,
+    ) -> sqlx::Result<Option<(ResponsibilityRow, bool)>> {
+        let mut tx = self.0.begin().await?;
+        let state = if paused { "paused" } else { "active" };
+        let result = sqlx::query(
+            "UPDATE responsibilities SET status=?, enabled_ms=?
+             WHERE id=? AND expires_ms>? AND status!=? AND status!='expired'",
+        )
+        .bind(state)
+        .bind(now)
+        .bind(id)
+        .bind(now)
+        .bind(state)
+        .execute(&mut *tx)
+        .await?;
+        let changed = result.rows_affected() == 1;
+        if paused && changed {
+            Self::stop_wakes(&mut tx, id).await?;
+        }
+        let row = sqlx::query_as("SELECT * FROM responsibilities WHERE id=?")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(row.map(|row| (row, changed)))
+    }
+
+    pub async fn claim(&self, id: &str, now: i64) -> sqlx::Result<bool> {
+        let slot = now.div_euclid(60_000);
+        let mut tx = self.0.begin().await?;
+        let purpose: Option<String> = sqlx::query_scalar(
+            "UPDATE responsibilities SET last_slot=?
+             WHERE id=? AND status='active' AND enabled_ms<=? AND expires_ms>?
+             AND (last_slot IS NULL OR last_slot<?) RETURNING purpose",
+        )
+        .bind(slot)
+        .bind(id)
+        .bind(now)
+        .bind(now)
+        .bind(slot)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if let Some(purpose) = &purpose {
+            let target = format!("responsibility:{id}");
+            sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload) VALUES(?,?,?)")
+                .bind(format!("{target}:{slot}"))
+                .bind(target)
+                .bind(purpose)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(purpose.is_some())
+    }
+}

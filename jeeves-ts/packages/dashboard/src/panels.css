@@ -1,0 +1,1274 @@
+/* ---- 面板抽屉 ------------------------------------------------------------------ */
+
+.panels {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 92vw);
+  background: var(--bg-panel);
+  border-left: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-float);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  transform: translateX(100%);
+  transition: transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  z-index: 30;
+}
+
+.panels:not([hidden]) {
+  transform: translateX(0);
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.drawer-head .hint {
+  margin: 0;
+}
+
+/* 抽屉的三个页签：概览 / 技能 / MCP。安静的文字按钮，当前那一个着 accent。 */
+.drawer-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.drawer-tab {
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 500;
+  transition:
+    background var(--speed) ease,
+    color var(--speed) ease;
+}
+
+.drawer-tab:hover {
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.drawer-tab.active {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 8px;
+}
+
+/* 面板内容（render.ts 的数据卡） */
+
+.block {
+  margin-bottom: 20px;
+}
+
+.block h3 {
+  font-size: 13px;
+  color: var(--text-3);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.headline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.headline .provider {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.headline .model {
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.numbers {
+  display: flex;
+  gap: 20px;
+  margin: 12px 0;
+}
+
+.number b {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.number span {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+}
+
+.rows dt {
+  color: var(--text-3);
+}
+
+.rows dd {
+  margin: 0;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+
+.item.pick {
+  cursor: pointer;
+  transition:
+    background var(--speed) ease,
+    border-color var(--speed) ease;
+}
+
+.item.pick:hover {
+  background: var(--surface-hover);
+}
+
+.item.pick.current {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.item .title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.item .subject {
+  font-weight: 500;
+}
+
+.item .body {
+  color: var(--text-2);
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.item .sub,
+.sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+.item .when {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.tag {
+  padding: 1px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--text-2);
+  flex: none;
+}
+
+.tag.good {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+}
+
+.tag.bad {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+}
+
+.warn {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.meter {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.muted {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* ---- 任务卡：目标循环 + 模型自己的待办单 ---------------------------------------- */
+
+.task-goal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-goal-text {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* 连接器：一行一个，安静得像名片；"可发送"才配颜色。 */
+.connector-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.connector-name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.connector-mode.live {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.connector-allow {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.connector-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.connector-broken {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--bad);
+}
+
+/* ---- 能力中心：技能 / MCP 连接器的行 ---------------------------------------- */
+
+/* 面板头：标题带计数在左，唯一的主操作（添加）在右。 */
+.cap-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cap-head .approve {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+/* 一行一个能力：名字 + 标签在首行，说明一行，小标签收尾。 */
+.cap-row {
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cap-row + .cap-row {
+  margin-top: 6px;
+}
+
+/* 内置行：置灰 = 只读。没有删除按钮，悬停也不亮 —— 「不归你管」是视觉事实，
+   不是一句说明文字。 */
+.cap-row.builtin {
+  background: transparent;
+  border-style: dashed;
+  color: var(--text-3);
+}
+
+.cap-row.builtin .cap-name {
+  color: var(--text-3);
+}
+
+.cap-row.builtin .cap-desc {
+  color: var(--text-3);
+}
+
+.cap-row-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cap-name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cap-del {
+  margin-left: auto;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius);
+  color: var(--text-3);
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity var(--speed) ease,
+    color var(--speed) ease,
+    background var(--speed) ease;
+}
+
+.cap-row:hover .cap-del {
+  opacity: 1;
+}
+
+.cap-del:hover {
+  background: var(--surface-hover);
+  color: var(--bad);
+}
+
+.cap-builtin-tag {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  border-color: var(--line);
+}
+
+.cap-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  /* 说明可以很长：两行封顶，完整内容在 tooltip（整行有 title）。 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.cap-target {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+  word-break: break-all;
+}
+
+.cap-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 4px;
+}
+
+.cap-meta-item {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.cap-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* 添加表单：盖在页面上的那张卡片（和选目录同一个 overlay 壳）。 */
+.cap-form .hint {
+  margin: 0 0 10px;
+}
+
+.cap-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.cap-textarea {
+  width: 100%;
+  margin-bottom: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* 任务状态：只上颜色，不加装饰 —— 状态是事实，不是警报。 */
+.task-state.st-running {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.task-state.st-suspended {
+  color: var(--text-2);
+  border-color: var(--line);
+}
+
+/* 「需要你确认」：机器量到了不该由它拍板的事实。
+ * 描边 + 浅底，和「已暂停」的灰度拉开距离 —— 这是唯一一个等人按的灯。 */
+.task-state.st-needs_attention {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  transition: background var(--speed) ease;
+}
+
+.task-state.st-done {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+}
+
+.task-state.st-failed {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+}
+
+/* 挂起理由：安静一行次要文字，不抢任务标题的位置。 */
+.task-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* 人手上的开关：安静的描边按钮，悬停才亮。 */
+.task-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.task-act {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease;
+}
+
+.task-act:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.task-act-go:hover {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+}
+
+.task-act-stop:hover {
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 45%, transparent);
+}
+
+.task-todos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-todo {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.task-glyph::before {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.st-pending .task-glyph::before {
+  content: "○";
+}
+
+.st-in_progress .task-glyph::before {
+  content: "◐";
+  color: var(--accent);
+}
+
+.st-completed .task-glyph::before {
+  content: "●";
+  color: var(--ok);
+}
+
+.st-cancelled .task-glyph::before {
+  content: "—";
+}
+
+.st-completed .task-text,
+.st-cancelled .task-text {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+/* ---- 任务卡：验收清单 / 交付物 / 预算 / 脚注 ------------------------------------
+ *
+ * 三块信息一个目的：让「为什么没完成」不用问人。全部只用既有 token，无新视觉语言；
+ * 行间 1px 分隔线而不是卡片套卡片 —— 信息密度优先。 */
+
+.task-checks,
+.task-artifacts {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-check {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.task-check:first-child {
+  border-top: none;
+}
+
+.task-check .task-glyph::before {
+  font-size: 12px;
+}
+
+.task-check.ok .task-glyph::before {
+  content: "✓";
+  color: var(--ok);
+}
+
+.task-check.bad .task-glyph::before {
+  content: "✕";
+  color: var(--bad);
+}
+
+.task-check-label {
+  color: var(--text-2);
+  min-width: 0;
+}
+
+/* 实测结果：等宽、次要。通过说证据，未通过说量到了什么。 */
+.task-check-detail {
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.task-artifact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.task-artifact:first-child {
+  border-top: none;
+}
+
+.task-artifact-name {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-artifact-size {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.task-more {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.task-budget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.task-budget-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.task-budget-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.task-budget .meter {
+  margin-top: 4px;
+}
+
+/* 80% 转警告色，100% 转危险色 —— 与验收的勾/叉同一套语义。 */
+.meter.is-warn .meter-fill {
+  background: var(--warn);
+}
+
+.meter.is-over .meter-fill {
+  background: var(--bad);
+}
+
+.task-foot {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 窄屏：实测结果换行缩进，别和一长条路径抢同一行。 */
+@media (max-width: 720px) {
+  .task-check {
+    flex-wrap: wrap;
+  }
+
+  .task-check-detail {
+    margin-left: 20px;
+    padding-left: 0;
+    text-align: left;
+  }
+
+  .task-budget {
+    gap: 10px;
+  }
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.path {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* 面板里的表单（模型） */
+
+.panel .body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel .body .row {
+  margin: 4px 0;
+}
+
+/* 档位路由：一条分隔线 + 三行"标签 ↔ 下拉"，克制到不需要标题 */
+.panel .body .split {
+  width: 100%;
+  margin: 12px 0 4px;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.panel .body .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel .body .check input {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.panel .body .tier {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.panel .body .tier select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- 目录选择浮层 -------------------------------------------------------------- */
+
+.fsoverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim-strong);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+
+.fspanel {
+  width: min(520px, 94vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border-radius: var(--radius-float);
+  box-shadow: var(--shadow-float);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fscrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.fsc {
+  padding: 2px 8px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.fsc:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.fscur {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.fslist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.fsrow {
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.fsrow:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.fsrecent {
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.fsrecent .hint {
+  margin: 0 0 4px;
+}
+
+/* ---- Memory center ----------------------------------------------------------
+ *
+ * 一个抽屉里的三个只读视图。密度优先：账本一轮一行、记忆库一页一屏、上下文一条带。
+ * 所有类名带 mem- 前缀，和能力中心（cap-*）彼此不借样式 —— 两个面板的主题不一样，
+ * 一个是「我能装什么」，一个是「我记住了什么」。 */
+
+.mem-segs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.mem-seg {
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 10px 8px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition:
+    color var(--speed) ease,
+    border-color var(--speed) ease;
+}
+
+.mem-seg:hover {
+  color: var(--text);
+}
+
+.mem-seg.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.mem-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 2px 6px;
+}
+
+.mem-note {
+  font-size: 11px;
+  color: var(--text-3);
+  flex: none;
+}
+
+/* 账本：一行一轮。左时间、中摘要、右标签；点开就地展开。 */
+.mem-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 8px 8px 6px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mem-row:hover {
+  background: var(--surface-hover);
+}
+
+.mem-row.open {
+  border-left-color: var(--accent);
+  background: var(--surface);
+}
+
+.mem-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.mem-preview {
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mem-row.open .mem-preview {
+  color: var(--text);
+}
+
+.mem-tags {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.tag.mem-folded {
+  color: var(--text-3);
+  border-style: dashed;
+}
+
+/* 展开的这一轮：一种条目一行，kind 用等宽小字，像日志一样可扫。 */
+.mem-entries {
+  margin: 2px 0 10px 14px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line-soft);
+  display: grid;
+  gap: 4px;
+}
+
+.mem-entry {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.mem-kind {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
+.mem-kind-user {
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
+}
+
+.mem-kind-assistant {
+  color: var(--text);
+}
+
+.mem-entry-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 记忆库：左目录右正文。抽屉窄，所以目录在上、正文在下。 */
+.mem-catalog {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0 6px;
+}
+
+.mem-page-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mem-page-row:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.mem-page-row.open {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.mem-page-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 书页：比账本松一点，正文用阅读行高。 */
+.mem-page {
+  margin-top: 10px;
+  padding: 12px 12px 16px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
+
+.mem-page-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mem-page-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.mem-page-summary {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.mem-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 10px;
+}
+
+.mem-source {
+  cursor: pointer;
+  border: 1px solid var(--line-soft);
+  background: none;
+}
+
+.mem-source:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.mem-page-body {
+  font-size: 13px;
+  line-height: 1.68;
+  color: var(--text);
+}
+
+.mem-rebuild {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* 上下文：一条带、两个数、一句提示。 */
+.mem-meter {
+  padding: 10px 2px;
+  display: grid;
+  gap: 8px;
+}
+
+.mem-band {
+  display: flex;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--line-soft);
+}
+
+.mem-band-seg {
+  height: 100%;
+  transition: opacity var(--speed) ease;
+}
+
+.mem-band-seg:hover {
+  opacity: 0.72;
+}
+
+/* 六段用同一中性色的不同明度：读得出比例，不会被误当成六种品牌色。 */
+.seg-soul {
+  background: color-mix(in srgb, var(--text) 62%, transparent);
+}
+
+.seg-memory {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.seg-skills {
+  background: color-mix(in srgb, var(--text) 46%, transparent);
+}
+
+.seg-tools {
+  background: color-mix(in srgb, var(--text) 34%, transparent);
+}
+
+.seg-history {
+  background: color-mix(in srgb, var(--text) 24%, transparent);
+}
+
+.seg-summary {
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+.mem-numbers {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.mem-percent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-family: var(--font);
+}
+
+.mem-key {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--text-3);
+}
+
+.mem-percent.hot {
+  color: var(--warn);
+}
+
+.mem-percent.hot .mem-key {
+  background: var(--warn);
+}
+
+.mem-warn {
+  margin: 0;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.mem-compact {
+  justify-self: start;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  /* 抽屉全宽时，账本的右侧标签收进第二行。 */
+  .mem-row {
+    grid-template-columns: auto 1fr;
+    row-gap: 2px;
+  }
+
+  .mem-tags {
+    grid-column: 2;
+  }
+
+  .mem-entry {
+    grid-template-columns: 64px 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mem-seg,
+  .mem-band-seg {
+    transition: none;
+  }
+}
+
+/* ---- 定时任务 ------------------------------------------------------------------
+ * 只有两处需要新样式：cron 要等宽（它是一段模式，不是名字），表单里的下拉要跟输入框
+ * 长得一样。行、标签、删除按钮全部复用能力中心已有的 cap-* —— 三张表是同一类东西。 */
+
+.sched-cron {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.cap-field select {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.task-input-data {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+}
+.task-actions {
+  flex-wrap: wrap;
+}
+
+/* Operation evidence stays readable when a dialog narrows to a phone viewport. */
+.operation-fields {
+  display: grid;
+  gap: 8px;
+}
+.operation-fields[hidden] {
+  display: none;
+}
+.operation-fields > label {
+  display: block;
+}
+.operation-fields > select,
+.operation-fields > textarea {
+  width: 100%;
+  min-width: 0;
+}
+.operation-fields > p,
+.operation-fields > pre {
+  margin: 0;
+}
+
+.operation-dialog {
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+}
+.operation-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+}
+.operation-actions {
+  flex: 0 0 auto;
+  padding-top: 4px;
+}

@@ -1,0 +1,27 @@
+[package]
+name = "jeeves-loop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "THE LOOP — observe → reason → act → repeat. The core mechanism of the whole agent."
+
+[lib]
+name = "jeeves_loop"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow = { workspace = true }
+jeeves-provider = { workspace = true }
+jeeves-tools = { workspace = true }
+serde_json = { workspace = true }
+#   sync    = Interrupt's Notify (the cancellation token behind turn/interrupt)
+#   macros  = tokio::select! (racing the model call / tool run against the cancellation)
+tokio = { workspace = true }
+
+[dev-dependencies]
+jeeves-state = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

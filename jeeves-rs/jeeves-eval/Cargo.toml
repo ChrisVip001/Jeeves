@@ -1,0 +1,34 @@
+[package]
+name = "jeeves-eval"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Evaluation: deterministic evals (offline, 0/1), the judge (an LLM scoring), and the release gate."
+
+[lib]
+name = "jeeves_eval"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+jeeves-app-server = { workspace = true }
+jeeves-config = { workspace = true }
+jeeves-protocol = { workspace = true }
+jeeves-provider = { workspace = true }
+jeeves-state = { workspace = true }
+# The "sandbox" prereq asks the exec module one thing: is there a usable sandbox on this
+# machine?
+jeeves-tools = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# A fresh temporary home per case, so one state.db never flavours another.
+tempfile = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+jeeves-memory = { workspace = true }
+
+[lints]
+workspace = true

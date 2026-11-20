@@ -1,0 +1,87 @@
+.connections-page { display: grid; gap: 16px; margin-bottom: 32px; }
+.connections-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.connections-summary h3 { margin: 0 0 4px; font-size: 14px; color: var(--text); font-weight: 600; }
+.connections-summary p { margin: 4px 0 0; color: var(--text-2); font-size: 12px; line-height: 1.6; }
+.connections-summary .connection-tally { font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 500; color: var(--text); }
+.capability-list { display: grid; gap: 12px; }
+.capability-card { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 16px; min-width: 0; }
+.capability-card-title { display: flex; align-items: flex-start; gap: 10px; color: var(--text); }
+.capability-card-title > svg { flex: none; margin-top: 3px; color: var(--text-2); }
+.capability-card-title > div { flex: 1; min-width: 0; }
+.capability-card h4 { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.capability-card-title p { color: var(--text-2); font-size: 12px; margin: 3px 0 0; overflow-wrap: anywhere; }
+.capability-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; font-size: 12px; color: var(--text-2); max-width: 42%; }
+.needs-attention .capability-state { color: var(--warn); }
+.capability-dot { flex: none; width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
+.capability-explanation { font-size: 13px; color: var(--text); line-height: 1.6; margin: 14px 0; }
+.capability-meta { margin: 0; display: grid; gap: 4px; color: var(--text-2); font-size: 12px; }
+.capability-meta > div { display: grid; grid-template-columns: minmax(72px, auto) 1fr; gap: 8px; align-items: baseline; }
+.capability-meta dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.capability-footer { display: flex; justify-content: flex-end; margin-top: 12px; }
+.connection-action { min-height: 44px; flex-shrink: 0; white-space: normal; font-size: 13px; }
+.connection-message, .capability-instruction { color: var(--text-2); font-size: 13px; line-height: 1.65; margin: 8px 0 0; overflow-wrap: anywhere; }
+.capability-instruction { background: var(--surface-hover); border-radius: 8px; padding: 12px; }
+.connection-settings-form { display: grid; gap: 12px; }
+.connection-settings-form > label { display: grid; gap: 6px; font-size: 13px; }
+.connection-settings-form > label > input:not([type="checkbox"]) { width: 100%; min-height: 44px; }
+.connection-settings-form > label > small { color: var(--text-2); line-height: 1.6; }
+.connection-settings-form > .capability-toggle { display: flex; align-items: center; min-height: 44px; }
+.local-connectors { display: grid; gap: 12px; }
+.local-connectors-heading h3 { margin: 0 0 4px; font-size: 14px; color: var(--text); font-weight: 600; }
+.local-connectors-heading p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.65; }
+.local-connector-rows { border-block: 1px solid var(--line); }
+.local-connector-row { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 0; }
+.local-connector-row + .local-connector-row { border-top: 1px solid var(--line); }
+.local-connector-row > svg { flex: none; color: var(--text-2); }
+.local-connector-row > div { flex: 1; min-width: 0; }
+.local-connector-row strong { color: var(--text); font-size: 14px; font-weight: 600; }
+.local-connector-row p { font-size: 12px; color: var(--text-2); margin: 4px 0 0; line-height: 1.5; }
+.local-connector-failure { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.local-connector-failure p { flex: 1; min-width: 160px; }
+.local-connector-editor { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); min-width: 0; }
+.local-connector-editor h4 { font-weight: 600; font-size: 15px; margin: 0; outline-offset: 4px; }
+.local-connector-editor > .connection-message { margin: 0; }
+.local-connector-editor label { display: grid; gap: 6px; font-size: 13px; line-height: 1.5; min-width: 0; }
+.local-connector-editor label small { color: var(--text-2); line-height: 1.6; }
+.local-connector-editor input:not([type="checkbox"]), .local-connector-editor select, .local-connector-editor textarea { min-height: 44px; width: 100%; min-width: 0; box-sizing: border-box; font-size: 14px; }
+.local-connector-editor textarea { resize: vertical; }
+.local-connector-editor .form-footer { margin-top: 4px; flex-wrap: wrap; }
+.connector-server-fields { min-width: 0; display: grid; gap: 12px; border: 0; padding: 8px 0 0; margin: 0; border-top: 1px solid var(--line); }
+.connector-server-fields legend { color: var(--text); font-size: 13px; font-weight: 600; padding: 0 8px 0 0; }
+.connector-server-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
+.connector-authority .capability-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.connector-authority input[type="checkbox"] { accent-color: var(--accent); }
+.connector-authority p { margin: 0; }
+.capability-instruction p { margin: 0 0 8px; }
+.capability-instruction p:last-child { margin-bottom: 0; }
+.oauth-link { display: inline-flex; text-decoration: none; }
+.vault-credential-row > div { min-width: 0; flex: 1; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.vault-credential-row small { color: var(--text-2); }
+.mcp-connections { display: grid; gap: 12px; min-width: 0; }
+.connector-catalog, .tool-policy { border-top: 1px solid var(--line); min-width: 0; }
+.connector-catalog summary, .tool-policy summary { display: list-item; min-height: 44px; padding: 12px 0; box-sizing: border-box; color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; }
+.connector-catalog summary span { color: var(--text-2); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.catalog-list { display: grid; }
+.catalog-row { display: flex; gap: 12px; align-items: center; min-width: 0; padding: 12px 0; border-top: 1px solid var(--line); }
+.catalog-row > div { flex: 1; min-width: 0; }
+.catalog-row h4 { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; margin: 0; }
+.catalog-row h4 small { font-size: 12px; font-weight: 400; color: var(--text-2); margin-left: 4px; }
+.catalog-row p { font-size: 13px; line-height: 1.6; color: var(--text-2); margin: 4px 0 0; }
+.catalog-row a { color: var(--text); font-size: 12px; display: inline-flex; align-items: center; min-height: 44px; }
+.tool-policy { margin-top: 12px; }
+.tool-policy-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.tool-policy-list li + li { border-top: 1px solid var(--line); }
+.tool-policy-row { display: flex; align-items: center; gap: 12px; justify-content: space-between; min-height: 44px; padding: 8px 0; }
+.tool-policy-row > span { min-width: 0; display: grid; gap: 3px; }
+.tool-policy-row strong { font-size: 13px; color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
+.tool-policy-row small { font-size: 12px; color: var(--text-2); }
+.tool-policy-row input { width: 22px; height: 22px; flex: none; accent-color: var(--accent); }
+.connector-catalog summary:focus-visible, .tool-policy summary:focus-visible, .tool-policy-row input:focus-visible, .catalog-row a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (max-width: 640px) {
+  .capability-card { padding: 12px; }
+  .capability-meta > div { grid-template-columns: minmax(0, 34%) 1fr; }
+  .local-connector-editor { padding: 12px; }
+  .local-connector-row { gap: 8px; }
+  .catalog-row { gap: 8px; }
+  .mcp-connections .connections-summary { flex-wrap: wrap; }
+}

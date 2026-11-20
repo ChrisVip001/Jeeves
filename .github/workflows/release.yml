@@ -1,0 +1,78 @@
+# Publish Jeeves's binary artefacts: `jeeves` for four platforms, attached to a GitHub Release.
+# Triggered by a tag (v*). npm publish is still done by a human on a machine with credentials (see packaging/RELEASING.md — credentials do not belong in CI).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Lets a maintainer re-run a failed publish without moving the tag.
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the Release, upload the artefacts
+
+jobs:
+  binaries:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The macOS 13 image was retired on 2025-12-04; keeping it leaves the job queued
+          # forever (v0.8.0 sat 24 h and was cancelled, v0.16.0 queued 31 h and never started,
+          # so the release job never ran). The official x86_64 replacement is macos-15-intel
+          # (available until autumn 2027).
+          - { os: macos-15, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      # Linux build dependencies (the sqlite3 bundled build needs no system library; bwrap is
+      # only needed at run time).
+      - name: Build jeeves (${{ matrix.target }})
+        working-directory: jeeves-rs
+        run: cargo build --release --target ${{ matrix.target }} -p jeeves-cli
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          cp "jeeves-rs/target/${{ matrix.target }}/release/jeeves" dist/jeeves
+          cp README.md LICENSE dist/
+          tar -czf "dist/jeeves-v${version}-${{ matrix.target }}.tar.gz" -C dist jeeves README.md LICENSE
+          rm dist/jeeves dist/README.md dist/LICENSE
+      - uses: actions/upload-artifact@v5
+        with:
+          name: jeeves-${{ matrix.target }}
+          path: dist/jeeves-v*.tar.gz
+
+  release:
+    needs: binaries
+    runs-on: ubuntu-24.04
+    steps:
+      # gh release create needs a git repository; without checkout it fails with
+      # "fatal: not a git repository" (this is what broke the v0.17.0 run).
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "$notes" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file "$notes" \
+              dist/*
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes \
+              dist/*
+          fi

@@ -1,0 +1,63 @@
+# The control plane itself. Per-user Pods are created by it at runtime (see control-plane/README.md).
+# Fill the Secret first:  kubectl -n jeeves create secret generic cp-env \
+#   --from-literal=CP_SESSION_SECRET=$(openssl rand -hex 32) --from-literal=CP_MODEL_KEY=<platform key>
+apiVersion: v1
+kind: Namespace
+metadata: { name: jeeves }
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: control-plane, namespace: jeeves }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: control-plane, namespace: jeeves }
+rules:
+  - apiGroups: ["", "apps"]
+    resources: [secrets, persistentvolumeclaims, services, deployments, deployments/scale]
+    verbs: [get, list, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: control-plane, namespace: jeeves }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: control-plane }
+subjects: [{ kind: ServiceAccount, name: control-plane, namespace: jeeves }]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: cp-state, namespace: jeeves }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: control-plane, namespace: jeeves }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: control-plane } }
+  template:
+    metadata: { labels: { app: control-plane } }
+    spec:
+      serviceAccountName: control-plane
+      containers:
+        - name: control-plane
+          image: registry.example.com/jeeves-control-plane:latest
+          ports: [{ containerPort: 8080 }]
+          env:
+            - { name: CP_STATE, value: /state/control-plane.json }
+            - { name: CP_IMAGE, value: "registry.example.com/jeeves:latest" }
+            - { name: CP_MODEL_URL, value: "http://control-plane.jeeves.svc:8080" }
+            - { name: CP_MODEL_UPSTREAM, value: "https://api.anthropic.com" }
+          envFrom: [{ secretRef: { name: cp-env } }]
+          readinessProbe: { httpGet: { path: /healthz, port: 8080 } }
+          volumeMounts: [{ name: state, mountPath: /state }]
+      volumes: [{ name: state, persistentVolumeClaim: { claimName: cp-state } }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: control-plane, namespace: jeeves }
+spec:
+  selector: { app: control-plane }
+  ports: [{ port: 8080, targetPort: 8080 }]

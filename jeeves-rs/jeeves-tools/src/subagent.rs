@@ -1,0 +1,174 @@
+//! Subagent: hand off a self-contained piece of work and bring back only the conclusion.
+//!
+//! This layer **knows nothing about** Server, loop, or provider — it has only a trait,
+//! injected by `jeeves-app-server` (dependency direction must not reverse: loop → tools).
+//!
+//! Three design boundaries:
+//!
+//! 1. **Summary only**. The subagent's full message list is not returned — that would
+//!    blow up the parent's context; handing it out and getting it all back saves nothing.
+//! 2. **No further delegation**. The implementer explicitly removes `delegate_task` when
+//!    building the subagent's tool table (recursive delegation is forbidden) — the kind
+//!    of thing that "looks harmless until someone tries it and burns through quota".
+//! 3. **No interactive approval**. A subagent must not block on human input: it gets no
+//!    approval channel, and actions needing approval are treated as "denied" outright.
+
+use std::sync::Arc;
+
+use serde_json::{json, Value};
+
+use crate::{require_str, BoxFut, Tool, ToolCtx};
+
+/// Tool name. The implementer must remove it from the subagent's tool table, so it has
+/// to be a public constant — letting both sides assemble the string invites drift.
+pub const NAME: &str = "delegate_task";
+
+/// How many subagents one call may fan out.
+///
+/// Four, not "unlimited": the cost is one full model loop each, and a batch is meant for "four
+/// independent lookups", not "run my backlog". Depth stays 1 for the same reason.
+pub const MAX_BATCH: usize = 4;
+
+/// Run one delegation. Implementation lives in app-server (it has Server, model, tools).
+pub trait SubagentRunner: Send + Sync {
+    /// Run one task, returning the **conclusion text**; on failure, a human reason.
+    ///
+    /// If `result_schema` is given, the conclusion must conform to it: validation and
+    /// the "retry once" are the implementer's job (the tool layer knows no validators);
+    /// if it still fails, return prose and say why — one bad format shouldn't waste it.
+    ///
+    /// `readonly` is passed explicitly rather than inferred: a batch of subagents runs at once in
+    /// four independent loops, where the parent's "one write at a time" barrier cannot reach. The
+    /// implementer must therefore hand the child a table with no exclusive tools at all. Single
+    /// delegations pass `false` and keep every tool they always had.
+    fn run(
+        &self,
+        task: String,
+        max_iterations: Option<i32>,
+        result_schema: Option<Value>,
+        parent_cwd: Option<std::path::PathBuf>,
+        worktree: Option<std::path::PathBuf>,
+        readonly: bool,
+    ) -> BoxFut;
+}
+
+/// The `delegate_task` registered into the tool table. Only registered when `JEEVES_DELEGATE=1`
+/// — when off, the model cannot even see its name (same rule as `run_command`).
+pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
+    Tool {
+        name: NAME.to_string(),
+        description:
+            "Hand one **independent** piece of work to a subagent and get only the conclusion back. Good for self-contained tasks like \"find out X\" or \"turn Y into a list\" that need no back-and-forth with the user. A subagent cannot see your conversation, so the task description must stand alone; it also **cannot spawn further subagents**. Do not use it to dodge work — it only changes the context. When dispatching several at once (`tasks`) they are **read-only**: concurrent writes to one directory overwrite each other, so leave file changes and commands to a single delegation, or do them yourself."
+                .to_string(),
+        input_schema: json!({
+            "type": "object",
+            "anyOf": [{"required": ["task"]}, {"required": ["tasks"]}],
+            "properties": {
+                "task": {
+                    "type": "string",
+                    "description": "What the subagent should do, written as self-contained instructions (it cannot see this conversation)"
+                },
+                "tasks": {
+                    "type": "array",
+                    "maxItems": MAX_BATCH,
+                    "items": {"type": "string"},
+                    "description": "Several **independent** pieces of work dispatched at once (4 at most): they run concurrently and their conclusions come back merged in the order you gave; a batch of subagents is **read-only** (no writing files, no running commands). Anything with ordering or disk writes should be delegated separately."
+                },
+                "max_iterations": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "How many rounds a subagent may run (5 by default, 10 at most)"
+                },
+                "result_schema": {
+                    "type": "object",
+                    "description": "To get a structured conclusion, give a JSON Schema: the subagent must reply with JSON that matches it. A mismatch is retried once with the error, and if it still fails it falls back to prose and says so in the text — you define the shape, rather than trusting it to comply."
+                }
+            }
+        }),
+        handler: Arc::new(move |_ctx: ToolCtx, args: Value| {
+            let runner = runner.clone();
+            Box::pin(async move {
+                let max_iterations = args
+                    .get("max_iterations")
+                    .and_then(Value::as_i64)
+                    .map(|value| value as i32);
+                let result_schema = args.get("result_schema").cloned().filter(|v| !v.is_null());
+                let cwd = _ctx.cwd.clone();
+
+                let tasks: Vec<String> = match args.get("tasks") {
+                    Some(Value::Array(items)) if !items.is_empty() => items
+                        .iter()
+                        .map(|item| {
+                            item.as_str().map(str::to_string).ok_or_else(|| {
+                                anyhow::anyhow!("every entry in tasks must be a string (got {item})")
+                            })
+                        })
+                        .collect::<anyhow::Result<_>>()?,
+                    Some(Value::Array(_)) => {
+                        return Err(anyhow::anyhow!(
+                            "tasks is an empty array — give either one job (task) or several independent ones"
+                        ))
+                    }
+                    _ => vec![require_str(&args, "task")?],
+                };
+                if tasks.len() > MAX_BATCH {
+                    return Err(anyhow::anyhow!(
+                        "At most {MAX_BATCH} subagents at a time (got {}) — each one is a whole model loop; splitting into several calls is cheaper than dispatching ten at once",
+                        tasks.len()
+                    ));
+                }
+
+                if tasks.len() == 1 {
+                    let task = tasks.into_iter().next().expect("just confirmed there is one");
+                    return match runner
+                        .run(task, max_iterations, result_schema, cwd, _ctx.worktree, false)
+                        .await
+                    {
+                        Ok(summary) => Ok(crate::report::as_report(&summary)),
+                        Err(why) => Ok(format!("Error: the subagent did not run: {why}")),
+                    };
+                }
+
+                let mut set = tokio::task::JoinSet::new();
+                for (index, task) in tasks.iter().enumerate() {
+                    let fut = runner.run(
+                        task.clone(),
+                        max_iterations,
+                        result_schema.clone(),
+                        cwd.clone(),
+                        _ctx.worktree.clone(),
+                        true,
+                    );
+                    set.spawn(async move { (index, fut.await) });
+                }
+                let mut slots: Vec<Option<String>> = vec![None; tasks.len()];
+                while let Some(joined) = set.join_next().await {
+                    match joined {
+                        Ok((index, Ok(summary))) => {
+                            slots[index] = Some(format!(
+                                "### Subtask {}: {}\n{summary}",
+                                index + 1,
+                                tasks[index]
+                            ));
+                        }
+                        Ok((index, Err(why))) => {
+                            slots[index] = Some(format!(
+                                "### Subtask {}: {}\n(did not run: {why})",
+                                index + 1,
+                                tasks[index]
+                            ));
+                        }
+                        Err(join_error) => eprintln!("(jeeves) a subagent crashed: {join_error}"),
+                    }
+                }
+                let merged = slots
+                    .into_iter()
+                    .map(|slot| slot.unwrap_or_else(|| "(this subtask has no result)".to_string()))
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+                Ok(crate::report::as_report(&merged))
+            })
+        }),
+    }
+}

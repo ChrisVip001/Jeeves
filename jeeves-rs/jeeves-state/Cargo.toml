@@ -1,0 +1,28 @@
+[package]
+name = "jeeves-state"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "All of Jeeves's persistent state: state.db (SQLite + FTS5). Only the app-server holds it."
+
+[lib]
+name = "jeeves_state"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+# A fact's vector is stored as JSON array text (see facts.rs).
+serde_json = { workspace = true }
+serde = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+sqlx = { workspace = true }
+# Row and round digests for the ledger (sha256); already in the workspace, no new dependency.
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

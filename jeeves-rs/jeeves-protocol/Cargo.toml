@@ -1,0 +1,24 @@
+[package]
+name = "jeeves-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The app-server's cross-language contract: defined in Rust, generated into TypeScript and Python."
+
+[lib]
+name = "jeeves_protocol"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+jeeves-protocol-noop-macros = { workspace = true }
+
+[dev-dependencies]
+# Only used while generating code: see the note on noop-macros
+ts-rs = { workspace = true }
+schemars = { workspace = true }
+
+[lints]
+workspace = true

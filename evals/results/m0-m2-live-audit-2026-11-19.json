@@ -1,0 +1,137 @@
+{
+  "capturedOn": "2026-11-19",
+  "revision": "c2c7f6793bcac39bfacb7731f19e8b1961d58684",
+  "scope": "M0–M2 test and acceptance audit; real processes on the Mac, local fixtures, and explicitly authorized Feishu tenant and recipient",
+  "countMethod": "Count work packages with a documented test/acceptance gap, not individual assertions. There are 28 WPs, two deferred or blocked (M1-04 and M2-05), and 17 of the remaining 26 had at least one written test/acceptance gap at the start. Implementation gaps are tracked separately.",
+  "initialTestGaps": {
+    "M0": ["M0-04", "M0-07", "M0-09", "M0-11", "M0-12"],
+    "M1": ["M1-01", "M1-03", "M1-05", "M1-06", "M1-07"],
+    "M2": ["M2-01", "M2-02", "M2-03", "M2-04", "M2-06", "M2-07", "M2-09"]
+  },
+  "actualResults": [
+    {"gates": "just check", "result": "pass", "evidence": "84 deterministic cases passed, zero failures, one existing known gap; 5 replay cases passed; TypeScript, actual Chromium DOM fixture, clippy and Rust workspace tests passed"},
+    {"wp": "M0-04", "result": "partial pass", "evidence": "Real local app-server was killed during a pending approval; restarted process exposed restored version 2, refused version 1 and accepted a version 2 denial. Reapproval and successful resumed effect not exercised."},
+    {"wp": "M0-07, M0-10, M1-05, M1-07", "result": "partial pass", "evidence": "Real HTTP/runtime interaction smoke passed after updating the obsolete router fixture. Real task dispatch, scoped approval/reconnect, event cursor pagination and filtering pass. Ordinary conversational task timeline still has no events; actual tab reopen and cross-channel approval remain open."},
+    {"wp": "M0-09", "result": "real send and read-back pass", "evidence": "Authorized existing Feishu app authenticated; exact group name matched once; the first attempt was explicitly skipped because approval was not enabled; second attempt requested one approval, sent one fixed test message and confirmed the receipt by read-back. The signed-in Feishu app visibly showed the test message. Live inbound wake and the complete five-contract scenario remain unverified."},
+    {"wp": "M0-10", "result": "pass local end-to-end", "evidence": "just smoke-gateway and just smoke-connector passed against isolated local services"},
+    {"wp": "M0-11", "result": "pass local Git worktree", "evidence": "Actual temporary Git repository and app-server task created its own worktree; wrote inside, denied outside path, verified acceptance and unchanged original repository."},
+    {"wp": "M0-12", "result": "pass real browser preview", "evidence": "Selected ink/sans palette verified in 1280px light and 390px dark Chromium; keyboard Tab/Space/Enter, reduced motion completion, no page error or horizontal overflow. Screenshots in output/playwright/m0-12-light-1280.png and m0-12-dark-390.png"},
+    {"wp": "M1-06", "result": "partial pass", "evidence": "New code-edit-checks.jsonl executes real /bin/sh syntax checks after an edit and at final verification: passing and failing cases both passed; timeout still only tested by unit fixture, exec-off covered by code-handoff"},
+    {"wp": "M2-01", "result": "partial pass; defect", "evidence": "Temporary launchd service rendered by Jeeves, unique label, isolated home, API returned 200; actual SIGKILL, new PID, API returned 200 and existing state.db reopened. All temporary jobs unloaded. /healthz returned 503 even though /api/model/catalog returned 200: api.rs sends missing required platform and transport fields in session/capabilities. Actual machine reboot not performed by request."},
+    {"wp": "M2-02", "result": "partial pass", "evidence": "Actual SIGKILL recovery scenarios passed at N=1 and N=2: normal, after_effect, after_checkpoint, memory_claim. This kills the runtime process, not an individual worker thread; lease transfer remains only unit-tested."},
+    {"wp": "M2-04", "result": "real local browser hold pass", "evidence": "Installed runtime had no worker node_modules (ERR_MODULE_NOT_FOUND playwright). Temporary runtime with existing matching local modules passed real browser smoke, then new smoke-browser-hold.py passed headed Chromium takeover, SIGKILL, persisted hold and fresh launch/observation clearing the hold. This did not use real websites."},
+    {"wp": "M2-06", "result": "real QQ Mail read and delivery verified; TLS initialization fixed with local regression tests", "evidence": "Owner saved QQ_MAIL_AUTH in Jeeves's scoped credential vault. First real IMAP test panicked before any send because Rustls could not choose a process-level CryptoProvider. A one-off isolated connector harness selected ring explicitly, then used the actual vault pointer without printing/copying the secret: IMAP login, SELECT, UNSEEN and BODY.PEEK succeeded; a single content-and-recipient-scoped approval sent one self-addressed message, SMTP confirmed the receipt. Subject Jeeves M2-06 test 1795078087 was visibly delivered in the signed-in QQ web inbox. Connector IMAP unread polling did not return the test item within the short interval. The production config remains draft-only; no resend. The production fix explicitly selects Ring for IMAP TLS without setting a process-global provider; a regression reproduces the original panic before the fix and returns a handshake error afterward. All six offline email tests pass. The one-off live harness and its compiled artifacts were removed; no second live send was attempted. Real CalDAV remains open."},
+    {"wp": "M2-09", "result": "automated pass", "evidence": "Real Chromium fixture test for all seven protocol states in both languages passed; human screenshot review remains open."}
+  ],
+  "notTestableYet": [
+    "M1-03 real Telegram token/session deferred by user until last",
+    "M1-04 personal WeChat official documentation unavailable; M2-05 deferred",
+    "M2-03 actual sleep/wake and M2-01 whole-machine reboot explicitly not requested now",
+    "M2-06 real CalDAV account required; use the rebuilt Runtime for the next normal mail turn",
+    "M2-07 wall-clock 08:00 briefing across actual overnight sleep not run",
+    "M1-07 and M2-09 human screenshot review still pending"
+  ],
+  "implementationGaps": [
+    "M0-03 actual probe producers for missingScope and blockedByPolicy are absent",
+    "M0-08 dynamic MCP tools/list_changed notification not implemented",
+    "M0-09 Feishu still uses per-send preview rather than persistent action_grants",
+    "M1-05 ordinary task timeline lacks approval events; personal WeChat approval path absent",
+    "M2-08 FTS and per-checkpoint Git commits not implemented",
+    "M2-09 OAuth and QR link fields/flows absent"
+  ],
+  "newRegressionTests": ["evals/deterministic/code-edit-checks.jsonl", "scripts/smoke-browser-hold.py", "scripts/smoke-interaction.py (updated fixture, HTTP timeline replay)"],
+  "modelCost": "No paid model calls; local scripted provider. Real Feishu API calls restricted to the authorized test group.",
+  "overall": "Initial audit: NOT ACCEPTED; see followUp for the subsequent uncommitted repairs and acceptance evidence.",
+  "followUp": {
+    "revision": "c2c7f6793bcac39bfacb7731f19e8b1961d58684 (unchanged HEAD; repairs are uncommitted working-tree changes)",
+    "gates": {"justCheck": "pass", "rustPassed": 1020, "rustFailed": 0, "rustIgnored": 4, "deterministicPassed": 84, "deterministicFailed": 0, "knownGap": "lexical memory paraphrase retrieval", "replayPassed": 5, "dashboardPassed": 38, "bilingualStrings": 718, "clippy": "zero warnings"},
+    "smokes": ["Web", "main interaction and timeline replay", "recovery", "connector", "gateway", "isolated launchd"],
+    "realAcceptance": [
+      {"wp": "M2-01", "result": "pass isolated real launchd", "evidence": "scripts/smoke-launchd.py: unique temporary fixture, SIGKILL PID 29541, restarted PID 29912, health HTTP 200 before and after, same task retained, fixture unloaded; no machine reboot"},
+      {"wp": "M2-06", "result": "pass real iCloud CalDAV connectivity/read", "evidence": "Owner generated and stored an app-specific password. Configured service root, vault reference and Asia/Shanghai timezone. Production read-only CLI connector calendar test successfully discovered collections and queried seven days, including strict Multi-Status validation; 0 events, no event details or credentials displayed, no writes. Nonempty event parsing and root discovery covered by local fixtures. QQ real read and one self-addressed delivery from initial audit remain verified; no additional mail sent."},
+      {"wp": "M1-03", "result": "fixture acceptance per user", "evidence": "Telegram Bot API adapter tests passed; owner has not created a bot and requested simulated verification for now."}
+    ],
+    "implementationClosed": ["health probe and maximum event pagination", "ordinary run and approval timeline", "credential location and real scope/policy states", "atomic scoped grants", "turn-boundary MCP dynamic list refresh", "search snapshots separate from claim evidence", "bounded FTS5 code map", "human connector settings and actual OAuth initiation", "new-turn/subagent connector reload", "read-only durable calendar/email input waits", "manual and human-opted-in automatic Git checkpoint mapping in isolated task worktrees", "CalDAV root discovery and XML scalar/multi-status correctness"],
+    "remaining": ["M2-07 real 08:00 overnight briefing delivery; simulated times/source fixtures passed", "whole-machine reboot and sleep deferred by user", "human screenshot sign-off", "real Telegram bot deferred by user; fixture accepted", "M1-04/M2-05 deferred", "no QR workflow without actual supported provider; MCP idle notification listener is not implemented, advertised lists refresh at turn boundaries"],
+    "screenshots": "output/playwright/m2-connector-settings-2026-11-19/",
+    "modelCost": "No paid model calls. All new model work uses scripted fixtures. Only authorized read-only iCloud verification contacted a real account. No commit or push.",
+    "runtimeLifecycleFollowUp": {
+      "defects": ["HTTP graceful shutdown waited indefinitely for persistent SSE before starting engine drain", "cockpit announced its address and started the gateway before app-server ownership/readiness"],
+      "reproduction": "Both failed on the preceding binary: open-SSE stop timed out and a duplicate home opened its port.",
+      "repair": "Shared stop/EOF signal, closed request admission and SSE, physical stdin EOF, concurrent bounded drains, child process-group isolation on Unix, typed 60-second readiness probe before bind, cleanup on child exit or failed startup.",
+      "verification": "just check passed (1024 Rust tests, 0 failures, 4 ignored); smoke-lifecycle passed SIGINT, SIGTERM, duplicate home and engine crash; smoke-web, smoke-interaction, smoke-gateway, smoke-recovery passed; isolated real launchd restarted PID 84896 as 85289 with health 200 and preserved task state. Temporary jobs removed; no restart of the user's Runtime or Mac."
+    },
+    "defensiveCodeReview": {
+      "scope": "All uncommitted M0–M2 implementation and lifecycle changes relative to c2c7f67; generated schema reviewed through its source and generation gate. Existing user edits preserved; no commit, push, real credential or account use.",
+      "reproducedBeforeCleanup": [
+        "A valid HTTPS calendar URL over 2048 characters was rejected as if the scheme or credential placement were invalid.",
+        "A 300-character identifier was silently omitted by the FTS declaration index despite fitting its total source and row budgets.",
+        "A malformed CalDAV calendar collection was silently discarded, allowing a partial read to appear complete.",
+        "An OAuth refresh requested at the same time as a config edit caused another unnecessary reconnect at the next boundary.",
+        "Deleting a selected tracked Chinese-named file was refused because Git's human-readable quoted path was compared with the literal filename."
+      ],
+      "decisions": [
+        {
+          "area": "Connector settings, credential references and forms",
+          "removed": "Undocumented URL, email username, sender, recipient-count, recipient-length and env-name length caps; the extra browser URL maxlength; re-sanitizing the Runtime's already redacted settings response and repeating native form/server validation in the submit handler.",
+          "retainedAndWhy": "Reject unknown/invalid JSON and unreadable existing files rather than overwrite other sections; validate exactly the selected section and whole final configuration; atomic replace and serialized settings saves prevent partial writes and lost updates. HTTPS/no embedded URL credentials, query or fragment; paired calendar account/pointer; documented vault-name grammar, env-name grammar, mail hostname/port, TLS or STARTTLS, nonempty username/recipient and recipient list for live sending are actual configuration/transport/authority boundaries. Backend redacts legacy raw references; UI uses the redacted null/empty field and requires correction. Vault suggestions still check the legacy index data; browser native validation gives immediate input feedback while the engine is authoritative."
+        },
+        {
+          "area": "Approval, mail, Feishu and credential storage",
+          "removed": "Re-reading the already validated Feishu identity and falling back to app identity after approval.",
+          "retainedAndWhy": "Turn-scoped exact approval, account/destination/content digest, expiry rejection, durable grant creation before effect, atomic initial revocation of once grants and compare-and-set consumption prevent cross-turn, stale and double authorization. Allowlist, draft-by-default, human confirmation, read-back/receipt states and no retry for uncertain delivery preserve the external-effect contract. Explicit IMAP Ring provider and certificate/hostname validation prevent the reproduced TLS initialization panic without a global setting or plaintext fallback. Actual env/keychain/file/memory location is used; unresolved reference is not presented as a confirmed keychain credential."
+        },
+        {
+          "area": "OAuth, capability cards and dynamic MCP lists",
+          "removed": "Shadow copy of current tool names, unconsumed refresh flag on simultaneous config change, silent poisoned-ready-slot fallback, raw prefix scheme test, invented preparing status after refreshing the card.",
+          "retainedAndWhy": "Configured target and supported identity only; parsed HTTPS endpoint/no userinfo, provider state match, bound callback before URL publication, one in-flight flow, bounded preparation and sign-in, no-store, no raw provider error/token in the web response. URL checks at the browser navigation boundary and generic error messages prevent unsafe navigation and accidental credential display. Explicit 403 insufficient_scope response is required for MissingScope. Unknown/unavailable state remains honest. Serialize table refresh, keep original base names, consume one invalidation per reconnect and retain immutable in-flight handlers; listChanged allows a listing to become empty, while temporary listing failure warns and retains the previous snapshot."
+        },
+        {
+          "area": "Calendar parsing/discovery and read-only connector waits",
+          "removed": "Repeat secret resolution for each discovered collection, redundant trusted-target recheck after the validated root/resolve path, duplicate href character check and impossible Unicode-scalar error branch; swallowed malformed collection error; duplicate unsupported/already-received poll checks; internal calendar tool JSON encode/decode and 200-display-row limit.",
+          "retainedAndWhy": "One credential snapshot per read; trusted configured origin or documented iCloud shard only, explicit redirect bound, HTTPS and no embedded credentials, query or fragment. External XML/ICS, individual DAV status, scalar/entity decoding, malformed syntax and response byte/collection/time caps prevent false empty/partial results and unbounded network reads. Only the declared email/new-unread and calendar/upcoming-15m types are admitted; one minute interval and two concurrent polls; EXAMINE/UID metadata only, UIDVALIDITY/UIDNEXT and numeric UID filtering, durable immutable account/generation baseline, upcoming timed event filter, task-control lock and suspension recheck, idempotent signal. Changed account, network/read error or stale task retains the wait, never invents input or widens authority."
+        },
+        {
+          "area": "Human Git checkpoints",
+          "removed": "Redundant stat/exists/is-file checks after symlink_metadata, duplicated path-list validation, optional run-id fallback after the caller already has a run; display-quoted rather than literal tracked-file comparison.",
+          "retainedAndWhy": "Explicit confirmation, inactive task for manual/policy controls, expected linked worktree/canonical root/branch, literal normal relative files only, no metadata paths, symlinks or directories, regular file or exact tracked deletion; only opted-in policy may name future files. Path count and length bound Git subprocess work and argv; no existing staged changes, hooks, clean filters, fsmonitor, signing prompts or alternate Git state. Only approved paths staged/committed; unchanged boundary reuses HEAD, policy rechecked under task-control lock, exact durable boundary mapping deduplicated, failures stop execution for review. A recorded commit whose event fails is reported, not replayed or hidden."
+        },
+        {
+          "area": "Timeline, control API and UI asynchronous state",
+          "removed": "Unreachable response-task-id mismatch branches for the same typed request/response, repeated optional-action existence checks inside wrappers that are only created when the action exists, duplicate eligibility check in checkpoint submit, silent failed-run event lookup error.",
+          "retainedAndWhy": "Durable ordering/cursors and latest-versus-next detection at the store's 500-row page cap; task events are secondary to settled runs, with failures surfaced in stderr. Serial catch-up with an additional pass handles concurrent refresh and checkpoint events; current task-id comparison discards stale async responses, busy/confirmation state prevents duplicate human submissions. Known event vocabulary localization and own-key checks preserve unknown historical evidence without inherited object fields. Typed HTTP handlers relay human-only methods and do not duplicate engine authority."
+        },
+        {
+          "area": "Read-only code navigation and search evidence",
+          "removed": "Undocumented 256-byte identifier cap and duplicated grep file/preview constants; building an index for a query that cannot match the declaration grammar.",
+          "retainedAndWhy": "Best-effort declaration parser, skip unsupported/unreadable/oversize files and symlinks, existing 20,000-entry walk, per-file/preview and output caps, 32 MiB source/30,000-row index budgets; quoted FTS MATCH plus exact equality and valid symbol grammar keep bounded exact lookup. Search leads live in their own manifest and are never fetched claim evidence; canonical primary URLs and at-most-ten archives bound results. Archive write failure warns but does not discard useful search results; model tool errors remain text."
+        },
+        {
+          "area": "Dashboard process lifecycle and fixture harnesses",
+          "removed": "Duplicate stop publication and redundant async shutdown of already-flushed owned stdin pipe; separate ignored start_kill/wait results replaced with one bounded kill/reap and explicit errors; no claim of successful forced stop when it is only requested.",
+          "retainedAndWhy": "Typed 60-second startup readiness before listener/gateway, short early-exit cleanup, post-probe death check, shared stop/EOF watch retained for late subscribers, pending request RAII and closing-pipe race check; persistent streams and abandoned forwarding end on stop/client disconnect. Unix process groups protect graceful terminal Ctrl-C; concurrent 25-second engine and 3-second HTTP/gateway drains plus 2-second forced-stop bound prevent indefinite wait and stale ownership. Fixture retries, deadlines and targeted cleanup exist to bound real isolated process/browser/loopback tests; no actual user Runtime restart."
+        }
+      ],
+      "requiredFailOpen": "Preserved the current memory lookup and ordinary-turn continuation contracts, route classifier fallback, missing-source morning proposal and compaction fallback. The older LLM retrieval gate/triage front door no longer exists on this HEAD; no speculative replacement was introduced. Additional tests exercise real fact-index failure with remaining episode evidence, total retrieval failure with successful normal turn, temporary MCP list failure retaining old tools, and snapshot-write failure retaining the search result.",
+      "verification": {
+        "justCheck": "pass",
+        "rustPassed": 1029,
+        "rustFailed": 0,
+        "rustIgnored": 4,
+        "deterministicPassed": 84,
+        "deterministicFailed": 0,
+        "deterministicKnownGap": "lexical memory paraphrase retrieval (pre-existing)",
+        "replayPassed": 5,
+        "typescriptPassed": 160,
+        "typescriptFailed": 0,
+        "typescriptSkipped": 2,
+        "controlPlanePassed": 6,
+        "bilingualStrings": 718,
+        "clippy": "zero warnings",
+        "newRegressionEvidence": "All five pre-cleanup red regressions are green. Fact/episode index-failure injection, an OAuth callback missing state (no second token exchange), a temporary MCP list failure, snapshot-storage failure, and a timed calendar occurrence after 201 overlapping past-started events pass. Real isolated Chromium tests cover bilingual cards/timeline, legacy redacted pointer correction, refresh clearing stale OAuth status and blocked unsafe links.",
+        "smokes": ["smoke-lifecycle: SIGTERM, SIGINT, duplicate home, engine exit/restart", "smoke-web", "smoke-connector", "smoke-interaction", "smoke-gateway", "smoke-recovery: normal, after effect, after checkpoint, memory claim"],
+        "scope": "All fixture/local-process verification; no live account calls, no Mac/user-runtime restart, no changes to previous manual acceptance status. Git HEAD remains c2c7f67."
+      }
+    }
+  }
+}

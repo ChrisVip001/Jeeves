@@ -1,0 +1,69 @@
+//! Reading a directory of JSONL cases — **one** copy.
+//!
+//! Three loaders used to do this by hand (deterministic, judge, replay). The copies had drifted
+//! exactly where it hurts: one had no file:line in its errors, two did not sort, so the same suite
+//! printed its table in a different order on a different machine — which reads as "a case
+//! changed" when nothing changed.
+//!
+//! What the format is: one JSON object per line, `#` lines and blanks ignored, directories mean
+//! "every `*.jsonl` in here". Everything else is the caller's business, which is why `check`
+//! exists: a case may be valid JSON and still be unusable (an unknown `schemaVersion`), and that
+//! judgement belongs to the suite, not to the reader.
+
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use serde::de::DeserializeOwned;
+
+/// Reads every case under `paths`; a path may be a file or a directory of `*.jsonl`.
+///
+/// `check` gets the case and a human-readable location (`<file> line N`), so a refusal can say
+/// where the offender is without re-deriving it.
+pub fn read_jsonl<T>(
+    paths: &[PathBuf],
+    label: &str,
+    check: impl Fn(&T, &str) -> Result<()>,
+) -> Result<Vec<T>>
+where
+    T: DeserializeOwned,
+{
+    let mut cases = Vec::new();
+    for path in paths {
+        for file in files_of(path, label)? {
+            let text = std::fs::read_to_string(&file)
+                .with_context(|| format!("could not read the {label} file: {}", file.display()))?;
+            for (index, line) in text.lines().enumerate() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let at = format!("{} line {}", file.display(), index + 1);
+                let case: T = serde_json::from_str(line)
+                    .map_err(|e| anyhow::anyhow!("{at} is not valid {label}: {e}"))?;
+                check(&case, &at)?;
+                cases.push(case);
+            }
+        }
+    }
+    Ok(cases)
+}
+
+/// A file stays a file; a directory contributes its `*.jsonl`, **sorted** (stable table order).
+fn files_of(path: &Path, label: &str) -> Result<Vec<PathBuf>> {
+    if !path.is_dir() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(path)
+        .with_context(|| format!("could not read the {label} directory: {}", path.display()))?
+    {
+        let file = entry
+            .with_context(|| format!("could not list {label} entries in {}", path.display()))?
+            .path();
+        if file.extension().is_some_and(|ext| ext == "jsonl") {
+            files.push(file);
+        }
+    }
+    files.sort();
+    Ok(files)
+}

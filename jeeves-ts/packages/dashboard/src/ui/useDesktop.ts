@@ -1,0 +1,173 @@
+import { reactive } from "vue";
+import type {
+  DesktopAction,
+  DesktopActParams,
+  DesktopAdvice,
+  DesktopFrame,
+  DesktopFrameParams,
+  DesktopModelParams,
+  DesktopObservation,
+  DesktopShareParams,
+  DesktopStatus,
+} from "../protocol.ts";
+
+type Request = <T>(path: string, body?: unknown) => Promise<T>;
+
+/** Only the currently displayed observation and frame can be used from this panel. */
+export function useDesktop(taskId: string, request: Request) {
+  const state = reactive({
+    status: null as DesktopStatus | null,
+    observation: null as DesktopObservation | null,
+    frame: null as DesktopFrame | null,
+    advice: "",
+    busy: false,
+    error: "",
+  });
+  let revision = 0;
+  const status = () =>
+    request<DesktopStatus>(
+      `/api/desktop/status?taskId=${encodeURIComponent(taskId)}`,
+    );
+  function clearPreview() {
+    state.frame = null;
+    state.advice = "";
+  }
+  function invalidate() {
+    ++revision;
+    state.busy = false;
+    state.observation = null;
+    state.status = null;
+    state.error = "";
+    clearPreview();
+  }
+  async function run<T>(
+    read: () => Promise<T>,
+    apply: (result: T) => void,
+    reconcile = false,
+  ) {
+    if (state.busy) return;
+    const version = ++revision;
+    state.busy = true;
+    state.error = "";
+    try {
+      const result = await read();
+      if (version === revision) apply(result);
+    } catch (error) {
+      if (version !== revision) return;
+      state.observation = null;
+      state.status = null;
+      clearPreview();
+      state.error = error instanceof Error ? error.message : String(error);
+      if (reconcile) {
+        try {
+          const current = await status();
+          if (version === revision) state.status = current;
+        } catch {
+        }
+      }
+    } finally {
+      if (version === revision) state.busy = false;
+    }
+  }
+  function refresh() {
+    return run(status, (result) => {
+      state.status = result;
+    });
+  }
+  async function observe(
+    action: "select" | "observe" | "act",
+    params: { taskId: string } | DesktopActParams,
+  ) {
+    if (state.busy) return;
+    state.observation = null;
+    clearPreview();
+    await run(
+      async () => {
+        const observation = await request<DesktopObservation>(
+          `/api/desktop/${action}`,
+          params,
+        );
+        return { observation, current: await status() };
+      },
+      ({ observation, current }) => {
+        state.status = current;
+        if (current.selected) state.observation = observation;
+      },
+      action !== "observe",
+    );
+  }
+  return {
+    state,
+    refresh,
+    invalidate,
+    clearPreview,
+    select: () => observe("select", { taskId }),
+    observe: () => observe("observe", { taskId }),
+    act(elementId: number, action: DesktopAction, text?: string) {
+      const observation = state.observation;
+      if (!observation) return;
+      return observe("act", {
+        taskId,
+        observationId: observation.observationId,
+        elementId,
+        action,
+        text,
+      });
+    },
+    takeover() {
+      invalidate();
+      return run(
+        () => request<DesktopStatus>("/api/desktop/takeover", { taskId }),
+        (current) => {
+          state.status = current;
+        },
+      );
+    },
+    model(profileId: string | null) {
+      clearPreview();
+      return run(
+        () =>
+          request<DesktopStatus>("/api/desktop/model", {
+            taskId,
+            profileId,
+          } satisfies DesktopModelParams),
+        (current) => {
+          state.status = current;
+          if (!current.selected) state.observation = null;
+        },
+      );
+    },
+    capture() {
+      const observationId = state.observation?.observationId;
+      if (!observationId) return;
+      clearPreview();
+      return run(
+        () =>
+          request<DesktopFrame>("/api/desktop/frame", {
+            taskId,
+            observationId,
+          } satisfies DesktopFrameParams),
+        (frame) => {
+          state.frame = frame;
+        },
+      );
+    },
+    share() {
+      const frame = state.frame;
+      if (!frame) return;
+      clearPreview();
+      state.observation = null;
+      return run(
+        () =>
+          request<DesktopAdvice>("/api/desktop/share", {
+            taskId,
+            frameId: frame.frameId,
+            confirmed: true,
+          } satisfies DesktopShareParams),
+        (advice) => {
+          state.advice = advice.text;
+        },
+      );
+    },
+  };
+}

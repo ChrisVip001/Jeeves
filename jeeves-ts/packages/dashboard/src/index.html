@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f1f2f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121615" media="(prefers-color-scheme: dark)" />
+    <title>Jeeves</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link
+      rel="icon"
+      href="./ui/assets/jeeves-icon.svg"
+      type="image/svg+xml"
+    />
+  </head>
+  <body>
+    <div id="web-controls"></div>
+    <div class="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img
+            class="jeeves-logo"
+            src="./ui/assets/jeeves-icon.svg"
+            width="34"
+            height="34"
+            alt=""
+          />
+          <h1>Jeeves</h1>
+          <button
+            class="ghost rail-toggle"
+            type="button"
+            data-sidebar-toggle
+            data-i18n-aria="收起侧栏"
+          >
+            ☰
+          </button>
+        </div>
+        <div id="mac-mode-switch"></div>
+        <div id="today-entry"></div>
+        <button class="new-chat" id="new-session" type="button">
+          <span aria-hidden="true">＋</span
+          ><span data-i18n="主会话">主会话</span><kbd>⌘ N</kbd>
+        </button>
+        <div id="task-progress-entry"></div>
+        <nav class="workspace-nav" aria-label="Workspace">
+          <button class="nav-entry" id="nav-memory" type="button">
+            <span aria-hidden="true">▤</span><span data-i18n="记忆">记忆</span>
+          </button>
+          <button class="nav-entry" id="nav-progress" type="button">
+            <span aria-hidden="true">☷</span><span data-i18n="进度">进度</span>
+          </button>
+        </nav>
+        <div id="mode-task-rail"></div>
+        <div class="rail-block conversations">
+          <p class="rail-label" data-i18n="最近对话">最近对话</p>
+          <ul class="session-list" id="sessions"></ul>
+        </div>
+        <div class="rail-block capabilities">
+          <p class="rail-label" data-i18n="能力中心">能力中心</p>
+          <div id="connections-entry"></div>
+          <button class="cap-entry" id="cap-skills" type="button">
+            <span class="cap-entry-name" data-i18n="技能">技能</span
+            ><span class="cap-count" id="cap-skills-count">0</span>
+          </button>
+          <button class="cap-entry" id="cap-mcp" type="button">
+            <span class="cap-entry-name" data-i18n="MCP 连接器">MCP 连接器</span
+            ><span class="cap-count" id="cap-mcp-count">0</span>
+          </button>
+          <button class="cap-entry" id="cap-schedules" type="button">
+            <span class="cap-entry-name" data-i18n="定时任务">定时任务</span
+            ><span class="cap-count" id="cap-schedules-count">0</span>
+          </button>
+        </div>
+        <div class="sidebar-foot">
+          <div id="settings-entry"></div>
+          <div class="foot-row">
+            <span class="connection-dot" aria-hidden="true"></span
+            ><span class="stamp" id="stamp"></span
+            ><button class="ghost" id="refresh" type="button" data-i18n="刷新">
+              刷新</button
+            ><button class="ghost lang" id="lang" type="button">EN</button>
+          </div>
+        </div>
+        <div
+          class="sidebar-resizer"
+          id="sidebar-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          tabindex="0"
+          data-i18n-aria="拖动调整侧栏宽度（双击复位，方向键微调）"
+        ></div>
+      </aside>
+      <button
+        class="sidebar-scrim"
+        type="button"
+        data-sidebar-toggle
+        data-i18n-aria="收起侧栏"
+      ></button>
+      <main class="chat">
+        <header class="bar">
+          <button
+            class="ghost mobile-menu"
+            type="button"
+            data-sidebar-toggle
+            data-i18n-aria="展开侧栏"
+          >
+            ☰
+          </button>
+          <div class="chat-heading">
+            <h2 id="session">Jeeves</h2>
+            <p data-i18n="你的个人工作空间">你的个人工作空间</p>
+          </div>
+          <div class="bar-actions">
+            <button class="ghost" id="progress" type="button" data-i18n="进度">
+              进度</button
+            ><button
+              class="ghost"
+              id="chat-operations"
+              type="button"
+              data-i18n="核对聊天操作"
+            >
+              核对聊天操作</button
+            ><button
+              class="ghost"
+              id="older"
+              type="button"
+              hidden
+              data-i18n="更早的 ↑"
+            >
+              更早的 ↑
+            </button>
+          </div>
+          <div id="phone-tasks"></div>
+          <div id="executor-entry"></div>
+        </header>
+        <div id="executor-notice"></div>
+        <div id="today-view"></div>
+        <div id="cowork-view"></div>
+        <div
+          class="messages"
+          id="messages"
+          aria-live="polite"
+          data-i18n-aria="对话"
+        ></div>
+        <div class="statusline" id="status" hidden aria-live="polite"></div>
+        <div class="composer-wrap">
+          <div class="staged" id="staged" hidden></div>
+          <form class="composer" id="composer" autocomplete="off">
+            <div id="composer-target"></div>
+            <input id="file" type="file" multiple hidden />
+            <textarea
+              id="input"
+              rows="2"
+              data-i18n-placeholder="向 Jeeves 说说你的想法…"
+              data-i18n-aria="消息"
+            ></textarea>
+            <div class="composer-toolbar">
+              <div id="composer-attachments"></div>
+              <div id="composer-context"></div>
+              <div class="toolbar-spacer"></div>
+              <div id="composer-model"></div>
+              <button
+                class="ghost queue-toggle"
+                id="queue-toggle"
+                type="button"
+                aria-pressed="false"
+                hidden
+                data-i18n-title="这一轮跑完，再把这句话当成新的一轮发出去"
+              >
+                <span data-i18n="跑完再说">跑完再说</span></button
+              ><button
+                class="ghost save-skill"
+                id="save-skill"
+                type="button"
+                data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿"
+                data-i18n="存为技能"
+              >
+                存为技能</button
+              ><button id="send" type="submit" data-i18n="发送">发送</button>
+            </div>
+          </form>
+          <p class="composer-note" data-i18n="内容由 AI 生成，请核实重要信息">
+            内容由 AI 生成，请核实重要信息
+          </p>
+        </div>
+      </main>
+      <aside class="panels" id="drawer" hidden>
+        <div class="drawer-head">
+          <div class="drawer-tabs" role="tablist" data-i18n-aria="面板">
+            <button
+              class="drawer-tab active"
+              id="tab-overview"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              <span data-i18n="概览">概览</span>
+            </button>
+            <button
+              class="drawer-tab"
+              id="tab-skills"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              <span data-i18n="技能">技能</span>
+            </button>
+            <button
+              class="drawer-tab"
+              id="tab-mcp"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              MCP
+            </button>
+            <button
+              class="drawer-tab"
+              id="tab-memory"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              <span data-i18n="记忆">记忆</span>
+            </button>
+            <button
+              class="drawer-tab"
+              id="tab-schedule"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              <span data-i18n="定时">定时</span>
+            </button>
+          </div>
+          <button
+            class="ghost"
+            id="drawer-close"
+            type="button"
+            data-i18n-aria="收起"
+          >
+            ×
+          </button>
+        </div>
+        <section class="panel" id="panel-overview" role="tabpanel">
+          <div class="body" id="overview"></div>
+        </section>
+        <section class="panel" id="panel-skills" role="tabpanel" hidden>
+          <div class="body" id="skills-body"></div>
+        </section>
+        <section class="panel" id="panel-mcp" role="tabpanel" hidden>
+          <div class="body" id="mcp-body"></div>
+        </section>
+        <!-- 记忆中心：三个只读视图，一次只看一段。账本是事实（一轮一行，点开看结构），
+             记忆库是派生知识（左目录右正文，出处可跳回账本），上下文是代价（一条分层条）。 -->
+        <section class="panel" id="panel-memory" role="tabpanel" hidden>
+          <div class="mem-segs" role="tablist" data-i18n-aria="记忆视图">
+            <button
+              class="mem-seg active"
+              id="mem-seg-ledger"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              <span data-i18n="账本">账本</span>
+            </button>
+            <button
+              class="mem-seg"
+              id="mem-seg-wiki"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              <span data-i18n="记忆库">记忆库</span>
+            </button>
+            <button
+              class="mem-seg"
+              id="mem-seg-context"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              <span data-i18n="上下文">上下文</span>
+            </button>
+          </div>
+          <div class="body" id="mem-ledger"></div>
+          <div class="body" id="mem-wiki" hidden></div>
+          <div class="body" id="mem-context" hidden></div>
+        </section>
+        <!-- 定时任务：声明（文件 + 技能）与运行状态合在一张表里。它是「我让它按点做什么」，
+             和能力中心另外两块同属一个抽屉：都是人能加、能删的东西。 -->
+        <section class="panel" id="panel-schedule" role="tabpanel" hidden>
+          <div class="body" id="schedules-body"></div>
+        </section>
+      </aside>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

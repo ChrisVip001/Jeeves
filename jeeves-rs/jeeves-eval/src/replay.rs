@@ -1,0 +1,219 @@
+//! Replay cases: a **recorded conversation** (what the human said + what the model answered) plus
+//! the event sequence it must produce.
+//!
+//! Why a separate file shape at all, when deterministic cases are already "scripted replies +
+//! assertions"? Because a replay answers a different question. A deterministic case asks "is this
+//! behavior still correct"; a replay asks "**does this run still produce the same sequence of
+//! events**" — approvals, streaming chunks, reconnects, compaction. Those only exist as a timeline,
+//! so a replay file must state one.
+//!
+//! What this module deliberately does **not** do: run anything. A case is converted into the
+//! existing [`Scenario`] and then goes through `run_scenario` + `score` exactly like a deterministic
+//! case. Two runners would drift; one runner with two loaders cannot.
+//!
+//! File format (one JSON object per line, `#` comments, `*.jsonl` — same reader rules as evals):
+
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+
+use anyhow::Result;
+use serde::Deserialize;
+
+use crate::scenario::{
+    ApprovalScript, Expectations, Scenario, ScenarioTask, ScriptedResponse, SettingsOverrides,
+    TurnScript,
+};
+
+/// The recording shape this build understands. Bump it when an old file would be read **wrong**
+/// (not when a new optional field appears — that is what `#[serde(default)]` is for).
+pub const SCHEMA_VERSION: u32 = 1;
+
+/// One recorded conversation. `recorded.turns` carries the dialogue; `expect.events` is mandatory.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplayCase {
+    pub id: String,
+    #[serde(default)]
+    pub description: String,
+    /// Missing = 0 = rejected on purpose: an unversioned recording cannot be trusted to mean
+    /// what the reader thinks it means.
+    #[serde(default)]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub settings: SettingsOverrides,
+    #[serde(default)]
+    pub files: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    pub prereq: Option<String>,
+    #[serde(default)]
+    pub task: Option<ScenarioTask>,
+    pub recorded: Recorded,
+    #[serde(default)]
+    pub expect: Expectations,
+}
+
+/// The "tape": the turns that were recorded.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Recorded {
+    pub turns: Vec<RecordedTurn>,
+}
+
+/// One recorded turn: the human's words, the model's scripted replies, and how a human answered
+/// any approval question (or did not — `silence` is a scripted answer too).
+#[derive(Debug, Clone, Deserialize)]
+pub struct RecordedTurn {
+    /// What the human said.
+    pub say: String,
+    /// The model's replies in **call order**.
+    #[serde(default)]
+    pub replies: Vec<ScriptedResponse>,
+    #[serde(default)]
+    pub approval: Option<ApprovalScript>,
+    /// The workspace this turn picked (`{{home}}` expands to the case's temp home).
+    #[serde(default)]
+    pub cwd: Option<String>,
+}
+
+impl ReplayCase {
+    /// The one job of this type: become a `Scenario`. No hidden state is carried over, so a
+    /// difference in behavior between a replay and a deterministic case is never "the loader".
+    pub fn into_scenario(self) -> Scenario {
+        let turns = self
+            .recorded
+            .turns
+            .into_iter()
+            .map(|turn| TurnScript {
+                message: turn.say,
+                session_id: None,
+                responses: turn.replies,
+                apply_patch: None,
+                interrupt_after_deltas: None,
+                cwd: turn.cwd,
+                restart: false,
+                resume_task: false,
+                approval: turn.approval,
+            })
+            .collect();
+        Scenario {
+            id: self.id,
+            description: self.description,
+            message: None,
+            responses: Vec::new(),
+            interrupt_after_deltas: None,
+            cwd: None,
+            turns: Some(turns),
+            expect: self.expect,
+            settings: self.settings,
+            files: self.files,
+            prereq: self.prereq,
+            known_gap: None,
+            task: self.task,
+            recovery: false,
+            plan: None,
+        }
+    }
+}
+
+/// Reads recordings: each path is a `.jsonl` file or a directory (its `*.jsonl` files are read).
+///
+/// Every line is validated on load — an unversioned file or an empty `events` list is a **loader
+/// error**, not a silently-passing case. "A replay that asserts nothing" would be a green light
+/// with nothing behind it.
+pub fn load_all(paths: &[PathBuf]) -> Result<Vec<ReplayCase>> {
+    crate::jsonl::read_jsonl(paths, "replay case", |case: &ReplayCase, at| {
+        let where_ = format!("{at} ({})", case.id);
+        if case.schema_version != SCHEMA_VERSION {
+            anyhow::bail!(
+                "{where_}: schemaVersion={} is not recognised (this build only reads {SCHEMA_VERSION}).\
+                 An old recording cannot be read by guessing — use another one, or re-record following evals/replay/README.md.",
+                case.schema_version
+            );
+        }
+        if case.recorded.turns.is_empty() {
+            anyhow::bail!("{where_}: recorded.turns is empty, there is no conversation to replay");
+        }
+        if case.expect.events.is_empty() {
+            anyhow::bail!(
+                "{where_}: expect.events is empty — a replay case must declare the event sequence it expects,\
+                 otherwise it is just repeating a deterministic case"
+            );
+        }
+        Ok(())
+    })
+}
+
+#[cfg(test)]
+mod replay_tests {
+    use super::*;
+
+    const ONE: &str = concat!(
+        r#"{"id":"demo","description":"one turn: write a file after an approval","schemaVersion":1,"#,
+        r#""settings":{"write_enabled":true,"approval":"on-request"},"#,
+        r#""recorded":{"turns":[{"say":"write to {{home}}/a.md","#,
+        r#""replies":[{"tool_use":{"name":"write_file","args":{"path":"{{home}}/a.md","content":"x"}}},"#,
+        r#"{"text":"Written."}],"approval":{"answer":"yes","remember":"session"}}]},"#,
+        r#""expect":{"events":["turnStarted","approvalRequested","turnCompleted"]}}"#
+    );
+
+    fn tmp(name: &str, body: &str) -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join(name);
+        std::fs::write(&path, body).expect("write the file");
+        (dir, path)
+    }
+
+    #[test]
+    fn a_recording_becomes_a_scenario_without_losing_anything() {
+        let (_dir, path) = tmp("one.jsonl", &format!("# a comment line\n{ONE}\n"));
+        let mut cases = load_all(&[path]).expect("load");
+        assert_eq!(cases.len(), 1, "a comment line must not count as a case");
+
+        let case = cases.remove(0);
+        assert_eq!(case.recorded.turns.len(), 1);
+        let scenario = case.into_scenario();
+        let turns = scenario.effective_turns();
+        assert_eq!(turns.len(), 1, "several turns must unfold one by one");
+        assert_eq!(turns[0].message, "write to {{home}}/a.md");
+        assert_eq!(
+            turns[0].responses.len(),
+            2,
+            "not one scripted response may be dropped"
+        );
+        assert_eq!(
+            turns[0].approval.as_ref().map(|a| a.answer.as_str()),
+            Some("yes"),
+            "the approval script has to come along"
+        );
+        assert_eq!(
+            turns[0]
+                .approval
+                .as_ref()
+                .and_then(|a| a.remember.as_deref()),
+            Some("session")
+        );
+        assert_eq!(scenario.expect.events.len(), 3);
+    }
+
+    #[test]
+    fn an_unversioned_recording_is_refused() {
+        let body = ONE.replace("\"schemaVersion\":1,", "");
+        let (_dir, path) = tmp("old.jsonl", &body);
+        let error = load_all(&[path]).expect_err("no version means refuse");
+        assert!(format!("{error}").contains("schemaVersion"), "{error}");
+    }
+
+    #[test]
+    fn a_replay_with_no_events_is_refused() {
+        let body = ONE.replace(
+            r#""expect":{"events":["turnStarted","approvalRequested","turnCompleted"]}"#,
+            r#""expect":{}"#,
+        );
+        assert_ne!(
+            body, ONE,
+            "the replacement did not take — the case still carries events"
+        );
+        let (_dir, path) = tmp("empty.jsonl", &body);
+        let error = load_all(&[path]).expect_err("no event sequence means it is not a replay");
+        assert!(format!("{error}").contains("expect.events"), "{error}");
+    }
+}

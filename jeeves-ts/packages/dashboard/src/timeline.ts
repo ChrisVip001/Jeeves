@@ -1,0 +1,158 @@
+
+import { t } from "./i18n";
+import { el, formatMs } from "./render";
+
+/** One step on the thread. */
+interface Entry {
+  kind: "gate" | "tool" | "graph" | "note";
+  label: string;
+  detail?: string;
+}
+
+export interface Timeline {
+  /** The element to mount into the message. */
+  root: HTMLElement;
+  gate(text: string): void;
+  retry(text: string): void;
+  goal(text: string): void;
+  graph(text: string): void;
+  note(text: string): void;
+  /**
+   * A tool call: start opens the entry, end freezes its duration and colors it.
+   *
+   * Keyed by the model's call id, not the name: several read-only calls share one round and
+   * can start and finish in any order, so "the last row" would put results on the wrong line.
+   */
+  toolStart(id: string, name: string, detail: string): void;
+  /** Live output from a call that is still running: the row's detail shows the tail. */
+  toolDelta(id: string, chunk: string): void;
+  toolEnd(id: string, name: string, ok: boolean, ms: number | null, output: string): void;
+  /** Turn over: fold the thread, freeze the head line. */
+  settle(): void;
+}
+
+/** The head line shows "N steps · latest label" — the only thing visible while collapsed. */
+function headText(steps: number, latest: string): string {
+  return steps <= 1 ? latest : t("{steps} 步活动 · {latest}", { steps, latest });
+}
+
+export function createTimeline(): Timeline {
+  let steps = 0;
+  let latestLabel = "";
+  const list = el("div", { class: "tl-body" });
+  list.hidden = true;
+
+  const head = el("button", { class: "tl-head", type: "button" });
+  const root = el("div", { class: "timeline" }, head, list);
+
+  let open = false;
+
+  head.addEventListener("click", () => {
+    open = !open;
+    list.hidden = !open;
+    root.classList.toggle("open", open);
+  });
+
+  function paintHead(): void {
+    head.textContent = steps === 0 ? "" : headText(steps, latestLabel);
+  }
+
+  function push(entry: Entry): HTMLElement {
+    steps += 1;
+    latestLabel = entry.label;
+    const row = tlRow(entry);
+    list.append(row);
+    while (list.children.length > 50) list.firstElementChild?.remove();
+    paintHead();
+    return row;
+  }
+
+  /** One row: kind-colored dot + label (+ detail). Pure paint, no timers here. */
+  function tlRow(entry: Entry): HTMLElement {
+    return el(
+      "div",
+      { class: `tl-row tl-${entry.kind}` },
+      el("span", { class: "tl-dot", "aria-hidden": "true" }),
+      el("span", { class: "tl-label", text: entry.label }),
+      el("span", {
+        class: "tl-detail",
+        text: entry.detail ?? "",
+        title: entry.detail ?? "",
+      }),
+    );
+  }
+
+  interface OpenRow {
+    id: string;
+    row: HTMLElement;
+    detail: HTMLElement;
+  }
+
+  /** Open rows by call id. Bounded like the list itself: a long turn must not leak. */
+  const toolRows = new Map<string, OpenRow>();
+  /** The last row opened without an id — the fallback for an unkeyed completion. */
+  let lastToolRow: OpenRow | null = null;
+
+  function detailOf(row: HTMLElement): HTMLElement {
+    return row.querySelector<HTMLElement>(".tl-detail") ?? el("span", { class: "tl-detail" });
+  }
+
+  function finish(row: HTMLElement, detail: HTMLElement, ok: boolean, ms: number | null, output: string): void {
+    row.classList.remove("running");
+    row.classList.add(ok ? "done-ok" : "done-bad");
+    if (ms !== null) detail.textContent = formatMs(ms);
+    if (!ok && output !== "") {
+      const label = row.querySelector<HTMLElement>(".tl-label");
+      if (label !== null) label.title = output;
+    }
+  }
+
+  return {
+    root,
+
+    gate: (text) => push({ kind: "gate", label: text }),
+    retry: (text) => push({ kind: "note", label: text }),
+    goal: (text) => push({ kind: "gate", label: text }),
+    graph: (text) => push({ kind: "graph", label: text }),
+    note: (text) => push({ kind: "note", label: text }),
+
+    toolStart(id, name, detail) {
+      const row = push({ kind: "tool", label: name, detail });
+      row.classList.add("running");
+      const entry: OpenRow = { id, row, detail: detailOf(row) };
+      if (id !== "") toolRows.set(id, entry);
+      lastToolRow = entry;
+    },
+
+    toolDelta(id, chunk) {
+      const entry = toolRows.get(id);
+      if (entry === undefined || chunk === "") return;
+      const tail = (entry.detail.textContent ?? "") + chunk;
+      const shown = tail.length > 240 ? `…${tail.slice(-240)}` : tail;
+      entry.detail.textContent = shown.replace(/\s+$/, "");
+      entry.detail.title = shown;
+      entry.row.classList.add("streaming");
+    },
+
+    toolEnd(id, name, ok, ms, output) {
+      const entry = toolRows.get(id) ?? (lastToolRow?.id === id || id === "" ? lastToolRow : null);
+      if (entry !== null) {
+        finish(entry.row, entry.detail, ok, ms, output);
+        toolRows.delete(entry.id);
+        if (lastToolRow === entry) lastToolRow = null;
+      } else if (name !== "") {
+        const row = push({ kind: "tool", label: name });
+        finish(row, detailOf(row), ok, ms, output);
+      }
+      paintHead();
+    },
+
+    settle() {
+      open = false;
+      list.hidden = true;
+      root.classList.remove("open");
+      root.classList.add("ended");
+      paintHead();
+    },
+  };
+}

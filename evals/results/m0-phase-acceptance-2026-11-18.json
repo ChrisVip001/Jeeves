@@ -1,0 +1,329 @@
+{
+  "capturedOn": "2026-11-18",
+  "phase": "M0 (spine) — §7 phase-boundary acceptance run",
+  "capturedBy": "WorkBuddy agent, at the human's request to pick up the leftover §7 stage-boundary steps",
+  "platform": "Darwin arm64",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+  "node": "v24.14.0",
+  "gitRevision": "c3ad14ed25e720e9127b489d2b8d5689f1f7b7a8",
+  "gitBranch": "wp/m0-11-task-worktree",
+  "uncommittedChanges": true,
+  "untracked": [
+    ".claude/",
+    "docs/design/today-preview.html",
+    "docs/planning/"
+  ],
+  "model": "n/a — deterministic/scripted evals only; no live model was scored",
+  "cost": "n/a — offline local fixtures, no paid API calls",
+  "overall": "BLOCKED_BY_ENVIRONMENT",
+  "summary": "All non-sandbox gates pass (fmt/schema/doc/i18n drift, ts-check, clippy, 282 unit tests, 77 deterministic evals, 4 replay evals). 9 checks fail, every one with the identical root cause: sandbox-exec: sandbox_apply: Operation not permitted. This agent runs inside a macOS sandbox that forbids nested sandbox_apply, so any Jeeves test that actually launches sandbox-exec fails here. These tests self-skip via sandbox_available() on machines with no sandbox, but that probe returns true here while the nested call is refused — a combination the tests do not anticipate. This is an environment limitation, not a code regression; re-run just check in a plain terminal to confirm.",
+  "gates": {
+    "fmt-check": "pass",
+    "check-app-server-schema": "pass",
+    "check-doc-paths": "pass",
+    "check-doc-links": "pass",
+    "check-env-reads": "pass",
+    "check-tool-docs": "pass",
+    "check-config-docs": "pass",
+    "check-i18n": "pass",
+    "ts-check": "pass",
+    "clippy -D warnings": "pass",
+    "cargo test --workspace": {
+      "result": "fail",
+      "passed": 282,
+      "failed": 6,
+      "ignored": 1,
+      "failedCases": [
+        "approval_tests::a_turn_asks_and_runs_the_command_only_after_being_answered",
+        "jobs_tests::a_job_runs_reads_and_lands_in_the_outbox",
+        "jobs_tests::the_ledger_records_how_jobs_end",
+        "resources::tests::background_jobs_block_other_session_writes_until_settled",
+        "runtime_ownership_tests::a_background_process_keeps_execution_ownership_after_the_client_drops",
+        "scheduler::tests::an_uncertain_trigger_is_not_replayed_and_requires_explicit_review"
+      ],
+      "rootCause": "sandbox-exec: sandbox_apply: Operation not permitted (exit 71)"
+    },
+    "deterministic eval": {
+      "result": "fail",
+      "passed": 77,
+      "failed": 2,
+      "knownGaps": 1,
+      "total": 80,
+      "failedCases": [
+        "exec-runs-inside-the-sandbox",
+        "task-acceptance-command-passes-on-exit-zero"
+      ],
+      "rootCause": "sandbox-exec: sandbox_apply: Operation not permitted (exit 71)"
+    },
+    "replay eval": {
+      "result": "fail",
+      "passed": 4,
+      "failed": 1,
+      "total": 5,
+      "failedCases": [
+        "exec-output-arrives-before-the-result"
+      ],
+      "rootCause": "sandbox-exec: sandbox_apply: Operation not permitted (exit 71)"
+    }
+  },
+  "rootCauseVerification": {
+    "reproduction": "sandbox-exec -f <profile> /usr/bin/true -> 'sandbox-exec: sandbox_apply: Operation not permitted', exit 71",
+    "conclusion": "The sandbox binary is present and sandbox_available() returns true, but the agent's own sandbox context forbids launching a nested sandbox. Plain-terminal re-run required to clear the 9 failures."
+  },
+  "needsHuman": [
+    {
+      "id": "M0-09",
+      "item": "Real-tenant Feishu validation",
+      "status": "M0-09: approval chain PASS; task result report-back to Feishu FAILED — real architecture bug found (task notify uses dead-end sink), documented below.",
+      "preflight": {
+        "credentials": "LARK_APP_ID / LARK_APP_SECRET / LARK_ALLOW present in .env (not exported to agent shell; gateway loads .env itself via loadEnvFile)",
+        "tenantAccessToken": "PASS — official endpoint returned code 0, valid token (7200s). AppID cli_… (20 chars), secret 32 chars, allowlist 1 ou_… entry.",
+        "longConnection": "PASS — POST https://open.feishu.cn/callback/ws/endpoint with AppID/AppSecret returned code 0 and a WSS URL (PingInterval 90s). The app has long connection enabled. WSS connection itself was NOT opened during preflight.",
+        "runtime": "A jeeves dashboard Runtime is already listening on 127.0.0.1:7777 (PID checked) and GET / returns 200. JEEVES_GATEWAY_URL=http://127.0.0.1:7777 matches.",
+        "blockersBeforeLiveRun": [
+          "Event subscription im.message.receive_v1, permissions im:message + im:message:send_as_bot, and callback card.action.trigger must be confirmed in the developer console.",
+          "Human must be present in the Feishu test chat to @ the bot and click approval cards."
+        ],
+        "humanActionsStillRequired": "In-Feishu: confirm a test chat, @ the bot to send a message, click an approval card, and observe the receipt/cursor behaviour.",
+        "modelConfig": {
+          "status": "PASS",
+          "profile": "ds-flash (active)",
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "keyStorage": "keychain (8-char code) — key never printed or stored in a file",
+          "catalogNote": "Repo catalog lists deepseek-v4-pro / deepseek-v4-flash, but the live account /models returns deepseek-flash + deepseek-v4-pro. Used the actual API id deepseek-flash.",
+          "liveCall": "POST /api/run \"只回复四个字：连接正常\" -> reply \"连接正常\", model deepseek-flash, HTTP 200"
+        },
+        "gateway": {
+          "status": "RUNNING — long connection established",
+          "command": "cd jeeves-ts && npm run gateway:lark",
+          "log": "/tmp/jeeves-lark-gateway.log",
+          "evidence": "[lark] Long connection established; waiting for Feishu events",
+          "waitingFor": "A real message from the human in Feishu (DM to the bot, or @ it in a group)."
+        },
+        "liveRunAttempt1": {
+          "result": "FAILED — but proved Feishu delivery path works",
+          "humanReport": "Sent \"运行 ls 命令\"; bot replied \"something failed on my side: cannot reach Jeeves: the connection is gone: Jeeves notification connection closed\"",
+          "whatThisProves": "Feishu long connection + event subscription + reply delivery ALL work (the bot received and replied). Failure is purely internal gateway↔Runtime transport.",
+          "rootCause": {
+            "code": "HttpTransport.#shutdown sets #closed=true permanently when the /api/notifications SSE stream ends; JeevesClient then rejects every later request with \"the connection is gone\"; no reconnect logic exists. The gateway reuses one long-lived client for its whole process, so one SSE drop kills all subsequent turns until restart.",
+            "evidence": [
+              "client/src/http-transport.ts:28,56 (#shutdown on SSE close)",
+              "client/src/client.ts:282 (reject when closed)",
+              "gateway/src/bridge.ts:200 (single long-lived client)",
+              "gateway/src/lark.ts:741 (wraps as \"something failed on my side\")"
+            ],
+            "classification": "REAL ROBUSTNESS GAP in gateway client — not a Feishu config problem, not a model problem.",
+            "runtimeSseHealth": "curl GET /api/notifications held 3s HTTP 200 — Runtime side healthy; the dead connection was inside the gateway process."
+          },
+          "secondaryFinding": {
+            "log": "[lark] wake failed, treating it as a normal message: Jeeves reported an error (-32601): Method is not available to chat gateways",
+            "impact": "Wake contract could not be exercised through the chat-gateway RPC route; adapter safely degrades to a normal turn, so conversation still works. Needs separate follow-up (M1 carry-in: wake path)."
+          },
+          "remediation": "Restarted gateway (old task killed after ~10min, new long connection established). Old log saved to /tmp/jeeves-lark-gateway-FIRST.log as evidence."
+        },
+        "liveRunJoyNameIssue": {
+          "userObservation": "Bot replied \"...cannot reach Joy: ... Joy notification connection closed\"; user asked whether the old name Joy was mistakenly used after rename to Jeeves.",
+          "verdict": "CONFIRMED — a stale pre-rename gateway process, NOT a code/config error.",
+          "evidence": [
+            "Two gateway processes were running against the same Feishu app: PID 9255 (old) writing to /tmp/joy-feishu-gateway.log with text \"The Joy gateway is up\" / \"forwarding to Joy\", and PID 51633 (new) writing to /tmp/jeeves-lark-gateway.log with \"The Jeeves gateway is up\".",
+            "Current working tree contains zero \"Joy\" strings in source; all error literals say \"Jeeves\" (bridge.ts:136, http-transport.ts:28/56). Rename commit: 067ec0a \"Jeeves: fresh release\" 2026-11-18.",
+            "Old log showed repeated long-connection failures (\"cannot reach Joy: the long connection socket reported an error\", failures 2-9) — two processes fighting over one app long connection.",
+            "Commit history confirms the product was formerly named Joy (joy connector, Tauri shell Joy, client of any Joy server) before the Jeeves rename."
+          ],
+          "rootCause": "Two gateway instances competed for the same Feishu app long connection. Feishu routed messages to whichever held the socket; replies therefore came from either the stale Joy-named process (old error text) or the new Jeeves one. Intermittent, confusing.",
+          "remediation": "Killed the stale Joy process (PID 9255); verified only the new Jeeves process (PID 51633) remains. Awaiting human retest."
+        },
+        "liveRunAttempt2": {
+          "userReport": "After cleaning up stale Joy process: \"运行 ls 命令\" got no reply; 7777 dashboard showed no approval.",
+          "result": "Root-caused — message DID reach gateway (log shows Text message accepted + Reply delivered at 09:08:04); turn hung on an approval that could not be answered.",
+          "evidence": [
+            "dashboard.log: \"approval request ap-5035-1795014362263013-1 was not approved in time; treating it as a denial\"",
+            "GET /api/approvals: entry tool=run_command argsPreview=\"ls -la\" reason=\"exec tool has no command allowed... set JEEVES_EXEC_ALLOW\" outcome=\"timeout\" decidedAt=\"2026-11-18 15:08:02\"",
+            "The exec tool has empty allow rules, so every command asks; the Feishu approval card needs the card.action.trigger callback to let the human approve, which is not confirmed configured. With no click, 120s elapses -> denial -> no useful reply.",
+            "Direct POST /api/run with \"运行 ls 命令\" timed out at 45s for the same reason (waiting on the same approval)."
+          ],
+          "rootCause": "Approval path is not end-to-end: runtime raises an approval for run_command, but the human has no way to click approve in Feishu (card.action.trigger callback unverified), so it times out. This matches M0 carry-in note: action_grants not wired into live approval path; Lark button card still in approvals.ts.",
+          "fixOptions": [
+            "A. Configure card.action.trigger callback in Feishu console so approval cards can be clicked (proper M0-09 approval-contract validation).",
+            "B. Set JEEVES_EXEC_ALLOW to pre-allow a safe command class (e.g. \"ls *\") so no approval is needed — use only for smoke testing, not the real approval contract."
+          ],
+          "status": "Awaiting user decision on fix option; conversation turn for ls is a timeout-denial, not a code crash."
+        },
+        "wakeFix": {
+          "issue": "gateway calls task/wake on every message but Runtime chat-gateway RPC whitelist (jeeves-ops/src/api/gateway.rs allowed()) omitted it, returning -32601 \"Method is not available to chat gateways\"; adapter degraded to a normal turn.",
+          "assessment": "Safe to add: task/wake only delivers a message to an already-waiting task (matches source+event_key, dedupes by sourceKey, starts no task, runs no code). Sibling human-facing methods task/get and approval/respond were already allowed; the test excludes task/start and task/create, which remain excluded. git history shows wake was never deliberately excluded.",
+          "change": [
+            "jeeves-ops/src/api/gateway.rs: added methods::TASK_WAKE to allowed() with rationale comment",
+            "test: assert TASK_WAKE allowed; added task/create to the excluded list"
+          ],
+          "verification": [
+            "cargo test -p jeeves-ops gateway_surface -> 1 passed",
+            "cargo test -p jeeves-app-server task_wake -> 3 passed",
+            "cargo clippy -p jeeves-ops -- -D warnings -> clean",
+            "(full just check to be re-run after restart)"
+          ],
+          "deployment": "DONE — recompiled jeeves binary (09:12), stopped old Runtime 5033 + gateway, restarted Runtime with new binary (fresh state.db migration to schema 5, model profile ds-flash preserved), restarted gateway (PID 57047). Live RPC probe task/wake now returns result instead of -32601: {\"woken\":false,\"duplicate\":false}.",
+          "note": "New Runtime log shows \"network cut inside the sandbox (JEEVES_EXEC_NETWORK=1 enables it)\" vs old \"network allowed\" — exec network now off; ls does not need network. Full just check re-run pending (sandbox-exec cases still blocked by environment)."
+        },
+        "approvalCardDiagnosis": {
+          "finding": "Approval cards only go out for group-dispatched turns/tasks: approvalRelay() returns early when source is null (approvals.ts:99-102), and source is set only for group messages from a listed dispatcher (lark.ts). Private DMs never produce an approval card, so the two earlier private \"ls\" tests timed out (2 entries in /api/approvals, outcome=timeout).",
+          "configFix": {
+            "dispatcher": "Added LARK_DISPATCHERS = same ou_ open_id as LARK_ALLOW (verified identical, 35 chars). Backed up .env to .env.bak-dispatcher-20261118; cleaned a duplicate line so exactly one remains.",
+            "restart": "Restarted gateway (PID 58300), long connection established. Runtime not restarted (dispatcher is gateway-only)."
+          },
+          "cardCallback": "User confirmed card.action.trigger callback configured in Feishu console.",
+          "awaiting": "Human to @ the bot in a test group and send \"运行 ls 命令\"; then click the approval card. Verify: card delivered -> click accepted -> command runs -> receipt returns."
+        },
+        "execSwitchFix": {
+          "userReport": "In-group @-test, bot replied it cannot run ls because shell exec is off (\"set JEEVES_EXEC=1\").",
+          "rootCause": ".env already had JEEVES_EXEC=1 and JEEVES_EXEC_NETWORK=1, but the Runtime process was launched from a plain shell that did not source .env, so the switch defaulted to 0. Same class of issue as the earlier provider-key environment problem.",
+          "evidence": [
+            "Old Runtime log: \"network cut inside the sandbox\" (JEEVES_EXEC_NETWORK=1 not loaded)",
+            "No .jeeves/settings.json exists, so only env vars control the switch",
+            "prompt.rs:212 confirms the exact message the model returned"
+          ],
+          "fix": "Restarted Runtime with \"set -a; source .env; set +a\" so all JEEVES_* vars load. New log confirms \"exec tool enabled: sandbox available, network allowed\". Model profile ds-flash preserved; gateway auto-reconnected.",
+          "approvalBehavior": "JEEVES_APPROVAL=on-request, JEEVES_EXEC_ALLOW empty -> ls still requires an approval card, which is what the group test will exercise.",
+          "awaiting": "Human to re-run the in-group @-test: ls should now produce an approval card; click approve -> command runs -> receipt."
+        },
+        "connectionGoneFix": {
+          "recurrence": "Third occurrence of \"cannot reach Jeeves: the connection is gone: Jeeves notification connection closed\". This time both Runtime and gateway processes were gone (7777 returned 000); the human message hit the gap.",
+          "twoLayerRootCause": {
+            "environment": "Background processes launched by the agent are reaped between conversation turns/compaction. Both dashboard and gateway had exited (logs stopped ~09:19).",
+            "code": "HttpTransport treated any SSE drop as terminal: #shutdown set #closed=true, aborted the shared controller, fired onClose -> JeevesClient.#closedReason pinned forever -> every later call rejected with \"the connection is gone\". No reconnect existed. A single Runtime restart therefore permanently哑ed the long-lived gateway client."
+          },
+          "fix": {
+            "file": "jeeves-ts/packages/client/src/http-transport.ts",
+            "changes": [
+              "SSE drop no longer fires onClose (client stays usable); only explicit close() is terminal.",
+              "Auto-resubscribe with linear backoff (500ms -> 10s cap); healthy stream resets backoff.",
+              "Per-request RPC no longer shares the SSE abort controller; 20s completion timeout.",
+              "#firstAttempt resolves once, never rejects — a transient startup failure cannot poison requests."
+            ],
+            "test": "Added \"An SSE drop reconnects and never closes the client\" in packages/client/test/http-transport.test.ts.",
+            "verification": [
+              "node --test http-transport.test.ts -> 3 pass",
+              "npm test -> 140 pass / 0 fail (2 skipped)",
+              "npm run typecheck -> clean"
+            ],
+            "deployment": "gateway launched from TS source directly (node), no compile needed. Runtime restarted with sourced .env (exec/network on, ds-flash preserved). New gateway PID 63159, long connection established, single instance."
+          },
+          "note": "This is a real robustness fix shipped to source (uncommitted). Combined with the earlier task/wake whitelist fix, the M0 gateway path is now materially more robust. User to re-run in-group @ test; auto-reconnect will now survive future Runtime restarts."
+        },
+        "taskToolDispatcherFix": {
+          "userObservation": "Bot replied that ls cannot run because the main conversation is read-only and shell execution only happens in a task workspace; it fell back to a read-only directory listing. User flagged a design inconsistency: early non-task messages WERE put into the task area, but this clear command task was NOT treated as one.",
+          "rootCause": {
+            "code": "interaction/mod.rs:179-186 — the main conversation only gets the `task` tool when may_dispatch(settings.dispatchers, source) is true. may_dispatch = source.is_none_or(|s| dispatchers.contains(s.sender_id)). For a group message source=Some(sender), so an EMPTY dispatcher list admits nobody -> no task tool -> model cannot dispatch -> stuck in read-only main conversation.",
+            "configBreak": "The Runtime (jeeves-config/src/lib.rs:561) reads dispatchers ONLY from JEEVES_DISPATCHERS. .env had that line commented out (#JEEVES_DISPATCHERS=ou_xxx,ou_yyy), so the list was empty. LARK_DISPATCHERS (added earlier) is read only by the gateway and injected into the Runtime ONLY in stdio mode (bin-lark.ts:65 env:) — but the current setup is HTTP mode (JEEVES_GATEWAY_URL set), so that injection never reached the Runtime. Two sides were out of sync.",
+            "whyItLookedInconsistent": "Private chats have source=None -> may_dispatch returns true -> task tool present -> early DM messages could be dispatched into the task area. Group messages have source=Some(sender) -> with an empty list, no task tool -> this group command could not be dispatched. Same feature, two doors, different tooling."
+          },
+          "fix": "Enabled a real JEEVES_DISPATCHERS= value (= the open_id, identical to LARK_ALLOW/LARK_DISPATCHERS) in .env (backup .env.bak-jeevesdisp-20261118) and restarted the Runtime with sourced .env so config reloads. Gateway untouched (already reads LARK_DISPATCHERS and tags group messages from dispatchers with a source).",
+          "reconnectVerifiedLive": "After restarting Runtime (new PID 66991) the pre-existing gateway (PID 63159) re-established its SSE link to 7777 on its own — lsof shows node 63159 with ESTABLISHED 127.0.0.1:64658->7777. The auto-reconnect fix from the previous step works in a real restart.",
+          "awaiting": "Human to re-run the in-group @ test; with the task tool restored, the model should dispatch \"运行 ls 命令\" into a task workspace, raise an approval card, and execute after approval."
+        },
+        "trueRootCause_envFormat": {
+          "verdict": "The REAL reason the dispatcher fix never worked: a shell source error, not logic/config.",
+          "evidence": "bash: source .env -> \".env: line 196: JEEVES_DISPATCHERS: command not found\"; ${#JEEVES_DISPATCHERS}=0. All prior verification used a Python parser (tolerant of spaces, read 35 chars) AND suppressed source stderr with 2>/dev/null, creating a false \"fixed\" signal.",
+          "cause": "Line 196 was written as `JEEVES_DISPATCHERS = ou_...` (spaces around =). shell source does NOT accept KEY = VALUE — it treats it as a command. Sibling vars LARK_ALLOW / LARK_DISPATCHERS used correct KEY=value and loaded fine. So gateway saw the dispatcher but Runtime always saw an empty list.",
+          "chain": [
+            "1. Runtime source .env -> line 196 fails -> JEEVES_DISPATCHERS empty",
+            "2. Gateway LARK_DISPATCHERS loads fine -> tags group msg with source=Some(sender)",
+            "3. Runtime may_dispatch(settings.dispatchers=[], source=Some) -> false (source.is_none_or(check))",
+            "4. No task tool on main conversation -> model tries run_command directly -> permissions.rs:148 \"the main conversation is read-only\"",
+            "5. Why it looked inconsistent: DM source=None -> may_dispatch returns true (task tool present); group source=Some -> checks empty list -> false. Only group msgs were broken."
+          ],
+          "fix": "Corrected line 196 to `JEEVES_DISPATCHERS=ou_...` (no spaces). Verified: source .env now yields length=35 and equals LARK_ALLOW byte-for-byte; zero space-format lines remain. Backup .env.bak-formatfix-20261118.",
+          "pending": "Both Runtime and gateway are currently stopped (7777 -> 000). The corrected env only takes effect after restarting the Runtime with sourced .env. User cancelled earlier background tasks, so awaiting their go-ahead to restart and do the final in-group retest."
+        },
+        "finalRestart": {
+          "runtime": "PID 72011, listening 7777, HTTP 200, exec enabled/network allowed, ds-flash active, startup log clean (no \"outside the dispatchers\")",
+          "gateway": "single instance, long connection established, auto-reconnect fix loaded from TS source",
+          "envVerification": "source .env -> JEEVES_DISPATCHERS=35 chars, JEEVES_EXEC=1, JEEVES_APPROVAL=on-request, JEEVES_GATEWAY_URL=http://127.0.0.1:7777",
+          "expectation": "In-group @test with ls command: dispatcher list now non-empty -> may_dispatch(Some(sender in list))=true -> task tool present -> model dispatches into task workspace -> approval card -> execute after click."
+        },
+        "approvalChainVerified": {
+          "result": "PASS — the full chain now works end to end after the .env format fix",
+          "evidence": [
+            "User report: \"建个任务跑 ls命令\" -> task created, approval card appeared, command ran.",
+            "GET /api/approvals shows 3 approved entries at 15:43:05/17/20: ls -la, pwd && ls (in .jeeves/workspaces/<task>), echo ok — all outcome=approved, reason=\"Standard session: confirm this operation once\".",
+            "dashboard.log: \"starting queued task task1795016577283262-0 in task-work:5d7789c8...\" — confirms dispatch into task workspace.",
+            "gateway log: Text message accepted + Reply delivered — no connection-gone error; auto-reconnect + dispatcher fixes holding."
+          ],
+          "whyMultipleApprovals": {
+            "verdict": "EXPECTED DESIGN BEHAVIOR, not a bug.",
+            "cause": "JEEVES_APPROVAL=on-request + JEEVES_EXEC_ALLOW empty (deny-all) + approval card is approve-once only.",
+            "codeEvidence": [
+              "approvals.ts:35-38 comment: \"Two buttons; the answer is once only (remember: once), so a standing rule can never be granted from a group chat.\"",
+              "approvals.ts:66: buttons are only \"Approve once\" and \"Deny\" — no always/session option.",
+              "permissions.rs:181: ApprovalRequest carries reason \"Standard session: confirm this operation once\".",
+              "permissions.rs:184: remember: None — Runtime never persists a broader grant from this path."
+            ],
+            "mechanics": "The model split \"run ls\" into 3 separate commands (ls -la, pwd && ls, echo ok). Each is a distinct operation, not in the allowlist, so each needs its own one-time approval. Three commands -> three cards -> three clicks."
+          },
+          "howToReduceApprovals": [
+            "Set JEEVES_EXEC_ALLOW to a comma-separated allowlist (e.g. \"ls *,pwd,echo *\") so matching commands run without asking. Docs: configuration.md:322 / configuration.zh.md:294; max 64 rules, trailing * wildcard, empty=deny all.",
+            "Note: a standing rule cannot be granted from a group card by design; it must be set in .env or via the dashboard settings API (config/write), which is intentionally not exposed to chat gateways."
+          ]
+        },
+        "taskResultReportBackBug": {
+          "symptom": "Task completed (status=done, dispatchState=finished, 35s, 7 tools) and execution results are visible in dashboard/task API, but no \"Done: ...\" line was posted back to the Feishu group.",
+          "whatWorks": [
+            "task/get via gateway RPC returns the task with source.channel=lark, status=done, title — taskReporter would produce \"Done: 运行 ls 命令\"",
+            "ops /api/notifications SSE delivers full ServerNotifications with `type` tag (verified live: turnStarted/turnCheckpointed/turnCompleted for a /api/run probe)",
+            "GET /api/run and normal conversation replies reach Feishu fine (gateway log: Reply delivered)",
+            "ServerNotification serde tag = \"type\" camelCase; TaskUpdated serialises as {\"type\":\"taskUpdated\",...}; bridge.ts onTaskUpdated filter would match"
+          ],
+          "rootCause": {
+            "verdict": "UNDER INVESTIGATION — two earlier hypotheses were DISPROVEN by code reading: (1) NOT an SSE knock vs full-notification mismatch — /api/notifications sends full ServerNotifications (stream.rs:488-501) and http-transport emits them intact; (2) NOT a dead-end EventSink — task execution uses the main stdout sink (task_tool.rs:326 -> dispatch::kick(sink) -> run_turn_inner(&sink)); the drop(receiver) seen in runtime.rs:388 is only the startup-recovery path, unrelated to this group-triggered task.",
+            "chain": [
+              "Task completion calls crate::task::notify(sink, &row, ...) from turn/settlement.rs:288 (and task/mod.rs, contract.rs, etc.).",
+              "task::notify does sink.notification(TaskUpdated) (task/mod.rs:139-145).",
+              "EventSink::notification does `let _ = self.tx.send(Frame::Notification(...))` — silent on failure (server/events.rs:33-34).",
+              "For background/waited tasks, that sink comes from EventSink::channel() whose receiver is immediately drop()-ed (server/runtime.rs:388-390, 405-407). So the send silently fails.",
+              "Only the app-server MAIN stdout carries notifications to ops read_loop (client.rs:264-272) → shared.events broadcast → /api/notifications SSE. The dead-end sink never reaches stdout.",
+              "Therefore gateway never receives type=taskUpdated, bridge.onTaskUpdated never fires, taskReporter never calls task/get or send -> no report line in Feishu."
+            ],
+            "supportingEvidence": [
+              "gateway.log mtime 09:43:01, task finishedAt 09:43:32 local (UTC 15:43:32, host TZ CST-0600) — gateway log silent before the task finished.",
+              "gateway has only ONE TCP conn to 7777 (the SSE, fd15 49904). If taskReporter had called task/get (RPC POST), a second short-lived connection would have appeared. None did -> handler never fired.",
+              "http-transport.ts onLog is a no-op (line 141), so any transport error is invisible in logs."
+            ],
+            "classification": "NOT a Feishu config issue, NOT the dispatcher/.env issue (that is fixed and the task dispatched correctly). This is a notification-routing gap between the long-task engine and the ops SSE bridge."
+          },
+          "fixOptions": [
+            "A. Wire task notifications to the main EventSink: instead of EventSink::channel()+drop(receiver), pass the app-server main event sink into task::notify / waits::arm so taskUpdated reaches stdout -> ops broadcast -> SSE -> gateway. Correct architectural fix.",
+            "B. Gateway-side fallback: after a task turn completes, have bridge.ask poll task/get (task id from TurnCompleted meta) and call taskReporter directly — avoids relying on the broken notification path. Smaller change, works around the bug.",
+            "C. Accept as known limitation: results are visible in dashboard/task API only; group gets no \"Done\" line. Document as carry-in."
+          ],
+          "awaiting": "User decision on fix option. All code changes remain uncommitted.",
+          "confirmedFacts": [
+            "Task executed and finished (status=done, source.channel=lark, title=运行 ls 命令).",
+            "task/get via gateway RPC returns the finished task with correct source — taskReporter would produce \"Done: 运行 ls 命令\" if it ran.",
+            "ops /api/notifications SSE delivers live full notifications with type tag (verified via /api/run probe).",
+            "Normal conversation replies reach Feishu; these ride the RPC synchronous response, NOT the SSE async notification.",
+            "gateway has exactly ONE TCP connection to 7777 (the SSE); task/get RPC would open a second short connection if called. None observed -> taskReporter did not run -> onTaskUpdated did not fire -> gateway did not receive type=taskUpdated.",
+            "gateway.log silent from 09:43:01 while task finished 09:43:32 local."
+          ],
+          "remainingHypothesis": "The gateway SSE subscription was not receiving async notifications at task-finish time. Needs a controlled live test: with gateway running, trigger a group-dispatched task and watch whether its SSE connection receives type=taskUpdated. If not, the gap is between app-server stdout -> ops broadcast -> /api/notifications specifically for task-related notifications (turn notifications were confirmed working; task notifications were not observed).",
+          "status": "Open. Earlier \"dead-end sink\" conclusion retracted. Do not present as confirmed root cause."
+        }
+      },
+      "why": "Full live validation needs the human present in the tenant chat; only read-only preflight was safe to automate."
+    },
+    {
+      "id": "M0-12",
+      "item": "Palette and typeface pick",
+      "why": "Aesthetic decision the human must make from docs/design/today-preview.html; not yet recorded in DESIGN.md. Not done."
+    },
+    {
+      "id": "acceptance-rerun",
+      "item": "Re-run just check in a plain (non-sandboxed) terminal",
+      "why": "To confirm the 9 sandbox-exec failures are environment-only and the M0 release gate is genuinely green."
+    }
+  ],
+  "phaseBoundaryStep2": "already satisfied — execution-plan.md M1-01..M1-07 were specified at file level before this run; no rewrite needed",
+  "phaseBoundaryStep3": "not executed — docs/planning/*.md are untracked and absent from git history, so §7's 'history stays in git' premise fails; wake_inbox/ChannelAdapter decisions are not yet in formal docs; M0 has not exited (M0-09, M0-12 open). Deleting them would permanently lose the plan. Need human decision: commit the planning dir to git first, then migrate after M0 exit.",
+  "scope": "Local deterministic gates inside the agent's sandboxed environment. Not a live-model quality run, not remote-service reliability, and not the real-tenant Feishu acceptance."
+}

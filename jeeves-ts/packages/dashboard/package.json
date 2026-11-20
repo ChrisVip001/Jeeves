@@ -1,0 +1,20 @@
+{
+  "name": "@jeeves/dashboard",
+  "private": true,
+  "type": "module",
+  "description": "Jeeves Web workbench: shared Vue controls, HTTP/SSE transport and domain panels.",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "typecheck": "vue-tsc -p tsconfig.json --noEmit",
+    "build": "npm run typecheck && vite build && node copy-assets.mjs"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.11",
+    "vite": "^8.3.8",
+    "vue-tsc": "^3.3.14"
+  },
+  "dependencies": {
+    "vue": "^3.5.45",
+    "lucide-vue-next": "^0.577.0"
+  }
+}

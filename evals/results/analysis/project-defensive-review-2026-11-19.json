@@ -1,0 +1,3283 @@
+{
+  "date": "2026-11-19",
+  "head": "c2c7f6793bcac39bfacb7731f19e8b1961d58684",
+  "workingTree": "含既有未提交修改。SHA 指向审查起点，文件摘要对应实际测试工作树。",
+  "index": "project-defensive-sites-2026-11-19.jsonl.gz",
+  "verification": {
+    "rustWorkspace": {
+      "passed": 1057,
+      "failed": 0,
+      "ignored": 4
+    },
+    "authoredFileSyntax": {
+      ".cjs": 1,
+      ".py": 22,
+      ".yml": 6,
+      ".yaml": 2,
+      ".toml": 18,
+      ".mjs": 1,
+      ".js": 3,
+      ".rb": 1,
+      ".sh": 8
+    },
+    "rustCoverage": {
+      "linesPercent": 75.56,
+      "measuredLines": 42168,
+      "llvmTotalRow": "TOTAL                                                65275             16409    74.86%        4636              1238    73.30%       42168             10306    75.56%           0                 0         -",
+      "thresholdPercent": 60
+    },
+    "nodePackages": {
+      "tests": 166,
+      "linesPercent": 70.08,
+      "branchesPercent": 77.93
+    },
+    "nodeControlPlane": {
+      "tests": 9,
+      "linesPercent": 88.31,
+      "branchesPercent": 69.06
+    },
+    "command": "just check desktop-check smoke smoke-resume smoke-recovery smoke-lifecycle smoke-web smoke-gateway smoke-dashboard smoke-interaction smoke-connector smoke-desktop smoke-business smoke-browser test-research-publication",
+    "gateExit": 0,
+    "fixtureScope": "临时 Jeeves home、真实 SQLite、回环协议服务与 Chromium、模拟供应商和集群命令。",
+    "deterministicEval": {
+      "passed": 84,
+      "knownGap": 1,
+      "cases": 85
+    },
+    "replayEval": {
+      "passed": 5,
+      "cases": 5
+    }
+  },
+  "observedRegressions": [
+    {
+      "case": "一轮支出超过任务余量",
+      "before": "20 token 上限下第一段已花 28，仍进行了第二次调用，总计 43。",
+      "after": "只进行第一次调用，记录实际支出并停止追加。"
+    },
+    {
+      "case": "配额计量",
+      "before": "正文含 usage 示例时记了 90003 个 token。",
+      "after": "按协议 usage 计量，fixture 的账单为 15。"
+    },
+    {
+      "case": "SQLite 写锁竞争",
+      "before": "两个连接间调度确认升级读事务失败，返回 SQLite code 5。",
+      "after": "第一次确认等待写者释放并结算，再次确认没有重复记录。"
+    },
+    {
+      "case": "收件箱存储异常",
+      "before": "草稿目录变成普通文件，接口仍返回 200 和空列表。",
+      "after": "返回 HTTP 500，浏览器显示错误。刷新成功后才显示空状态。"
+    },
+    {
+      "case": "恢复中执行记录不可写",
+      "before": "任务还没有通过恢复检查，已经推送开始或恢复事件。",
+      "after": "数据库故障保留待核对任务，不发运行事件、不调用供应商。"
+    },
+    {
+      "case": "等待后台作业的检查点损坏",
+      "before": "解析失败后任务继续轮询且保留等待记录。",
+      "after": "状态、检查点和等待记录同一事务转入待核对；部分写入失败全部回滚，修复存储可重试。"
+    },
+    {
+      "case": "显式检索和可选摘要",
+      "before": "主动检索把故障显示成零条，读取旧摘要失败会额外调用模型。",
+      "after": "主动检索报告故障，保留健康索引的结果。摘要故障跳过该次额外调用。"
+    }
+  ],
+  "remaining": [
+    "逐行索引是对列明语言的静态候选清单。每一组可复核的语义结论列在 reviewedBoundaries，其他位置未逐项人工签核；未命中代码与未采集的代码均保留。",
+    "AGENTS.md 仍列出旧 triage / gather。当前 CLI 没有 gather 子命令，turn/entry.rs 记载旧 triage 已撤去。已验证现行记忆检索及模型路由降级，历史入口没有可执行验收。",
+    "deterministic eval 仍有一个词法检索的已知缺口。已忽略测试、真实供应商、真实邮箱和日历、生产集群、真机重启/睡眠及 Windows/Linux 原生钥匙串不计为已通过。",
+    "模型配置与凭据的本地跨存储恢复已通过，见 credentialAndStreamFollowUp。系统原生凭据服务仍需在对应平台独立验证。"
+  ],
+  "credentialAndStreamFollowUp": {
+    "date": "2026-11-19",
+    "head": "c2c7f6793bcac39bfacb7731f19e8b1961d58684",
+    "scope": "Mac 上未提交的工作树、真实 Jeeves 进程、临时 home 和合成凭据。首轮的覆盖率和源码摘要仍对应首轮快照。",
+    "credentialRecovery": {
+      "test": "scripts/smoke-model-credentials.py",
+      "crashes": [
+        "辅助程序即将写入时",
+        "新配置的凭据写入后",
+        "密钥轮换的配置发布前",
+        "新配置发布后、旧密钥删除前",
+        "凭据删除后、配置删除发布前"
+      ],
+      "observed": "每种情况下都强制终止隔离的 app-server，核对连续两次重启后的活动配置、解析的密钥和剩余条目，再重试保存及删除。",
+      "backendReturn": "辅助程序不可用时轮换到 0600 文件；恢复辅助程序后重启，清除旧钥匙串条目，保留新文件密钥。再次轮换和删除后两处无残留。",
+      "repeatability": "与编译并行的单独试跑曾在首个中断点前走到文件兜底，触发原因未确定。完整冒烟通过，随后六个场景串行重跑三次，每次均通过。"
+    },
+    "eventStream": {
+      "tests": [
+        "jeeves-ts/packages/client/test/http-transport.test.ts",
+        "jeeves-ts/packages/dashboard/test/event-stream.test.ts"
+      ],
+      "passed": 6,
+      "covers": "中文逐字节分块、多行 JSON、CR/LF/CRLF、未结束帧、重连及退出或解析失败时释放订阅。"
+    },
+    "verification": {
+      "command": "just check desktop-check smoke smoke-recovery smoke-resume smoke-dashboard smoke-lifecycle smoke-web smoke-gateway",
+      "exit": 0,
+      "rustWorkspace": {
+        "passed": 1059,
+        "failed": 0,
+        "ignored": 4
+      },
+      "desktopRustPassed": 1,
+      "nodePassed": {
+        "packages": 168,
+        "controlPlane": 9,
+        "installer": 1
+      },
+      "deterministicEval": {
+        "passed": 84,
+        "failed": 0,
+        "knownGap": "memory-recall-paraphrase"
+      },
+      "replayPassed": 5,
+      "windowsConfigCrossCheck": "cargo check -p jeeves-config --target x86_64-pc-windows-msvc 通过。"
+    }
+  },
+  "scope": {
+    "files": 528,
+    "candidateLines": 19239,
+    "runtimeLineEvidence": {
+      "unmapped": 9723,
+      "executed": 7213,
+      "zeroHits": 2303
+    },
+    "byComponent": {
+      ".github": {
+        "files": 6,
+        "candidateLines": 2,
+        "unmapped": 2
+      },
+      "Dockerfile": {
+        "files": 1,
+        "candidateLines": 1,
+        "unmapped": 1
+      },
+      "compose.yaml": {
+        "files": 1,
+        "candidateLines": 2,
+        "unmapped": 2
+      },
+      "control-plane": {
+        "files": 7,
+        "candidateLines": 119,
+        "executed": 70,
+        "zeroHits": 15,
+        "unmapped": 34
+      },
+      "deploy": {
+        "files": 1
+      },
+      "desktop": {
+        "files": 4,
+        "candidateLines": 42,
+        "unmapped": 42
+      },
+      "docs": {
+        "files": 2,
+        "candidateLines": 24,
+        "unmapped": 24
+      },
+      "jeeves-agent": {
+        "files": 12,
+        "candidateLines": 380,
+        "executed": 203,
+        "zeroHits": 23,
+        "unmapped": 154
+      },
+      "jeeves-app-server": {
+        "files": 117,
+        "candidateLines": 5773,
+        "executed": 2142,
+        "unmapped": 2828,
+        "zeroHits": 803
+      },
+      "jeeves-cli": {
+        "files": 8,
+        "candidateLines": 392,
+        "unmapped": 6,
+        "zeroHits": 266,
+        "executed": 120
+      },
+      "jeeves-config": {
+        "files": 7,
+        "candidateLines": 384,
+        "executed": 332,
+        "zeroHits": 42,
+        "unmapped": 10
+      },
+      "jeeves-connector": {
+        "files": 13,
+        "candidateLines": 699,
+        "unmapped": 301,
+        "executed": 333,
+        "zeroHits": 65
+      },
+      "jeeves-eval": {
+        "files": 11,
+        "candidateLines": 590,
+        "unmapped": 319,
+        "executed": 182,
+        "zeroHits": 89
+      },
+      "jeeves-loop": {
+        "files": 6,
+        "candidateLines": 365,
+        "executed": 86,
+        "unmapped": 273,
+        "zeroHits": 6
+      },
+      "jeeves-mcp": {
+        "files": 8,
+        "candidateLines": 589,
+        "executed": 255,
+        "zeroHits": 51,
+        "unmapped": 283
+      },
+      "jeeves-memory": {
+        "files": 21,
+        "candidateLines": 995,
+        "executed": 310,
+        "zeroHits": 44,
+        "unmapped": 641
+      },
+      "jeeves-ops": {
+        "files": 30,
+        "candidateLines": 972,
+        "executed": 331,
+        "zeroHits": 299,
+        "unmapped": 342
+      },
+      "jeeves-protocol-noop-macros": {
+        "files": 1
+      },
+      "jeeves-protocol": {
+        "files": 8,
+        "candidateLines": 59,
+        "zeroHits": 8,
+        "unmapped": 41,
+        "executed": 10
+      },
+      "jeeves-provider": {
+        "files": 15,
+        "candidateLines": 615,
+        "executed": 294,
+        "zeroHits": 50,
+        "unmapped": 271
+      },
+      "jeeves-state": {
+        "files": 66,
+        "candidateLines": 2330,
+        "unmapped": 1183,
+        "executed": 1114,
+        "zeroHits": 33
+      },
+      "jeeves-tools": {
+        "files": 43,
+        "candidateLines": 1678,
+        "unmapped": 786,
+        "executed": 758,
+        "zeroHits": 134
+      },
+      "jeeves-ts/packages/browser-worker": {
+        "files": 7,
+        "candidateLines": 172,
+        "executed": 96,
+        "zeroHits": 30,
+        "unmapped": 46
+      },
+      "jeeves-ts/packages/client": {
+        "files": 9,
+        "candidateLines": 142,
+        "executed": 52,
+        "zeroHits": 14,
+        "unmapped": 76
+      },
+      "jeeves-ts/packages/dashboard": {
+        "files": 63,
+        "candidateLines": 1530,
+        "unmapped": 1046,
+        "executed": 183,
+        "zeroHits": 301
+      },
+      "jeeves-ts/packages/gateway": {
+        "files": 27,
+        "candidateLines": 775,
+        "executed": 342,
+        "unmapped": 403,
+        "zeroHits": 30
+      },
+      "justfile": {
+        "files": 1,
+        "candidateLines": 8,
+        "unmapped": 8
+      },
+      "packaging": {
+        "files": 5,
+        "candidateLines": 26,
+        "unmapped": 26
+      },
+      "scripts": {
+        "files": 28,
+        "candidateLines": 575,
+        "unmapped": 575
+      }
+    },
+    "lineEvidenceByRole": {
+      "source": {
+        "unmapped": 2513,
+        "executed": 6317,
+        "zeroHits": 2301
+      },
+      "testOrFixture": {
+        "unmapped": 7210,
+        "executed": 896,
+        "zeroHits": 2
+      }
+    },
+    "productionFilesWithMostZeroHitCandidates": [
+      {
+        "file": "jeeves-ts/packages/dashboard/src/render.ts",
+        "candidateLines": 166
+      },
+      {
+        "file": "jeeves-rs/jeeves-app-server/src/dispatch.rs",
+        "candidateLines": 143
+      },
+      {
+        "file": "jeeves-rs/jeeves-cli/src/repl.rs",
+        "candidateLines": 86
+      },
+      {
+        "file": "jeeves-rs/jeeves-eval/src/lib.rs",
+        "candidateLines": 76
+      },
+      {
+        "file": "jeeves-rs/jeeves-app-server/src/browser/api.rs",
+        "candidateLines": 67
+      },
+      {
+        "file": "jeeves-ts/packages/dashboard/src/api.ts",
+        "candidateLines": 56
+      },
+      {
+        "file": "jeeves-rs/jeeves-tools/src/web.rs",
+        "candidateLines": 54
+      },
+      {
+        "file": "jeeves-rs/jeeves-ops/src/api/tasks.rs",
+        "candidateLines": 45
+      },
+      {
+        "file": "jeeves-rs/jeeves-app-server/src/browser/mod.rs",
+        "candidateLines": 44
+      },
+      {
+        "file": "jeeves-rs/jeeves-ops/src/api/stream.rs",
+        "candidateLines": 42
+      }
+    ],
+    "byRole": {
+      "source": 11131,
+      "testOrFixture": 8108
+    },
+    "rolesNote": "测试和 fixture 按路径与就近的 Rust 测试模块识别，混合脚本可能同时包含发布逻辑。",
+    "indexSha256": "0e067c19c1933d05817343b2f48b0664a747ad68c40b5c69d51e1a1ded87d723"
+  },
+  "method": [
+    "范围为工作树已跟踪和未忽略的新源码、SQL、测试、脚本、构建和部署定义。排除生成的 schema、资产、构建产物与个人工具目录。JSON 配置和 Markdown 契约用于比对，不计入源码行数。",
+    "索引用文件与行号定位可疑表达式。branch 包含普通条件、限值和断言，error 包含显式错误和忽略结果，fallback 包含默认值或可选路径，propagation 包含显式传播。多种标记可落在同一行。一行也可能有多处分支。nearDeclaration 仅为邻近声明定位。",
+    "lineHits 来自本轮 Rust LLVM 与 Node LCOV。零表示已插桩而未命中，null 表示该行不在采集范围或没有可映射的计数器。Node 原生包覆盖率不含独立 Chromium 中的 Vue 渲染，Rust 工作区数字不含独立 Tauri crate。",
+    "行命中不能证明两个分支都运行，也不能证明兜底的业务语义。下列结论来自契约、调用链、反例或相应测试。其余候选只提供定位和运行证据，不标记逐项签核。"
+  ],
+  "reviewedBoundaries": [
+    {
+      "area": "模型流的网络分块",
+      "source": {
+        "file": "jeeves-rs/jeeves-provider/src/sse.rs",
+        "line": 24,
+        "anchor": "fn data_lines"
+      },
+      "failureOrContract": "合法的 UTF-8 字符可以横跨两个包。最终空 data 行不形成事件，错误编码需要报告。",
+      "decision": "修复逐包解码和重复扫描，按完整行解析。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-provider/src/sse_tests.rs",
+          "line": 95,
+          "anchor": "fn review_sse_preserves_split_codepoints"
+        },
+        {
+          "file": "jeeves-rs/jeeves-provider/src/sse_tests.rs",
+          "line": 65,
+          "anchor": "fn handles_crlf"
+        }
+      ]
+    },
+    {
+      "area": "模型输出是否完整",
+      "source": {
+        "file": "jeeves-rs/jeeves-provider/src/anthropic.rs"
+      },
+      "failureOrContract": "供应商可能提前关闭流、返回畸形 JSON 或未完成的工具参数。",
+      "decision": "截断或无效输入作为协议错误；保留合法起始参数。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-provider/src/streaming_tests.rs",
+          "line": 192,
+          "anchor": "fn anthropic_rejects_incomplete_streams"
+        }
+      ]
+    },
+    {
+      "area": "启动配置与管理写入",
+      "source": {
+        "file": "jeeves-rs/jeeves-config/src/json_file.rs",
+        "line": 5,
+        "anchor": "fn read"
+      },
+      "failureOrContract": "首次运行没有文件可以使用默认值。主动写入已有配置必须识别文件损坏，避免用空值覆盖。",
+      "decision": "保留容错启动。管理读写区分缺失与错误，发布采用临时文件和替换。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/models_tests.rs",
+          "line": 369,
+          "anchor": "fn editing_runtime_settings_keeps"
+        },
+        {
+          "file": "jeeves-rs/jeeves-config/src/vault.rs",
+          "line": 124,
+          "anchor": "fn unreadable_existing_records"
+        }
+      ]
+    },
+    {
+      "area": "多个凭据写者",
+      "source": {
+        "file": "jeeves-rs/jeeves-config/src/vault.rs"
+      },
+      "failureOrContract": "文件凭据后端的读改写可能被另一个保存操作覆盖。",
+      "decision": "串行化同一 home 的文件更新；用独立的临时文件后端验证。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-config/src/vault.rs",
+          "line": 142,
+          "anchor": "fn simultaneous_file_backend_puts"
+        }
+      ]
+    },
+    {
+      "area": "模型配置发布",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/models.rs",
+        "line": 295,
+        "anchor": "fn model_save"
+      },
+      "failureOrContract": "配置写盘失败或引用未知供应商时，运行中的模型必须与已保存配置相符。",
+      "decision": "校验自定义目录，成功写盘后发布内存变更，移除活跃模型后重新应用启动配置。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/models_tests.rs",
+          "line": 334,
+          "anchor": "fn review_persistence_failure"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/models_tests.rs",
+          "line": 321,
+          "anchor": "fn review_unknown_provider"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/models_tests.rs",
+          "line": 352,
+          "anchor": "fn review_removed_active"
+        }
+      ]
+    },
+    {
+      "area": "删除模型凭据",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/models.rs",
+        "line": 407,
+        "anchor": "fn model_remove"
+      },
+      "failureOrContract": "删除不存在的凭据可重复。原生存储失败必须可见，且用户能再次清理。",
+      "decision": "清理失败保留配置项，环境变量引用保留，错误文本不包含密钥。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-config/src/models.rs",
+          "line": 630,
+          "anchor": "fn keychain_delete_distinguishes"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/models_tests.rs",
+          "line": 401,
+          "anchor": "fn removing_a_profile_can_be_retried"
+        }
+      ]
+    },
+    {
+      "area": "路由分类",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/route_tests.rs"
+      },
+      "failureOrContract": "分类结果未知，或目标档位尚未配置时，会话仍需要可用模型。",
+      "decision": "保留固定的降级链与分类解析 fail-open。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/route_tests.rs",
+          "line": 135,
+          "anchor": "fn tier_reply_parsing_fails_open"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/route_tests.rs",
+          "line": 40,
+          "anchor": "fn tier_lookup_falls_back"
+        }
+      ]
+    },
+    {
+      "area": "对话记忆检索",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/turn/context.rs",
+        "line": 109,
+        "anchor": "fn retrieve_memory"
+      },
+      "failureOrContract": "事实和情节索引独立；一个查询失败时另一个仍然有用。索引不可用时仍可进行普通对话。",
+      "decision": "保留并测试 fail-open，用户取消仍然中断。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/turn/tests.rs",
+          "line": 119,
+          "anchor": "fn memory_index_failure_does_not_block"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/turn/tests.rs",
+          "line": 180,
+          "anchor": "fn a_failed_episode_lookup"
+        }
+      ]
+    },
+    {
+      "area": "中文 FTS 搜索",
+      "source": {
+        "file": "jeeves-rs/jeeves-state/src/fts.rs"
+      },
+      "failureOrContract": "很长的中日韩字符查询会生成超出 SQL 探针上限的重叠词对。",
+      "decision": "在生成过程中达到 24 个不同词对即停止。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-state/src/fts.rs",
+          "line": 191,
+          "anchor": "fn cjk_queries_keep_the_first_distinct"
+        }
+      ]
+    },
+    {
+      "area": "记忆管理与重建",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/memory_center.rs"
+      },
+      "failureOrContract": "显式查看索引或执行压缩时，损坏的文件需要让操作者看到。后台整理失败后仍需有原始日志可重试。",
+      "decision": "管理查询区分不存在和损坏；保留整理的失败释放与重试语义。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/memory_center_tests.rs",
+          "line": 64,
+          "anchor": "fn manual_memory_reads_distinguish"
+        },
+        {
+          "file": "jeeves-rs/jeeves-memory/src/memory_tests.rs",
+          "line": 163,
+          "anchor": "fn consolidation_failure_keeps"
+        },
+        {
+          "file": "jeeves-rs/jeeves-memory/src/store_tests.rs",
+          "line": 249,
+          "anchor": "fn the_index_rebuilds_from_pages"
+        }
+      ]
+    },
+    {
+      "area": "验证来源中的数值",
+      "source": {
+        "file": "jeeves-rs/jeeves-agent/src/verify_sources.rs",
+        "line": 45,
+        "anchor": "fn check"
+      },
+      "failureOrContract": "短数字可能出现在更长数值之中，损坏的来源索引也无法提供证据。",
+      "decision": "对比完整数值；索引不可读时返回错误。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-agent/src/verify_sources.rs",
+          "line": 155,
+          "anchor": "fn numbers_must_match_whole_values"
+        }
+      ]
+    },
+    {
+      "area": "工作目录和附件",
+      "source": {
+        "file": "jeeves-rs/jeeves-agent/src/paths.rs",
+        "line": 35,
+        "anchor": "fn existing_ancestor"
+      },
+      "failureOrContract": "解析祖先路径失败或附件指向允许范围以外时无法确认工作边界。",
+      "decision": "区分路径缺失和解析错误，保留工作目录与附件范围检查。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/turn/tests.rs",
+          "line": 943,
+          "anchor": "fn turn_cwd_validation_is_fail_closed"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/turn/tests.rs",
+          "line": 1206,
+          "anchor": "fn a_symlinked_attachment_outside_home"
+        }
+      ]
+    },
+    {
+      "area": "工具注册表与审批",
+      "source": {
+        "file": "jeeves-rs/jeeves-tools/src/lib.rs",
+        "line": 560,
+        "anchor": "fn describe_violations"
+      },
+      "failureOrContract": "模型提供的参数可能不符合声明。工具错误必须作为可读文本返回，执行权限仍由引擎授予。",
+      "decision": "保留参数与审批检查，以及工具错误文本和损坏 schema 的既有兼容行为。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-tools/src/tools_tests.rs",
+          "line": 455,
+          "anchor": "fn a_missing_required_argument"
+        },
+        {
+          "file": "jeeves-rs/jeeves-tools/src/tools_tests.rs",
+          "line": 476,
+          "anchor": "fn a_tool_with_a_broken_schema"
+        },
+        {
+          "file": "jeeves-rs/jeeves-loop/src/loop_tests.rs",
+          "line": 213,
+          "anchor": "fn tool_error_becomes_text"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/approval_tests.rs",
+          "line": 134,
+          "anchor": "fn without_on_request"
+        }
+      ]
+    },
+    {
+      "area": "任务列表与验收",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/task/mod.rs"
+      },
+      "failureOrContract": "数据库不可读、验收字段损坏，与确实没有任务或没有工件对应不同的 RPC 结果。",
+      "decision": "取消伪空列表和伪未检查状态，向调用方传播存储故障。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/task/tests.rs",
+          "line": 1557,
+          "anchor": "fn task_list_storage_failure"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/task/tests.rs",
+          "line": 1542,
+          "anchor": "fn a_task_with_unreadable"
+        }
+      ]
+    },
+    {
+      "area": "任务预算与结算",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/turn/continuation.rs",
+        "line": 14,
+        "anchor": "fn slice_limit"
+      },
+      "failureOrContract": "每一轮可能已用完 token、工具调用或墙钟预算。停止状态写盘失败时调用方不得收到成功。",
+      "decision": "取本轮已发生的支出再决定是否追加模型调用。结算及挂起写入错误传播到 RPC。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/task/tests.rs",
+          "line": 1597,
+          "anchor": "fn a_step_slice_checks_this_rounds"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/task/tests.rs",
+          "line": 1571,
+          "anchor": "fn failed_budget_stop"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/turn/continuation.rs",
+          "line": 234,
+          "anchor": "fn all_three_in_flight_counters"
+        }
+      ]
+    },
+    {
+      "area": "崩溃、未知结果和旧检查点",
+      "source": {
+        "file": "jeeves-rs/jeeves-state/src/checkpoints.rs",
+        "line": 263,
+        "anchor": "fn is_chat_turn"
+      },
+      "failureOrContract": "旧检查点缺少 run 标识但仍关联任务。作为普通对话重放可能重复操作。",
+      "decision": "按任务关系判定所有者，关联含糊时保留待审核状态，普通聊天独立恢复。",
+      "evidence": [
+        {
+          "file": "scripts/smoke-resume.sh"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/resume_tests.rs",
+          "line": 526,
+          "anchor": "fn pending_tool_intent_is_not_replayed"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/resume_tests.rs",
+          "line": 767,
+          "anchor": "fn an_interrupted_read"
+        }
+      ]
+    },
+    {
+      "area": "调度确认与并发账本",
+      "source": {
+        "file": "jeeves-rs/jeeves-state/src/schedule_completions.rs",
+        "line": 117,
+        "anchor": "fn acknowledge"
+      },
+      "failureOrContract": "读事务升级可能因并发写入直接返回 SQLITE_BUSY，重复确认或重试必须只有一条记录。",
+      "decision": "确认先更新并取回原认领分钟，再在同一事务记录结果。账本追加和租约排查先获取写事务。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-state/src/schedule_completions.rs",
+          "line": 142,
+          "anchor": "fn acknowledgement_waits_for_a_concurrent_writer"
+        },
+        {
+          "file": "jeeves-rs/jeeves-state/src/state_tests.rs",
+          "line": 787,
+          "anchor": "fn appending_the_same_turn_twice"
+        },
+        {
+          "file": "jeeves-rs/jeeves-state/src/dispatch_tests.rs",
+          "line": 152,
+          "anchor": "fn a_lease_that_is_not_renewed"
+        }
+      ]
+    },
+    {
+      "area": "SQLite 路径与迁移",
+      "source": {
+        "file": "jeeves-rs/jeeves-state/src/db.rs"
+      },
+      "failureOrContract": "合法文件名包含问号或井号时，按连接字符串解析会打开错误的数据库。并发连接可以合法保留 WAL 边车文件。",
+      "decision": "使用文件路径打开；测试在目标文件上实际读取 schema 版本。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-state/src/state_tests.rs",
+          "line": 1551,
+          "anchor": "fn database_path_with_url_punctuation"
+        }
+      ]
+    },
+    {
+      "area": "迁移 Jeeves home",
+      "source": {
+        "file": "jeeves-rs/jeeves-cli/src/home_cmd.rs",
+        "line": 66,
+        "anchor": "fn import"
+      },
+      "failureOrContract": "备份可能缺失真实数据库，声明与实际 schema 也可能不一致；失败不能留下半个目标目录。",
+      "decision": "暂存、验证、发布；凭据、锁与运行文件不随 home 导出。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-cli/src/home_cmd.rs",
+          "line": 180,
+          "anchor": "fn a_home_survives_export"
+        },
+        {
+          "file": "jeeves-rs/jeeves-cli/src/home_cmd.rs",
+          "line": 242,
+          "anchor": "fn review_import_requires"
+        }
+      ]
+    },
+    {
+      "area": "系统服务和子进程",
+      "source": {
+        "file": "desktop/src-tauri/src/main.rs",
+        "line": 46,
+        "anchor": "fn start_runtime"
+      },
+      "failureOrContract": "地址缺失或非法、子进程退出与超时是不同故障。服务命令猜用户 UID 可能选错用户域。",
+      "decision": "显示本地启动错误，给实际就绪过程留足时间，关闭时回收子进程，查不到 UID 则报告。",
+      "evidence": [
+        {
+          "file": "desktop/src-tauri/src/main.rs",
+          "line": 177,
+          "anchor": "fn invalid_runtime_addresses"
+        },
+        {
+          "file": "scripts/smoke-lifecycle.py"
+        },
+        {
+          "file": "scripts/smoke-desktop.py"
+        }
+      ]
+    },
+    {
+      "area": "MCP 列表和传输",
+      "source": {
+        "file": "jeeves-rs/jeeves-mcp/src/lib.rs"
+      },
+      "failureOrContract": "空工具列表合法；协议形状错误、进程断线或上次请求结果未知时不能用空列表或重复调用掩盖。",
+      "decision": "严格解析列表和工具结果；恢复连接时保留未知结果语义。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-mcp/src/mcp_tests.rs",
+          "line": 1018,
+          "anchor": "fn a_malformed_list"
+        },
+        {
+          "file": "jeeves-rs/jeeves-mcp/src/mcp_tests.rs",
+          "line": 574,
+          "anchor": "fn a_dead_transport_is_rebuilt"
+        }
+      ]
+    },
+    {
+      "area": "邮件、日历与发送",
+      "source": {
+        "file": "jeeves-rs/jeeves-connector/src/calendar_parse.rs"
+      },
+      "failureOrContract": "日历服务的部分请求失败、空结果和草稿状态不同。对外发送还需授权、目标允许名单和可验证回执。",
+      "decision": "保留读侧错误判定和实际发送前的拒绝条件。使用本机协议替身。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-connector/src/calendar_tests.rs",
+          "line": 56,
+          "anchor": "fn caldav_text_entities"
+        },
+        {
+          "file": "jeeves-rs/jeeves-connector/src/email_tests.rs",
+          "line": 292,
+          "anchor": "fn denied_allowlisted_and_dry_run"
+        },
+        {
+          "file": "jeeves-rs/jeeves-connector/src/feishu_tests.rs",
+          "line": 437,
+          "anchor": "fn a_read_back_that_does_not"
+        }
+      ]
+    },
+    {
+      "area": "网关消息",
+      "source": {
+        "file": "jeeves-ts/packages/gateway/src/lark.ts"
+      },
+      "failureOrContract": "网关可能重复投递、拼接未完或收到名单以外的消息。",
+      "decision": "保留去重、分片完整性、允许名单和时限内应答。",
+      "evidence": [
+        {
+          "file": "jeeves-ts/packages/gateway/test/lark.test.ts",
+          "line": 477,
+          "anchor": "the same message resent twice"
+        },
+        {
+          "file": "jeeves-ts/packages/gateway/test/lark.test.ts",
+          "line": 506,
+          "anchor": "outside it means no answer"
+        },
+        {
+          "file": "scripts/smoke-gateway.sh"
+        }
+      ]
+    },
+    {
+      "area": "客户端 HTTP 和 SSE",
+      "source": {
+        "file": "jeeves-ts/packages/client/src/http-transport.ts"
+      },
+      "failureOrContract": "启动一轮需要通知流交付结果。断线后直接提交或盲重试会产生不可见或重复的模型调用。",
+      "decision": "断线时拒绝启动新一轮，已发请求按结果未知处理，恢复连接后允许新请求。",
+      "evidence": [
+        {
+          "file": "jeeves-ts/packages/client/test/http-transport.test.ts",
+          "line": 104,
+          "anchor": "a disconnected notification stream"
+        },
+        {
+          "file": "jeeves-ts/packages/client/test/http-transport.test.ts",
+          "line": 80,
+          "anchor": "without replay"
+        }
+      ]
+    },
+    {
+      "area": "文件选择、上传和收件箱",
+      "source": {
+        "file": "jeeves-rs/jeeves-ops/src/api/inbox.rs",
+        "line": 34,
+        "anchor": "fn drafts"
+      },
+      "failureOrContract": "缺失的草稿目录是合法空状态，损坏目录须提示。长行有限额，相同客户端文件名必须保留各自的上传内容。",
+      "decision": "去除错误转空列表；页面区分失败、未加载和成功为空。上传使用独占临时文件。文件接口从当前实例读取 home，无须多次请求配置。",
+      "evidence": [
+        {
+          "file": "scripts/smoke-dashboard.sh",
+          "line": 557,
+          "anchor": "An outbox on damaged storage"
+        },
+        {
+          "file": "scripts/smoke-dashboard.sh",
+          "line": 536,
+          "anchor": "Two simultaneous uploads"
+        },
+        {
+          "file": "jeeves-rs/jeeves-ops/src/api/inbox.rs",
+          "line": 141,
+          "anchor": "fn draft_titles_and_previews"
+        },
+        {
+          "file": "jeeves-ts/packages/dashboard/test/connections.test.ts",
+          "line": 168,
+          "anchor": "Outbox read failed"
+        },
+        {
+          "file": "jeeves-rs/jeeves-ops/src/api_tests.rs",
+          "line": 153,
+          "anchor": "fn folder_creation_rejects"
+        }
+      ]
+    },
+    {
+      "area": "浏览器缓存和构建",
+      "source": {
+        "file": "jeeves-ts/packages/dashboard/src/sw.js"
+      },
+      "failureOrContract": "缓存 API 可用性因浏览器而异；代理路径和其他站点缓存不能混淆。只改 CSS 时也可能没有产出有效 JS 入口。",
+      "decision": "缓存不可用走网络，限定缓存范围，构建脚本核验真正的 JS 入口。",
+      "evidence": [
+        {
+          "file": "jeeves-ts/packages/dashboard/test/service-worker.test.ts",
+          "line": 28,
+          "anchor": "unavailable static cache"
+        },
+        {
+          "file": "jeeves-ts/packages/dashboard/test/service-worker.test.ts",
+          "line": 6,
+          "anchor": "the proxied cockpit"
+        },
+        {
+          "file": "jeeves-ts/packages/dashboard/test/build-entry.test.ts",
+          "line": 8,
+          "anchor": "requires a stamped entry"
+        }
+      ]
+    },
+    {
+      "area": "浏览器工作进程",
+      "source": {
+        "file": "scripts/prepare-browser-runtime.py"
+      },
+      "failureOrContract": "本地运行包可能只有清单，缺少真正执行的 Playwright 文件。普通浏览器访问也需遵守目标范围。",
+      "decision": "重新准备匹配锁定依赖的本地包，用 Chromium 运行完整工作流；保留浏览器范围约束。",
+      "evidence": [
+        {
+          "file": "jeeves-ts/packages/browser-worker/test/browser.test.ts"
+        },
+        {
+          "file": "jeeves-ts/packages/browser-worker/test/network.test.ts"
+        },
+        {
+          "file": "justfile",
+          "line": 273,
+          "anchor": "smoke-browser:"
+        }
+      ]
+    },
+    {
+      "area": "控制面注册、配额和资源回收",
+      "source": {
+        "file": "control-plane/src/proxy.ts"
+      },
+      "failureOrContract": "保存账号失败时发布内存会留下半成功状态；模型正文中的 usage 示意不是协议计量；供应和删除的资源名须一致。",
+      "decision": "先持久化再发布；只统计供应商的协议字段；修正删除的资源名称，模拟集群调用。",
+      "evidence": [
+        {
+          "file": "control-plane/test/control.test.ts",
+          "line": 106,
+          "anchor": "failed persistence leaves"
+        },
+        {
+          "file": "control-plane/test/control.test.ts",
+          "line": 121,
+          "anchor": "model quota counts only protocol usage"
+        },
+        {
+          "file": "control-plane/test/control.test.ts",
+          "line": 129,
+          "anchor": "remove targets"
+        }
+      ]
+    },
+    {
+      "area": "离线发布安装",
+      "source": {
+        "file": "packaging/npm/install.js"
+      },
+      "failureOrContract": "重定向可能是相对路径，服务也可能返回 HTTP 错误或损坏包。",
+      "decision": "正确解析目标并释放重定向响应，错误清楚退出，在本地替身上测试。",
+      "evidence": [
+        {
+          "file": "packaging/npm/install.test.cjs"
+        }
+      ]
+    },
+    {
+      "area": "评测与发布门禁",
+      "source": {
+        "file": "jeeves-rs/jeeves-eval/src/lib.rs"
+      },
+      "failureOrContract": "测试输入损坏、knownGap 已失效、可选报告无法写入分别影响用例、基线或输出。",
+      "decision": "损坏用例和陈旧基线使门禁失败；报告写盘失败保留真实评测结论。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-eval/src/lib.rs",
+          "line": 1128,
+          "anchor": "fn known_gap_cannot_hide"
+        },
+        {
+          "file": "jeeves-rs/jeeves-eval/src/jsonl.rs"
+        }
+      ]
+    },
+    {
+      "area": "显式记忆检索和终端列表",
+      "source": {
+        "file": "jeeves-rs/jeeves-tools/src/handlers.rs",
+        "line": 105,
+        "anchor": "ctx.facts.search"
+      },
+      "failureOrContract": "显式检索与自动注入有不同的使用者。存储错误应让发起检索的人或工具调用方看到，健康索引的结果仍能使用。",
+      "decision": "删除存储故障返回零结果的兜底。工具错误保留文本契约，终端列会话失败后仍能接受下一条指令。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-tools/src/tools_tests.rs",
+          "line": 215,
+          "anchor": "fn explicit_memory_search_reports"
+        },
+        {
+          "file": "jeeves-rs/jeeves-tools/src/tools_tests.rs",
+          "line": 226,
+          "anchor": "fn search_memory_with_junk_query"
+        },
+        {
+          "file": "scripts/smoke.sh",
+          "line": 89,
+          "anchor": "Exercise explicit terminal reads"
+        }
+      ]
+    },
+    {
+      "area": "会话摘要及额外模型费用",
+      "source": {
+        "file": "jeeves-rs/jeeves-memory/src/compaction.rs",
+        "line": 218,
+        "anchor": "fn refresh_with_status"
+      },
+      "failureOrContract": "摘要与已压缩轮数必须来自同一快照。读取摘要水位失败时不能把全部旧轮次当成新内容，再付费总结。",
+      "decision": "一次快照用于统计及滚动压缩。可选摘要读取失败时保留当前消息，跳过额外模型调用；保留写回失败时本轮仍可使用已算出的摘要。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-memory/src/compaction_tests.rs",
+          "line": 174,
+          "anchor": "fn unreadable_rollup_does_not"
+        },
+        {
+          "file": "jeeves-rs/jeeves-memory/src/compaction_tests.rs",
+          "line": 118,
+          "anchor": "fn refresh_persists_the_waterline"
+        }
+      ]
+    },
+    {
+      "area": "恢复事件与后台任务等待",
+      "source": {
+        "file": "jeeves-rs/jeeves-app-server/src/resume.rs",
+        "line": 128,
+        "anchor": "fn resume_waiting"
+      },
+      "failureOrContract": "启动或恢复事件过早发出会让 UI 等待不存在的执行。损坏的等待检查点可能无限轮询，部分状态写入又会使任务卡住。",
+      "decision": "等待关联、执行记录、计划及记账完成检查后再通知。损坏或中断的后台等待在同一事务写入待核对状态、检查点与等待记录，写入失败可重试。",
+      "evidence": [
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/resume_tests.rs",
+          "line": 883,
+          "anchor": "fn a_failed_recovery_admission"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/task/waits_tests.rs",
+          "line": 413,
+          "anchor": "fn a_corrupt_job_checkpoint"
+        },
+        {
+          "file": "jeeves-rs/jeeves-app-server/src/task/waits_tests.rs",
+          "line": 98,
+          "anchor": "fn a_waiting_task_wakes"
+        }
+      ]
+    }
+  ],
+  "verifiedCommands": [
+    {
+      "command": "just check",
+      "result": "格式、schema 与文档漂移、类型和国际化检查、确定性及回放评测、clippy -D warnings、工作区测试通过。"
+    },
+    {
+      "command": "just desktop-check",
+      "result": "独立 Tauri crate 格式、单元测试、clippy 通过。"
+    },
+    {
+      "command": "smoke / smoke-resume / smoke-recovery / smoke-lifecycle",
+      "result": "临时 home 的 SQLite、真实子进程、异常退出、检查点恢复和单实例生命周期通过。"
+    },
+    {
+      "command": "smoke-web / smoke-gateway / smoke-dashboard / smoke-interaction / smoke-connector / smoke-desktop / smoke-business / smoke-browser / test-research-publication",
+      "result": "通过。使用本地协议替身和实际 Chromium，没有连接第三方生产账户。"
+    },
+    {
+      "command": "cargo llvm-cov --workspace --fail-under-lines 60 --summary-only",
+      "result": "通过。行覆盖率从 LLVM TOTAL 行读取。"
+    },
+    {
+      "command": "node --test --experimental-test-coverage",
+      "result": "Node 包与控制面各自采集 LCOV。浏览器渲染由端到端断言覆盖，无行命中数据。"
+    },
+    {
+      "command": "git diff --check",
+      "result": "通过。暂存区为空。"
+    }
+  ],
+  "files": {
+    ".github/ISSUE_TEMPLATE/bug_report.yml": {
+      "sha256": "1ac56993245df1b07a6fb9fcd2c6dcb9775b573001a0a8009377bc7ce4ed421b",
+      "candidateLines": 0
+    },
+    ".github/ISSUE_TEMPLATE/config.yml": {
+      "sha256": "0e800fe34c9c3e8367ad5f4886869feccab7b666927fd447b4207bb63012923a",
+      "candidateLines": 0
+    },
+    ".github/ISSUE_TEMPLATE/feature_request.yml": {
+      "sha256": "ec30901805c8fec2fa9b892978b0510b9646a228488a590123a110ee16fdd28e",
+      "candidateLines": 1
+    },
+    ".github/ISSUE_TEMPLATE/question.yml": {
+      "sha256": "f8222b218a7a5e575a727e531be962eaca01b0be3853b46e0dd3452357682fa4",
+      "candidateLines": 0
+    },
+    ".github/workflows/ci.yml": {
+      "sha256": "336e03d370ad01dd26145c73974f0db4ee43ef29b9c4a5628ac7884a59c21e96",
+      "candidateLines": 0
+    },
+    ".github/workflows/release.yml": {
+      "sha256": "ca64ff0c7b437a61f5a6d0384e58ed8a27ff08ca56ff93e7e15e8f1673a35d7c",
+      "candidateLines": 1
+    },
+    "Dockerfile": {
+      "sha256": "5a3e45a8588e936f21e08adb5b53c80a69765781959f1db76ea4e680ee011db9",
+      "candidateLines": 1
+    },
+    "compose.yaml": {
+      "sha256": "cbbfa972f35927db8ae79eef457ec99d6f363e38c842d2c6bcc8a596acc29236",
+      "candidateLines": 2
+    },
+    "control-plane/Dockerfile": {
+      "sha256": "98751e62de22b3d8f22ab4361da0a844f3cf45d8d6a3eaa3b0da6c7780045aa5",
+      "candidateLines": 0
+    },
+    "control-plane/src/accounts.ts": {
+      "sha256": "1fc0950881ac01543b34bc4a05ab7a9134c34ecf7bd24e98050f524578be1b75",
+      "candidateLines": 14
+    },
+    "control-plane/src/cluster.ts": {
+      "sha256": "3b395eac25f3e7f6fb9ae7c03b145c9a4997dca5a7face80d103b978e18a1bab",
+      "candidateLines": 6
+    },
+    "control-plane/src/manifests.ts": {
+      "sha256": "3c9d215a56acbd273892c7a258bf82cc92cebf23ede20303594e3278f6b2b0ca",
+      "candidateLines": 4
+    },
+    "control-plane/src/proxy.ts": {
+      "sha256": "a2a19fd660a87ff85dacd0d82fe5c36a4bf1f3bd9201589471306b72c669fd76",
+      "candidateLines": 26
+    },
+    "control-plane/src/server.ts": {
+      "sha256": "7285b04893070e7d7ebd4d9cc276463774873441921a2cb2d4b8dc45d10fff4f",
+      "candidateLines": 35
+    },
+    "control-plane/test/control.test.ts": {
+      "sha256": "a3464717452590241294ddad2758fdba456055425980185977808db3c4f4ceb1",
+      "candidateLines": 34
+    },
+    "deploy/k8s/control-plane.yaml": {
+      "sha256": "23dff35f21912c17578340a177557f95b18b786e55f5495b5f6ede0b64d25dfd",
+      "candidateLines": 0
+    },
+    "desktop/src-tauri/build.rs": {
+      "sha256": "487059eaf8a947b80f20a9aacac038a5047b2ad69d2401b827376c67d6fe847f",
+      "candidateLines": 0
+    },
+    "desktop/src-tauri/shell/index.html": {
+      "sha256": "73cb9fb3e1b504f5628a449c0f4208946b4eea1b657ed2aee349ccdfb8bddb4f",
+      "candidateLines": 0
+    },
+    "desktop/src-tauri/src/main.rs": {
+      "sha256": "edf0405795cea4fb54a69c44c1dfb4e2a87a5b5d9757c9c6ebeea860ea1f2e24",
+      "candidateLines": 41
+    },
+    "desktop/src-tauri/tests/fixture.py": {
+      "sha256": "115310ea3c8b2dc37d5ab8e707594d63dc3ca7f080db288ca678af5fcefb53ab",
+      "candidateLines": 1
+    },
+    "docs/design/palette-preview.html": {
+      "sha256": "7d8fee5ffc9ac14f6dc15799e5a0b8d450ed8253d3e5f1d1546463980796305d",
+      "candidateLines": 0
+    },
+    "docs/design/today-preview.html": {
+      "sha256": "fc87ceb9ed7b34da73da66319f3fd9b91f928f291b0d1479852fffde08e27f48",
+      "candidateLines": 24
+    },
+    "jeeves-rs/jeeves-agent/src/cron.rs": {
+      "sha256": "c9a79583d9a26757f372b9076eafe076ebd59296a501dc43f26ad4fe9f6f7301",
+      "candidateLines": 35
+    },
+    "jeeves-rs/jeeves-agent/src/lib.rs": {
+      "sha256": "029c713b2ec4ea755eda13f76c17450f4b796af55c1346f7a936232a93801ac8",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-agent/src/observe.rs": {
+      "sha256": "a9600e97a2e19cf41d9d3401221693c2fab8c626e79fdd06da35a8dbab9703d7",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-agent/src/observe_tests.rs": {
+      "sha256": "a1654d688e715aa78bb77ba8434d1790c446d721c5104f88419fb24ac8b33071",
+      "candidateLines": 26
+    },
+    "jeeves-rs/jeeves-agent/src/paths.rs": {
+      "sha256": "0e436664b063ca8f72128497cd0a3e2126ca8d4b80aaaf4b1535e7048d6ea67f",
+      "candidateLines": 14
+    },
+    "jeeves-rs/jeeves-agent/src/plan.rs": {
+      "sha256": "5fd56e4bc21555b84549ca0a8bd6d32b81e8a37329e7fff3fc5a4376d6c131e3",
+      "candidateLines": 16
+    },
+    "jeeves-rs/jeeves-agent/src/plan_tests.rs": {
+      "sha256": "cb25dd531b8ffcc58a19deac06cbc2b06f3c0089c2032f0165a92f4fef481da7",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-agent/src/schedule.rs": {
+      "sha256": "1052c262b696996f9c9a92b88fa1e7b77bc5e03a67af27e77cee571985a11951",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-agent/src/schedule_tests.rs": {
+      "sha256": "b950f3f2a00a5b3b263d7212987c82084b55e186ab74d65e949e43fa10daf021",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-agent/src/verify.rs": {
+      "sha256": "28cad39b9ea6f2e1a407ff799badb0ecb040d6ea9d578a4ad37e7537bd867b92",
+      "candidateLines": 86
+    },
+    "jeeves-rs/jeeves-agent/src/verify_sources.rs": {
+      "sha256": "b5db928f1304c5b0a742c3b185a93533e1ac8ce8d39c504017aa607a91c84478",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-agent/src/verify_tests.rs": {
+      "sha256": "f6719ff593b94bef468c57094b73a21d55fe330c74a646169f9f9e0772781098",
+      "candidateLines": 94
+    },
+    "jeeves-rs/jeeves-app-server/src/agents_md.rs": {
+      "sha256": "ef2ca7752f7b6a645c354c70963c4356d8e7d40dcbf234fa44fd248f3f7770fb",
+      "candidateLines": 10
+    },
+    "jeeves-rs/jeeves-app-server/src/agents_md_tests.rs": {
+      "sha256": "4e82d51509d264680530fb8d5afe4a8fc852aed37a01df17c4795595e9760213",
+      "candidateLines": 33
+    },
+    "jeeves-rs/jeeves-app-server/src/approval.rs": {
+      "sha256": "1cc8ce7087ef4d2d44be6e0346501200b02aee89c7a96142b498878d259b5efa",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-app-server/src/approval_tests.rs": {
+      "sha256": "b2f0b367d9847938004915616a04ce7316ed1a5cf9535d3e1b5606beeb999051",
+      "candidateLines": 84
+    },
+    "jeeves-rs/jeeves-app-server/src/browser/api.rs": {
+      "sha256": "471f015676d7dbfa830507205630d2df1ba25dfcd273f69e9603b55869ac9c48",
+      "candidateLines": 74
+    },
+    "jeeves-rs/jeeves-app-server/src/browser/mod.rs": {
+      "sha256": "e5f4666adca672ed9abb3b4d73cadb18729bd7f37175b07edd650f063575dc97",
+      "candidateLines": 53
+    },
+    "jeeves-rs/jeeves-app-server/src/browser/process.rs": {
+      "sha256": "35e5d9b608ff7b1d7c0c59b11baef939d5936db97962691622e6b91fac378091",
+      "candidateLines": 38
+    },
+    "jeeves-rs/jeeves-app-server/src/browser/store.rs": {
+      "sha256": "83243e343f5e1d0467811ea6e7985a72714289e0ff58fabe0089379c7eeb2ee0",
+      "candidateLines": 16
+    },
+    "jeeves-rs/jeeves-app-server/src/browser/tests.rs": {
+      "sha256": "074815ef1f06a1c3e0a7a352ddcca10b9af0a5963259f87595ecf0d691033c82",
+      "candidateLines": 43
+    },
+    "jeeves-rs/jeeves-app-server/src/capability.rs": {
+      "sha256": "dea81c7ab6859cd823bbb5efc367079edfbf688432bfe376d894b3eca4d02cca",
+      "candidateLines": 43
+    },
+    "jeeves-rs/jeeves-app-server/src/capability_tests.rs": {
+      "sha256": "79f5713b4864ab11136a755905ddb41588a3f9c5972a4d8df70a36efba554c4d",
+      "candidateLines": 46
+    },
+    "jeeves-rs/jeeves-app-server/src/command_check.rs": {
+      "sha256": "ec67672d9c6f420d9cddae7e6af5f81f3ac5039edf0f2149b71c5ce0f0f78cab",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-app-server/src/completion_delivery.rs": {
+      "sha256": "5d3f5c5830c36a681634156bc20fcde7d7201b6781b0baa1a6b101451b45886b",
+      "candidateLines": 24
+    },
+    "jeeves-rs/jeeves-app-server/src/completion_tests.rs": {
+      "sha256": "f68061dc7e6251981b6ee3c29bace0c93772a62dd7693b5aca018faa1ded2913",
+      "candidateLines": 41
+    },
+    "jeeves-rs/jeeves-app-server/src/connector_oauth.rs": {
+      "sha256": "81df2f74cdcb56fe51e2881f48b68b105252b25575001b720c4fce4efef086be",
+      "candidateLines": 45
+    },
+    "jeeves-rs/jeeves-app-server/src/connector_settings.rs": {
+      "sha256": "594da134c11b0c208bd45c542854bebca69c8672b4cec4ca79cda2728f77f650",
+      "candidateLines": 66
+    },
+    "jeeves-rs/jeeves-app-server/src/connector_wait.rs": {
+      "sha256": "34adbce2a6f4312a4664465b47638644709d6570c11281d429872191aa930dee",
+      "candidateLines": 58
+    },
+    "jeeves-rs/jeeves-app-server/src/dispatch.rs": {
+      "sha256": "6aca7a160620b41816e18a8e69410dfc25c51d02f0a3d2b7c8a17cdcb8323c38",
+      "candidateLines": 217
+    },
+    "jeeves-rs/jeeves-app-server/src/dispatch_tests.rs": {
+      "sha256": "b2fd3d872d5c808557e43208846c36947187253167f6b0d89cdf40358284f4c4",
+      "candidateLines": 46
+    },
+    "jeeves-rs/jeeves-app-server/src/edit_check_host.rs": {
+      "sha256": "2d8f7e6c751f8962af6f0a06aa055ccf1c70f760eada992d322c40e5f97c28fc",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-app-server/src/goal.rs": {
+      "sha256": "aa7eade3ce799c501e0475ae1b9892c8c1747a226c0ff2b3ce7895bdc563adf1",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-app-server/src/goal_tests.rs": {
+      "sha256": "807b899077c6dc150c82e5b1c25aaeec892e10f5a09b34b7377ba009db7c7cc3",
+      "candidateLines": 66
+    },
+    "jeeves-rs/jeeves-app-server/src/image_meta.rs": {
+      "sha256": "74b4034095b9dab99b4c15fa92e9bff9b88d98b11c835befc9522f018d874f77",
+      "candidateLines": 23
+    },
+    "jeeves-rs/jeeves-app-server/src/image_meta_tests.rs": {
+      "sha256": "855b135a82dd309dc982a39a09ee88981d9c75964a772dff5277369c8f55faa1",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-app-server/src/input_control_tests.rs": {
+      "sha256": "99c1f6c96c24e6f21c00f265fadf2fc527ac8f519d6b5193c65ee59752b24bfd",
+      "candidateLines": 31
+    },
+    "jeeves-rs/jeeves-app-server/src/input_wake.rs": {
+      "sha256": "d813722e5c25735977b9c9496e2a7377007e93d27d85b0b5c82c10f7ccb0c18f",
+      "candidateLines": 41
+    },
+    "jeeves-rs/jeeves-app-server/src/input_wake_tests.rs": {
+      "sha256": "8861afbcce8a3689c8833e3718f85e12cf4ddf42e13b1aa75fd1f9fa8b2e0296",
+      "candidateLines": 89
+    },
+    "jeeves-rs/jeeves-app-server/src/interaction/mod.rs": {
+      "sha256": "cb4acd0972f5081ad5b3e69bb83ce233bfad236ead96547b5501aa878446378f",
+      "candidateLines": 34
+    },
+    "jeeves-rs/jeeves-app-server/src/interaction/receipt.rs": {
+      "sha256": "5a32800bfa4e862f0414bb8ad9caec91ce7b1d7e23bf654c1e6b1e55c47b84b0",
+      "candidateLines": 23
+    },
+    "jeeves-rs/jeeves-app-server/src/interaction/task_tool.rs": {
+      "sha256": "7a4148eecb383e38ad35a24e023a571591c1eed6e1336768ff4e1519835f1f46",
+      "candidateLines": 67
+    },
+    "jeeves-rs/jeeves-app-server/src/interaction/tests.rs": {
+      "sha256": "7ad9c555074ad1e5ab99c93a15984d7edca38fdd328ec147466de092bc6a5f5e",
+      "candidateLines": 103
+    },
+    "jeeves-rs/jeeves-app-server/src/job_delivery.rs": {
+      "sha256": "a7e642a1b54b0f690bb767bd88b6900921d744c94fcefbe1953d47f0d950b929",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-app-server/src/jobs.rs": {
+      "sha256": "97629f2d1dd37e013e3a5b546798609419418fd9b089db1a099e32a4f0b52e40",
+      "candidateLines": 76
+    },
+    "jeeves-rs/jeeves-app-server/src/jobs_buffer.rs": {
+      "sha256": "e78c4677f30226b7d3d61f29be4a80008da6c3f380e001705a0c850799e1d90d",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-app-server/src/jobs_tests.rs": {
+      "sha256": "6b80dcb5455f95ec254a5b3b6bf8c592aa564d434d41b3f517c8ec56f830c9f4",
+      "candidateLines": 99
+    },
+    "jeeves-rs/jeeves-app-server/src/ledger_writer.rs": {
+      "sha256": "eaff88c06679a8e30d5711db5a97e981026e6573687635b74bd59a9cda4993e0",
+      "candidateLines": 31
+    },
+    "jeeves-rs/jeeves-app-server/src/ledger_writer_tests.rs": {
+      "sha256": "f2f8a26f388f66b0b760ecd74919eb729d51fc6d6564b5b76688eff3bac5de30",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-app-server/src/lib.rs": {
+      "sha256": "22dfda25647ec30be5cd708b6cf3c7b7969d217f0fd84b2d8d2357b25b471a74",
+      "candidateLines": 1
+    },
+    "jeeves-rs/jeeves-app-server/src/lock.rs": {
+      "sha256": "a8f86629f98877ee8a875ab7dcf80645d1212cae20369bf7dec851cdc661a0e7",
+      "candidateLines": 35
+    },
+    "jeeves-rs/jeeves-app-server/src/lock_tests.rs": {
+      "sha256": "90ca1176ab0f4ece67ec99263f439c264761afea295a66fa86a5f0e22e3d8c52",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-app-server/src/memory_center.rs": {
+      "sha256": "2de7abc5f6852a6aecb677a2f81ec59c4c9dafa7cc8fa8ad4b40271d28725756",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-app-server/src/memory_center_tests.rs": {
+      "sha256": "ea87eaf25bccbed663ac6e431f39ad339d32b9b547c18c303405f77afaa4a391",
+      "candidateLines": 26
+    },
+    "jeeves-rs/jeeves-app-server/src/memory_recovery_tests.rs": {
+      "sha256": "c97a8b54cb13a6aaf3bf8fe280d031251e5a4ff23e1e12cc0b6994498390912d",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-app-server/src/memory_worker.rs": {
+      "sha256": "f046aa6426d27456068eb484cf2793ed14ca504360b6ba16614b4b8371ddea88",
+      "candidateLines": 36
+    },
+    "jeeves-rs/jeeves-app-server/src/memory_worker_tests.rs": {
+      "sha256": "a9a8b02987de426ee73d0f285d20fcdbf5700e79da3195691a07eeca93db708b",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-app-server/src/models.rs": {
+      "sha256": "2ca91d0d393ad4aed01cbb6ae596ec1dde855181394df5ccb192b3cc42bf91b3",
+      "candidateLines": 62
+    },
+    "jeeves-rs/jeeves-app-server/src/models_tests.rs": {
+      "sha256": "9a80521dff9f64460a864d10fd8e680554ca551f5b64d3ebfc17ce154ba9bb92",
+      "candidateLines": 90
+    },
+    "jeeves-rs/jeeves-app-server/src/pending_approval_tests.rs": {
+      "sha256": "9ee3da3937b74b0c88fc911803677fd51c8dd55002f4f98180a79239f15d5432",
+      "candidateLines": 92
+    },
+    "jeeves-rs/jeeves-app-server/src/pending_approvals.rs": {
+      "sha256": "015bcdccb12e9f76ffb7ab04d729215dde2e33ad3b6b5a791309e9c4077f895a",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-app-server/src/permissions.rs": {
+      "sha256": "7e6864d75cc6d2861ddad2036efabbb3daf7ffcf1020413d80f91364820122c4",
+      "candidateLines": 60
+    },
+    "jeeves-rs/jeeves-app-server/src/permissions_tests.rs": {
+      "sha256": "b412ce5c7bc4023dfc57f2464e6415d9e61de7c658928bb139c4dbef4168f6f3",
+      "candidateLines": 52
+    },
+    "jeeves-rs/jeeves-app-server/src/recovery_usage_tests.rs": {
+      "sha256": "2dc15912a065ebcdb48698d0b5f5d73d43f9561ed5a08b63968c2f5b1ce28247",
+      "candidateLines": 51
+    },
+    "jeeves-rs/jeeves-app-server/src/resources.rs": {
+      "sha256": "581e2ab4c25822534d47200a7c09833373fb681c2554b21fee2bcbdab1f8293d",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-app-server/src/resume.rs": {
+      "sha256": "42f5f5992b46801cc6ecd5345e5522bf922ee573fa1086ad7baf3b0833fb0f1e",
+      "candidateLines": 112
+    },
+    "jeeves-rs/jeeves-app-server/src/resume_task.rs": {
+      "sha256": "da7a16bf9b54815744da9a7fbd855d9d3132a1cdc29b9da5b7df5d47c6f95ff7",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-app-server/src/resume_tests.rs": {
+      "sha256": "04b8237bd8f7202def7432a2f1e2a28aeb7e728e317f6fdb0aaced281cab7671",
+      "candidateLines": 156
+    },
+    "jeeves-rs/jeeves-app-server/src/route.rs": {
+      "sha256": "b644b63fd62dc44be5f9fac7aca97559cf3c5d84bd82839af730d1c01533606b",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-app-server/src/route_tests.rs": {
+      "sha256": "5349825a34e4bfafc558c0c1687802a093678098723635bc74eaa9442e274859",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-app-server/src/runtime_ownership_tests.rs": {
+      "sha256": "0b9960229f01a9d7ddbe248d52b25be4244077bee6f2d3418791ee00928f2ded",
+      "candidateLines": 42
+    },
+    "jeeves-rs/jeeves-app-server/src/schedule_output.rs": {
+      "sha256": "871b0346374387af15034f6f7f0a51fd66f6abfabcc2abc082f7665e084145ad",
+      "candidateLines": 48
+    },
+    "jeeves-rs/jeeves-app-server/src/scheduler/fire.rs": {
+      "sha256": "61bfc59a1f2d4a078d7a7b1a8219a410df2a0baefe96b27b9dc8a892607f9b8a",
+      "candidateLines": 39
+    },
+    "jeeves-rs/jeeves-app-server/src/scheduler/gap.rs": {
+      "sha256": "9c092a6576a671c1e41cb5f93dc402b5cec0ad7d81746472dbdeadbced943946",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-app-server/src/scheduler/mod.rs": {
+      "sha256": "9145c065e34ef627e468f5bf936b7846aef537d52e0bfb9554e9e4d7189ad4a4",
+      "candidateLines": 45
+    },
+    "jeeves-rs/jeeves-app-server/src/scheduler/morning.rs": {
+      "sha256": "118121fe6d7adb7f3a2647ee806c89ca0eba8e05c2011759303015d620d6e3da",
+      "candidateLines": 46
+    },
+    "jeeves-rs/jeeves-app-server/src/scheduler/morning/tests.rs": {
+      "sha256": "b7d87353943f5c6eab6bcd2fdaa0bc1ec0068de3f0771b950a3d36e515883cc6",
+      "candidateLines": 76
+    },
+    "jeeves-rs/jeeves-app-server/src/scheduler/tests.rs": {
+      "sha256": "4663cc70af74d9bd1e725752d33b41c1167d0e7526e232219f33cb612cefc3b0",
+      "candidateLines": 125
+    },
+    "jeeves-rs/jeeves-app-server/src/server.rs": {
+      "sha256": "6133e5b0824fbc0b400f2cc06c8e1136b6b7c7f466cf93de6ee758ac8e2d26ac",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-app-server/src/server/controls.rs": {
+      "sha256": "09134c156df5576de47cc29f041d8a7d106e7983d928c8f9d98444858c16e9e4",
+      "candidateLines": 69
+    },
+    "jeeves-rs/jeeves-app-server/src/server/events.rs": {
+      "sha256": "4834afdc36f84d0bf59cc1dcffc7389a8ccd832d3f2a95032fc22e915bcc2c20",
+      "candidateLines": 2
+    },
+    "jeeves-rs/jeeves-app-server/src/server/mcp_live.rs": {
+      "sha256": "ee64a7a801d229a2244e57034ec71be8679d3d664fa15602c43fe11a85fe1c64",
+      "candidateLines": 51
+    },
+    "jeeves-rs/jeeves-app-server/src/server/runtime.rs": {
+      "sha256": "3af315c61cd8c932c6790d77356cb4d44249883b370165962953753be73fecb8",
+      "candidateLines": 49
+    },
+    "jeeves-rs/jeeves-app-server/src/server/search_mcp.rs": {
+      "sha256": "e5726f35cb760c15c3ed84145dea270bcee72f881cda5f20f04965f308d30371",
+      "candidateLines": 41
+    },
+    "jeeves-rs/jeeves-app-server/src/server/search_mcp_tests.rs": {
+      "sha256": "4cd6788af585555c8d9c9421a9671fceb8579c2e230eb830f04ab9773dd66708",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-app-server/src/server/settings.rs": {
+      "sha256": "3bf167ab67d17f4ce38f882fdec281b49b35311aa14edf56d489015cd2e0882b",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-app-server/src/server/tools.rs": {
+      "sha256": "02561013018fcb394ec6cfa638257a1028cb15cd583156a8bb32f49205fd381e",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-app-server/src/stdio.rs": {
+      "sha256": "082b1af9a55415e0ee86fbd4e0fec01e2f44682a57425d9d24aec8b97fb212cf",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-app-server/src/subagent.rs": {
+      "sha256": "b07ddded29e54872ae037e990ce24ae7aa828a1b6cfca2cb9b650af93d3804d4",
+      "candidateLines": 23
+    },
+    "jeeves-rs/jeeves-app-server/src/subagent_tests.rs": {
+      "sha256": "acde638bfee4c402e050d14eb527c517781e943b7ebf219653d863c3fdce8b83",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-app-server/src/task/contract.rs": {
+      "sha256": "9f7b9183fc1c1695491351fa244a11ac6e6b8d5b2615faf99006a0cc2311b423",
+      "candidateLines": 43
+    },
+    "jeeves-rs/jeeves-app-server/src/task/dispatch.rs": {
+      "sha256": "083518b3f7b9facf10fcff04748f92433e975b71019f9926b32a3e87dd2087a9",
+      "candidateLines": 31
+    },
+    "jeeves-rs/jeeves-app-server/src/task/dispatch_tests.rs": {
+      "sha256": "afdc5242546d42e68bd284ba0e179fc67a6d4ae9cbbdb2f0ac70b941fcb15e61",
+      "candidateLines": 136
+    },
+    "jeeves-rs/jeeves-app-server/src/task/git_checkpoint.rs": {
+      "sha256": "c4d26047ef86e74e49e0a0519d84a3ae60e3bcd57e81b81fef0cc1795f10ef50",
+      "candidateLines": 82
+    },
+    "jeeves-rs/jeeves-app-server/src/task/handoff.rs": {
+      "sha256": "31a1db6320508709c9576048da38a74b0b2a124ac34f418fb1f80a51acd05a1a",
+      "candidateLines": 61
+    },
+    "jeeves-rs/jeeves-app-server/src/task/inputs.rs": {
+      "sha256": "50d3d3388498a2ee4c79d7bfe77420731455db5bea08379ff14810b0f506beed",
+      "candidateLines": 40
+    },
+    "jeeves-rs/jeeves-app-server/src/task/mod.rs": {
+      "sha256": "8e98b175cff9a2fa8d0d36eaf26a15a819885eec6fe0b343e0a9bb14da63fe21",
+      "candidateLines": 140
+    },
+    "jeeves-rs/jeeves-app-server/src/task/operations.rs": {
+      "sha256": "783e9acb56c7cf16141b36ea6a3bf4eeed2417d40df5068ad199bfbd6ab8a0f8",
+      "candidateLines": 34
+    },
+    "jeeves-rs/jeeves-app-server/src/task/operations_tests.rs": {
+      "sha256": "3b71a399cf6e7f01a45d325437427e5fea7dd159bbca896010a64a63a32c2b3f",
+      "candidateLines": 51
+    },
+    "jeeves-rs/jeeves-app-server/src/task/recovery.rs": {
+      "sha256": "429dbd3b64c91430f709ae9f79062dbd300f777f88fd897e7df198b9300339e0",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-app-server/src/task/recovery_tests.rs": {
+      "sha256": "4d42bbe39fae09f8ab76a75b5640a82cf3f4a21f9c8437eef5d584750a3d5c53",
+      "candidateLines": 112
+    },
+    "jeeves-rs/jeeves-app-server/src/task/tests.rs": {
+      "sha256": "70ba4f7db352d013e7f854758ccdcd685d1466e6a161b081e2799d059102e2cd",
+      "candidateLines": 307
+    },
+    "jeeves-rs/jeeves-app-server/src/task/waits.rs": {
+      "sha256": "51b42e4e683deb8f4c2a85ab6133a5eafa075635207b15a358d64266147a7665",
+      "candidateLines": 17
+    },
+    "jeeves-rs/jeeves-app-server/src/task/waits_tests.rs": {
+      "sha256": "04e16fa3c3c12398c305aad679b3d7718dbc4544deeda37984e4501e5f3269e1",
+      "candidateLines": 92
+    },
+    "jeeves-rs/jeeves-app-server/src/task/workspace.rs": {
+      "sha256": "ec52fdad06f29dc993334aad630072883634f16b4b244fa1144d87c74139c226",
+      "candidateLines": 17
+    },
+    "jeeves-rs/jeeves-app-server/src/task/worktree.rs": {
+      "sha256": "e7bc8fe181f25f9c17cabeb5f57e6e147fe0b30436ca8f1a5b50591e516207dd",
+      "candidateLines": 40
+    },
+    "jeeves-rs/jeeves-app-server/src/task_wake_tests.rs": {
+      "sha256": "23c6a2edaba76199b94642ce9940bf324681f16902a4b335d0024ece9d6f1599",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-app-server/src/task_worktree_tests.rs": {
+      "sha256": "2c99f902397f38e32cfbc833c9aaabfdbf9e571bb30dd791579b89f23bbd79c3",
+      "candidateLines": 75
+    },
+    "jeeves-rs/jeeves-app-server/src/todo_tests.rs": {
+      "sha256": "2611cf34ea07f6f7d275ea61e0a054cd1c121bdc630c97fbb979e5460d6a4f93",
+      "candidateLines": 23
+    },
+    "jeeves-rs/jeeves-app-server/src/trace.rs": {
+      "sha256": "0c5c63b7f2ab2ca116e6ca1cf029e6a13f243f0867355f66bfb34809ae18d73c",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-app-server/src/turn.rs": {
+      "sha256": "0e910120d99c93226df5f2a1ec882bd0e7a52bf3986b319783a6144fe2bb628e",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/accounting.rs": {
+      "sha256": "cfbfd2adf6a0d747ef0dd30b378c7d2367c249786a115dbe5f4991141d23b82c",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/attachments.rs": {
+      "sha256": "f6d8a6517a58e651781d7a600aff3cc503a24604e3718cc08f0d57e60f690adb",
+      "candidateLines": 20
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/context.rs": {
+      "sha256": "a0eb0a10e71debfa61dc880f1d7317b6780d98597a9e6524c37cf5669039438f",
+      "candidateLines": 14
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/continuation.rs": {
+      "sha256": "3684f51b5017ec8b420dcc8f35d4d9849100c7d529ea7282aa74e3cc537a9214",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/driver.rs": {
+      "sha256": "a9ef8c5f6ef2bce6dd13f8e2aa0d19b64ec6164e26ef8b64ee1103e8f98d48d4",
+      "candidateLines": 47
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/entry.rs": {
+      "sha256": "034bc02b1c66b73ae6ef1477d51923d9f8afe6b3757e510943782a415a84ec58",
+      "candidateLines": 55
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/execution.rs": {
+      "sha256": "cbd2a60af27dbc5ad550ee8c94931a71bb72f7e5dd95b8eeb32163758652d22c",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/failure.rs": {
+      "sha256": "87bff1b234444007797f72a1237c2fb418e07e9f666dfe24b8e74e593cf34386",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/finalize.rs": {
+      "sha256": "14a0a714372a1911bc35daf2b63011b068ae05bfa71d99cfa36bb5e5ccf42157",
+      "candidateLines": 32
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/history.rs": {
+      "sha256": "25803ad92254c54478df8865839480ecc9628cbcbcb5cdced6ea46c2dfd0622b",
+      "candidateLines": 27
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/lifecycle.rs": {
+      "sha256": "dbbf4100e94d37081b03c79f362dfa9b6b03729ca3225680657d55c12f5d4966",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/operations.rs": {
+      "sha256": "3882b3cee20d5d0f61e70fb71f12b1aedce52598393441fe3aa946c9b913a3e2",
+      "candidateLines": 39
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/operations_tests.rs": {
+      "sha256": "eaef88e65684c0f7f4a517eef3c647f2f994f66fcd0008e850def112d52f1cb1",
+      "candidateLines": 58
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/plan.rs": {
+      "sha256": "6d2e3ffc3af728463acc4eb3d003297cb319faa67f521b9581ef48e50cac92ce",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/prompt.rs": {
+      "sha256": "3f3b85b09e12c4369a2b3830eb0621f6b76aa383f1d9d9a662236b9ab94991be",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/settlement.rs": {
+      "sha256": "7c34f2636e6336a7198613c15fa6c94331e6d12ea8c02f96da3f41d36946f866",
+      "candidateLines": 53
+    },
+    "jeeves-rs/jeeves-app-server/src/turn/tests.rs": {
+      "sha256": "5f1293e7f7f92af98a5a83a9f3d7855d813a45fe0913a11edcc65f959344a6d0",
+      "candidateLines": 349
+    },
+    "jeeves-rs/jeeves-app-server/src/wake.rs": {
+      "sha256": "c7b0dac582700e34bc0f47b3b92dd7ce369711c7c2ce403434a1bd21ecf32521",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-cli/src/connector_cmd.rs": {
+      "sha256": "1299abf8c03b42be876be92256916280a6a6dd43931f9a6e43b5528bcd4f25a1",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-cli/src/home_cmd.rs": {
+      "sha256": "a0b0ec0c8e4b1ee7a0066ed1d46e697b83d25ac7f0d2e58a721f12e145234fcf",
+      "candidateLines": 89
+    },
+    "jeeves-rs/jeeves-cli/src/main.rs": {
+      "sha256": "a20b77a2e4090e12affa3ad3034cf39bd4c2cfaec359547b690ceffab3741e79",
+      "candidateLines": 26
+    },
+    "jeeves-rs/jeeves-cli/src/mcp_cmd.rs": {
+      "sha256": "a346cde4223fd825a01fbfdff9ad1dec864d6cdb1b0fc6c05d1721616e3e3c09",
+      "candidateLines": 24
+    },
+    "jeeves-rs/jeeves-cli/src/memory_cmd.rs": {
+      "sha256": "42bb5ac773d74af031a9528f86430d86575c8a8f55f137ed9f75e702478f6bc8",
+      "candidateLines": 11
+    },
+    "jeeves-rs/jeeves-cli/src/repl.rs": {
+      "sha256": "8426ae20fdefa750970e2c49a17d38ae641a1ac5d3186afcd688d5cebe19d0ad",
+      "candidateLines": 88
+    },
+    "jeeves-rs/jeeves-cli/src/service_cmd.rs": {
+      "sha256": "7d801ec3aec126a991add8c485c8b548d3e16bb04608e61819af20080618f630",
+      "candidateLines": 77
+    },
+    "jeeves-rs/jeeves-cli/src/skill_cmd.rs": {
+      "sha256": "cb639be14f49f771182478249e0cb548621e93eb27d6e501d17b030c82b140ea",
+      "candidateLines": 40
+    },
+    "jeeves-rs/jeeves-config/src/browser.rs": {
+      "sha256": "0f8351a3bdbc15fff3febd02e875d092953c2e36550fc00da925a3556b78672e",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-config/src/json_file.rs": {
+      "sha256": "5388f2ca20e564ad87ee79e88b91c20471a3d1e2fbf707a9ce1ba65279aa3204",
+      "candidateLines": 10
+    },
+    "jeeves-rs/jeeves-config/src/lib.rs": {
+      "sha256": "3dd5297d5acb9cd6621ca61159efa5749c156c4363f81f929401ae0c4f4e0eae",
+      "candidateLines": 172
+    },
+    "jeeves-rs/jeeves-config/src/models.rs": {
+      "sha256": "ca7fda783b76eb86465ccb7b692a8b759f70637ef449247903aedd2a75f0f97f",
+      "candidateLines": 126
+    },
+    "jeeves-rs/jeeves-config/src/routes.rs": {
+      "sha256": "a8832be263ac44e716c8259932c405db385578b220c9bb57f8c33c0bfb0cf809",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-config/src/vault.rs": {
+      "sha256": "9b37da86e77bca98aaec58328dfc76fcf0f2ecff0e116e852dbf6606b8142269",
+      "candidateLines": 42
+    },
+    "jeeves-rs/jeeves-config/src/workspaces.rs": {
+      "sha256": "aff0348819f0643c0fb811086fb2cceaf126a9045ec575bd719b7c158cab0f6d",
+      "candidateLines": 22
+    },
+    "jeeves-rs/jeeves-connector/src/caldav_discovery.rs": {
+      "sha256": "781bee942f1a35ea674783928384f7a65bdec3166d959d8bb3ca0b98779e7e2f",
+      "candidateLines": 68
+    },
+    "jeeves-rs/jeeves-connector/src/calendar.rs": {
+      "sha256": "c1bf154ef6fe23339713f2c2ffb2c28423a44fc05d7a978515aaf5279f5a4e0d",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-connector/src/calendar_parse.rs": {
+      "sha256": "0fab5fa331b8f33d866b88985a9c1ad5c27978c1c7f41fc23defe7f93b79955c",
+      "candidateLines": 58
+    },
+    "jeeves-rs/jeeves-connector/src/calendar_tests.rs": {
+      "sha256": "4e6837c5ce004ad324a9775a2029162a44a5fdb6409e12603992900380a17b76",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-connector/src/config.rs": {
+      "sha256": "fa406bcc3cf34ec58ee271051352db4064f7762ff72b4fa61ea43265cf0914df",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-connector/src/config_tests.rs": {
+      "sha256": "b7cf274924660f19c3599367ab3fd27943c4dfa94be88de9d5ea347b6283b183",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-connector/src/email.rs": {
+      "sha256": "20b699f479b4678bf54f6367da7558559e5483fa32560174e62b973c2c3ff376",
+      "candidateLines": 90
+    },
+    "jeeves-rs/jeeves-connector/src/email_tests.rs": {
+      "sha256": "0893e5dc91314a4c389e3d87ce3a8b43f2140ace4396f9778a62ebac1f34ee87",
+      "candidateLines": 83
+    },
+    "jeeves-rs/jeeves-connector/src/feishu.rs": {
+      "sha256": "20da67370a3b6159d006e359749de99ec5d355fad3bf760372b3c550fa89c20d",
+      "candidateLines": 56
+    },
+    "jeeves-rs/jeeves-connector/src/feishu_oauth.rs": {
+      "sha256": "c666fba95c47ad87fb1003a8c57e6f1a53fb3e5186d4b026b2e9e62ac632c80f",
+      "candidateLines": 75
+    },
+    "jeeves-rs/jeeves-connector/src/feishu_oauth_tests.rs": {
+      "sha256": "43a80c65dba3d134c17bda4b7564bf0e0999bca1013572eb5dda47727422a100",
+      "candidateLines": 76
+    },
+    "jeeves-rs/jeeves-connector/src/feishu_tests.rs": {
+      "sha256": "afb25ec396c649e75257acfb7697bc8f40577cc789746d72bc7a576162c2754c",
+      "candidateLines": 86
+    },
+    "jeeves-rs/jeeves-connector/src/lib.rs": {
+      "sha256": "399883a14524bb31668f0c87e2eb06bb63c59af1339e3a60413278ada0f73a4f",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-eval/examples/live_reliability.rs": {
+      "sha256": "60fbe1fda67cb17415c00713e2f6f45491e1ceed412fba296f2e23db1345d971",
+      "candidateLines": 96
+    },
+    "jeeves-rs/jeeves-eval/examples/live_reliability/cases.rs": {
+      "sha256": "27f9d0c8cd806932c29285de7a44d603a8e03dac27c4b4e9c9422e5bb9ca6ebd",
+      "candidateLines": 54
+    },
+    "jeeves-rs/jeeves-eval/examples/live_reliability/long_research.rs": {
+      "sha256": "828f419e994830b8de9a605ebb482536abef82b8bfd3a7e9719f3e8b780463a0",
+      "candidateLines": 81
+    },
+    "jeeves-rs/jeeves-eval/examples/live_reliability/memory_case.rs": {
+      "sha256": "2a8dab8a1ad774fc6d7d68a0ba6a45caea716fb8bd6de05ae0bf22e61605fa72",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-eval/examples/live_reliability/research_case.rs": {
+      "sha256": "a7d34c4010f417c11ee1709e59bc3c650f18caf696fe7610b56aa152b0e61cbc",
+      "candidateLines": 55
+    },
+    "jeeves-rs/jeeves-eval/src/jsonl.rs": {
+      "sha256": "ab6bb6cd316dd5f2f5db5c972b64fada414a9efb7c092c0ca056522920e80ca7",
+      "candidateLines": 11
+    },
+    "jeeves-rs/jeeves-eval/src/judge.rs": {
+      "sha256": "2ecb5032c11824bed5b7977b1f1c1cf7a1632374ddd9a8b633edbb10144d16b1",
+      "candidateLines": 11
+    },
+    "jeeves-rs/jeeves-eval/src/lib.rs": {
+      "sha256": "4ad3eb82b775cea71f3d6e8e1aa11aae3c8c15be46f30f97fe37eb1b40833247",
+      "candidateLines": 207
+    },
+    "jeeves-rs/jeeves-eval/src/replay.rs": {
+      "sha256": "f61dca6f18cf46ab717b26cf01a1433e4e683b05d15f1a7f1000770a90099475",
+      "candidateLines": 33
+    },
+    "jeeves-rs/jeeves-eval/src/report.rs": {
+      "sha256": "7b7c3bf0189b607402c36d6fd1a27078507194c6640ed7e059d2ed2c8c387b1a",
+      "candidateLines": 6
+    },
+    "jeeves-rs/jeeves-eval/src/scenario.rs": {
+      "sha256": "c1feb883e83770c1b2b357797460203cf27ddca5fd32870d5c83c11fc147e5e4",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-loop/src/budget.rs": {
+      "sha256": "5156bdff21bbe363807b647c5d4ab6dea239893b51b4481827809d4dd578e1ce",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-loop/src/budget_tests.rs": {
+      "sha256": "01f7a7fa73307f2b4959c26e2b1ca34a28f443651e320109474f86adfee2e21a",
+      "candidateLines": 47
+    },
+    "jeeves-rs/jeeves-loop/src/guard.rs": {
+      "sha256": "6a03fdedf73fc69b1a6fe87c113e7cdf2b3b34652e3b5dac73b4b0aae7f11d05",
+      "candidateLines": 14
+    },
+    "jeeves-rs/jeeves-loop/src/guard_tests.rs": {
+      "sha256": "0f4511c19fb8fa8f23d450f277c4566eade04f0ad7f0df16bf7ce776f89a4a82",
+      "candidateLines": 39
+    },
+    "jeeves-rs/jeeves-loop/src/lib.rs": {
+      "sha256": "b68860af65c97c62d2ef228f546ae2dd02e5e9effbb6f42aa499ce087e5a869d",
+      "candidateLines": 61
+    },
+    "jeeves-rs/jeeves-loop/src/loop_tests.rs": {
+      "sha256": "246b568f9db21ab1ce964e0a782f2cb2b0847cd6a507b6815075864d3018ad4a",
+      "candidateLines": 183
+    },
+    "jeeves-rs/jeeves-mcp/src/config.rs": {
+      "sha256": "d4526ba4187bfad65c3b77a97390c2578c054856bd08e97f086a0b107d58d358",
+      "candidateLines": 27
+    },
+    "jeeves-rs/jeeves-mcp/src/lib.rs": {
+      "sha256": "df4223071b354b791ae9c4b007ef139fd140dfcfc3f4b6ac6b89dfd4e201b6d4",
+      "candidateLines": 56
+    },
+    "jeeves-rs/jeeves-mcp/src/mcp_server_tests.rs": {
+      "sha256": "31c9b8f2de875d61a6a4b28b0d73270b7a5d344ec808509277cbf671d2ee5206",
+      "candidateLines": 31
+    },
+    "jeeves-rs/jeeves-mcp/src/mcp_tests.rs": {
+      "sha256": "18e378b997f5d10639c2d45f3353bafa8dd5639b65879968b006502d8d87761d",
+      "candidateLines": 170
+    },
+    "jeeves-rs/jeeves-mcp/src/oauth.rs": {
+      "sha256": "0a9e0a92ae84b8dc291a096b9018d45369b17c0d4883bb57d570d02186ea9afd",
+      "candidateLines": 97
+    },
+    "jeeves-rs/jeeves-mcp/src/oauth_tests.rs": {
+      "sha256": "a96228b15e06d0a54e9b1cd3f36e8f26108cc37396ddc28e958426b09e1fc174",
+      "candidateLines": 82
+    },
+    "jeeves-rs/jeeves-mcp/src/server.rs": {
+      "sha256": "062d70d5a24b0c9cceabf232eddefe681cb99af4a6f1bc48488f7f38191ed7ab",
+      "candidateLines": 43
+    },
+    "jeeves-rs/jeeves-mcp/src/transport.rs": {
+      "sha256": "e64b2201983d2b1bec737a722f13ce012982ceb4c645ee463bdcd5ecf2b2eda4",
+      "candidateLines": 83
+    },
+    "jeeves-rs/jeeves-memory/src/bundle.rs": {
+      "sha256": "9ba158eeee8e53b015a4a5e5891e0fc1f66aa245217dc12aef54889f353de834",
+      "candidateLines": 54
+    },
+    "jeeves-rs/jeeves-memory/src/bundle_tests.rs": {
+      "sha256": "b57eff60784046c43eae5d805b480ee477dfd8e54f733a643852771c0306e607",
+      "candidateLines": 50
+    },
+    "jeeves-rs/jeeves-memory/src/compaction.rs": {
+      "sha256": "fdb1a74f709efe9293377a4607367f39e6e69abeb21954684c08c9854f59c5d4",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-memory/src/compaction_tests.rs": {
+      "sha256": "9a08b49900176365abd0923d269cafd856359955fe39427d81832446c1106524",
+      "candidateLines": 41
+    },
+    "jeeves-rs/jeeves-memory/src/consolidation.rs": {
+      "sha256": "c84a6bb936e0cd66036289990086e46a5a4906db91fb2bbf2d790c83bdc78e0c",
+      "candidateLines": 35
+    },
+    "jeeves-rs/jeeves-memory/src/consolidation_recovery_tests.rs": {
+      "sha256": "dac5562346d44374f19139ad6779cb0afaf745e78ba18ed28796a26f5c847345",
+      "candidateLines": 52
+    },
+    "jeeves-rs/jeeves-memory/src/consolidation_replace_tests.rs": {
+      "sha256": "db99d89ffa6ef0cab24fa9e7d59b3ae7dc2a744f5525a1db8efd16861d35c204",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-memory/src/distilled.rs": {
+      "sha256": "b38f52ca2ad3126bc562fee8a12ea7d594af8121811907ea6f21b9b50e4113e3",
+      "candidateLines": 5
+    },
+    "jeeves-rs/jeeves-memory/src/frontmatter.rs": {
+      "sha256": "a94c7873632886d16e2675d99f4bc9618b033dce6be6deb02c378e3c74c55f50",
+      "candidateLines": 7
+    },
+    "jeeves-rs/jeeves-memory/src/frontmatter_tests.rs": {
+      "sha256": "2e08cfdfc841365be2f29d1361fa40482eea5d0a61fcb1b14a3d013bd14bc235",
+      "candidateLines": 24
+    },
+    "jeeves-rs/jeeves-memory/src/install.rs": {
+      "sha256": "40d5ac598565d26e0a47dfd9ea8b540cdf42138770b6edd6ea0db18c23e7e799",
+      "candidateLines": 35
+    },
+    "jeeves-rs/jeeves-memory/src/install_tests.rs": {
+      "sha256": "e267d923902c671ad15c369a4b59c0132e8442fbb0e26683335ef6dca4438ab1",
+      "candidateLines": 58
+    },
+    "jeeves-rs/jeeves-memory/src/lib.rs": {
+      "sha256": "8e97ee00c31ba76bb6ac9e3c401fa03561f836efd4ece82530d0cc6743692086",
+      "candidateLines": 8
+    },
+    "jeeves-rs/jeeves-memory/src/memory_tests.rs": {
+      "sha256": "ab7e176f573046a1160078bd8135a1a9a41b2d08715ceef49fe5ae7d1b29548b",
+      "candidateLines": 158
+    },
+    "jeeves-rs/jeeves-memory/src/mirror.rs": {
+      "sha256": "66106389efe527ea1af51cb28b06da82fe3fbec9b0deefce9276da3eb3aee8c2",
+      "candidateLines": 78
+    },
+    "jeeves-rs/jeeves-memory/src/mirror_tests.rs": {
+      "sha256": "0d01d7d030cb423b2677f1b3e4f0e4388b2b7ee6765ffaa43ffe5b7bc4a28bad",
+      "candidateLines": 144
+    },
+    "jeeves-rs/jeeves-memory/src/skills.rs": {
+      "sha256": "2823f3ddbde1e95622352db681facf68399fa8653c34e49ff7240991f2898958",
+      "candidateLines": 88
+    },
+    "jeeves-rs/jeeves-memory/src/store.rs": {
+      "sha256": "06348f54a8282c424f6b5230dc934ec0f86a9012aba0d342436e45c92fe383c6",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-memory/src/store_tests.rs": {
+      "sha256": "c5344f35a5e76ba60875434e50dc29d100252d062c713193ca0ced53880fb153",
+      "candidateLines": 64
+    },
+    "jeeves-rs/jeeves-memory/src/tidy.rs": {
+      "sha256": "458ef97153d03543836ebda04c92518c40b677f45e8749dd0507273eaac05faf",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-memory/src/tidy_tests.rs": {
+      "sha256": "9895235565f538f0b7b718b4390e61d557f4a4a61e3283b98d1f7c634802e551",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-ops/src/api.rs": {
+      "sha256": "484bd1a8352b2f677d4da8eb9f30627e4f8e5504464600384b729d1064e378c3",
+      "candidateLines": 1
+    },
+    "jeeves-rs/jeeves-ops/src/api/browser.rs": {
+      "sha256": "2eee4609835dbe83d71f4b70f42613f63642bd568c3a9a0fb362306adc78b63b",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-ops/src/api/connections.rs": {
+      "sha256": "14d7b212618473090fcf1cfd4f184282875e4084448cebe8fce23216434e0a80",
+      "candidateLines": 7
+    },
+    "jeeves-rs/jeeves-ops/src/api/files.rs": {
+      "sha256": "670a3a58587628da0457f2e18b97a9ebdea04d5a44d5c19c27bda019e68f2603",
+      "candidateLines": 48
+    },
+    "jeeves-rs/jeeves-ops/src/api/gateway.rs": {
+      "sha256": "2c6e686447670766f505be35f79bd4ee68f2c8eb72fde2796f67f9a37fad8e3d",
+      "candidateLines": 8
+    },
+    "jeeves-rs/jeeves-ops/src/api/hooks.rs": {
+      "sha256": "e86d35e0b55ffbeddae8d51e6018d190fcfff58a229c6457625f1e696055f5f7",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-ops/src/api/inbox.rs": {
+      "sha256": "a195eeadaf7af1c889d44e7d4073bef8172c3fbae6b97a94d0006ba5263b5004",
+      "candidateLines": 34
+    },
+    "jeeves-rs/jeeves-ops/src/api/models.rs": {
+      "sha256": "5c8af2e2c60aa993b52a7ae217055dcbec5f129510a8f18b34ccd0e98a803bb8",
+      "candidateLines": 26
+    },
+    "jeeves-rs/jeeves-ops/src/api/overview.rs": {
+      "sha256": "222de7d86a645542f2f8bcaf6cb5caa3cd095dba270dd46dcde473f6c9cce43e",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-ops/src/api/preferences.rs": {
+      "sha256": "a8133eb8711992f155c1c26679e681aa4c7869a6d6e9127bbccddad537420744",
+      "candidateLines": 2
+    },
+    "jeeves-rs/jeeves-ops/src/api/schedules.rs": {
+      "sha256": "9a87b5b8771fa92c0eff98f7d458b3c186bdb68358afcdde1aa9e70e55f0c318",
+      "candidateLines": 6
+    },
+    "jeeves-rs/jeeves-ops/src/api/sessions.rs": {
+      "sha256": "b30ab0a16f6cec89eb39417558f1dc8ef4874d89b11f73f6b3b3e23b38af1929",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-ops/src/api/stream.rs": {
+      "sha256": "707c7510f518daf0ff04d928534bebd6c0c32d7dadf2cc9603f2b86640280684",
+      "candidateLines": 53
+    },
+    "jeeves-rs/jeeves-ops/src/api/tasks.rs": {
+      "sha256": "24f4228e9099b686e16bb56025c72c03fe1f4739078419241ef75ae5c6a5fb86",
+      "candidateLines": 45
+    },
+    "jeeves-rs/jeeves-ops/src/api/vault.rs": {
+      "sha256": "74465c0475681182dcdbc135be26bcd7366b2ff88253ad6f275cbf0e82704365",
+      "candidateLines": 7
+    },
+    "jeeves-rs/jeeves-ops/src/api_tests.rs": {
+      "sha256": "08ed80e806c3c60204e38befec65ade133a2a056d36bdcf354656913baa4f3b6",
+      "candidateLines": 49
+    },
+    "jeeves-rs/jeeves-ops/src/capabilities.rs": {
+      "sha256": "f4540c0073d5ccee71c2251b1dea9e2ab3efb9df0b4ee6c5140d98255bc5a24b",
+      "candidateLines": 59
+    },
+    "jeeves-rs/jeeves-ops/src/capabilities_tests.rs": {
+      "sha256": "f7ad134279bb512abc2daf2ea727dce9fbc84c45eaec62d16fa62b74841c7d9f",
+      "candidateLines": 88
+    },
+    "jeeves-rs/jeeves-ops/src/client.rs": {
+      "sha256": "1eb57896019bac0481d33389eeea34d708a9ac11e6a99fb1337a6b012ed45c2c",
+      "candidateLines": 54
+    },
+    "jeeves-rs/jeeves-ops/src/client_tests.rs": {
+      "sha256": "65c12ef27b45ac027579d4c7bff01ad40353568f84eefdce6700a2442335faf7",
+      "candidateLines": 33
+    },
+    "jeeves-rs/jeeves-ops/src/events_tests.rs": {
+      "sha256": "cf0fdab84b13ba6b19f56c11d95e826b181ed7a584e28ad65722e1b809530a14",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-ops/src/freshness.rs": {
+      "sha256": "24402bc710729390d3019ca95fb7d68032c9543aace4b304f83996dc7a43ad2c",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-ops/src/gateways.rs": {
+      "sha256": "c2e44ecb6f1550a3937b6bc425a7d09279a6200c854448075939cc8acf2163a3",
+      "candidateLines": 48
+    },
+    "jeeves-rs/jeeves-ops/src/gateways_tests.rs": {
+      "sha256": "758a414119836b028e3635f9ec887473ee0a295d846c1b26a91ea64606ae088b",
+      "candidateLines": 22
+    },
+    "jeeves-rs/jeeves-ops/src/lib.rs": {
+      "sha256": "210044029a0c16475da7597f76ad101822d64111e99e4f60525e876c7f517aa3",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-ops/src/lifecycle.rs": {
+      "sha256": "9327818f0aeaddc72b66bca8631afb3dac666596085f183f222e80b0c8f7a92f",
+      "candidateLines": 7
+    },
+    "jeeves-rs/jeeves-ops/src/memory_api.rs": {
+      "sha256": "33ccc136084c84c38049c611ac6a71301866f6d466df003b3e4f10d7f9c11c86",
+      "candidateLines": 6
+    },
+    "jeeves-rs/jeeves-ops/src/router_tests.rs": {
+      "sha256": "c47d280b1c63b04605660450183f9a7c0bac6f6dd4f50a6fa9f82e43a99d92fd",
+      "candidateLines": 49
+    },
+    "jeeves-rs/jeeves-ops/src/webhook_tests.rs": {
+      "sha256": "755def7742a47ae129eae7e82e1725bcaeaa8113be80871bc7737be2d8c08ec6",
+      "candidateLines": 62
+    },
+    "jeeves-rs/jeeves-ops/src/webhooks.rs": {
+      "sha256": "cfcb8cf3e736779877614220a1b790a97bd1d2c3ba0295e6495eaf6dc56011e0",
+      "candidateLines": 107
+    },
+    "jeeves-rs/jeeves-protocol-noop-macros/src/lib.rs": {
+      "sha256": "6239329915ce88007844931fcd54a4f956b8445c407c6f7aaceb7297c4dbe724",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-protocol/src/export.rs": {
+      "sha256": "d0e3a40fbf1ce8888c5d3db66b51087ceec3d7fb060a4be86b2205c1940db34c",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-protocol/src/export_tests.rs": {
+      "sha256": "41d7039e4d82ae111f17fd556fb997b4a867a37d71c56e7907c9028056df2000",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-protocol/src/lib.rs": {
+      "sha256": "cd5f22383f5ffc13fd0657461f5eaf2718adf1440bfd9c2eab9fbe60def50e9a",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-protocol/src/protocol/memory_center.rs": {
+      "sha256": "4cbe49a51d04ac941308d396c5cd1dd422458cff2055cf8a624aef0d973e4193",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-protocol/src/protocol/mod.rs": {
+      "sha256": "136dfe94f016e5f3ede92e797ee1a91adb9926c09338b62163d411ab3108477e",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-protocol/src/protocol/v2.rs": {
+      "sha256": "b64a37634131da7142a7877411c8f141db2fa894f8c4e9ce48f58b702aa772d6",
+      "candidateLines": 10
+    },
+    "jeeves-rs/jeeves-protocol/src/protocol/v2_tests.rs": {
+      "sha256": "cca8eade8c15f2618a27f014504747d734272a7df5306da16b6ababa1a302829",
+      "candidateLines": 27
+    },
+    "jeeves-rs/jeeves-protocol/src/rpc.rs": {
+      "sha256": "e7d6c53a88f9ad25a7af853fadf330575ef4c4b3c8728c82625c4b2fa959e416",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-provider/src/anthropic.rs": {
+      "sha256": "82b6ff254d97e5819b48171ef4e2ddbb5e743f00ea6de9fc5d623df595f91e9b",
+      "candidateLines": 72
+    },
+    "jeeves-rs/jeeves-provider/src/capabilities.rs": {
+      "sha256": "97c7cc2c3f5713b881998e8ded6b54a125ebc272e882732e58911b97752a8a99",
+      "candidateLines": 30
+    },
+    "jeeves-rs/jeeves-provider/src/catalog.rs": {
+      "sha256": "5ffadf4eb04b7f926c2a4bf7e7e286cea98984ff7a7eec518c01af83297d37cf",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-provider/src/error.rs": {
+      "sha256": "4bb41d8e0334ed9f6610fa0e23ab32d9d6b352edc335f5f7fdf52461d8f75267",
+      "candidateLines": 4
+    },
+    "jeeves-rs/jeeves-provider/src/lib.rs": {
+      "sha256": "e1d58663ec67bc729582abb499f6ee3ff42f1fdcc5d8c685fa890e3d475dfea9",
+      "candidateLines": 32
+    },
+    "jeeves-rs/jeeves-provider/src/mock.rs": {
+      "sha256": "2075ab90c50638a206cb82ce6d3c351d123d9962d02bd4048ff5c53ca1a84ef6",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-provider/src/openai.rs": {
+      "sha256": "da3adbe23bca76b73af6efbc29668b171f8a20ef47c002416bde3e80111367ea",
+      "candidateLines": 82
+    },
+    "jeeves-rs/jeeves-provider/src/provider_tests.rs": {
+      "sha256": "411153de25963d7a21958593478e14cb8df704c0c40468ae629d1fe6300c88e4",
+      "candidateLines": 176
+    },
+    "jeeves-rs/jeeves-provider/src/responses.rs": {
+      "sha256": "0ac850f9d2a87df5d1e69806ed0aa159513326edf38bf7afe0a1e4b762d68c75",
+      "candidateLines": 67
+    },
+    "jeeves-rs/jeeves-provider/src/responses_tests.rs": {
+      "sha256": "a0097b54f79ffc75e8fc0d60ebc3a793ae94cb92dda93a54c0cb3dd3f40ab098",
+      "candidateLines": 51
+    },
+    "jeeves-rs/jeeves-provider/src/retry.rs": {
+      "sha256": "01fa00419cf942189832defe20644009da279c456c1ef7ca2a3482ed1deb85a3",
+      "candidateLines": 13
+    },
+    "jeeves-rs/jeeves-provider/src/sse.rs": {
+      "sha256": "f690ecb2f8360a07cc3ca55dfe5bea4ac17e07e94a2b0f0fad0d6b9965044083",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-provider/src/sse_tests.rs": {
+      "sha256": "70719e770e87bb71c5d49fd213a4d119e4f983a3213056241e430dc5d85cdff5",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-provider/src/streaming_tests.rs": {
+      "sha256": "aec6dedc0814c79a2153de794c42b2d6e3cef2875f304cd9b19870b587b7969c",
+      "candidateLines": 29
+    },
+    "jeeves-rs/jeeves-provider/src/tokens.rs": {
+      "sha256": "fdc2d070ea9f6141db147e2fd71a1ee6de078e36fb917447c08037898e6063b0",
+      "candidateLines": 4
+    },
+    "jeeves-rs/jeeves-state/migrations/0001_init.sql": {
+      "sha256": "52ca18a648b45ce937be060db2e7254578118a4f1029a8d373e8df9c24b0ff2d",
+      "candidateLines": 107
+    },
+    "jeeves-rs/jeeves-state/migrations/0002_event_cursor.sql": {
+      "sha256": "cfcc7de7c72e55b5e709da4c2e728606df5a6a09296360a4f878f7d87fab0a8e",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-state/migrations/0003_action_grants.sql": {
+      "sha256": "1034a56de3273661320051ecab3e046f83a561a449f66c50709ead4108d9a38b",
+      "candidateLines": 3
+    },
+    "jeeves-rs/jeeves-state/migrations/0004_receipts.sql": {
+      "sha256": "da2e9656d1ccbc8fb88442ed80bd5fc5746dd2f7e7dc7f8e4ab6fe5712d28cb7",
+      "candidateLines": 2
+    },
+    "jeeves-rs/jeeves-state/migrations/0005_wake_inbox.sql": {
+      "sha256": "eb981d418c8e5c3904d5cedaed9624bc107067db25d1d29c7f6c6a3f564352c9",
+      "candidateLines": 3
+    },
+    "jeeves-rs/jeeves-state/migrations/0006_task_edit_checks.sql": {
+      "sha256": "d1ce6945fd2b69256fd69e6661df69e821b7ba24612136c2473703c84b582eec",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-state/migrations/0007_task_leases.sql": {
+      "sha256": "d6e08ad5ace0c0f768bc89bdd276c8b044b987ad63449863332e2ea33119c62e",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-state/migrations/0008_browser_holds.sql": {
+      "sha256": "c16c1b7949c404e9619ea4c1d2aca7a3b5fa48e396598476142f495ff7e268a9",
+      "candidateLines": 3
+    },
+    "jeeves-rs/jeeves-state/migrations/0009_connector_wait_cursor.sql": {
+      "sha256": "428ff8a7a5ff8f3cbe177f708cecb742ad950f5b54463cde77caf27f5a855a13",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-state/migrations/0010_task_git_checkpoints.sql": {
+      "sha256": "da85b8f02202f7b7859cdb72d2cc42e9cd6cc4d1e7c7d60613c7c83ffc8b9562",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-state/src/approvals.rs": {
+      "sha256": "bec04bfffadf6a84382d961f79bef6a7837e8d8a54aefe84f7bd95d41061b3d3",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-state/src/artifacts.rs": {
+      "sha256": "51e1880f1b9d9d39e0a95d869149b0893f04d194d71f31becf41a3223b6770a7",
+      "candidateLines": 4
+    },
+    "jeeves-rs/jeeves-state/src/chat.rs": {
+      "sha256": "891aa5354abe9e361d479aef7cefc9cd76c2fd28750f44351d5d50deba7718e1",
+      "candidateLines": 57
+    },
+    "jeeves-rs/jeeves-state/src/chat_claims.rs": {
+      "sha256": "4b14adeb4f030968b1027e246d51fbdc3dab7bf89e9d39d33c9fd3c8873f61eb",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-state/src/checkpoint_round_tests.rs": {
+      "sha256": "ba6d896432d248305d015582c79877d78784df9ba116ab107e0ec321f5234168",
+      "candidateLines": 16
+    },
+    "jeeves-rs/jeeves-state/src/checkpoints.rs": {
+      "sha256": "df12e339a761b3262f27486282facc165d7954962d2f196019fb183bb4ff1e05",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-state/src/completion_tests.rs": {
+      "sha256": "84a025928b921146dce5169d7c60cba45208f82d6e85c8f3fda13fcb7d447290",
+      "candidateLines": 42
+    },
+    "jeeves-rs/jeeves-state/src/completions.rs": {
+      "sha256": "82d26af85a3cb4c08b2880e82e485ba6e5fa565544992cb528d2e4eeeb66b973",
+      "candidateLines": 5
+    },
+    "jeeves-rs/jeeves-state/src/conformance.rs": {
+      "sha256": "d0effd274639e476f2a3078c646e66c97d0146c765a902ae6a0df2cbb49b91ea",
+      "candidateLines": 26
+    },
+    "jeeves-rs/jeeves-state/src/conformance_tests.rs": {
+      "sha256": "3e0d8a37bac1a1a10c164a173100d979ee60021186ddaa0a0a523caf6f7f9fd3",
+      "candidateLines": 8
+    },
+    "jeeves-rs/jeeves-state/src/db.rs": {
+      "sha256": "e82b59208145820fee1721f8f5f3e1386441a3e21490ea111c29ac70ad84e4aa",
+      "candidateLines": 22
+    },
+    "jeeves-rs/jeeves-state/src/dispatch.rs": {
+      "sha256": "2df735d78f1b7b981aebfc5d8216781d97cdc4845dee44d85af7c44df6f46769",
+      "candidateLines": 57
+    },
+    "jeeves-rs/jeeves-state/src/dispatch_tests.rs": {
+      "sha256": "7e79b078e7c7a5871f5d14761897fe26d7e8516b84522a8190e128ed2c767267",
+      "candidateLines": 74
+    },
+    "jeeves-rs/jeeves-state/src/edit_checks.rs": {
+      "sha256": "8d1a3d5978747d3ae85ee81b39f417ff0b81cff1d922772df9fb0f8a043d0de4",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-state/src/episodes.rs": {
+      "sha256": "d4ad3e47260249c6591682f045b184e673e5d8ed3323f97c9ea42b941178d97a",
+      "candidateLines": 26
+    },
+    "jeeves-rs/jeeves-state/src/events.rs": {
+      "sha256": "025980a0414ae10915e49bf40fdb69d4e334a1866c35aee76cd1910c2b5503b1",
+      "candidateLines": 10
+    },
+    "jeeves-rs/jeeves-state/src/external_wait_tests.rs": {
+      "sha256": "65bec612af0b3f26ffa5e7fd90655c7bb1227c12862e5e638a1353c1e86e7ef7",
+      "candidateLines": 93
+    },
+    "jeeves-rs/jeeves-state/src/external_waits.rs": {
+      "sha256": "231108ffcf289a0e65053d72da2ce08252ad350970676f955c1b9e97367df047",
+      "candidateLines": 88
+    },
+    "jeeves-rs/jeeves-state/src/fact_edits.rs": {
+      "sha256": "53318dc85521e1c6dc823426815155a2abc58d7aeb8f190f9935ae607c6507bc",
+      "candidateLines": 69
+    },
+    "jeeves-rs/jeeves-state/src/facts.rs": {
+      "sha256": "234bb6ec10c5df4dfbf50ac4ae9b00f687029c61748d85c105437aad31dd4e3e",
+      "candidateLines": 32
+    },
+    "jeeves-rs/jeeves-state/src/fts.rs": {
+      "sha256": "9a3eed8c5f79e00228c5979d24c1f2963c935ae33d6f076046d26d455d6ec6f3",
+      "candidateLines": 32
+    },
+    "jeeves-rs/jeeves-state/src/git_checkpoints.rs": {
+      "sha256": "3e4bbec42b2911d34634be23e44998030a43f314c2cb2565426e988a1e7e119d",
+      "candidateLines": 7
+    },
+    "jeeves-rs/jeeves-state/src/grants.rs": {
+      "sha256": "c5c38a1e3c87f35760345d69d81dc3d63755f13be37a080bf402edbdf100fcbc",
+      "candidateLines": 20
+    },
+    "jeeves-rs/jeeves-state/src/grants_tests.rs": {
+      "sha256": "e29f48433cbaec75f67e476111e8d819d8a42a29f4d92dff8ec4790b63620e40",
+      "candidateLines": 15
+    },
+    "jeeves-rs/jeeves-state/src/human_pause_tests.rs": {
+      "sha256": "501211e2a6df38709addee1b61e5f6a3a8136bfb1f345c5d3538dd2a924d2171",
+      "candidateLines": 58
+    },
+    "jeeves-rs/jeeves-state/src/human_pauses.rs": {
+      "sha256": "8d807319031a52e96bc227b9a3d34f4ec7fc3d40b5448354247033f931a744bf",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-state/src/interactions.rs": {
+      "sha256": "8f20340588874d51e3848ba212a5a7c4332d622a91d815494fa3c93a36a51bf7",
+      "candidateLines": 10
+    },
+    "jeeves-rs/jeeves-state/src/jobs.rs": {
+      "sha256": "18f012fc05ce1e4d2c2f2e6ac3bfc1c20c32f52440033f2cf54ad75134da6b84",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-state/src/ledger.rs": {
+      "sha256": "41c74513750bb343b044d41a3daa2750567da9c961b4f9e61ee58b89d0ff14bc",
+      "candidateLines": 41
+    },
+    "jeeves-rs/jeeves-state/src/lib.rs": {
+      "sha256": "bf20fda42afb46ba8a0888cc486b8ed4c18b3583193b3f8a0ed8c16292c4ff23",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-state/src/memory_edit_tests.rs": {
+      "sha256": "772d5337360da4809ec34521e9eb545e6962da85418811d769eddb1dac1e9862",
+      "candidateLines": 77
+    },
+    "jeeves-rs/jeeves-state/src/memory_validity.rs": {
+      "sha256": "534eb801da6e17d9d00b2526529eedf51fbe4d729fce08bd8b4b2d0c396bece1",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-state/src/operation_tests.rs": {
+      "sha256": "867bd22fc8d28f1bff4e09548e0deec6145f64254b7fae405c3b1f3e146f0603",
+      "candidateLines": 50
+    },
+    "jeeves-rs/jeeves-state/src/operations.rs": {
+      "sha256": "a7835c6056a07f3828826a24b96cce82d3ec2435736217c604be3e9b7e71824b",
+      "candidateLines": 61
+    },
+    "jeeves-rs/jeeves-state/src/plans.rs": {
+      "sha256": "2fc17aa824b2d88ee6fb4cb1bcee0f1b26c1d957a0a03b6963206199f56a493a",
+      "candidateLines": 17
+    },
+    "jeeves-rs/jeeves-state/src/queue.rs": {
+      "sha256": "f1526eb3f21f76166999a06879dae7e6a2e57f9586a3e77b574c7c8dd926ef4c",
+      "candidateLines": 11
+    },
+    "jeeves-rs/jeeves-state/src/receipts.rs": {
+      "sha256": "454e56d9bd1baadaafd5ddb5d612a324a0fb4e001ee7c384c370c1e77caeddc0",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-state/src/runs.rs": {
+      "sha256": "15019b4296bf80bed40c94c79418fabab53bbb18e69da40d9a2c78e056ece610",
+      "candidateLines": 39
+    },
+    "jeeves-rs/jeeves-state/src/schedule_completion_tests.rs": {
+      "sha256": "eb14c912fe1f25c18e272c44f281f753ef24633ff3e16437b6b396d90474bd56",
+      "candidateLines": 47
+    },
+    "jeeves-rs/jeeves-state/src/schedule_completions.rs": {
+      "sha256": "b4e79d4d8d6961b0ec9263adcbe14fb64fa3aadb35a1450fa190beb1a865394b",
+      "candidateLines": 40
+    },
+    "jeeves-rs/jeeves-state/src/schedule_jobs.rs": {
+      "sha256": "d21f64e829f9d6c38e2c6ffe30e78d9633978900d4629f495b996d17c71239e4",
+      "candidateLines": 4
+    },
+    "jeeves-rs/jeeves-state/src/schedules.rs": {
+      "sha256": "fea3a7385b8dd2079fe7401335d787890c1eada64fcc84d6369606d6f7e190c0",
+      "candidateLines": 50
+    },
+    "jeeves-rs/jeeves-state/src/session_permissions.rs": {
+      "sha256": "87aa80fceb8c5d96bf3cdb2c5ec4b3ba7e910117ab4519ce9f07352f7dc10a0d",
+      "candidateLines": 11
+    },
+    "jeeves-rs/jeeves-state/src/state_tests.rs": {
+      "sha256": "bd47fdb5e7e121007b766908446a2402f5542c040f510ef0f196da7ee341984a",
+      "candidateLines": 440
+    },
+    "jeeves-rs/jeeves-state/src/steps.rs": {
+      "sha256": "778c064db558b33fa6aba9bf7b76b6cbd2c42b8539ccc99a4a41befc23ef89b4",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-state/src/store.rs": {
+      "sha256": "12c09544e3b189ca328b4cb39aca3139755ef05f96182da3846fcb91e9b71551",
+      "candidateLines": 1
+    },
+    "jeeves-rs/jeeves-state/src/task_sources.rs": {
+      "sha256": "0958914c94a04544e32fb9e13a3f088ff219ef2cfb09b45d6359467b00ec582e",
+      "candidateLines": 8
+    },
+    "jeeves-rs/jeeves-state/src/tasks.rs": {
+      "sha256": "72c5885777ec6d4b3a21bd671225f34f5c33d6d237237722d2e390b01af53aa1",
+      "candidateLines": 69
+    },
+    "jeeves-rs/jeeves-state/src/transient_memory.rs": {
+      "sha256": "b0d4ef9f87cb1069dc5c3379c7fa2fa592159449ba4c86af4b63238a6891daaf",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-state/src/transient_memory_tests.rs": {
+      "sha256": "50e502651173290d23076f6ab5cab5179fdf635340ac04208a93add5f5e3457e",
+      "candidateLines": 59
+    },
+    "jeeves-rs/jeeves-state/src/usage.rs": {
+      "sha256": "55709a2fa818bd390fd87c3d6df093ffc178a850e5d0a60b6ae145e725bb299c",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-state/src/verification.rs": {
+      "sha256": "2e943212c71b3d7772c9ee5cd63d64ecd7194501019d3b37a4d968ac623e03c1",
+      "candidateLines": 79
+    },
+    "jeeves-rs/jeeves-state/src/verification_tests.rs": {
+      "sha256": "88ba17e29c0f3c4fe7cc783acad05e9c34f77209c6c682644af5b348045ba85a",
+      "candidateLines": 44
+    },
+    "jeeves-rs/jeeves-state/src/waits.rs": {
+      "sha256": "873edf186ea29c31092d06b6cf5e9c2bab335d03a10feda220cb33f650fa4c73",
+      "candidateLines": 43
+    },
+    "jeeves-rs/jeeves-state/src/wake_inbox.rs": {
+      "sha256": "8bc854a1ed7efa173e8da1d7a585cb54439b0955b29003296c211728787a8f20",
+      "candidateLines": 7
+    },
+    "jeeves-rs/jeeves-state/src/wake_inbox_tests.rs": {
+      "sha256": "94d6f9cf1e63bc490a8712037c00cb3384f8c33e7ccbf002027f87e4fef76f35",
+      "candidateLines": 25
+    },
+    "jeeves-rs/jeeves-tools/src/approval.rs": {
+      "sha256": "3f10b89b6b229235110cdee24d96d58309703247bc853dd1f6842b2b5dab66c3",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-tools/src/approval_tests.rs": {
+      "sha256": "633c9ae7c985cd6253cf63636cbb38da01281a5bc8dcfe9481a23579bd6c79e9",
+      "candidateLines": 34
+    },
+    "jeeves-rs/jeeves-tools/src/browser.rs": {
+      "sha256": "c275c9721b5df0665213e76fda096d83f494e230df5b24e00ed8d5f9ea681238",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-tools/src/code_map.rs": {
+      "sha256": "a6e347cf0700b4a4d442e5961b6b3527184478a15ce52130cedc13a5bd0948a9",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-tools/src/edit_checks.rs": {
+      "sha256": "642e2de9d8c2521da50e3d7468184380e32dfe747f88612a68fdef9c5f40deb9",
+      "candidateLines": 4
+    },
+    "jeeves-rs/jeeves-tools/src/exec.rs": {
+      "sha256": "c61539c050dab47e5e867c19d84b318f0cd458b713eedf2a7b8b4af130c067b5",
+      "candidateLines": 76
+    },
+    "jeeves-rs/jeeves-tools/src/exec_tests.rs": {
+      "sha256": "76c53d23f084bea7772ebfdcc8f81576a7525b7957265ac51d2e1b7a06d9c405",
+      "candidateLines": 87
+    },
+    "jeeves-rs/jeeves-tools/src/fs.rs": {
+      "sha256": "c40ca683310ccbcf4139adbf5836f2aff9cf96420e98cda2cb8e2ae9fcdae7e8",
+      "candidateLines": 48
+    },
+    "jeeves-rs/jeeves-tools/src/fs_tests.rs": {
+      "sha256": "b6b4fb90f33260e893e59a52e93a0bb1afacb33eeb23864547eb6c1138b9c17f",
+      "candidateLines": 80
+    },
+    "jeeves-rs/jeeves-tools/src/fs_write.rs": {
+      "sha256": "1b38934ec5d5eb030306facc3cfb8ae428b039709585511f035f4f1397209c81",
+      "candidateLines": 65
+    },
+    "jeeves-rs/jeeves-tools/src/fs_write_tests.rs": {
+      "sha256": "2dccf2d051838fbfcf5f0f7d2f60d44b95e39fdf39ab0aa057776ae2ba83c177",
+      "candidateLines": 77
+    },
+    "jeeves-rs/jeeves-tools/src/handlers.rs": {
+      "sha256": "622a43c9c6e0f4ebbdd7700e0c4d88900e7ad64cbf0a79444c580d06f5ace779",
+      "candidateLines": 29
+    },
+    "jeeves-rs/jeeves-tools/src/jobs.rs": {
+      "sha256": "c983b4f09702a4148b8f9d61b7772c325d2cabd7f9b250aacdd5d9fd6f971ed6",
+      "candidateLines": 21
+    },
+    "jeeves-rs/jeeves-tools/src/lib.rs": {
+      "sha256": "36913a5940252f8efe70db4362be693a251702ea546c41b509f52d975502413f",
+      "candidateLines": 38
+    },
+    "jeeves-rs/jeeves-tools/src/memory_admin.rs": {
+      "sha256": "0240c80c0dc99f596597c1e3ca90f94c03121c76c77c5a9dcd8262348e71b477",
+      "candidateLines": 18
+    },
+    "jeeves-rs/jeeves-tools/src/memory_tool.rs": {
+      "sha256": "9e27c3b7a299e1f4c12e9d9d40dd0bfc2cf9dd110e73d8bf14ca5d32e38cd5fa",
+      "candidateLines": 6
+    },
+    "jeeves-rs/jeeves-tools/src/messages.rs": {
+      "sha256": "ca562c055147c41fd82a17e432f283c7e3ae36b1053bea46ff6c6adcb13624b6",
+      "candidateLines": 5
+    },
+    "jeeves-rs/jeeves-tools/src/notify.rs": {
+      "sha256": "2a850d42d90164039ea38fec62bf9cd5467477299c7d776f043fe30358375234",
+      "candidateLines": 22
+    },
+    "jeeves-rs/jeeves-tools/src/notify_queue.rs": {
+      "sha256": "c6114cd5b541830fea2ce48a5e6612e0e614014f33da41a4e7a43727147f5fe5",
+      "candidateLines": 45
+    },
+    "jeeves-rs/jeeves-tools/src/notify_tests.rs": {
+      "sha256": "d04cee012edb528f15d43560ebd7c21c37d6cda2f318821c35992d36324767dc",
+      "candidateLines": 23
+    },
+    "jeeves-rs/jeeves-tools/src/patch.rs": {
+      "sha256": "1aa318ed0886934eeb67385a4583b867a3f98a9b027273d79e56a7e2578f3126",
+      "candidateLines": 71
+    },
+    "jeeves-rs/jeeves-tools/src/patch_tests.rs": {
+      "sha256": "14537cd87398090f2e5607e1a4ae4969777c670eff00ad632e18d1545deba1fa",
+      "candidateLines": 52
+    },
+    "jeeves-rs/jeeves-tools/src/permissions.rs": {
+      "sha256": "7007c9f4f00560d8c934ffc46779cd391f28f148d714c015f4ec92ad67909857",
+      "candidateLines": 2
+    },
+    "jeeves-rs/jeeves-tools/src/report.rs": {
+      "sha256": "589d2de12ec88ee75cfb02b2bb0c77a8aa990ca26f1b31ff47a2fbf1a246589b",
+      "candidateLines": 12
+    },
+    "jeeves-rs/jeeves-tools/src/report_tests.rs": {
+      "sha256": "7c6a25cac406ba92f409d3d24b6ff60745921950cc07a998eb3f08c1ea19b0e4",
+      "candidateLines": 14
+    },
+    "jeeves-rs/jeeves-tools/src/resources.rs": {
+      "sha256": "6b916d667105d8afc928d542fb03ffa155fa3903abf6ef76460ebf83b2a8248d",
+      "candidateLines": 0
+    },
+    "jeeves-rs/jeeves-tools/src/roots.rs": {
+      "sha256": "60d08d829600d77c76650549edd45b133bc7d25baa0979effe645df99a85a3db",
+      "candidateLines": 9
+    },
+    "jeeves-rs/jeeves-tools/src/roots_tests.rs": {
+      "sha256": "b518db740f137a1bb778b7eb96d074c0878d488b4b5fc2b3de1b9580645a6615",
+      "candidateLines": 22
+    },
+    "jeeves-rs/jeeves-tools/src/schedules.rs": {
+      "sha256": "8eac50637f796ccf960e5538602d389c5702238714ea6ba2e374a887bc86d88b",
+      "candidateLines": 36
+    },
+    "jeeves-rs/jeeves-tools/src/search.rs": {
+      "sha256": "1ca145f5ab8f761af6c7652d00dd864856f962e34df8fc3716f29ff01d199c6c",
+      "candidateLines": 55
+    },
+    "jeeves-rs/jeeves-tools/src/search_tests.rs": {
+      "sha256": "d44110c244491bd3d4b40701c85cdaeb3e384bba72a558d109b08bc81cd96ce6",
+      "candidateLines": 66
+    },
+    "jeeves-rs/jeeves-tools/src/snapshot.rs": {
+      "sha256": "85679f09b59d9677a0ca0555240c442a405d8e61991a54482bc539869d8e79ea",
+      "candidateLines": 28
+    },
+    "jeeves-rs/jeeves-tools/src/spill.rs": {
+      "sha256": "163c72a7646b01e913c7b48ee7646e675f6ef44b6faba6929cde70ac28cbd109",
+      "candidateLines": 17
+    },
+    "jeeves-rs/jeeves-tools/src/spill_tests.rs": {
+      "sha256": "f62c125645cb9ffa997c9bfd1f74a1f222108c5f97ff1e7f6bd692a080008800",
+      "candidateLines": 37
+    },
+    "jeeves-rs/jeeves-tools/src/subagent.rs": {
+      "sha256": "4d6db8ba043fa5e8b20f5662b7f2dcba8b5e5d97f5df0e8c2984fb6d12602d65",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-tools/src/subagent_tests.rs": {
+      "sha256": "d7bc0938eb3573919e9e70c59542ed050b6fbe360f6b8628f15281d303df9868",
+      "candidateLines": 49
+    },
+    "jeeves-rs/jeeves-tools/src/todo.rs": {
+      "sha256": "5697c0513e4c7683ac54f7bad3fcfdf55160bf10dc051cce732768dc6733da07",
+      "candidateLines": 19
+    },
+    "jeeves-rs/jeeves-tools/src/todo_tests.rs": {
+      "sha256": "6c949a69f38343e12599781c298121988cb426eb0fceadc87810457260667260",
+      "candidateLines": 32
+    },
+    "jeeves-rs/jeeves-tools/src/tools_tests.rs": {
+      "sha256": "070500a5399b426eeee4f44acebecab428d43cd052eb053e5e4e110976db8cf1",
+      "candidateLines": 98
+    },
+    "jeeves-rs/jeeves-tools/src/web.rs": {
+      "sha256": "860c66d73366303b7288bd241aa627fa8b4f75bee87cb309697642afd3c8fce2",
+      "candidateLines": 169
+    },
+    "jeeves-rs/jeeves-tools/src/web/primary.rs": {
+      "sha256": "e4be335dce168780796b8f3ecac91bb91db8a0e6b9680eae282aabd09b923a3a",
+      "candidateLines": 27
+    },
+    "jeeves-rs/jeeves-tools/src/web/search_html.rs": {
+      "sha256": "aae545e6a66d559c1c3916a80a86569e5521002cab469c665eb6538f0d6e42e5",
+      "candidateLines": 39
+    },
+    "jeeves-rs/jeeves-tools/src/web_tests.rs": {
+      "sha256": "18122c9c89e5e5529781cef1059029ed72a32e9fe31434ef4f25b7efaf176fcd",
+      "candidateLines": 109
+    },
+    "jeeves-ts/packages/browser-worker/src/document.ts": {
+      "sha256": "0358ec69a0478f659b23ef5196224ebcd45442afbe02c50bca1e6072f2000c5f",
+      "candidateLines": 4
+    },
+    "jeeves-ts/packages/browser-worker/src/network.ts": {
+      "sha256": "658746e427b5699c26db5d10bd2e0470be14d68568046ae1bf81c9a9a0c6495e",
+      "candidateLines": 25
+    },
+    "jeeves-ts/packages/browser-worker/src/observe.ts": {
+      "sha256": "2893a6d9cc8ad6772c455c8a8d0e96266242e166f06f74d386c3b6ead4e4f1b2",
+      "candidateLines": 18
+    },
+    "jeeves-ts/packages/browser-worker/src/session.ts": {
+      "sha256": "3677a42d212775846a1f296fa1f67d4bca7f0d1a1cecf78ab16220e687312a9e",
+      "candidateLines": 79
+    },
+    "jeeves-ts/packages/browser-worker/src/worker.ts": {
+      "sha256": "3b7235a3197a0ef221e99bc820426589ac6a6a7ee123194bbce858388eeffaa8",
+      "candidateLines": 6
+    },
+    "jeeves-ts/packages/browser-worker/test/browser.test.ts": {
+      "sha256": "f6cb02ba206d7550f536ade9fb6bc23fc1f49b6050bd8fde4d94486fc8f332e0",
+      "candidateLines": 26
+    },
+    "jeeves-ts/packages/browser-worker/test/network.test.ts": {
+      "sha256": "156b7458d438cfcd363f265fd2fdd4d8367f40ca99ade41c932c73f7cfe5f60d",
+      "candidateLines": 14
+    },
+    "jeeves-ts/packages/client/src/client.ts": {
+      "sha256": "abbe030ee5979d260ad0069e6451f99e20e19c654634b76273ac0458471a817b",
+      "candidateLines": 19
+    },
+    "jeeves-ts/packages/client/src/http-transport.ts": {
+      "sha256": "8c9c98a3281d7528910b1985141fa112722463f6a3c8a1d4de6e39421a0c8e7c",
+      "candidateLines": 32
+    },
+    "jeeves-ts/packages/client/src/index.ts": {
+      "sha256": "87a87f1fc0381bce6991c08233f851e39c113501045ab3c57b0770108ae5aa0e",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/client/src/protocol.ts": {
+      "sha256": "713f8228b5d50a621eba69dec2420cd1c728ad35b9dce59471c9b155852a596e",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/client/src/task-events.ts": {
+      "sha256": "485e6ca0696104c86fdfb2ea3d9cf75a5949b38e3dfcfbaa6b98d7a38563be08",
+      "candidateLines": 3
+    },
+    "jeeves-ts/packages/client/src/transport.ts": {
+      "sha256": "b1db68e523afcc1b16f7122c622ac011a4925052ba9ae9ab27c9b8a1a50c16a5",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/client/test/client.test.ts": {
+      "sha256": "84793cb7f93781d5635c25279caffe22620abbcb0bcd9701dea9a1ff59465444",
+      "candidateLines": 37
+    },
+    "jeeves-ts/packages/client/test/http-transport.test.ts": {
+      "sha256": "8cde9977982c320b5a834a7cec60fa049cb1d63ae398d22f4581627d38082034",
+      "candidateLines": 27
+    },
+    "jeeves-ts/packages/client/test/task-events.test.ts": {
+      "sha256": "f29b628b081b564e2a39bfe8efdceffd77c1a094f15af1c80e8c9391ba28bc32",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/dashboard/copy-assets.mjs": {
+      "sha256": "851633fbb82fa21e5974030cd53fb24ccc19a06571c369d4f46128bdfb2b525d",
+      "candidateLines": 6
+    },
+    "jeeves-ts/packages/dashboard/src/WebControls.vue": {
+      "sha256": "553d3dc06dbbb520a9128e88b66b24f9156d2742190a412566b6f1706c4b75b9",
+      "candidateLines": 20
+    },
+    "jeeves-ts/packages/dashboard/src/api.ts": {
+      "sha256": "ea2e2173c0b4d68ef902351e6e42f58077e2bf16f49bd309d3e520dc717fed2f",
+      "candidateLines": 72
+    },
+    "jeeves-ts/packages/dashboard/src/controls.ts": {
+      "sha256": "f176ee073cc34ad3aea7f9416bd3f263142d66ce0b59a6783c008f6a9954c7b5",
+      "candidateLines": 15
+    },
+    "jeeves-ts/packages/dashboard/src/i18n.ts": {
+      "sha256": "ebff2b288779bd6f4f25e4219fdb348c86c95e2e84e44d062f9992acaf0d010c",
+      "candidateLines": 20
+    },
+    "jeeves-ts/packages/dashboard/src/index.html": {
+      "sha256": "6d58e099fd0a68086cadc2e0ba553d56ee8a1223eb8ae6f2774daff739dd4b72",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/main.ts": {
+      "sha256": "e09094642d727af9f9e6fa45feae5b3c543b6e1f4db868166cbf89f18dc7ef7a",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/markdown.ts": {
+      "sha256": "832ffb3a93ab6d5ecfbde44ba329c5c9aa87b03490e5a60e0300f8aa47d57ccb",
+      "candidateLines": 108
+    },
+    "jeeves-ts/packages/dashboard/src/navigation.ts": {
+      "sha256": "68ba690535ca4d6ce1745d421df31a721ffe39530d6cebe045411a9f5dceb709",
+      "candidateLines": 28
+    },
+    "jeeves-ts/packages/dashboard/src/protocol.ts": {
+      "sha256": "f77296b57c53db16fb6a17ff86cb60834b7cfb0d9c07643385e95071a302091a",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/render.ts": {
+      "sha256": "b9b71ec4905b56ce5a2fcb51054729fdbeaa1b378e11688bde99b2175a0c9e94",
+      "candidateLines": 166
+    },
+    "jeeves-ts/packages/dashboard/src/sw.js": {
+      "sha256": "1665ddea30bdb463e807edae7af13bf5dfb59bcfa9803674c4300dc79e3e8a06",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/dashboard/src/sync.ts": {
+      "sha256": "3eed37f4997f3a20daa6cdc3343148094be1d67647ef945332da086fcdd390d8",
+      "candidateLines": 4
+    },
+    "jeeves-ts/packages/dashboard/src/task-event-text.ts": {
+      "sha256": "67d5bf13d778d55108984f709c27971c73247751ce739fbb63fd52fc7c56a9be",
+      "candidateLines": 8
+    },
+    "jeeves-ts/packages/dashboard/src/task-input.ts": {
+      "sha256": "3795dd63dc96402b634140e37bba453a3bb229889c0000bb68d35cafa72f9968",
+      "candidateLines": 21
+    },
+    "jeeves-ts/packages/dashboard/src/task-operation.ts": {
+      "sha256": "6c7f326a10e52ff2f25f25c80ce6a8340e32c661320819f8bace16e913d505ad",
+      "candidateLines": 32
+    },
+    "jeeves-ts/packages/dashboard/src/tasks.ts": {
+      "sha256": "8386b36e8804c08a067a4cc8ba71f66884de6725d4ab33bb8aed7a11d18b4004",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/dashboard/src/timeline.ts": {
+      "sha256": "36764ea8236e24b11942bc4b4b978e521c15dd9de28b9f780bf68f72f43579e4",
+      "candidateLines": 18
+    },
+    "jeeves-ts/packages/dashboard/src/token-dialog.ts": {
+      "sha256": "286876a7407fdc0826a964b0dd3a473aefad9723c34d0848b73dca9b53103fa2",
+      "candidateLines": 3
+    },
+    "jeeves-ts/packages/dashboard/src/ui/ApprovalCard.vue": {
+      "sha256": "4e8f76e98c9c0aa9d51ea5a416455d9c86b4c74d372e24df60ba382801539909",
+      "candidateLines": 14
+    },
+    "jeeves-ts/packages/dashboard/src/ui/AttachmentPicker.vue": {
+      "sha256": "82f6b216ec847547560b5073502493a2da771058ec4f01c5fd9f087b90045865",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/ui/BrowserPanel.vue": {
+      "sha256": "362e353d82a2c698f73548e3629dd8bc1591a37033b24752114febab4f74e2cd",
+      "candidateLines": 15
+    },
+    "jeeves-ts/packages/dashboard/src/ui/ConnectionsPanel.vue": {
+      "sha256": "0e6bfa121d28f4b00d33ea3b545ab311cacdb861ed80981926a7a8333166cd89",
+      "candidateLines": 68
+    },
+    "jeeves-ts/packages/dashboard/src/ui/ConnectorSettings.vue": {
+      "sha256": "b27e5b00d77854b1fcff02298cb87a0e3dfdcca0fc896dc9aea9bbd6da64ab0e",
+      "candidateLines": 45
+    },
+    "jeeves-ts/packages/dashboard/src/ui/GitCheckpointForm.vue": {
+      "sha256": "de99bbcaf9b69ea944301baac52716ae3e546d84b134a56ef8b9ab2428ab9dec",
+      "candidateLines": 15
+    },
+    "jeeves-ts/packages/dashboard/src/ui/GitCheckpointPolicyForm.vue": {
+      "sha256": "997d23602573ad3fb47e3ba8faf642ed1f9aab24a1a528088bd04fa039960b82",
+      "candidateLines": 28
+    },
+    "jeeves-ts/packages/dashboard/src/ui/JeevesLogo.vue": {
+      "sha256": "e3995ec11687254b1153bc6aa16d16624227d0c9d9a5d613908c4eee746f2dbf",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/ui/JeevesMark.vue": {
+      "sha256": "0eddf8a2c7d390d3b337d3bf23cc2ebc050041d51687a3c82ea41ab029049095",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/ui/ModelPicker.vue": {
+      "sha256": "bf3e64b1fc644996f5faf969df3a078993429d55b2bc2ce15848d4ee400a7161",
+      "candidateLines": 7
+    },
+    "jeeves-ts/packages/dashboard/src/ui/PermissionPicker.vue": {
+      "sha256": "fff792f8aca6b53b7c506c12be80e61413af73db3db4c79456af8a8103842fd6",
+      "candidateLines": 11
+    },
+    "jeeves-ts/packages/dashboard/src/ui/SettingsPanel.vue": {
+      "sha256": "253c69cf3bb07018a3c7da3cb52d6f950c5a3a944ca8b49d17487e8d4be53d54",
+      "candidateLines": 83
+    },
+    "jeeves-ts/packages/dashboard/src/ui/SetupWizard.vue": {
+      "sha256": "49bb2617963ec90942a5386b1ab028171ca31532496f25e3500bdb9592a9c46c",
+      "candidateLines": 13
+    },
+    "jeeves-ts/packages/dashboard/src/ui/TaskCenter.vue": {
+      "sha256": "b28d73aba1a0f6e4f77b3e90d3aec43f314757dfdc456fc24981b6183b4dd6d4",
+      "candidateLines": 17
+    },
+    "jeeves-ts/packages/dashboard/src/ui/TaskDetail.vue": {
+      "sha256": "2a9c7a16dff50fce4521ef42dd20c0c1ed9481260602a7d22fdd49238c644c57",
+      "candidateLines": 31
+    },
+    "jeeves-ts/packages/dashboard/src/ui/TaskRow.vue": {
+      "sha256": "35ef6ab215a883f73cc88d73d3d8cfdabb971ce797b2732300643767031d11e8",
+      "candidateLines": 18
+    },
+    "jeeves-ts/packages/dashboard/src/ui/TodayPage.vue": {
+      "sha256": "e05be59679457cecc03ee7a39c54debc46a243a0002c797ccf3abcd4f44b8eba",
+      "candidateLines": 23
+    },
+    "jeeves-ts/packages/dashboard/src/ui/WorkspacePicker.vue": {
+      "sha256": "12f12bd7abfa9b2e63bedae14163ea29540a9d243501782e2146a536fb868290",
+      "candidateLines": 11
+    },
+    "jeeves-ts/packages/dashboard/src/ui/en.ts": {
+      "sha256": "723c07b96c582e3376d2cb087e79e38c966d0cd173af658294d9110fe174e844",
+      "candidateLines": 2
+    },
+    "jeeves-ts/packages/dashboard/src/ui/git-checkpoint-paths.ts": {
+      "sha256": "aab68866d503487dfe77aae4fedc751ea5ad62ffebba7d96b43571b50b79618e",
+      "candidateLines": 1
+    },
+    "jeeves-ts/packages/dashboard/src/ui/index.ts": {
+      "sha256": "28ae8cbb87b2a301ed9756768d783ea195dce6c1bb4c6384cb30568d0d176e97",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/ui/submission.ts": {
+      "sha256": "3983dd60c0aa422ee426ded8b8dae74e74fdf8457e620b112578050f730533bb",
+      "candidateLines": 5
+    },
+    "jeeves-ts/packages/dashboard/src/ui/today.ts": {
+      "sha256": "dc2c3830c453b8a6d65e3a4098562237c2d1ee9c1850876fe1df6668bf72eab9",
+      "candidateLines": 21
+    },
+    "jeeves-ts/packages/dashboard/src/ui/translate.ts": {
+      "sha256": "b74c6ef2561e208835699aebcdf44889f30fa8729aaf402622db79be4ac69d51",
+      "candidateLines": 1
+    },
+    "jeeves-ts/packages/dashboard/src/ui/types.ts": {
+      "sha256": "174d0d769b0f42494eb7abaa4bcfb1d87bacc6620d1f0d412321234a57b98f09",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/src/ui/useBrowsers.ts": {
+      "sha256": "0d8679dbced6b6491e3d307e77b80f1b9b861bc53de83382291abe71592f74f2",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/dashboard/src/ui/useTasks.ts": {
+      "sha256": "bdf1e2f2c53ae5de0de41df19d2be9a8ef2e891c43cf8d2e7fde6fb5963cebe4",
+      "candidateLines": 40
+    },
+    "jeeves-ts/packages/dashboard/src/workspace.ts": {
+      "sha256": "7f130a8520efb961029a96f513f1b264ade5d8e17e6df80f105df23e2f19dd07",
+      "candidateLines": 216
+    },
+    "jeeves-ts/packages/dashboard/test/build-entry.test.ts": {
+      "sha256": "182c671448f37563d54e249a70a0587a60459c0865eb6b9a5fe0bd44046c89f0",
+      "candidateLines": 4
+    },
+    "jeeves-ts/packages/dashboard/test/composer-controls.test.ts": {
+      "sha256": "a839a07768a8ec08fbf9b3b14d39266a7e9a498d0797c3ac3808d505555798e7",
+      "candidateLines": 4
+    },
+    "jeeves-ts/packages/dashboard/test/connections.test.ts": {
+      "sha256": "5340e59812773a68bf2534631609a752b5b57b742fb03360b35d5336c8754216",
+      "candidateLines": 67
+    },
+    "jeeves-ts/packages/dashboard/test/controls.test.ts": {
+      "sha256": "4f6f8293645745268e2a45c29e09a4394c233c348fa96762ae7f29e52d55f364",
+      "candidateLines": 16
+    },
+    "jeeves-ts/packages/dashboard/test/markdown.test.ts": {
+      "sha256": "2e0685f2189583d0023e522197a9924c0740a56a5be635176a7a73ce7b2fd3c8",
+      "candidateLines": 51
+    },
+    "jeeves-ts/packages/dashboard/test/service-worker.test.ts": {
+      "sha256": "2be9466e477e0393a41f5716001864e5f91303b4b40158b5ba8d0a2bd36a2f10",
+      "candidateLines": 6
+    },
+    "jeeves-ts/packages/dashboard/test/submission.test.ts": {
+      "sha256": "0fb3b68115e77b86466276a8b5d9ba66ec3c5d57f22540457de38d3e5e277f40",
+      "candidateLines": 6
+    },
+    "jeeves-ts/packages/dashboard/test/task-api.test.ts": {
+      "sha256": "cda6bfc948dc82e0fbb1fe03166d866aa55d1875111f529d9525ed565aa1c415",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/dashboard/test/task-timeline.test.ts": {
+      "sha256": "dc7c915a46d62fd431e891617336533b1dbe2bf679236380057c32d7afc573c5",
+      "candidateLines": 43
+    },
+    "jeeves-ts/packages/dashboard/test/tasks.test.ts": {
+      "sha256": "301bdf63fb6b157ad6b22979a6830c68ef2f49e3333082572bd9d35b723db544",
+      "candidateLines": 26
+    },
+    "jeeves-ts/packages/dashboard/test/today.test.ts": {
+      "sha256": "f0599cd0942dd055c4b0ce6513a9fcde2fbcf2efc86d4cfedc956f231f8c8136",
+      "candidateLines": 31
+    },
+    "jeeves-ts/packages/dashboard/ui-fixtures/connections/connections.html": {
+      "sha256": "3e6e62659371c962a92352475e9aa23dbd44780bec15ec5beb10a84afd99146b",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/ui-fixtures/connections/connections.ts": {
+      "sha256": "a94167773efe6a9b39b89a8f337e8207cb449d8a1a82c673222b0cc6d841e982",
+      "candidateLines": 10
+    },
+    "jeeves-ts/packages/dashboard/ui-fixtures/connections/task-timeline.html": {
+      "sha256": "dfc8ac572bca76cc75275e434f8611414365d7b9e792c9f9ba3ac2e55b1621c2",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/dashboard/ui-fixtures/connections/task-timeline.ts": {
+      "sha256": "f56cd5206965b6766976f7988fcb7558d09b6e6b268bd7d3a69961851e9c6726",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/dashboard/vite.config.ts": {
+      "sha256": "1a6aa41e5b3d67890e6332fccfca826420c71f39c9e3d5900dd8eea3d9e43954",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/gateway/src/approvals.ts": {
+      "sha256": "e9a8a8eabb57a7adc7b4aa9f0ba636576195608dfeb48b96f233436d75ce1891",
+      "candidateLines": 18
+    },
+    "jeeves-ts/packages/gateway/src/bin-lark.ts": {
+      "sha256": "717842fe625ed371c26e8b81a4a3ba898699d9e237a8b7c8001c5b3376571670",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/gateway/src/bin-telegram.ts": {
+      "sha256": "b4a2f45a28a4461cab97e2b948d61e6af4337ab6417ac5b12f6cf4dbaba2efee",
+      "candidateLines": 15
+    },
+    "jeeves-ts/packages/gateway/src/bin-wechat.ts": {
+      "sha256": "3b373d58981eaaea7c78f6c5365494a7cf64d3482a7f497cc53bbb6f7b3c6d0f",
+      "candidateLines": 12
+    },
+    "jeeves-ts/packages/gateway/src/bridge.ts": {
+      "sha256": "d43ee94a2a4325441862be246dc67847935864d72f16aa7aff51ef47340b2483",
+      "candidateLines": 43
+    },
+    "jeeves-ts/packages/gateway/src/channel.ts": {
+      "sha256": "2f83f4b99150e34841a3b6467110fb99e2b448e78f00d07e50b8d6ded2475e9c",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/gateway/src/lark-proto.ts": {
+      "sha256": "bede5e4c29dceac2d93acb214e9c663ea1449200ef198de60e72f36ee327e845",
+      "candidateLines": 41
+    },
+    "jeeves-ts/packages/gateway/src/lark.ts": {
+      "sha256": "722306d8e6368725d0ed2aac12c8c0a5aa4fc875228237f81a4f35f24d89f1e9",
+      "candidateLines": 129
+    },
+    "jeeves-ts/packages/gateway/src/reports.ts": {
+      "sha256": "4341d0a2f068f612a2bba194c2352a4ca205c9dac16859e881f9a639d54c9a4d",
+      "candidateLines": 10
+    },
+    "jeeves-ts/packages/gateway/src/shared/allowlist.ts": {
+      "sha256": "e25c6b82a125590630ff793c5fdebbafde3bcf80f600474562beb22eec5c4318",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/gateway/src/shared/approval.ts": {
+      "sha256": "8c5c58fda53c232df656d8f581ce459056ccaca61fae9b2c58ac35f6810e7f3f",
+      "candidateLines": 4
+    },
+    "jeeves-ts/packages/gateway/src/shared/dedupe.ts": {
+      "sha256": "e444d6d1f458cec85bdef359188d190891364230d6d832547e0d0c1c4207cd99",
+      "candidateLines": 7
+    },
+    "jeeves-ts/packages/gateway/src/shared/identity.ts": {
+      "sha256": "d0ae75b7ee0c86da479c3d71e6b753f1c002f46bcb4a27f726a50a04dfa50753",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/gateway/src/shared/index.ts": {
+      "sha256": "2ac6313da848c75d6ed25b36ed3437c708e9849b0c48429a65fdb17343aa6201",
+      "candidateLines": 0
+    },
+    "jeeves-ts/packages/gateway/src/shared/split.ts": {
+      "sha256": "6dca07ae208a4729a532084f6463224596c128cfb0a29c4abde5f7c42daaab7f",
+      "candidateLines": 4
+    },
+    "jeeves-ts/packages/gateway/src/telegram.ts": {
+      "sha256": "c5538835b05eeb6f6ce80ff11319ebf886cd2e432402a7aeeddc3c8c7bb98611",
+      "candidateLines": 42
+    },
+    "jeeves-ts/packages/gateway/src/wechat-crypto.ts": {
+      "sha256": "651de189739fef84b18f7bcb16550c7b567f082dcc68e88262d7a6a3d4b8ff16",
+      "candidateLines": 5
+    },
+    "jeeves-ts/packages/gateway/src/wechat.ts": {
+      "sha256": "23ebaaa3ad659c3e91e3091c3bc2abb02858730754ac7f355b0490eab68b579f",
+      "candidateLines": 69
+    },
+    "jeeves-ts/packages/gateway/test/approvals.test.ts": {
+      "sha256": "df14854457ab2a5433a63b7a9fcc5ea1265c99b40cbab0229a09ab0dd89d7df6",
+      "candidateLines": 16
+    },
+    "jeeves-ts/packages/gateway/test/bridge.test.ts": {
+      "sha256": "52ee059f0308f684b1b6dec72e90169854bb0f94d1b378270630e29d972de957",
+      "candidateLines": 56
+    },
+    "jeeves-ts/packages/gateway/test/lark-proto.test.ts": {
+      "sha256": "0662ac21a3b3e1f82eca6999ba0c4724d2308603d1364f69b139c624d34f016e",
+      "candidateLines": 46
+    },
+    "jeeves-ts/packages/gateway/test/lark.test.ts": {
+      "sha256": "19957f67885a8f7baf9b4513f0b5b69bbb924238ce6720a3b1204fdea5c7cf02",
+      "candidateLines": 123
+    },
+    "jeeves-ts/packages/gateway/test/reports.test.ts": {
+      "sha256": "1a5ad460915666a84901eb2e3b88dfbb6470063b7cc9b5f25a32fce336cd9d18",
+      "candidateLines": 10
+    },
+    "jeeves-ts/packages/gateway/test/shared.test.ts": {
+      "sha256": "28b0da77b1d520f77419a4c492702bd4f565c0b5150efc658c3b2ce061a13991",
+      "candidateLines": 29
+    },
+    "jeeves-ts/packages/gateway/test/telegram.test.ts": {
+      "sha256": "ca6bfd87e3bd8eb3483580e90b46a788418c0d495a570d1c6aa5f3efa74eb7fa",
+      "candidateLines": 24
+    },
+    "jeeves-ts/packages/gateway/test/wechat-crypto.test.ts": {
+      "sha256": "328c16767d5c21ea31b7d7732921d906c5ba45e920eba0c7f0741a11ee3158ae",
+      "candidateLines": 13
+    },
+    "jeeves-ts/packages/gateway/test/wechat.test.ts": {
+      "sha256": "186e5dc45268c09d1c0712c6c111963c81b338031e63faa9ecd24e3d4517d261",
+      "candidateLines": 47
+    },
+    "justfile": {
+      "sha256": "4b2ef0b2ae45249b034bd0a8b88e31fa64091337fb11c42e217735150d928e33",
+      "candidateLines": 8
+    },
+    "packaging/homebrew/jeeves.rb": {
+      "sha256": "90bebf36540da83406f1d89948d185de7363a7d14c641e50ac4934fe95a2153e",
+      "candidateLines": 2
+    },
+    "packaging/npm/bin/jeeves.js": {
+      "sha256": "e153c97e87d8238282beb54047eb890c1a367c15f5d4a66742c041bc008c26a1",
+      "candidateLines": 3
+    },
+    "packaging/npm/install.js": {
+      "sha256": "3706ad651ba7b2ba1b287efad568ec842a209f3bfd53fe7a853faba9684d3fbe",
+      "candidateLines": 11
+    },
+    "packaging/npm/install.test.cjs": {
+      "sha256": "e9a6300dfd62fe42f44497e86c1226b3cdf9a8a22c8b42af2494c1895347cfe0",
+      "candidateLines": 9
+    },
+    "packaging/release-hash.sh": {
+      "sha256": "669f70093e7b1912facdeb77afa80bb3c5fc5896c19ab3b835a175d5b85b31b2",
+      "candidateLines": 1
+    },
+    "scripts/check_config_docs.py": {
+      "sha256": "44de9b35494bc6010fecbbf305ab85f9e9c9a89f0e09cc97a07b422a00dd181a",
+      "candidateLines": 19
+    },
+    "scripts/check_doc_links.py": {
+      "sha256": "f8a7cf66b28ea9cb9a0fc2a686ce9d8037b55b6de0b6a2447de91364feed20de",
+      "candidateLines": 9
+    },
+    "scripts/check_doc_paths.py": {
+      "sha256": "6394c756c3f5452410aa74aad9a34298ec9990e939da3d25a184b731b533a774",
+      "candidateLines": 4
+    },
+    "scripts/check_env_reads.py": {
+      "sha256": "1e260800f2910b14ce8869c3e053fb9abdbf184b3016d042dd5671d3080a84df",
+      "candidateLines": 6
+    },
+    "scripts/check_i18n.py": {
+      "sha256": "7756e6e9c41b2fbf4542822fa4801fbe9c25318fc018f73782f7cae614565d7c",
+      "candidateLines": 11
+    },
+    "scripts/check_tool_docs.py": {
+      "sha256": "4299703c39a22927b3ed4f3587b426f2dd26c723654ac0d168ffd4744ec7b272",
+      "candidateLines": 21
+    },
+    "scripts/fake_callback_server.py": {
+      "sha256": "8ebcb1d1f31c916cb4d144071b9d1bb4dcc68659fe26604fdb9dfeb2525049b9",
+      "candidateLines": 9
+    },
+    "scripts/fake_feishu_server.py": {
+      "sha256": "5ce338a0f00b4e05fed97c120d447a375af06d3d91601a16484bbae80c88867d",
+      "candidateLines": 7
+    },
+    "scripts/fake_sse_server.py": {
+      "sha256": "1c8044118e3a15f73fd5f59c839000a05c3975083e02442f57c285395006ada2",
+      "candidateLines": 11
+    },
+    "scripts/gen_catalog.py": {
+      "sha256": "d9a922ee3cca817fd92c1b476cfd86ec17b8b639a42651d1cfba0dca271c140b",
+      "candidateLines": 22
+    },
+    "scripts/lib.sh": {
+      "sha256": "e3fbeb1d0632a2c3709ef2b9dc8dd212e8ee9c8bb63e72ab10a7bd068a3a6f91",
+      "candidateLines": 3
+    },
+    "scripts/prepare-browser-runtime.py": {
+      "sha256": "1135aa820c0ac41f344b5701093c0223a1bd28d85f16f52761398d7f5f1b06a1",
+      "candidateLines": 18
+    },
+    "scripts/smoke-browser-hold.py": {
+      "sha256": "73cf030d2939e7ae60721c00ff71912e52f38b7642fcd9a64bac7f4893fce590",
+      "candidateLines": 8
+    },
+    "scripts/smoke-browser.py": {
+      "sha256": "95fe6a64ad5384078c9b4f5fe8d285ffe5bfd40155e56c9b37df6562614c9e5f",
+      "candidateLines": 49
+    },
+    "scripts/smoke-business.sh": {
+      "sha256": "ca993ecb6e5fc2a8fcad060eca3a599e47e55416dbc19bf6a130f2ae0dc84ace",
+      "candidateLines": 3
+    },
+    "scripts/smoke-connector.sh": {
+      "sha256": "aa7b4cd793fab289f9e873dca07fc23199c50ae49610f8f2b7f4213a59261429",
+      "candidateLines": 20
+    },
+    "scripts/smoke-dashboard.sh": {
+      "sha256": "c6bdbe9aa0868243d8978b354cd1ca0ac9ec5ea664ee33bc2fa067d1ea0f57af",
+      "candidateLines": 38
+    },
+    "scripts/smoke-desktop.py": {
+      "sha256": "0f88f7a03b1fe02f5d5559f44879600c84824c9d81d283a7759811af7e72c1fb",
+      "candidateLines": 39
+    },
+    "scripts/smoke-gateway.sh": {
+      "sha256": "2447ebfaa28f9284eaaeab1384aacf89aedaae0c29d72a9156e07d98bdd9e485",
+      "candidateLines": 12
+    },
+    "scripts/smoke-interaction.py": {
+      "sha256": "a04f7e2fcb96661fb59f796bb6d87e3fd3de6f201b96c151f52003f24177f7bd",
+      "candidateLines": 62
+    },
+    "scripts/smoke-launchd.py": {
+      "sha256": "187d2b38a630b2c91ac9baaaa51926346d801003d63779b17c23931c3c0767a5",
+      "candidateLines": 16
+    },
+    "scripts/smoke-lifecycle.py": {
+      "sha256": "324bb3084d44ead082f8e23eb460a9e39a24dc6432e6218b50f16764a7eb74eb",
+      "candidateLines": 36
+    },
+    "scripts/smoke-recovery.py": {
+      "sha256": "9f123943cb03fd8ea9d81785dce18232cdeeb9b33c7f6c952dce3b9834eef8e5",
+      "candidateLines": 64
+    },
+    "scripts/smoke-resume.sh": {
+      "sha256": "bd12c52c35fca4f31fd361f1ee19fe5cb227776325dd2221b070fffac1c4b84b",
+      "candidateLines": 14
+    },
+    "scripts/smoke-web.py": {
+      "sha256": "723762707e323cbdee32ad36fa6d3e7d661f832da8639ac36fd091f6fbf5a367",
+      "candidateLines": 45
+    },
+    "scripts/smoke.sh": {
+      "sha256": "56a5b030980b022fef5383f3a10b5db90fbbda2737cdc045881e61fa58040a84",
+      "candidateLines": 2
+    },
+    "scripts/test-research-publication.py": {
+      "sha256": "ad873493dd39c61f0e491d787cb2617e2f4de430b37b7697d226811fc5cb34b4",
+      "candidateLines": 6
+    },
+    "scripts/write_schema.py": {
+      "sha256": "ba186ed8837d6b7ea843d9d9dc5f1509e7a14adcc4235328459b891118de3a86",
+      "candidateLines": 21
+    }
+  }
+}

@@ -1,0 +1,46 @@
+[package]
+name = "jeeves-connector"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Connectors: let Jeeves act in the outside world on a human's behalf, one nod at a time."
+
+[lib]
+name = "jeeves_connector"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# Only for Tool / ToolCtx: a connector shows up as an ordinary tool, and the registry validates
+# its arguments and puts it through the same approval gate as any other.
+jeeves-tools = { workspace = true }
+jeeves-config = { workspace = true }
+# Receipts: a live send claims one, and the read-back confirms it (same store as everything else).
+jeeves-state = { workspace = true }
+# reqwest has been in the tree for a while (gateway / MCP); the two Feishu endpoints are its
+# most ordinary use.
+reqwest = { workspace = true }
+tokio = { workspace = true }
+futures-util = { workspace = true }
+# M2-06: pinned to releases compatible with the workspace Rust 1.85 MSRV.
+async-imap = { version = "=0.11.2", default-features = false, features = ["runtime-tokio"] }
+lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls"] }
+mailparse = "=0.18.0"
+icalendar = "=0.16.16"
+rrule = "=0.14.0"
+chrono-tz = "=0.10.4"
+# Already in the workspace lockfile through reqwest; used for IMAP's generic TLS stream.
+rustls = { version = "0.23", features = ["ring"] }
+tokio-rustls = "0.26"
+webpki-roots = "1"
+
+[dev-dependencies]
+sqlx = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

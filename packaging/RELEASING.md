@@ -1,0 +1,77 @@
+# Releasing Jeeves
+
+English | [简体中文](RELEASING.zh.md)
+
+Every channel, in dependency order. **CI builds everything; humans publish.**
+The only thing a tag triggers automatically is artifact creation
+(`.github/workflows/release.yml`): four platform binaries and a GitHub Release holding them. The npm upload runs
+on a machine with credentials — tokens do not live in CI.
+
+## 0. Preconditions
+
+- [ ] `just check` green on main (fmt / clippy / tests / schema drift / ts / py / eval)
+- [ ] Version numbers bumped everywhere they live (see §1)
+- [ ] You are a maintainer with: an npm account
+      (`NPM_TOKEN` or `npm login`), and a `homebrew-tap` repo you can push to
+
+## 1. Bump versions
+
+Version lives in three places — all must agree:
+
+| Where | File |
+|---|---|
+| Homebrew formula | `packaging/homebrew/jeeves.rb` (url tag + sha256 — §4) |
+| npm shim | `packaging/npm/package.json` |
+| Cargo | `jeeves-rs/jeeves-cli/Cargo.toml` (drives `jeeves --version`) |
+
+`CHANGELOG.md` + `CHANGELOG.zh.md`: new section at the top, real notes (what
+changed, what breaks, what to reconfigure).
+
+## 2. Tag and build
+
+```sh
+git tag v0.8.0 && git push origin v0.8.0
+# CI now builds the four binaries + wheels + GitHub Release.
+# Watch it: gh run watch
+```
+
+When the run is green, the GitHub Release page holds:
+
+```
+jeeves-v0.8.0-aarch64-apple-darwin.tar.gz
+jeeves-v0.8.0-x86_64-apple-darwin.tar.gz
+jeeves-v0.8.0-x86_64-unknown-linux-gnu.tar.gz
+jeeves-v0.8.0-aarch64-unknown-linux-gnu.tar.gz
+```
+
+## 3. Homebrew
+
+```sh
+just release-hash v0.8.0     # rewrites url + sha256 in packaging/homebrew/jeeves.rb
+git add packaging/homebrew/jeeves.rb && git commit -m "chore: brew formula v0.8.0" && git push
+```
+
+Then update your tap (a repo named `homebrew-tap`):
+
+```sh
+cp packaging/homebrew/jeeves.rb <tap-repo>/Formula/jeeves.rb
+cd <tap-repo> && git commit -am "jeeves 0.8.0" && git push
+# verify from a clean machine:
+brew tap ChrisVip001/tap && brew install jeeves && brew test jeeves
+```
+
+## 5. npm
+
+```sh
+cd packaging/npm
+npm publish              # runs `install.js` on every user machine — test it first:
+npm pack                 # inspect the tarball: install.js + bin/jeeves.js + package.json + README.md
+```
+
+Verify in a scratch dir: `npm i -g jeeves@0.8.0 && jeeves --version`.
+
+## 6. After publishing
+
+- [ ] README install instructions still match reality
+- [ ] Open a release issue listing what `models-catalog.json` / env vars changed, if any
+- [ ] Next version's CHANGELOG section starts empty

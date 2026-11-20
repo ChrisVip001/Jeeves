@@ -1,0 +1,39 @@
+[package]
+name = "jeeves-app-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Jeeves's JSON-RPC server: the one process that holds state.db and runs the loop."
+
+[lib]
+name = "jeeves_app_server"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+tempfile = { workspace = true }
+ring = "0.17"
+base64 = "0.22"
+reqwest = { workspace = true }
+anyhow = { workspace = true }
+fs2 = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = "=0.10.4"
+jeeves-agent = { workspace = true }
+jeeves-config = { workspace = true }
+jeeves-loop = { workspace = true }
+jeeves-mcp = { workspace = true }
+jeeves-memory = { workspace = true }
+jeeves-provider = { workspace = true }
+jeeves-protocol = { workspace = true }
+
+jeeves-state = { workspace = true }
+jeeves-tools = { workspace = true }
+jeeves-connector = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

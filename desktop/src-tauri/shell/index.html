@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Jeeves</title>
+<style>
+  :root { color-scheme: light dark; background: #f1f2f0; color: #1c2220; }
+  @media (prefers-color-scheme: dark) {
+    :root { background: #121615; color: #e3e8e5; }
+  }
+  body { font: 15px system-ui; padding: 48px; max-width: 560px; }
+</style>
+<body>
+  <h2>Jeeves 没能启动</h2>
+  <p id="why"></p>
+  <script>
+    document.getElementById("why").textContent =
+      new URLSearchParams(location.search).get("error") || "未知原因";
+  </script>
+</body>

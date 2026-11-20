@@ -1,0 +1,31 @@
+[package]
+name = "jeeves-config"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "All configuration is environment variables, read once, with no settings framework."
+
+[lib]
+name = "jeeves_config"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+jeeves-protocol = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+fs2 = { workspace = true }
+tempfile = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Compiled on Windows only: the keychain goes through Credential Manager (the keyring crate,
+# CredWrite/CredRead). The macOS/Linux command-line path (security / secret-tool) has shipped,
+# so its implementation stays.
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+[lints]
+workspace = true

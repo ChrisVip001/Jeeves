@@ -1,0 +1,243 @@
+//! One claimed schedule execution; output delivery never reruns the model turn.
+use super::{append_run_log, run_log_line, Delivery, Job};
+use crate::{run_turn, EventSink, Frame, Server};
+use anyhow::Result;
+use chrono::NaiveDateTime;
+use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams};
+use jeeves_state::schedule_completions::{ScheduleCompletion, ScheduleCompletions};
+
+pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Result<()> {
+    let briefing = (job.name == super::morning::NAME)
+        .then(|| server.settings().morning_briefing)
+        .flatten()
+        .as_deref()
+        .and_then(|raw| super::morning::Briefing::parse(raw).ok());
+    let slot = if briefing.is_some() {
+        at.date()
+            .and_hms_opt(8, 0, 0)
+            .expect("08:00 is a valid wall time")
+    } else {
+        at
+    };
+    let minute = slot.format("%Y-%m-%dT%H:%M").to_string();
+    let home = server.settings().home;
+    let schedules = jeeves_state::Schedules::new(server.state_pool());
+    let delivery = match job.delivery {
+        Delivery::Outbox => "outbox",
+        Delivery::Notify => "notify",
+        Delivery::Quiet => "quiet",
+    };
+    schedules.ensure(&job.name, job.catch_up, delivery).await?;
+    if !schedules.claim_once(&job.name, &minute).await? {
+        eprintln!(
+            "(jeeves) schedule '{}' trigger retained or already handled; no new turn submitted",
+            job.name
+        );
+        return Ok(());
+    }
+    let wake_key = format!("schedule:{}:{minute}", job.name);
+    if !crate::wake::register(server, &wake_key, &job.name, &job.prompt).await {
+        return Ok(());
+    }
+    if let Some(briefing) = briefing {
+        return fire_briefing(server, job, briefing, at, &minute, &wake_key).await;
+    }
+    let notifier = server.notifier();
+    let target = notifier
+        .as_ref()
+        .and_then(|notifier| notifier.delivery_target());
+    let notice = job.delivery == Delivery::Notify && notifier.is_some();
+    let rows = ScheduleCompletions::new(server.state_pool());
+    let base = ScheduleCompletion {
+        name: &job.name,
+        minute: &minute,
+        status: "produced",
+        detail: "",
+        output: "",
+        preview: "",
+        output_path: None,
+        notify_requested: notice,
+        notify_target: target.as_deref(),
+    };
+    eprintln!("(jeeves) fired job '{}' ({})", job.name, job.cron);
+    let (sink, mut receiver) = EventSink::channel();
+    let host = server.clone();
+    let params = TurnStartParams {
+        session_id: Some(format!("schedule:{}", job.name)),
+        message: job.prompt.clone(),
+        stream: Some(true),
+        ..Default::default()
+    };
+    let task =
+        tokio::spawn(async move { run_turn(&host, params, RequestId::Number(0), &sink).await });
+    let mut reply = String::new();
+    let mut review = false;
+    while let Some(frame) = receiver.recv().await {
+        match frame {
+            Frame::Notification(ServerNotification::TurnSuspended(_)) => review = true,
+            Frame::Notification(ServerNotification::TurnCompleted(done)) => {
+                review |= done.meta.interrupted
+                    || done
+                        .meta
+                        .goal_status
+                        .as_deref()
+                        .is_some_and(|status| !matches!(status, "satisfied" | "verified"));
+                reply = done.reply;
+                break;
+            }
+            _ => {}
+        }
+    }
+    let error = match task.await {
+        Ok(Ok(())) => None,
+        Ok(Err(error)) => Some(format!("Turn error: {}", error.message)),
+        Err(error) => Some(format!("Turn task failed: {error}")),
+    };
+    if error.is_some() || review {
+        let reason = error.unwrap_or_else(|| {
+            "Turn stopped without a confirmed outcome; reconcile external effects".into()
+        });
+        crate::wake::settle(server, &wake_key, true).await;
+        rows.settle(ScheduleCompletion {
+            status: "needs_attention",
+            detail: &reason,
+            output: &reply,
+            preview: &reason,
+            ..base
+        })
+        .await?;
+        server.flush_completion_notices().await;
+        append_run_log(
+            &home,
+            &run_log_line(
+                &job.name,
+                &minute,
+                "needs_attention",
+                &reason,
+                reply.chars().count(),
+                false,
+            ),
+        );
+        anyhow::bail!("Schedule '{}' requires review: {reason}", job.name);
+    }
+    crate::wake::settle(server, &wake_key, false).await;
+    let trimmed = reply.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("no_reply") {
+        rows.settle(ScheduleCompletion {
+            status: "empty",
+            notify_requested: false,
+            ..base
+        })
+        .await?;
+        append_run_log(
+            &home,
+            &run_log_line(&job.name, &minute, "empty", "", 0, false),
+        );
+        return Ok(());
+    }
+    let file_name = (job.delivery != Delivery::Quiet)
+        .then(|| format!("schedule-{}-{}.md", job.name, at.format("%Y%m%d-%H%M")));
+    let body = if file_name.is_some() {
+        format!("# {}\n\n_fired by the Runtime at {} on cron '{}' _\n\n## Request\n\n{}\n\n## Answer\n\n{}\n",job.name,at.format("%Y-%m-%d %H:%M"),job.cron,job.prompt,reply)
+    } else {
+        String::new()
+    };
+    rows.settle(ScheduleCompletion {
+        output: &body,
+        preview: trimmed,
+        output_path: file_name.as_deref(),
+        ..base
+    })
+    .await?;
+    server.flush_completion_notices().await;
+    let delivered = rows.output_delivered(&job.name, &minute).await?;
+    if let Some(file_name) = file_name {
+        eprintln!(
+            "(jeeves) schedule '{}' output committed; file delivery {} at {}",
+            job.name,
+            if delivered { "complete" } else { "pending" },
+            home.join("outbox").join(file_name).display()
+        );
+    } else {
+        eprintln!("(jeeves) schedule '{}' output committed (quiet)", job.name);
+    }
+    append_run_log(
+        &home,
+        &run_log_line(
+            &job.name,
+            &minute,
+            "ok",
+            "",
+            trimmed.chars().count(),
+            delivered,
+        ),
+    );
+    Ok(())
+}
+
+/// Never enter the model runner or its retrying notification queue for this duty.
+async fn fire_briefing(
+    server: &Server,
+    job: &Job,
+    briefing: super::morning::Briefing,
+    at: NaiveDateTime,
+    minute: &str,
+    wake_key: &str,
+) -> Result<()> {
+    let home = server.settings().home;
+    let rows = ScheduleCompletions::new(server.state_pool());
+    let proposal = super::morning::proposal(server, at.date(), briefing.zone).await;
+    let (body, outcome) = match proposal {
+        Ok(body) => {
+            let file_name = format!("schedule-{}-{}.md", job.name, at.format("%Y%m%d-%H%M"));
+            let outcome = match crate::schedule_output::write_output(&home, &file_name, &body) {
+                Ok(()) if job.delivery == Delivery::Notify => match server.notifier() {
+                    Some(notifier) => notifier.send_once(body.clone()).await,
+                    None => {
+                        Err("selected channel is not configured; the proposal is in outbox".into())
+                    }
+                },
+                Ok(()) => Ok(()),
+                Err(error) => Err(format!("local proposal delivery failed: {error}")),
+            };
+            (body, outcome)
+        }
+        Err(error) => (
+            String::new(),
+            Err(format!("briefing acceptance failed: {error}")),
+        ),
+    };
+    let (state, report) = match &outcome {
+        Ok(()) => ("produced", ""),
+        Err(report) => ("needs_attention", report.as_str()),
+    };
+    rows.settle(ScheduleCompletion {
+        name: &job.name,
+        minute,
+        status: state,
+        detail: report,
+        output: &body,
+        preview: report,
+        output_path: None,
+        notify_requested: false,
+        notify_target: None,
+    })
+    .await?;
+    crate::wake::settle(server, wake_key, outcome.is_err()).await;
+    append_run_log(
+        &home,
+        &run_log_line(
+            &job.name,
+            minute,
+            state,
+            report,
+            body.chars().count(),
+            outcome.is_ok(),
+        ),
+    );
+    if let Err(error) = outcome {
+        anyhow::bail!("Morning briefing requires review; delivery was not retried: {error}");
+    }
+    eprintln!("(jeeves) morning briefing delivered at {minute}");
+    Ok(())
+}

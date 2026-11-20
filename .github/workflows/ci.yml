@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    name: Rust (fmt / clippy / test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jeeves-rs
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: jeeves-rs
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  rust-coverage:
+    # A trend gate, not a target. The threshold follows the **measured baseline**: one local
+    # `cargo llvm-cov --workspace --summary-only` came out at 65.9% line coverage, so the gate
+    # sits at 60 — low but true. Set it high and it only forces «tests written to pass the
+    # gate», which is worse than no gate.
+    name: Rust (coverage floor 60%)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jeeves-rs
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: jeeves-rs
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - run: cargo llvm-cov --workspace --fail-under-lines 60 --summary-only
+
+  windows:
+    # Record the platform boundary explicitly rather than pretend to support it: the exec sandbox
+    # is Unix-only (macOS seatbelt / Linux bubblewrap), and anything needing a real sandbox is
+    # skipped. This job only proves that **everything but the sandbox** builds and passes on
+    # Windows too.
+    name: Windows (build + tests, sandbox tests not applicable)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: jeeves-rs
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: jeeves-rs
+      - run: cargo build -p jeeves-cli
+      # jeeves-tools is excluded wholesale: the exec sandbox backend does not exist on Windows,
+      # and some of its tests really start one.
+      - run: cargo test --workspace --exclude jeeves-tools
+      - run: cargo test -p jeeves-tools -- --skip sandbox --skip spill
+
+  schema:
+    name: Protocol artifacts (drift check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: python3 scripts/write_schema.py --check
+
+  docs:
+    name: Tool docs (drift check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # The tool count lives in the code, in 04-tools.md and in both READMEs.
+      # Three copies drift; this is the one that notices. No build needed: it reads text.
+      - run: python3 scripts/check_tool_docs.py
+      # Docs must not name code paths that were deleted.
+      - run: python3 scripts/check_doc_paths.py
+      # A tenant is a JEEVES_HOME: no new process-environment reads outside jeeves-config.
+      - run: python3 scripts/check_env_reads.py
+      # Same idea one level down: the dashboard's dictionary vs. the strings its code uses.
+      - run: python3 scripts/check_i18n.py
+      # Every JEEVES_* the code reads must appear in .env.example and both configuration docs.
+      - run: python3 scripts/check_config_docs.py
+
+  ts:
+    name: TypeScript (typecheck / test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: jeeves-ts
+      - run: npm run typecheck
+        working-directory: jeeves-ts
+      - run: npm test
+        working-directory: jeeves-ts
+
+  desktop:
+    name: Mac desktop (UI / Shell / offline RPC smoke)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            jeeves-rs
+            desktop/src-tauri
+      - uses: extractions/setup-just@v3
+      - run: just desktop-install
+      - run: just desktop-check
+      - run: just smoke-desktop
+
+  gate:
+    name: Release gate (deterministic evals + smoke)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: jeeves-rs
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: jeeves-rs
+      - run: cargo build -p jeeves-cli
+      # The dashboard/hub leg of the smoke test needs a real dist — and the freshness guard
+      # makes a hub whose sources are newer than dist, or that has no dist at all, refuse to
+      # start (fail-closed), so the build has to happen first. The justfile's
+      # `smoke-dashboard: build dashboard-build` spelled that dependency out; CI had missed it,
+      # and the guard caught it on its first day.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci && npm run build --workspace @jeeves/dashboard
+        working-directory: jeeves-ts
+      - run: ./target/debug/jeeves eval ../evals/deterministic
+      # Replay evals pin event order; `just check` already treats them as a gate.
+      - run: ./target/debug/jeeves eval --replay ../evals/replay
+      # The smoke test runs the protocol over real processes: the evals use an in-process
+      # scripted model, and this is the only leg that goes through a real app-server over real
+      # stdio JSON-RPC. It guards the seam between Rust and the front end — that seam has leaked
+      # before, and neither the unit tests nor the evals can see it.
+      - run: bash ../scripts/smoke.sh
+      # Exercise real process death; all provider and external effects are local fixtures.
+      - run: python3 ../scripts/smoke-recovery.py
+      - run: python3 ../scripts/smoke-web.py
+      # The dashboard leg drives a real Runtime and keeps observable evidence:
+      # served HTML with its script stamp, the bundle, CSS, startup log and the
+      # deliberate-error body. `lib.sh` copies these even when the run fails.
+      - name: Dashboard smoke (keep evidence)
+        run: JEEVES_EVIDENCE_DIR="$RUNNER_TEMP/jeeves-dashboard-evidence" bash ../scripts/smoke-dashboard.sh
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: dashboard-evidence
+          path: ${{ runner.temp }}/jeeves-dashboard-evidence
+          if-no-files-found: warn

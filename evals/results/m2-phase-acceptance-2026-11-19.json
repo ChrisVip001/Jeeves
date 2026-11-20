@@ -1,0 +1,69 @@
+{
+  "phase": "M2 — phase boundary review",
+  "capturedOn": "2026-11-19",
+  "revisionBeforeM2_09": "ca06b3f",
+  "model": "GPT-6.2 Sol, high (requested); scripted local fixtures for automated evaluations",
+  "cost": "Not available from the local test harness; no paid API was invoked for these checks",
+  "overall": "NOT ACCEPTED — implementation gap and human acceptance remain",
+  "acceptance": [
+    {
+      "item": "08:00 briefing with local calendar, mail and task evidence",
+      "result": "partial",
+      "evidence": "M2-07 deterministic fake-clock and source fixture tests; a real morning and sleep/wake delivery were not run"
+    },
+    {
+      "item": "Calendar read and email read/send to self",
+      "result": "human required",
+      "evidence": "M2-06 mock connector tests only; no real account or credentials used in this review"
+    },
+    {
+      "item": "Code navigation and recovery",
+      "result": "partial",
+      "evidence": "ca06b3f: bounded declaration scanner and restart eval; execution plan explicitly requires FTS, which is absent. The broader B-5 plan also calls for a Git commit per checkpoint, not implemented by M2-08."
+    },
+    {
+      "item": "Connection page and capability cards",
+      "result": "human review required",
+      "evidence": "See M2-09 work package and fixture screenshots; OAuth/QR links are unavailable in the current protocol and are not fabricated."
+    },
+    {
+      "item": "Service survives reboot",
+      "result": "human required",
+      "evidence": "M2-01 generated service units; no actual macOS reboot/bootstrap validation"
+    },
+    {
+      "item": "Browser takeover across restart",
+      "result": "human required",
+      "evidence": "M2-04 persistence tested; fresh observation requires a real browser worker"
+    },
+    {
+      "item": "Inherited M1 integration",
+      "result": "human required",
+      "evidence": "Telegram real bot and cross-channel approval remain unverified; personal WeChat remains blocked pending official documentation and terms"
+    }
+  ],
+  "deferred": [
+    "M2-05 DingTalk and WeCom adapters, as directed by the human"
+  ],
+  "nextReview": "docs/planning/m3-review.md; no M3 implementation authorized by this record",
+  "m2_09WorkingTree": "wp/m2-09-connections-ui; M2-09 changes under review at capture; this record is committed with them",
+  "gates": {
+    "just check": "pass; JEEVES_UI_CHROMIUM set to locally installed Chrome, connection DOM test ran, no skip",
+    "just smoke-web": "pass with temporary home and loopback fixture",
+    "just check-doc-links": "pass"
+  },
+  "screenshots": {
+    "directory": "output/playwright/",
+    "files": [
+      "m2-09-light-desktop.png",
+      "m2-09-dark-desktop.png",
+      "m2-09-light-narrow.png",
+      "m2-09-dark-narrow.png",
+      "m2-09-light-desktop-lower.png",
+      "m2-09-dark-desktop-lower.png",
+      "m2-09-light-narrow-lower.png",
+      "m2-09-dark-narrow-lower.png"
+    ],
+    "status": "Generated from fixtures; ignored local files, human review pending"
+  }
+}

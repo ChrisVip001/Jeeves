@@ -1,0 +1,133 @@
+{
+  "observedAt": "2026-11-15T07:41:42.029604+00:00",
+  "gitRevision": "aa761b5cbd86bb3bafce5bda95967d818c06cfae",
+  "uncommittedChanges": true,
+  "behavior": "Production search_web and fetch_url prefer keyless Parallel MCP; built-in implementations are bounded fallbacks. No user MCP files are overwritten.",
+  "checks": {
+    "fullGateExitCode": 0,
+    "rustPassed": 963,
+    "rustIgnored": 4,
+    "frontendPassed": 123,
+    "deterministicPassed": 70,
+    "replayPassed": 5,
+    "clippy": "workspace all-targets, zero warnings",
+    "schemaAndDocs": "passed"
+  },
+  "runtimeLiveCheck": {
+    "passed": true,
+    "client": "Project Rust MCP client",
+    "searchQuery": "site:tokio.rs tokio tutorial",
+    "sourceConstraint": "https://tokio.rs/",
+    "fetchUrl": "https://tokio.rs/tokio/tutorial",
+    "scope": "Scoped discovery and nonempty readable source extraction; not answer correctness"
+  },
+  "independentMcpProbe": {
+    "observedAt": "2026-11-15T07:21:52.167587+00:00",
+    "endpoint": "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch",
+    "client": "Independent public MCP protocol probe; Rust integration separately tested",
+    "newPaidCalls": 0,
+    "results": [
+      {
+        "query": "Rust Tokio timeout documentation",
+        "sources": [
+          {
+            "title": "timeout_at in tokio::time - Rust",
+            "url": "https://docs.rs/tokio/latest/tokio/time/fn.timeout_at.html",
+            "published": null
+          },
+          {
+            "title": "timeout in tokio::time - Rust",
+            "url": "https://docs.rs/tokio/latest/tokio/time/fn.timeout.html",
+            "published": null
+          },
+          {
+            "title": "tokio/tokio/src/time/timeout.rs at master · tokio-rs/tokio · GitHub",
+            "url": "https://github.com/tokio-rs/tokio/blob/master/tokio/src/time/timeout.rs",
+            "published": null
+          },
+          {
+            "title": "timeout_at in tokio::time - Rust",
+            "url": "https://docs.rs/tokio/latest/tokio%20/time/fn.timeout_at.html",
+            "published": null
+          },
+          {
+            "title": "tokio::time - Rust",
+            "url": "https://docs.rs/tokio/latest/tokio/time/index.html",
+            "published": null
+          }
+        ],
+        "nonempty": true,
+        "elapsedSeconds": 1.048
+      },
+      {
+        "query": "杭州 西湖 官方 门票 预约",
+        "sources": [
+          {
+            "title": "这份景区预约、停车、换乘指南请收好",
+            "url": "https://www.hangzhou.gov.cn/col/col812268/art/2026/art_49c79bb9a8374dae8a2cfebb155ea301.html",
+            "published": "2026-05-02"
+          },
+          {
+            "title": "2026杭州西湖景区门票预约购买入口汇总（持续更新）- 杭州本地宝",
+            "url": "https://hz.bendibao.com/tour/2023426/145270.shtm",
+            "published": null
+          },
+          {
+            "title": "我想游 - Hangzhou",
+            "url": "https://westlake.hangzhou.gov.cn/col/col1597393/index.html",
+            "published": null
+          },
+          {
+            "title": "从容游西湖这份景区预约、停车、换乘指南请收好 - 杭州新闻",
+            "url": "https://hznews.hangzhou.com.cn/chengshi/content/2026-05/02/content_9215719.htm",
+            "published": "2026-05-02"
+          },
+          {
+            "title": "截至3月31日 西湖景区17个收费景点免收门票！",
+            "url": "https://www.hangzhou.gov.cn/art/2023/1/3/art_812268_59071304.html?eqid=bf4a9e7b0018c8e600000004648f5465",
+            "published": "2023-01-03"
+          }
+        ],
+        "nonempty": true,
+        "elapsedSeconds": 1.441
+      }
+    ]
+  },
+  "failureCoverage": [
+    "Primary errors and empty output activate fallback",
+    "Search cap precedes primary network and is charged once",
+    "Private fetch targets are rejected before MCP dispatch",
+    "Malformed/empty/error responses and wrong-URL fetches are not successful sources",
+    "Provider failures enter a bounded cooldown; empty valid source lists do not poison service availability",
+    "Sources are deduplicated, site-filtered and explicitly truncated",
+    "Structured-only MCP results are retained",
+    "HTTP response reads stop at 2 MiB"
+  ],
+  "limits": [
+    "Anonymous service access remains rate limited; no availability guarantee",
+    "The public probes are exploratory and not a controlled A/B benchmark",
+    "Chinese results include historical announcements; current booking rules and citation support were not verified",
+    "The planned 24-case comparative agent-quality evaluation remains pending",
+    "One earlier restricted test run could not use local sockets/process features; the final full gate ran with the required host permissions"
+  ],
+  "sourceSha256": {
+    "jeeves-rs/jeeves-app-server/src/server.rs": "9b80e28f91d96e9ac9a862d816915a0f9c0d713e54222421e0cba106e399a12e",
+    "jeeves-rs/jeeves-app-server/src/server/tools.rs": "143b389b394e45f25bb6e7ad4d7971a96591c77b9e1f13e4510f348f5cf1ee22",
+    "jeeves-rs/jeeves-app-server/src/server/search_mcp.rs": "a25f9184f68dba73e9f5c7cae46df62ff6fd02b8e4f8a7017e566a80fae2d4eb",
+    "jeeves-rs/jeeves-app-server/src/server/search_mcp_tests.rs": "4cd6788af585555c8d9c9421a9671fceb8579c2e230eb830f04ab9773dd66708",
+    "jeeves-rs/jeeves-mcp/src/lib.rs": "ad9266de86281abd9afb4efe59cb94f418d97ec34d16ad619f6f35475aa40f1f",
+    "jeeves-rs/jeeves-mcp/src/transport.rs": "7e98ca9f485ed6bf35345e3b82d230df2f3b922ec9fa740d100eb3846597ecda",
+    "jeeves-rs/jeeves-mcp/src/mcp_tests.rs": "a01977d781b60ca035e97e9e89d2f26f5487caf30a476caa7003e60d8da21819",
+    "jeeves-rs/jeeves-tools/src/handlers.rs": "51dab6990d6c88bc1fd0fee105b2fa7e2f4ffd2d1c5634bed79fc0eded834eb1",
+    "jeeves-rs/jeeves-tools/src/web.rs": "538875c296a6d403a87e696fa39a135f13eb739932631f11a89ab50292807b5a",
+    "jeeves-rs/jeeves-tools/src/web/primary.rs": "130f5714a80510d98d257cfd48f449b4041368d8304af3798dca7d64baf0b775",
+    "jeeves-rs/jeeves-tools/src/web/search_html.rs": "aae545e6a66d559c1c3916a80a86569e5521002cab469c665eb6538f0d6e42e5",
+    "jeeves-rs/jeeves-tools/src/web_tests.rs": "e0e683dae29bdc54b137bdca1dd1011cafae2bf4143e1c29b16465504878d778"
+  },
+  "logSha256": {
+    "/tmp/jeeves-search-mcp-check.log": "eba4270fcec4775ed414e29c7eaef5bd00c13ab1169404385c500f3b4f4915df",
+    "/tmp/jeeves-search-mcp-live.log": "16527c8503590ec1deb0cf9d357c6afbd30b20616e092225e41a2e1c5fe33b1c",
+    "/tmp/jeeves-mcp-before.log": "9ba6ddae5afdc505a9773047795938b0866d5bd5dc96dbe29cc466fe0327830b"
+  },
+  "newPaidCalls": 0
+}

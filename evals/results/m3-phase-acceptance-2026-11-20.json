@@ -1,0 +1,85 @@
+{
+  "milestone": "M3",
+  "reviewDate": "2026-11-20",
+  "branch": "wp/m3-06-isolated-coding",
+  "testedBaseRevision": "31cc52257a49f4826da0e5d198be553dd190978e",
+  "workingTreeCodeSha256": "034865fa51797d1db2110688191028822e235bc57703e6e8aea588fba4494b76",
+  "fingerprintDefinition": "SHA-256 of sorted changed Rust workspace paths and scripts/smoke-recovery.py, each followed by NUL and its binary SHA-256. Includes new source, migration and generated schema.",
+  "localMilestones": {
+    "M3-01": "aa58daa",
+    "M3-02": "4370669",
+    "M3-03": "bd5c8c0",
+    "M3-04": "a248dd5",
+    "M3-04-signoff": "f351742",
+    "M3-05": "31cc522"
+  },
+  "acceptance": [
+    {
+      "scenario": "Weekly responsibility, missing permission and authorized delivery",
+      "result": "partial",
+      "observed": "The structured human registration endpoint and weekly delivery fixture exercise source checks, exact grant, read-back, denial and an unknown delivery outcome. A one-sentence conversational registration followed by a missing-scope card and delivery was not demonstrated as one flow. Live tenant acceptance remains open."
+    },
+    {
+      "scenario": "Custom MCP with an undeclared tool",
+      "result": "passed with fixture",
+      "observed": "Web smoke adds a stdio connector, disables its undeclared tool, restores access and observes an approval and receipt. The catalog of 20 entries and all 12 fixture screenshots previously received human sign-off."
+    },
+    {
+      "scenario": "OAuth renewal",
+      "result": "passed with fixture",
+      "observed": "Loopback token service covers rotation, restart, transient failure, revocation and absence of business calls. Real provider sign-in and renewal require human acceptance."
+    },
+    {
+      "scenario": "Parallel coding",
+      "result": "passed on macOS",
+      "observed": "Host-assigned worktrees exclude configured shared roots. Ordinary sessions retain them. Real Git merges disjoint child heads, rejects conflicts, and preserves the human checkout. Parent final checks accept the expected file and reject an absent one."
+    },
+    {
+      "scenario": "Executor lifecycle",
+      "result": "passed on macOS",
+      "observed": "Fake CLI subprocesses run through the real sandbox. Failure, cancellation and SIGKILL recovery each record a single launch. The cancellation and crash cases check that a waiting descendant cannot write after stop. Diff and log artifacts are tied to the task run."
+    },
+    {
+      "scenario": "Real catalog calendar and custom MCP in the same morning brief",
+      "result": "not verified",
+      "observed": "The mock catalog and custom connector passed independently. No real calendar provider was signed in or used for this M3 review."
+    }
+  ],
+  "cost": {
+    "acceptanceProvider": "scripted local fixtures",
+    "externalApiChargeUsd": 0,
+    "implementationTokenCost": "not measured"
+  },
+  "verificationNotes": [
+    "The Linux sandbox profile is covered by an argv test. No live Linux sandbox or third-party coding CLI was run for this review.",
+    "The deterministic evaluation retains its pre-existing lexical-memory paraphrase gap.",
+    "The full gate exposed SQLITE_BUSY_SNAPSHOT during concurrent fact deletion and extraction. The existing targeted test passed eight consecutive runs after reserving the writer before that decision."
+  ],
+  "next": "Human review of M3 evidence and proposed M4 packages before M4 implementation.",
+  "gates": {
+    "just check": "passed",
+    "deterministic": {
+      "passed": 86,
+      "failed": 0,
+      "knownGaps": 1
+    },
+    "replay": {
+      "passed": 5,
+      "failed": 0
+    },
+    "rustWorkspaceTests": {
+      "passed": 1080,
+      "ignored": 4
+    },
+    "worktreeTests": 11,
+    "smokesPassed": [
+      "smoke-recovery",
+      "smoke-weekly-report",
+      "smoke-mcp-renewal",
+      "smoke-web",
+      "smoke-dashboard"
+    ],
+    "check-doc-links": "passed"
+  },
+  "implementationRevisionLookup": "git log -1 --diff-filter=A --format=%H -- evals/results/m3-phase-acceptance-2026-11-20.json"
+}

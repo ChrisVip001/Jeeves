@@ -1,0 +1,112 @@
+{
+  "observedAt": "2026-11-15T04:25:29.444045+00:00",
+  "gitRevision": "d5bf3bfe4cb6a8258563ab585c6383de6d23ab1a",
+  "uncommittedChanges": true,
+  "backendScope": "Keyless DDG Lite and Bing only; no paid API or model requests.",
+  "changes": [
+    "Use the public Lite POST form and prefer the system HTTPS client, with bounded process lifetime and response reads plus Rust HTTP fallback.",
+    "Try subsequent configured backends after failed, empty or invalid results.",
+    "Keep result titles, snippets and URLs within each entry; support Lite and HTML layouts, encoded redirect URLs and Unicode entities.",
+    "Deduplicate source URLs and enforce a single positive site domain/path restriction.",
+    "Return a tool error when no usable results remain; ask the model to refine queries and fetch source pages before relying on claims."
+  ],
+  "regressionBefore": "Bing result without a snippet borrowed the next result's snippet; redirect URLs remained tracking links.",
+  "liveResults": [
+    {
+      "query": "Rust Tokio timeout documentation",
+      "backend": "DuckDuckGo Lite",
+      "error": null,
+      "results": [
+        {
+          "title": "timeout in tokio::time - Rust - Docs.rs",
+          "url": "https://docs.rs/tokio/latest/tokio/time/fn.timeout.html"
+        },
+        {
+          "title": "tokio::time - Rust - Docs.rs",
+          "url": "https://docs.rs/tokio/latest/tokio/time/index.html"
+        },
+        {
+          "title": "tokio::time::timeout - Rust - Servo",
+          "url": "https://doc.servo.org/tokio/time/timeout/index.html"
+        },
+        {
+          "title": "Timeout in tokio::time::timeout - Rust - Servo",
+          "url": "https://doc.servo.org/tokio/time/timeout/struct.Timeout.html"
+        },
+        {
+          "title": "timeout in tokio::time - Rust",
+          "url": "https://cseweb.ucsd.edu/classes/sp22/cse223B-a/tribbler/tokio/time/fn.timeout.html"
+        }
+      ]
+    },
+    {
+      "query": "杭州 西湖 官方 门票 预约",
+      "backend": "DuckDuckGo Lite",
+      "error": null,
+      "results": [
+        {
+          "title": "2026杭州西湖景区预约指南 (附图解)- 杭州本地宝",
+          "url": "https://hz.bendibao.com/tour/2020316/ly82175.shtm"
+        },
+        {
+          "title": "2026杭州西湖景区门票预约购买入口汇总 (持续更新)- 杭州本地宝|杭州市|浙江省|游玩攻略|景点|中秋月饼_手机新浪网",
+          "url": "https://travel.sina.cn/2026-04-11/detail-inhueaqr9132007.d.html?vt=4"
+        },
+        {
+          "title": "杭州西湖门票一览表2026最新，各景点票价+开放时间+预约攻略",
+          "url": "https://wenku.baidu.com/view/460b9e2dac956bec0975f46527d3240c8547a133.html"
+        },
+        {
+          "title": "2026杭州西湖景区门票预约购买入口汇总 (持续更新)|杭州市|西湖风景名胜区|浙江省|游玩攻略|景点_新浪新闻",
+          "url": "https://k.sina.cn/article_7879922979_1d5ae152301901qxtc.html"
+        },
+        {
+          "title": "2026杭州西湖景区门票预约购买入口汇总 (持续更新)- 杭州本地宝",
+          "url": "https://kandian.sina.com.cn/article_7879922979_1d5ae152301901qnm0.html?cre=tianyi&mod=wpage&loc=1&r=0&rfunc=52&tj=cxvideo_wpage&tr=381"
+        }
+      ]
+    },
+    {
+      "query": "site:tokio.rs tokio tutorial",
+      "backend": null,
+      "error": "DuckDuckGo Lite: DuckDuckGo returned a verification page, not search results; Bing: no usable results",
+      "results": []
+    }
+  ],
+  "liveRelevancePassed": 2,
+  "liveQueries": 3,
+  "allLiveQualityChecksPassed": false,
+  "liveLimitation": "The site:tokio.rs query returned DDG verification pages and no usable Bing results. It remains a retained failure, not a search success. English and Chinese checks establish topical source discovery only, not verification of the snippets or official ticket information.",
+  "discardedExperiments": "Rust GET/POST and native GET variants did not pass all cases; the successful common-query run uses native POST. No query or expected domain was weakened.",
+  "checks": {
+    "earlierFullGateExitCode": 0,
+    "earlierFullGateRustPassed": 951,
+    "earlierFullGateFrontendPassed": 113,
+    "deterministicPassed": 70,
+    "replayPassed": 5,
+    "finalToolsPassed": 206,
+    "siteConstraintRegression": "Passed against unrelated, deceptive suffix and valid source domains.",
+    "finalWorkspaceClippy": "passed; zero warnings",
+    "finalCliBuild": "passed",
+    "formatAndDiffChecks": "passed"
+  },
+  "checkProvenance": "The full gate preceded the final POST transport and site-filter changes; those final changes are checked separately by the tool suite, workspace Clippy and CLI build. The live native-POST run preceded site-filter enforcement; its already-failed site query remains failed.",
+  "sourceSha256": {
+    "jeeves-rs/jeeves-tools/src/web.rs": "fb43c53fed2729a7d2ce1dd25903717584c90e14485684b8089398bddc44a36c",
+    "jeeves-rs/jeeves-tools/src/web/search_html.rs": "aae545e6a66d559c1c3916a80a86569e5521002cab469c665eb6538f0d6e42e5",
+    "jeeves-rs/jeeves-tools/src/web_tests.rs": "dfc75914441c1339bb1d2754a8cc11248e8f24886eec8223fdbbdc4f04ce4082",
+    "jeeves-rs/jeeves-tools/Cargo.toml": "c712002944773c1141e516c3f09d2726e25279d61ebd118b8950e731e8b49011",
+    "jeeves-rs/Cargo.lock": "5d572a36ac5fab9ce10538c0e042e960d64ccfa7b86c700800d7ce237146ee56"
+  },
+  "logSha256": {
+    "/tmp/jeeves-search-regression-before.log": "822f88b048bf65376ce9c2651a64c9a223e6292d3f49a49af6c9340044878db2",
+    "/tmp/jeeves-search-live-2026-11-15.log": "380d72becc25cce301faa918d6fdbb1fdbd1cc7ff0e75ac228e606cc4c0ddce3",
+    "/tmp/jeeves-search-live-post.log": "f58c3e0e93b13214c9777aa2312ae74768282a1c851eba564f9795be26bd4a67",
+    "/tmp/jeeves-search-live-native-post.log": "cf33a76cfedb52b2823aa2c60c63117e755fbfa9aaa7a46fcbdc63e9ee79eda0",
+    "/tmp/jeeves-search-tools-verified.log": "0612ce6bc61eb371aaef47f6907c0f3a625ea1dfb68f1c09e3832f144093dd8c",
+    "/tmp/jeeves-search-full-check-2026-11-15.log": "a23e3dfbbfcc24e65257b9a836307a7280b82506428aa4564494b41b64237410",
+    "/tmp/jeeves-search-workspace-final-clippy.log": "c44cf57f6ddeb759e0c1cdd8afd8c06d707e95c501afbf7d38f643cf23a838e3",
+    "/tmp/jeeves-search-final-build.log": "c44cf57f6ddeb759e0c1cdd8afd8c06d707e95c501afbf7d38f643cf23a838e3"
+  },
+  "newPaidCalls": 0
+}

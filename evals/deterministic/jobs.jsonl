@@ -1,0 +1,4 @@
+# 后台作业：长命令丢到后台，随后用 job 工具读回来 —— 整轮不被它堵住。
+# 要沙箱（命令一律在沙箱里跑），所以在没有沙箱的机器上如实跳过。
+{"id":"a-background-job-appears-in-list","description":"background=true 起作业，job_list 用真实作业标识列出它","prereq":"sandbox","settings":{"exec_enabled":true,"exec_allow":["echo*"]},"responses":[{"tool_use":{"name":"run_command","args":{"command":"echo 后台第一行","background":true}}},{"tool_use":{"name":"job","args":{"action":"list"}}},{"text":"它说：后台第一行。"}],"expect":{"tools_used":["run_command","job"],"tool_output_contains":["Running in the background","后台第一行"],"reply_contains":["后台第一行"]}}
+{"id":"job-tools-answer-honestly-when-disabled","description":"没开 JEEVES_EXEC 时后台能力也不在：工具根本不存在","responses":[{"tool_use":{"name":"run_command","args":{"command":"echo 不该跑","background":true}}},{"text":"这台机器上没开执行工具。"}],"expect":{"tool_output_contains":["no tool named 'run_command'"],"reply_contains":["没开"]}}

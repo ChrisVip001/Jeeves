@@ -1,0 +1,236 @@
+# ⑦ 外壳：CLI、仪表盘后端、前端、网关、桌面端
+
+[English](07-shells.md) | 简体中文
+
+每个外壳都是同一个 Runtime（[06-app-server](06-app-server.zh.md)）的客户端，说同一套协议
+（[01-protocol-and-config](01-protocol-and-config.zh.md)）。外壳只负责渲染、传输和原生能力，
+不重新实现智能体行为（[architecture](../architecture.zh.md)）。
+
+目录：`jeeves-rs/jeeves-cli/`、`jeeves-rs/jeeves-ops/`、`jeeves-ts/packages/{client,dashboard,gateway,browser-worker}`、
+`desktop/src-tauri/`，以及 `Dockerfile` 和 `compose.yaml`。
+
+## 7.1 `jeeves` 二进制
+
+`jeeves-cli/src/main.rs` 按第一个参数分发：
+
+| 调用 | 行为 |
+|---|---|
+| `jeeves` | 终端对话：进程内打开 Server，挂上记忆 worker，运行 `repl::run` |
+| `jeeves app-server` | stdio 上的 JSON-RPC；挂上记忆 worker 和调度器 |
+| `jeeves dashboard` | `jeeves_ops::serve`（HTTP + SSE） |
+| `jeeves schedule acknowledge <name>` | 释放被中断的定时槽位；`schedule` 的其他形式一律拒绝（任务在 Runtime 内触发） |
+| `jeeves home export <dir>` / `import <dir>` | 搬运一个 home（7.3） |
+| `jeeves memory [rebuild\|backfill]` | 记忆维护（7.3） |
+| `jeeves skill [list\|export\|install\|update]` | 技能（7.3） |
+| `jeeves mcp [list\|login <name>\|serve]` | MCP 客户端配置与记忆 MCP 服务（7.3） |
+| `jeeves connector [list\|feishu …]` | 人自己使用飞书连接器的入口（7.3） |
+| `jeeves eval [path]` / `eval --replay [path]` / `judge [path]` / `bench [path]` | 质量命令，见 [08-quality](08-quality.zh.md)；退出码即结论（`bench` 恒为 0） |
+| `jeeves --version` / `-V` | `jeeves <version>` |
+
+其他参数输出用法并失败。在 Windows 上二进制拒绝启动（退出码 2）：执行沙箱只有 macOS 和 Linux 后端，
+hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
+
+`home()` 取 `JEEVES_HOME`，否则取当前工作目录下的 `./.jeeves`。`app-server`、`memory`、`dashboard` 和 REPL 路径都把该值写入
+`settings.home`，所以显式的 `JEEVES_HOME` 总是优先。`dashboard` 自己不创建该目录，由它拉起的 app-server 创建。
+
+## 7.2 终端对话
+
+`repl.rs` 在 `tokio::spawn` 内用 `run_turn` 运行每个回合，并从 `EventSink` 通道逐帧绘制：
+流式文本立即打印，其他通知（记忆门、工具开始/结束、整合、回合摘要行）画成一行小字。回合没有流式输出时，
+整段回复一次性打印。
+
+斜杠命令：`/help`、`/new`、`/sessions`、`/memory [term]`、`/compact [focus]`、`/goal <condition>`
+（`/goal clear`）、`/cwd [path]`、`/model`（`use`、`add`）、`/route`（`auto`、`fixed`、`set <tier> <profile>`）、
+`/quit`（`/exit`、`/q`）。未知的 `/x` 会明确报告未知。
+
+审批在现场回答：用单独的句柄读 stdin，`y` 仅本次、`s` 本会话、`a` 记住规则，其他任何输入（含 EOF）都是拒绝。
+回合已不再等待后才到的回答会被报告为已过期。
+
+## 7.3 维护子命令
+
+| 命令 | 行为 |
+|---|---|
+| `jeeves home export <dir>` | 写出一个普通目录：一致的 `state.db` 快照、其余文件原样复制，以及 `jeeves-home.json` 清单（`format`、`schema`、`jeeves`、`exportedAt`、被排除的内容）。目标必须为空 |
+| `jeeves home import <dir>` | 把这样的目录恢复进 home |
+| `jeeves memory rebuild`（默认） | 先把手工修改折回，再由事实重新生成明文库 |
+| `jeeves memory backfill` | 由聊天历史构建账本行，只做一次，且仅当账本为空时 |
+| `jeeves skill list`（默认） | 每个技能一行 |
+| `jeeves skill export --to claude,codex [--project] [--force] [--names a,b]` | 把技能复制到 `.claude` / `.codex` 的技能目录 |
+| `jeeves skill install <url\|path>` | 安装一个技能；从不覆盖 |
+| `jeeves skill update [index]` | 按版本从索引更新（默认 `<home>/skills/index.json`；也可以是路径或 http(s) URL） |
+| `jeeves mcp list`（默认） | `mcp.json` 中的条目及其认证方式 |
+| `jeeves mcp login <name>` | 对有 `url` 且 `oauth: true` 的服务器做浏览器 OAuth；这是唯一会打开浏览器的地方 |
+| `jeeves mcp serve` | 通过 stdio 把事实与情节作为 MCP 服务暴露 |
+| `jeeves connector list` / `feishu login\|logout\|status` | 连接器状态与飞书用户授权 |
+| `jeeves connector feishu --to <id> --text <body> [--dry-run]` | 经由与工具相同的允许名单和线路代码发送；敲命令的人即审批 |
+
+`home export` 不包含 `state.db` 的活动文件、锁文件、`secrets.json`、`mcp-auth/` 和 `connector-auth/`；
+导入后需要重新提供密钥和登录。
+
+## 7.4 `jeeves-ops`：HTTP 门面
+
+`jeeves dashboard` 运行 `jeeves_ops::serve`。该 crate 是它自己拉起的 `jeeves app-server` 子进程的客户端：
+`AppServer::spawn` 用相同的 `JEEVES_HOME` 启动 `current_exe() app-server`（未设置时默认 `JEEVES_WRITE=1` 和
+`JEEVES_APPROVAL=on-request`），按 id 关联请求，并向订阅者广播通知。app-server 的错误原样作为协议的 `ErrorObject` 返回。
+
+**启动。** 先做绑定校验，再做仪表盘新鲜度检查（`freshness.rs`：`dist/main.js` 必须存在且不早于 `src/`；
+没有 `src/` 时跳过），然后在 `JEEVES_PORT`（默认 7777）及其后九个端口中取第一个空闲端口。
+它打印 `Jeeves cockpit → http://<host>:<port> …`，桌面外壳等待的就是这一行。托管网关在端口确定后启动。
+Ctrl-C 或 SIGTERM 会停止接受请求、停止网关，并最多 25 秒等待进行中的回合收尾。
+
+**认证。** `JEEVES_OPS_HOST`（默认 `127.0.0.1`）除非设置了 `JEEVES_OPS_TOKEN`，否则必须是回环地址，否则启动失败。
+设置令牌后，每个 `/api/*` 路由都需要 `Authorization: Bearer <token>`（常数时间比较；没有本地绕过）。
+在该层之外的有：静态文件、`GET /healthz`（带超时的 `session/capabilities` 探测，返回版本和协议版本，失败返回 503），
+以及 `POST /api/hook/{name}`，后者凭 hook 自己的密钥证明身份。所有响应带 `Cache-Control: no-store`；
+没有 CORS 层，因为所有视图都从本服务加载；请求体上限 25 MB。
+
+**路由**（`lib.rs` 的 `router`；处理器在 `api/` 下）。每条是对一个或几个协议方法的翻译：
+
+| 分组 | 路由 |
+|---|---|
+| 首屏与配置 | `GET /api/data`、`GET/POST /api/config`、`GET /api/usage`、`GET /api/inbox` |
+| 回合 | `POST /api/turn`（`ServerNotification` 的 SSE 流）、`POST /api/turn/steer`、`POST /api/turn/follow-up`、`POST /api/interrupt`、`GET /api/turns`、`POST /api/interaction`、`POST /api/run`（任务 API：一轮进、一个 `RunResponse` 出，无 SSE） |
+| 审批 | `GET /api/approval/pending`、`POST /api/approval`、`GET /api/approvals`、`GET/POST /api/session/permission` |
+| 会话 | `GET /api/session`、`GET /api/session/main`、`GET /api/session/meta`、`POST /api/session/new\|update\|fork` |
+| 任务与浏览器 | `GET /api/tasks`、`POST /api/task`、`POST /api/turn-operation`、`GET /api/browser`、`POST /api/browser/start\|control`、`GET /api/browser/frame` |
+| 模型 | `GET /api/model/catalog\|profiles\|routes`、`POST /api/model/save\|remove\|routes/save` |
+| 能力 | `/api/skills`（+ `install`、`remove`、`stats`）、`/api/mcp`（+ `save`、`remove`）、`/api/schedules/jobs`、`/api/schedules/save\|remove`、`/api/vault`（+ `remove`） |
+| 记忆中心 | `GET /api/ledger/turns`、`/api/ledger/turn`、`/api/memory/index`、`/api/memory/page`、`/api/context`、`POST /api/compact`、`POST /api/memory/remember` |
+| 文件 | `POST /api/upload`（单个 octet-stream，20 MB）、`GET /api/fs`、`POST /api/fs/mkdir`、`GET/POST /api/fs/recents` |
+| 同步 | `GET /api/events`（ping 的 SSE：kind、turn id、session id）、`GET /api/notifications`（完整通知 SSE） |
+| 连接 | `GET/POST /api/connections/lark`、`POST /api/connections/lark/claim`、`POST /api/gateway/rpc` |
+
+`/api/turn` 先订阅再发送 `turn/start`，所以不会丢失最早的通知。SSE 只有服务器到浏览器一个方向；发送消息是普通 POST。
+被拒绝的人工操作（`/api/task`、能力写入）以状态 200 加 `ErrorObject` 响应体回答，页面可原样显示这句话。
+
+**能力中心**（`capabilities.rs`）：来自 `JEEVES_SKILL_DIRS` 的技能和来自 `JEEVES_MCP_CONFIG` 的 MCP 服务器以 `source: "builtin"`
+列出，所有写入都会拒绝；只有 `<home>/skills/` 和 `<home>/mcp.json` 可写。列表的合并方式与 app-server 相同（用户文件在先，同名先到先得）。
+
+**入站 webhook**（`webhooks.rs`，`<home>/webhooks.json`）：每个 hook 有 `name`、`secret`（`env:VAR` 或字面值）、`prompt`
+（`{{payload}}` 被替换为请求体，否则请求体追加在后），以及可选的 `session`（默认 `hook:<name>`）、`tier`、`enabled`、
+`signature`、`limit`、`callback`。未知或已禁用的名字返回 404，密钥错误返回 401，文件损坏会禁用全部 hook 并输出一行 stderr。
+`signature: true` 时调用方发送 `X-Jeeves-Timestamp` 和 `X-Jeeves-Signature`（对 `<timestamp>.<body>` 的 HMAC-SHA256，窗口 300 秒），
+每个签名只被接受一次；`limit` 限制每滚动分钟接受的请求数（429 加 `Retry-After`）；`callback` 先回 202，之后把结果 POST 过去。
+回合就是普通回合：工具保留各自的审批，而且没有人在场授予。
+
+`POST /api/gateway/rpc` 只转发 `turn/start`、`interaction/start`、`session/main`、`task/get`、`approval/pending` 和
+`approval/respond`；其余方法一律回答 method-not-found。
+
+## 7.5 `@jeeves/client`
+
+协议的 TypeScript 客户端。类型只通过 `protocol.ts` 引用生成产物（`jeeves-protocol/schema/typescript/v2`），其他文件都从它导入。
+
+- `JeevesClient` 分配 id，维护以字符串化 id 为键的待决表，把每行解析为通知、错误或响应，传输关闭时拒绝所有待决请求。
+  `JeevesError` 携带 `code` 和 `data`，并提供 `isProvider`、`isNotImplemented`、`isInvalidParams` 三个判断。
+- `StdioTransport` 启动 `jeeves app-server`，按行切分 stdout，把 stderr 转给 `onLog`，`close()` 只结束 stdin，让服务器写完剩余帧。
+  `findJeevesBinary` 依次取 `JEEVES_BIN`、从包目录向上查找的 `jeeves-rs/target/{debug,release}/jeeves`、PATH 上的 `jeeves`。
+- `HttpTransport` 附着到已在运行的 Runtime 而不是再启动一个：读取 `/api/notifications`，发送时可带 Bearer 令牌。
+
+## 7.6 `@jeeves/dashboard`
+
+Vue 3 + Vite 前端；后端是 `jeeves-ops`（7.4）。`npm run build` 先类型检查（`vue-tsc`），再运行 Vite 和
+`copy-assets.mjs` 输出到 `dist/`，由 `jeeves dashboard` 提供服务（`just dashboard-build`；`JEEVES_DASHBOARD_DIR` 可改位置）。
+
+| 部分 | 作用 |
+|---|---|
+| `main.ts`、`WebControls.vue`、`workspace.ts` | 挂载 Vue 控件并运行页面控制器 |
+| `api.ts` | 对上述路由的带类型 `fetch` 封装；`talk()` 手动读取 SSE 响应体 |
+| `sync.ts` | 保持 `/api/events` 打开，把 500 ms 内的 ping 合并为一次刷新，永远重连；15 秒轮询（`POLL_MS`）作为后备 |
+| `token-dialog.ts` | 同时出现的 401 共用一个对话框，向用户索取部署令牌 |
+| `render.ts`、`timeline.ts`、`tasks.ts` | 不拼 HTML 字符串，直接构建 DOM |
+| `markdown.ts` | 手写的 Markdown 渲染器，为模型回复构建 DOM 节点；不用第三方解析器 |
+| `ui/` | 共享组件：`SetupWizard`、`SettingsPanel`、`TaskCenter`、`BrowserPanel`、`ModelPicker`、`PermissionPicker`、`WorkspacePicker`、`AttachmentPicker`，以及组合式函数 `useTasks`、`useBrowsers` |
+| `sw.js`、`manifest.webmanifest` | PWA：`/api/*` 从不缓存，页面优先网络，其他静态资源优先缓存；每次发布前端变更都要递增 `VERSION` |
+
+**设置向导**（`SetupWizard.vue`）在没有配置模型时从模型步骤开始（提供商、模型、API 密钥、基础 URL），
+然后询问权限模式和关于用户的可选备注，备注通过 `remember` 保存。
+
+**语言。** 中文字符串就是词典的键：`t("还没有会话")`，占位符写作 `{n}`；`i18n.ts` 持有英文表。静态标记使用 `data-i18n`、
+`data-i18n-title`、`data-i18n-placeholder`、`data-i18n-aria`。语言取自 `localStorage` 的 `jeeves.lang`，否则取 `navigator.language`
+（以 `zh` 开头为中文）。切换语言即重新加载页面。缺少英文条目时回退为中文并输出一次 `console.warn`。模型输出、会话和任务标题是数据，
+从不翻译。`scripts/check_i18n.py`（`just check-i18n`）检查每个用到的键都有翻译、每个翻译的键都被用到、占位符一致。
+
+## 7.7 聊天网关
+
+`@jeeves/gateway` 包含 `JeevesBridge` 和两个平台适配器：Lark/飞书（`lark.ts`、`bin-lark.ts`）和微信公众号
+（`wechat.ts`、`bin-wechat.ts`）。独立运行：`just gateway-lark`、`just gateway-wechat`。
+
+| | Lark / 飞书 | 微信 |
+|---|---|---|
+| 连接 | 长连接 WebSocket，使用 Lark 私有 protobuf 帧（`pbbp2`，在 `lark-proto.ts` 手写） | HTTP 回调服务器（`WECHAT_PORT`，默认 8080；路径 `WECHAT_PATH`，默认 `/wechat`）；需要公网地址 |
+| 允许名单 | `LARK_ALLOW`：open_id（`ou_…`） | `WECHAT_ALLOW`：OpenID |
+| 消息上限 | 30000 字符 | 600 字符 |
+| 时序 | 数据帧先 ACK 再处理；心跳默认 120 秒（最小 10 秒）；重连退避翻倍，上限 30 秒 | 回合在 4000 ms 内完成才用被动回复，否则先回 `success`，答案随后以客服消息发出（需要 `WECHAT_APP_SECRET` 和已认证账号） |
+| 其他设置 | `LARK_APP_ID`、`LARK_APP_SECRET`、国际版用 `LARK_DOMAIN=lark`、`LARK_DISPATCHERS`、`LARK_CLAIM` | `WECHAT_TOKEN`、`WECHAT_APP_ID`、`WECHAT_AES_KEY`（43 个字符；明文、兼容、安全三种模式） |
+
+`bridge.ts`（`JeevesBridge`）承载与平台无关的部分：
+
+- **无状态会话**：`sessionIdFor(conversation)` 就是会话标识本身（例如 `lark:<id>`）。
+- **每个会话一条队列**（`#tails`）：同一会话的消息逐条执行。
+- 回合以 `stream: false` 启动；回合的 `turnId` 通过 `#inFlight` / `#completed` 与其通知配对，所以先于响应到达的通知不会丢失。
+- `JeevesBridge` 自己启动 app-server，或在给定 `url` 和 `token`（`JEEVES_GATEWAY_URL`、`JEEVES_OPS_TOKEN`）时附着到 Runtime。
+- `explain(error)` 把 `JeevesError` 转成发给聊天的通俗句子。
+- **调度人**（`LARK_DISPATCHERS`，同步给 Runtime 的 `JEEVES_DISPATCHERS`）：调度人在群里的消息带着 `InteractionSource` 进入主会话
+  `jeeves-main`；平台消息 id（`safeId`）作为请求 id，所以重复投递的事件是重放而不是第二次派发。`reports.ts` 在被派发的任务到达
+  `done`、`failed`、`cancelled` 或 `needs_attention` 时回报到原线程；`approvals.ts` 把审批请求作为卡片发出，调度人的点击通过
+  `approval/respond` 只回答一次。
+
+`splitMessage(text, limit)`（`text.ts`）只有一份实现：在过半位置之后的换行处切分，否则硬切。
+
+## 7.8 Runtime 托管的 Lark 网关
+
+设置 → 连接（`api/connections.rs`、`gateways.rs`）让所有者无需第二个终端，直接在仪表盘里运行 Lark 网关：
+
+- 设置存于 `<home>/gateways.json`（`enabled`、`appId`、`allow`、`dispatchers`、`domain`）；应用密钥存入密钥库，账户名
+  `gateway:lark:app-secret`，API 从不读回。`allow` 和 `dispatchers` 中的 id 必须以 `ou_` 开头。
+- `start` 启动 `node jeeves-ts/packages/gateway/src/bin-lark.ts`（可用 `JEEVES_GATEWAY_BIN` 覆盖），传入 Lark 变量和指向本 Runtime 的
+  `JEEVES_GATEWAY_URL`，设置了令牌时还传 `JEEVES_OPS_TOKEN`。网关通过 `POST /api/gateway/rpc` 和 `/api/notifications` 附着。
+- **认领流程**：`allow` 为空时进程以 `LARK_CLAIM=1` 运行，不回答任何人；第一个发消息的人以 `claim candidate: <open_id>`
+  写到 stderr，由 Runtime 捕获。带该 id 调用 `POST /api/connections/lark/claim` 会把它写成唯一的允许名单条目并重启网关；
+  已有所有者或 id 不是等待中的候选人时失败。
+- 状态为 `stopped`、`running` 或 `exited`，附带候选人和最近 20 行 stderr。启动、退出、停止各输出一行 stderr。
+  当 `enabled` 且设置了 app id 时网关随启动自动运行，并在关闭时停止。
+
+## 7.9 任务浏览器 worker
+
+模型只看到 `browser_observe` 和 `browser_act`（`jeeves-tools/src/browser.rs`，位于注入的 host trait 之后）。所有权、批准的来源、
+进程生命周期和控制代数在 `jeeves-app-server/src/browser/`（`api`、`process`、`store`）；`/api/browser*` 路由只做传输，
+`browser/start` 只能由人调用。
+
+`@jeeves/browser-worker` 是 Node/Playwright（Chromium）进程，每个会话一个浏览器上下文、一个页面：
+
+- 传输：stdin/stdout 上每行一个 JSON 对象；超过 64000 字节的行或无效请求会使 worker 停止，stdin 关闭也会停止。命令契约由 `BrowserWorkerCommand` 生成。每个响应带 `info`（schema 版本、实例 id、支持的能力、`maxOrigins` 12、`maxFrameBytes` 800000）、会话状态、可选的帧、错误和 `uncertain`。
+- host 对一次操作施加 20 秒期限，超时即关闭 worker。
+- `network.ts` 通过本地代理强制来源范围；`observe.ts` 生成观察结果和帧；`document.ts` 跟踪文档变化，使过期引用失效；
+  `session.ts` 串行化命令并监视心跳。
+- 运行时按需启用：`JEEVES_BROWSER_RUNTIME` 指向含 `runtime.json`（Node 与 Playwright 版本）和 worker 的目录；`JEEVES_BROWSER_HEADLESS`
+  无窗口运行。`just browser-runtime` 准备 `desktop/src-tauri/browser-runtime/`（`scripts/prepare-browser-runtime.py`）；
+  `just smoke-browser` 演练完整流程。
+- 仪表盘一侧是 `ui/BrowserPanel.vue` 和 `useBrowsers.ts`：从任务卡片打开、接管、交还、暂停、关闭，也可[远程操作或接受任务下载](../protocol.zh.md#远程浏览器操作与下载)。
+
+策略（审批、范围、不确定的副作用）与循环和工具一起记录在 [04-tools](04-tools.zh.md) 和 [06-app-server](06-app-server.zh.md)。
+
+## 7.10 桌面外壳
+
+`desktop/src-tauri` 是独立的 Cargo 工作区（包名 `jeeves-desktop`，Tauri 2），只有一个 `src/main.rs`。它不含智能体逻辑也不含协议：
+只开一个窗口（1180×800，最小 900×640），加载 Runtime 自己的前端。
+
+- 设置了 `JEEVES_RUNTIME_URL` 就附着到该 Runtime；否则启动 `jeeves dashboard`，最多等 30 秒，等 stdout 出现 `Jeeves cockpit → ` 行，
+  然后加载公布的 URL；失败时显示带错误信息的 `shell/index.html`。退出时杀掉自己启动的子进程。
+- 发布构建中二进制是应用可执行文件旁的 `jeeves`（通过 `sidecar.conf.json` 作为 `binaries/jeeves` sidecar 打包）；调试构建中是
+  `JEEVES_DESKTOP_BINARY`（绝对路径）或 `jeeves-rs/target/debug/jeeves`。
+- 它把 `JEEVES_DASHBOARD_DIR` 设为打包的 `dashboard` 资源，当 `runtime.json` 存在时把 `JEEVES_BROWSER_RUNTIME` 设为打包的
+  `browser-runtime`（`browser.conf.json` 把它加入包内），除非这些变量已被设置。
+
+命令：`just desktop-dev`、`just desktop-build`、`just desktop-build-browser`、`just desktop-check`、`just smoke-desktop`。
+
+## 7.11 容器镜像
+
+`Dockerfile` 分三个阶段：`jeeves-cli` 的 Rust 构建、`@jeeves/dashboard` 的 Node 22 构建，以及带 `bubblewrap`（Linux 执行沙箱）和
+CA 证书的 Node 22 运行镜像。镜像以非 root 的 `jeeves` 用户运行，设置 `JEEVES_OPS_HOST=0.0.0.0`、`JEEVES_HOME=/home/jeeves/.jeeves`（卷）、
+`JEEVES_DASHBOARD_DIR` 和 `JEEVES_GATEWAY_BIN`，端口 7777，`ENTRYPOINT ["jeeves"]` 加 `CMD ["dashboard"]`。
+由于主机不是回环地址，`JEEVES_OPS_TOKEN` 是必需的。
+
+`compose.yaml` 要求提供 `JEEVES_OPS_TOKEN`，挂载 `jeeves-state` 卷，使用 `stop_grace_period: 30s`（Runtime 最多 25 秒收尾），并对 `/healthz`
+做健康检查。部署步骤见 [operations](../operations.zh.md)；设置见 [configuration](../configuration.zh.md)；
+已知缺口见 [limitations](../limitations.zh.md)。

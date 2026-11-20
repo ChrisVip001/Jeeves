@@ -1,0 +1,43 @@
+[package]
+name = "jeeves-ops"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The cockpit's HTTP face: axum + SSE, wiring a browser to the app-server."
+
+[lib]
+name = "jeeves_ops"
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+anyhow = { workspace = true }
+axum = { workspace = true }
+chrono = { workspace = true }
+futures-util = { workspace = true }
+jeeves-config = { workspace = true }
+jeeves-connector = { workspace = true }
+jeeves-mcp = { workspace = true }
+jeeves-memory = { workspace = true }
+jeeves-protocol = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"
+tokio = { workspace = true }
+tower-http = { workspace = true }
+# For token generation: already in the tree (pulled in transitively by sqlx/tokio), not a new
+# crate.
+getrandom = "0.3"
+# The webhook's HMAC-SHA256: ring is already in the
+# tree (reqwest → rustls).
+ring = "0.17"
+# The webhook's asynchronous callback: POST one result. reqwest has been in the tree (gateway /
+# MCP / Feishu), so nothing new to compile.
+reqwest = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tower = { version = "0.5", features = ["util"] }
+
+[lints]
+workspace = true

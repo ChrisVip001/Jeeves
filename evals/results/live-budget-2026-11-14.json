@@ -1,0 +1,28 @@
+{
+  "capCny": 10,
+  "invocations": 15,
+  "reports": [
+    "evals/results/deepseek-flash-2026-11-13-initial.json",
+    "evals/results/deepseek-flash-2026-11-13-confirmed.json",
+    "evals/results/deepseek-flash-2026-11-13-expanded.json",
+    "evals/results/deepseek-flash-2026-11-13-wait-confirmed.json",
+    "evals/results/deepseek-flash-2026-11-14-memory.json",
+    "evals/results/deepseek-flash-2026-11-14-research.json",
+    "evals/results/deepseek-flash-2026-11-14-research-unavailable.json",
+    "evals/results/deepseek-flash-2026-11-14-research-guarded.json",
+    "evals/results/deepseek-flash-2026-11-14-support.json",
+    "evals/results/deepseek-flash-2026-11-14-support-followup.json",
+    "evals/results/deepseek-flash-2026-11-14-support-grounded.json",
+    "evals/results/deepseek-flash-2026-11-14-grounded-continuity.json",
+    "evals/results/deepseek-flash-2026-11-14-long-research-start.json",
+    "evals/results/deepseek-flash-2026-11-14-long-research-repeat.json",
+    "evals/results/deepseek-flash-2026-11-14-long-research-review.json"
+  ],
+  "requests": 101,
+  "reportedInputTokens": 151696,
+  "reportedOutputTokens": 25721,
+  "peakRateEstimateCny": 0.50916,
+  "reservedUpperCny": 9.14938,
+  "scope": "Reported-use peak-price estimate and conservative reservations, not invoice reconciliation. Missing-usage calls retain their full reservation; estimates exclude their unreported usage.",
+  "requestsWithoutUsage": 2
+}

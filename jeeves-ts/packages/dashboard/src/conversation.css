@@ -1,0 +1,748 @@
+/* 消息流 */
+
+.messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  scroll-behavior: smooth;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: rise 200ms ease-out;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 用户消息：右对齐的浅底块。agent 消息：通宽无框 —— 页面本身在说话。 */
+
+.msg.me {
+  align-items: flex-end;
+}
+
+.msg.me .bubble {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-card);
+  padding: 10px 14px;
+  max-width: 85%;
+}
+
+.bubble {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Markdown 回复：模型写的是 md，页面就该画成 md，而不是把 `**` 和 `- ` 原样摊开。
+   只作用于 `.md` 容器 —— 用户自己说的话保持纯文本，不被重新解释。
+   间距统一走 em，跟着气泡字号走；颜色只引用 token。 */
+
+.bubble.md {
+  white-space: normal;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md p {
+  margin: 0 0 0.65em;
+}
+
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 1.1em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.md h1 {
+  font-size: 1.3em;
+}
+
+.md h2 {
+  font-size: 1.18em;
+}
+
+.md h3 {
+  font-size: 1.07em;
+}
+
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1em;
+  color: var(--text-2);
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 0.65em;
+  padding-left: 1.4em;
+}
+
+.md li {
+  margin: 0.22em 0;
+}
+
+.md li > ul,
+.md li > ol {
+  margin: 0.22em 0 0;
+}
+
+.md code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  padding: 0.1em 0.34em;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+}
+
+.md pre {
+  margin: 0 0 0.7em;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+
+.md pre code {
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 0.86em;
+  line-height: 1.55;
+}
+
+.md blockquote {
+  margin: 0 0 0.7em;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 2px solid var(--line);
+  color: var(--text-2);
+}
+
+.md blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.md hr {
+  margin: 1.1em 0;
+  border: none;
+  border-top: 1px solid var(--line);
+}
+
+.md a {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md a:hover {
+  color: var(--accent);
+}
+
+.md-table {
+  margin: 0 0 0.7em;
+  overflow-x: auto;
+}
+
+.md table {
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+
+.md th,
+.md td {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.bubble.streaming::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: breath 1.1s ease-in-out infinite;
+}
+
+@keyframes breath {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+.foot {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* 空会话的欢迎屏：安静的居中主视觉，第一句话就把它替换掉。 */
+
+.welcome {
+  margin: auto;
+  padding: 48px 16px;
+  text-align: center;
+  animation: rise 240ms ease-out;
+}
+
+.welcome-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.welcome-sub {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 13px;
+  max-width: 420px;
+}
+
+/* 消息下的附件条：图片缩略图，其余是名字 chip。 */
+
+.attach-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.msg.jeeves .attach-strip {
+  justify-content: flex-start;
+}
+
+.attach-thumb {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-soft);
+  display: block;
+}
+
+.msg.me .attach-thumb {
+  width: 96px;
+  height: 96px;
+}
+
+.folded-note {
+  text-align: center;
+  margin: 0;
+  padding: 8px 0;
+}
+
+/* staged 区的缩略图（待发送）：小图 + 角上的移除钮。 */
+
+.thumb {
+  position: relative;
+  display: inline-block;
+}
+
+.thumb .attach-thumb {
+  width: 56px;
+  height: 56px;
+}
+
+.thumb-drop {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.thumb-drop:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+/* 活动痕迹（时间线雏形，组件化在下一步） */
+
+.trace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-2);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 分类色只点在左侧圆点上，字保持灰 —— 事件流的克制。 */
+
+.chip::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+}
+
+.chip.gate::before {
+  background: var(--accent);
+}
+
+.chip.tool::before {
+  background: var(--text-2);
+}
+
+.chip.graph::before {
+  background: var(--text-2);
+}
+
+.chip.note::before {
+  background: var(--ok);
+}
+
+/* ---- 活动时间线：agent 正在做什么，一条安静的细线轴 ---------------------------- */
+
+.timeline {
+  margin-bottom: 4px;
+}
+
+.tl-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 2px 0;
+  transition: color var(--speed) ease;
+}
+
+.tl-head::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: breath 1.6s ease-in-out infinite;
+}
+
+.tl-head::after {
+  content: "›";
+  font-size: 13px;
+  transition: transform var(--speed) ease;
+}
+
+.timeline.open .tl-head::after {
+  transform: rotate(90deg);
+}
+
+.tl-head:hover {
+  color: var(--text-2);
+}
+
+.tl-body {
+  margin: 6px 0 10px 3px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* display:flex beats the UA's [hidden] rule — say it explicitly or "collapse" never collapses.
+ *
+ * This is one rule for **every** hidden element, not one selector per component: the memory
+ * center's three views are `.panel .body` (`display: flex`), so `hidden` did nothing there and
+ * all three rendered at once. Clicking 记忆库 / 上下文 changed the data but the first thing on
+ * screen stayed 账本 — the view that happens to sit first in the DOM. Same trap as `.tl-body`
+ * below, second time in this file; a component-by-component fix invites a third. */
+[hidden] {
+  display: none !important;
+}
+
+/* After the turn the head dot stops breathing: the thread is history now. */
+.timeline.ended .tl-head::before {
+  background: var(--text-3);
+  animation: none;
+}
+
+.tl-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  min-width: 0;
+  animation: rise 160ms ease-out;
+}
+
+.tl-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+  position: relative;
+  left: -18px;
+  margin-right: -8px;
+  top: 0;
+}
+
+.tl-row .tl-dot {
+  transform: translateX(0);
+}
+
+.tl-gate .tl-dot {
+  background: var(--accent);
+}
+
+.tl-graph .tl-dot {
+  background: var(--text-2);
+}
+
+.tl-note .tl-dot {
+  background: var(--ok);
+}
+
+.tl-label {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.tl-detail {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.tl-row.running .tl-dot {
+  background: var(--accent);
+  animation: breath 1.2s ease-in-out infinite;
+}
+
+.tl-row.running .tl-label {
+  color: var(--text);
+}
+
+.tl-row.done-ok .tl-dot {
+  background: var(--ok);
+}
+
+.tl-row.done-bad .tl-dot {
+  background: var(--bad);
+}
+
+.tl-row.done-bad .tl-label {
+  color: var(--bad);
+}
+
+/* ---- 授权卡：消息流里的「需要你拍板」 ------------------------------------------ */
+
+.approval-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-left: 2px solid var(--warn);
+  border-radius: var(--radius-card);
+  animation: rise 200ms ease-out;
+}
+
+.ac-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ac-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn);
+  animation: breath 1.4s ease-in-out infinite;
+  flex: none;
+}
+
+.ac-title {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.ac-cmd {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-2);
+  background: var(--bg-panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+.ac-foot {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.approve,
+.deny {
+  padding: 5px 14px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  transition:
+    background var(--speed) ease,
+    border-color var(--speed) ease;
+}
+
+.approve {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.approve:hover {
+  background: var(--accent-hover);
+}
+
+.approve:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.deny {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.deny:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.deny:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ghost {
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  color: var(--text-2);
+  font-size: 13px;
+  transition:
+    background var(--speed) ease,
+    color var(--speed) ease,
+    border-color var(--speed) ease;
+}
+
+.ghost:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* ---- 错误卡：安静的红色，不是警报 ---------------------------------------------- */
+
+.failure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--bad) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+  border-radius: var(--radius-card);
+  font-size: 13px;
+}
+
+.failure-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.failure-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--bad);
+  flex: none;
+}
+
+.failure-title {
+  color: var(--bad);
+  font-weight: 500;
+}
+
+.failure .code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: auto;
+}
+
+.failure-body {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* ---- 图片大图（点击缩略图） ------------------------------------------------------ */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim-strong);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  cursor: zoom-out;
+  animation: fade 160ms ease-out;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+}
+
+/* 运行状态行：三种 */
+
+.statusline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.statusline .status-label {
+  color: var(--text-2);
+}
+
+.statusline .status-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.statusline .status-stop {
+  margin-left: auto;
+  color: var(--text-2);
+}
+
+.statusline .status-stop:hover {
+  color: var(--bad);
+  border-color: var(--bad);
+  background: var(--surface);
+}
+
+.statusline.thinking .status-label::before,
+.statusline.working .status-label::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: baseline;
+  background: var(--accent);
+}
+
+.statusline.thinking .status-label::before {
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    var(--accent-hover),
+    var(--accent)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* 续跑提示：静态绿点，不闪不秒表 —— 已恢复的事不需要计时，5 秒后自行退场。 */
+.statusline.resumed .status-label::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: baseline;
+  background: var(--ok);
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}

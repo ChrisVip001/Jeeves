@@ -1,0 +1,84 @@
+{
+  "observedAt": "2026-11-15T04:37:48.236082+00:00",
+  "purpose": "Exploratory public-source discovery probe, not an agent-quality benchmark",
+  "endpoint": "https://api.tavily.com/search",
+  "auth": "Official keyless header only; no account credentials",
+  "parameters": {
+    "max_results": 5,
+    "search_depth": "basic",
+    "include_answer": false
+  },
+  "newPaidCalls": 0,
+  "results": [
+    {
+      "query": "Rust Tokio timeout documentation",
+      "provider": "Tavily keyless",
+      "results": [],
+      "httpStatus": 429,
+      "error": {
+        "code": "daily_cap_reached",
+        "retryAfterSeconds": 958
+      },
+      "elapsedSeconds": 0.727
+    },
+    {
+      "query": "杭州 西湖 官方 门票 预约",
+      "provider": "Tavily keyless",
+      "results": [
+        {
+          "title": "2026杭州西湖景区预约指南(附图解)- 杭州本地宝",
+          "url": "https://hz.bendibao.com/tour/2020316/ly82175.shtm",
+          "score": 0.8262917,
+          "rank": 1
+        },
+        {
+          "title": "【杭州西湖攻略】西湖門票預約、景點介紹、遊玩路線都給你整理好了! - Go Travelling World",
+          "url": "https://gotravellingworld.com/west-lake-hangzhou",
+          "score": 0.7622471,
+          "rank": 2
+        },
+        {
+          "title": "西湖旅游 | 微信小程序",
+          "url": "https://mp.weixin.qq.com/miniprogram/landing_page/YBJ3qvBX8VXo7epyt6-wndXf/zh_CN",
+          "score": 0.6315943,
+          "rank": 3
+        },
+        {
+          "title": "Impression West Lake \"Enduring Memories of Hangzhou\" Tickets [2026] - Promos, Prices, Reviews & Opening Hours | Trip.com",
+          "url": "https://us.trip.com/travel-guide/attraction/hangzhou/impression-west-lake-10758551?curr=USD&locale=zh-HK",
+          "score": 0.48149955,
+          "rank": 4
+        },
+        {
+          "title": "旅游消费“燃”起来了！国庆中秋假期首日客流或创历史新高 提供者 财联社",
+          "url": "https://cn.investing.com/news/stock-market-news/article-3010663",
+          "score": 0.19884087,
+          "rank": 5
+        }
+      ],
+      "httpStatus": 200,
+      "elapsedSeconds": 1.597
+    },
+    {
+      "query": "site:tokio.rs tokio tutorial",
+      "provider": "Tavily keyless",
+      "results": [],
+      "httpStatus": 429,
+      "error": {
+        "code": "daily_cap_reached",
+        "retryAfterSeconds": 958
+      },
+      "elapsedSeconds": 0.628
+    }
+  ],
+  "scopeNotes": [
+    "Three queries reused unchanged from the earlier DDG/Bing validation; max_results=5.",
+    "Separate observation times, HTTP clients and implementations: this is not a controlled comparative benchmark.",
+    "Two HTTP 429 failures remain in the denominator; one result list is not proof of answer or citation correctness.",
+    "No page extraction, model generation, account credential lookup, payment or automatic paid upgrade was performed.",
+    "Provider scores are preserved for inspection, not treated as calibrated evidence quality scores."
+  ],
+  "http200Queries": 1,
+  "attemptedQueries": 3,
+  "previousObservation": "web-search-validation-2026-11-15.json"
+}

@@ -1,0 +1,89 @@
+use super::*;
+
+#[test]
+fn search_and_fetch_map_to_read_only_tools() {
+    let (tool, args) = request(&json!({"query":"Tokio timeout docs"})).unwrap();
+    assert_eq!(tool, "web_search");
+    assert_eq!(args["search_queries"], json!(["Tokio timeout docs"]));
+    let (tool, args) = request(&json!({"url":"https://tokio.rs/"})).unwrap();
+    assert_eq!(tool, "web_fetch");
+    assert_eq!(args["urls"], json!(["https://tokio.rs/"]));
+    assert!(request(&json!({"query":" "})).is_err());
+}
+
+#[test]
+fn malformed_empty_error_and_wrong_fetch_results_fail_closed() {
+    for text in ["not JSON", "{}", r#"{"error":"quota"}"#] {
+        assert!(render(text, &json!({"query":"Tokio"})).is_err(), "{text}");
+    }
+    for text in [
+        r#"{"results":[]}"#,
+        r#"{"results":[{"url":"javascript:bad","excerpts":["bad"]}]}"#,
+        r#"{"results":[{"url":"https://tokio.rs/","excerpts":[]}]}"#,
+    ] {
+        assert!(render(text, &json!({"query":"Tokio"})).unwrap().is_none());
+    }
+    assert!(render(
+        r#"{"results":[{"url":"https://other.test/","full_content":"wrong page"}]}"#,
+        &json!({"url":"https://tokio.rs/"})
+    )
+    .unwrap()
+    .is_none());
+}
+
+#[test]
+fn sources_keep_provenance_scope_and_bounded_excerpts() {
+    let body = json!({"results":[
+        {"url":"https://wrong.test/", "excerpts":["irrelevant"]},
+        {"url":"https://tokio.rs/tokio/tutorial", "title":"Tutorial", "publish_date":"2026-11-15", "excerpts":["x".repeat(5000)]},
+        {"url":"https://tokio.rs/tokio/tutorial#duplicate", "excerpts":["duplicate"]}
+    ]});
+    let text = render(
+        &body.to_string(),
+        &json!({"query":"site:tokio.rs tokio tutorial", "max_results":5}),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(text.contains("Parallel MCP"));
+    assert!(text.contains("2026-11-15"));
+    assert!(text.contains("truncated"));
+    assert!(!text.contains("wrong.test"));
+    assert!(!text.contains("Source 2"));
+    assert!(text.len() < 3000);
+}
+
+#[tokio::test]
+async fn cooldown_skips_network() {
+    let state = Mutex::new(State {
+        client: None,
+        retry_at: Some(Instant::now() + COOLDOWN),
+    });
+    let error = execute(&state, Path::new("/unused"), json!({"query":"anything"}))
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("cooling down"));
+}
+
+#[tokio::test]
+#[ignore = "Calls the official keyless Parallel MCP; no model or paid credentials"]
+async fn live_parallel_search_and_fetch() {
+    let home = tempfile::tempdir().unwrap();
+    let state = Mutex::new(State::default());
+    let text = execute(
+        &state,
+        home.path(),
+        json!({"query":"site:tokio.rs tokio tutorial", "max_results":3}),
+    )
+    .await
+    .unwrap();
+    assert!(text.contains("https://tokio.rs/"), "{text}");
+    let fetched = execute(
+        &state,
+        home.path(),
+        json!({"url":"https://tokio.rs/tokio/tutorial"}),
+    )
+    .await
+    .unwrap();
+    assert!(fetched.to_lowercase().contains("tutorial"), "{fetched}");
+    eprintln!("Live Parallel MCP returned scoped sources and readable tutorial content");
+}
