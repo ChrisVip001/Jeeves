@@ -1271,7 +1271,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jeeves-agent"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "chrono",
  "jeeves-protocol",
@@ -1286,7 +1286,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-app-server"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-cli"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1337,7 +1337,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-config"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "fs2",
  "jeeves-protocol",
@@ -1351,7 +1351,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-connector"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "async-imap",
@@ -1378,7 +1378,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-eval"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1397,7 +1397,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-loop"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "jeeves-provider",
@@ -1410,7 +1410,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-mcp"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "fs2",
@@ -1427,7 +1427,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-memory"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-ops"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -1468,7 +1468,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-protocol"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "jeeves-protocol-noop-macros",
  "schemars",
@@ -1479,11 +1479,11 @@ dependencies = [
 
 [[package]]
 name = "jeeves-protocol-noop-macros"
-version = "0.17.0"
+version = "0.18.0"
 
 [[package]]
 name = "jeeves-provider"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1500,7 +1500,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-state"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1514,7 +1514,7 @@ dependencies = [
 
 [[package]]
 name = "jeeves-tools"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

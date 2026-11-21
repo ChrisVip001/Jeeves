@@ -366,6 +366,10 @@ smoke-dashboard: build
 smoke-business: build
     {{ justfile_directory() }}/scripts/smoke-business.sh
 
+# Package and execute the native CLI using the same path as release CI.
+release-package *args:
+    {{ python }} {{ justfile_directory() }}/scripts/package-release.py build {{ args }}
+
 # Fake-clock, sourced-output and one-shot delivery fixtures for the resident morning duty.
 eval-morning-briefing:
     cd {{ rust_dir }} && cargo test -p jeeves-app-server scheduler::morning::tests

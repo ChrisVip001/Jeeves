@@ -155,6 +155,10 @@ async fn main() -> Result<()> {
             settings.home = home();
             jeeves_ops::serve(settings).await
         }
+        Some("--help" | "-h") => {
+            print!("{USAGE}");
+            Ok(())
+        }
         Some("--version") | Some("-V") => {
             println!("jeeves {}", env!("CARGO_PKG_VERSION"));
             Ok(())

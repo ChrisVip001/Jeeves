@@ -1,15 +1,12 @@
-# Publish Jeeves's binary artefacts: `jeeves` for four platforms, attached to a GitHub Release.
-# A version tag triggers the build and publication of the CLI archives.
 name: release
 
 on:
   push:
     tags: ["v*"]
-  # Lets a maintainer re-run a failed publish without moving the tag.
   workflow_dispatch:
 
 permissions:
-  contents: write # create the Release, upload the artefacts
+  contents: read
 
 jobs:
   binaries:
@@ -17,10 +14,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The macOS 13 image was retired on 2025-12-04; keeping it leaves the job queued
-          # forever (v0.8.0 sat 24 h and was cancelled, v0.16.0 queued 31 h and never started,
-          # so the release job never ran). The official x86_64 replacement is macos-15-intel
-          # (available until autumn 2027).
           - { os: macos-15, target: aarch64-apple-darwin }
           - { os: macos-15-intel, target: x86_64-apple-darwin }
           - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
@@ -29,50 +22,66 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      # Linux build dependencies (the sqlite3 bundled build needs no system library; bwrap is
-      # only needed at run time).
-      - name: Build jeeves (${{ matrix.target }})
-        working-directory: jeeves-rs
-        run: cargo build --release --target ${{ matrix.target }} -p jeeves-cli
-      - name: Package
+      - name: Package and run the extracted CLI
+        env:
+          TARGET: ${{ matrix.target }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          mkdir -p dist
-          cp "jeeves-rs/target/${{ matrix.target }}/release/jeeves" dist/jeeves
-          cp README.md LICENSE dist/
-          tar -czf "dist/jeeves-v${version}-${{ matrix.target }}.tar.gz" -C dist jeeves README.md LICENSE
-          rm dist/jeeves dist/README.md dist/LICENSE
+          tag_args=()
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            tag_args=(--tag "$GITHUB_REF_NAME")
+          fi
+          python3 scripts/package-release.py build --target "$TARGET" --output dist "${tag_args[@]}"
+      - name: Run the release evals from the Linux archive
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          stage="$(mktemp -d)"
+          trap 'rm -rf "$stage"' EXIT
+          tar -xzf dist/jeeves-v*-x86_64-unknown-linux-gnu.tar.gz -C "$stage"
+          export JEEVES_HOME="$stage/state"
+          "$stage/jeeves" eval evals/deterministic
+          "$stage/jeeves" eval --replay evals/replay
       - uses: actions/upload-artifact@v5
         with:
           name: jeeves-${{ matrix.target }}
           path: dist/jeeves-v*.tar.gz
+          if-no-files-found: error
 
-  release:
+  assets:
     needs: binaries
     runs-on: ubuntu-24.04
     steps:
-      # gh release create needs a git repository; without checkout it fails with
-      # "fatal: not a git repository" (this is what broke the v0.17.0 run).
       - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
       - uses: actions/download-artifact@v5
         with:
           path: dist
+          pattern: jeeves-*
           merge-multiple: true
-      - name: Create GitHub Release
+      - name: Check the complete release set
+        run: python3 scripts/package-release.py checksums --output dist
+      - uses: actions/upload-artifact@v5
+        with:
+          name: release-assets
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: assets
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-assets
+          path: dist
+      - name: Publish the verified release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          notes=".github/release-notes/${GITHUB_REF_NAME}.md"
-          if [ -f "$notes" ]; then
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --notes-file "$notes" \
-              dist/*
-          else
-            gh release create "$GITHUB_REF_NAME" \
-              --title "$GITHUB_REF_NAME" \
-              --generate-notes \
-              dist/*
-          fi
+          (cd dist && sha256sum --check SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Jeeves $GITHUB_REF_NAME" \
+            --notes-file ".github/release-notes/${GITHUB_REF_NAME}.md" \
+            dist/jeeves-v*.tar.gz dist/SHA256SUMS

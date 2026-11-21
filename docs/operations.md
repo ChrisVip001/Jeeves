@@ -124,7 +124,7 @@ Ctrl-C and SIGTERM close SSE and let active turns drain for up to 25 seconds. Un
 
 ### CLI releases
 
-Set the Rust workspace version in `jeeves-rs/Cargo.toml`, update both changelogs, and run `just check` on the release commit. Pushing the matching `v<version>` tag runs the [release workflow](../.github/workflows/release.yml). It attaches CLI archives for macOS and Linux on arm64 and x86-64 to the GitHub release. Use the hosted deployment and Mac build instructions for their respective artifacts.
+Set the Rust workspace version in `jeeves-rs/Cargo.toml`, update both changelogs, and add `.github/release-notes/v<version>.md`. Run `just check` and `just release-package` on the release commit. The [release workflow](../.github/workflows/release.yml) can be dispatched on a branch to build and verify all four CLI archives. Push the matching `v<version>` tag to publish the macOS and Linux archives for arm64 and x86-64 with their `SHA256SUMS`. Follow the hosted deployment and Mac build instructions for those artifacts.
 
 ## Keeping it running
 

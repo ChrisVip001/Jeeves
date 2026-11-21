@@ -2,7 +2,12 @@
 
 English | [简体中文](CHANGELOG.zh.md)
 
-## Unreleased
+## 0.18.0
+
+- The unified Go gateway serves account sign-in and the workbench. The Go control plane manages tenant Runtime placement and quotas.
+- Chat delegates long-running work into a single workspace. **My work** keeps task follow-up, file previews and line-by-line changes together.
+- Mac and Web development share the local gateway. It discovers the Runtime's assigned port after a restart.
+- GitHub releases include checked Jeeves CLI archives and SHA-256 checksums. Workflow dispatch builds reviewable assets.
 
 ### Telegram
 
