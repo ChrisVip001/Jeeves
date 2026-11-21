@@ -2457,6 +2457,7 @@ workspaceActions.refresh = () => {
   return refresh();
 };
 workspaceActions.browse = () => void cwdPicker();
+workspaceActions.reviewOperations = (task) => void switchTask(task, "operations");
 workspaceActions.upload = () => dom.file.click();
 workspaceActions.cwdChanged = setWorkspace;
 

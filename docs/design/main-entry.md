@@ -14,8 +14,9 @@ Grok allows people to reopen an automation run and continue its conversation. A 
 
 | Intent | Interaction |
 |---|---|
-| Delegate | Describe the outcome in Chat and attach files if needed. Carry on talking after the handoff. |
+| Delegate | Describe the outcome in Chat and attach files if needed. A bound project folder is visible above the message. Select it to switch back to automatic workspaces. |
 | Decide | One pending decision opens with its action and exact preview. Allow once or deny the current request. |
+| Recover | A stopped work page offers [operation review](../operations.md#reviewing-unknown-operations) and an explicit resume on the same assignment. |
 | Find work | Search titles in My work or follow a receipt. Mac and phone open the same work page. Reload, back and forward retain the destination. |
 | Inspect delivery | The latest terminal run has its own receipt. Results and files precede expandable conversation history. Replies from older runtimes are labeled separately. |
 | Take a file | Expand a successful whole-file text write of up to 64 KiB to read the recorded version or save a copy. Older artifacts, downloads, partial edits and larger files can have metadata only. |

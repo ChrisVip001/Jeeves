@@ -4,6 +4,7 @@ import { computed, ref, watch } from "vue";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import { ArrowUp, Ellipsis } from "lucide-vue-next";
 import { interact } from "./api";
+import { workspaceActions } from "./controls";
 import { t } from "./i18n";
 import { webTasks } from "./tasks";
 import { submissionTracker } from "./ui/submission";
@@ -64,6 +65,10 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
         :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
       <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
       <TaskDelivery :task="task" :center="webTasks" />
+      <div v-if="!approval && ['suspended','needs_attention','needsAttention'].includes(task.status)" class="td-actions">
+        <button v-if="task.runCount" type="button" class="today-btn" @click="workspaceActions.reviewOperations(task)">{{ t("核对操作") }}</button>
+        <button type="button" class="today-btn primary" :disabled="!!webTasks.state.busy" @click="webTasks.action('resume', task.id)">{{ t("继续任务") }}</button>
+      </div>
       <details class="work-history" @toggle="historyOpen = ($event.currentTarget as HTMLDetailsElement).open">
         <summary id="work-history-toggle">{{ t("查看往来记录") }}</summary>
         <TaskTranscript v-if="historyOpen" :task="task" :center="webTasks" :revision="revision" history-only />

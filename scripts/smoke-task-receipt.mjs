@@ -63,6 +63,19 @@ try {
       await nav.getByRole("button", { name: "对话", exact: true }).click();
       assert.equal(await composer.inputValue(), "unsent fixture draft");
       await composer.fill("");
+      if (!decisionId && width === 1280) {
+        const meta = "**/api/session/meta?sessionId=jeeves-main";
+        await page.route(meta, async route => {
+          const response = await route.fetch();
+          const body = await response.json();
+          body.session.cwd = "/example/project-r622";
+          await route.fulfill({response, json:body});
+        });
+        await page.reload();
+        await page.getByRole("button", {name:"project-r622"}).waitFor({timeout:5000});
+        await page.unroute(meta);
+        await page.reload();
+      }
       assert.equal(await page.locator("#composer-model").isVisible(), false);
       await page.locator(".compose-options summary").click();
       await page.locator("#composer-model").waitFor();
@@ -90,6 +103,21 @@ try {
       await work.getByRole("heading",{name:"task-alpha-fixture", level:2}).waitFor();
       assert.equal(await taskComposer.inputValue(), "unsent task draft");
       assert.equal(await page.getByRole("dialog").count(), 0);
+      if (width === 1280) {
+        await page.route("**/api/tasks", async route => {
+          const response = await route.fetch();
+          const body = await response.json();
+          const target = body.tasks.find(task => task.id === taskId);
+          target.status = "needs_attention";
+          await route.fulfill({response, json: body});
+        });
+        await page.reload();
+        await work.getByRole("button", {name:"核对操作"}).click({timeout:5000});
+        const review = page.getByRole("dialog", {name:"核对操作"});
+        await review.getByText("task-alpha-fixture", {exact:true}).waitFor();
+        await review.getByRole("button", {name:"关闭"}).click();
+        await work.getByRole("button", {name:"继续任务"}).waitFor();
+      }
       if (width === 390) {
         await taskComposer.fill("task-follow-fixture");
         const sent = page.waitForResponse(r => new URL(r.url()).pathname === "/api/interaction" && r.request().method() === "POST");

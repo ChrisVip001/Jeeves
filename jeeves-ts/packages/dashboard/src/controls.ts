@@ -4,6 +4,7 @@ import type { LarkConfig, LarkStatus } from "./ui/types.ts";
 import { ApiError, preferenceRequest, saveMcpServer, updateSession } from "./api.ts";
 import { t } from "./i18n.ts";
 import type {
+  AgentTaskView,
   DashboardData,
   ModelInfo,
   ModelListResponse,
@@ -57,6 +58,7 @@ export const webState = reactive<{
 });
 
 export const workspaceActions: {
+  reviewOperations: (task: AgentTaskView) => void;
   openWork: (id: string) => void;
   refresh: () => Promise<void>;
   browse: () => void;
@@ -64,6 +66,7 @@ export const workspaceActions: {
   cwdChanged: (cwd: string | null) => void;
   main: () => Promise<void>;
 } = {
+  reviewOperations: () => {},
   openWork: () => {},
   refresh: async () => {},
   browse: () => {},

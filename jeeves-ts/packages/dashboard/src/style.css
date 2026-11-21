@@ -894,6 +894,8 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
 .chat-decisions .today-card { margin-top: 8px; }
 .task-notice .today-btn { margin: 7px 7px 0 0; }
 .compose-options { position: relative; }
+#composer-target .workspace-picker { max-width: 100%; width: fit-content; }
+#composer-target .context-button { max-width: 100%; overflow-wrap: anywhere; }
 .compose-options > summary {
   min-height: 32px;
   padding: 5px 8px;

@@ -32,6 +32,7 @@ watch(
     <button
       type="button"
       class="context-button"
+      :title="cwd"
       :aria-expanded="canBrowse ? undefined : open"
       :disabled="busy"
       @click="toggle"

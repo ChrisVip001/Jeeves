@@ -269,14 +269,15 @@ async function changed() {
       }}<span style="margin-left: auto; font-size: 10px">⌘ ,</span>
     </button></Teleport
   >
-  <Teleport to="#composer-context"
+  <Teleport :to="state.cwd && !followingTask ? '#composer-target' : '#composer-context'"
     ><WorkspacePicker
       :cwd="followingTask?.cwd || state.cwd"
       :automatic="state.sessionId === state.mainSessionId"
       :busy="unavailable || !!followingTask"
       can-browse
       @save="saveWorkspace"
-      @browse="workspaceActions.browse()" /><PermissionPicker
+      @browse="workspaceActions.browse()" /></Teleport>
+  <Teleport to="#composer-context"><PermissionPicker
       :policy="state.policy"
       :disabled="!state.connected"
       :loading="state.policyLoading"
