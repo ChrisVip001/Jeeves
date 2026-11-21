@@ -250,7 +250,7 @@ a new database is not copied.
 | MCP tools disappeared | read the stderr warning: unreachable / not signed in (`jeeves mcp login`) / broken mcp.json |
 | `[tools used: …]` in a reply | expected folding marker; tool activity is in history |
 | "why did it answer that" | open `traces/<date>.jsonl` at that turnId |
-| port 7777 taken | the dashboard scans upward; the startup log has the real port |
+| Private Runtime port 7777 taken | For the Mac development profile, free the configured port or change it in both the profile and the gateway. A standalone Runtime tries the next port and logs its listener. |
 
 ## Compacting and looking at memory
 

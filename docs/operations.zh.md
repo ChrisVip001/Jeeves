@@ -233,7 +233,7 @@ Runtime 得在运行。删是 `cancel_schedule`，列是 `list_schedules`。
 | MCP 工具不见了 | 看 stderr 警告：连不上 / 未登录（`jeeves mcp login`）/ mcp.json 坏 |
 | 回答里 `[tools used: …]` 重复 | 属预期折叠标记，说明工具活动已入历史 |
 | 想知道"它当时为什么这么答" | 打开 `traces/<日期>.jsonl` 对应 turnId 那一行 |
-| 端口 7777 被占 | dashboard 自动 +1，启动日志里有实际端口 |
+| 私网 Runtime 的 7777 端口被占用 | Mac 开发版需要释放配置中的端口，或同步修改开发版配置和网关转发地址。单独启动的 Runtime 会尝试下一端口，并在启动日志中显示实际地址。 |
 
 ## 压缩与看记忆
 
