@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,20 +18,21 @@ import (
 )
 
 type gateway struct {
-	store                    *store
-	origin                   *url.URL
-	bundle                   string
-	local, trustProxy        bool
-	loopbackOnly             bool
-	setup                    string
-	fixed                    cloudkit.RuntimeEndpoint
-	fixedOwner               string
-	controlURL, controlToken string
-	http                     *http.Client
-	mail                     func(context.Context, mailJob) error
-	mailJobs                 chan mailJob
-	oidc                     *signIn
-	shutdown                 context.Context
+	store                     *store
+	origin                    *url.URL
+	bundle                    string
+	local, trustProxy         bool
+	loopbackOnly              bool
+	setup                     string
+	fixed                     cloudkit.RuntimeEndpoint
+	runtimeHome, runtimeToken string
+	fixedOwner                string
+	controlURL, controlToken  string
+	http                      *http.Client
+	mail                      func(context.Context, mailJob) error
+	mailJobs                  chan mailJob
+	oidc                      *signIn
+	shutdown                  context.Context
 }
 
 func configuration(ctx context.Context) (*gateway, error) {
@@ -43,8 +45,13 @@ func configuration(ctx context.Context) (*gateway, error) {
 		return nil, errors.New("use an HTTPS public origin or a loopback origin for personal mode")
 	}
 	fixed := os.Getenv("GW_RUNTIME_URL")
+	runtimeHome := os.Getenv("GW_RUNTIME_HOME")
+	privateRuntime := fixed != "" || runtimeHome != ""
+	if runtimeHome != "" && (!filepath.IsAbs(runtimeHome) || !loopback(origin.Hostname()) || fixed != "" || os.Getenv("GW_CONTROL_URL") != "") {
+		return nil, errors.New("GW_RUNTIME_HOME requires an absolute path and a loopback gateway without other Runtime routing")
+	}
 	owner := normalizeEmail(os.Getenv("GW_FIXED_OWNER_EMAIL"))
-	secureFixed := !local && loopback(origin.Hostname()) && fixed != "" && emailPattern.MatchString(owner)
+	secureFixed := !local && loopback(origin.Hostname()) && privateRuntime && emailPattern.MatchString(owner)
 	dsn := os.Getenv("GW_DATABASE_URL")
 	if dsn == "" || (!local && !secureFixed && strings.HasPrefix(dsn, "sqlite:") && os.Getenv("GW_DEVELOPMENT") != "1") {
 		return nil, errors.New("set GW_DATABASE_URL to PostgreSQL, or use SQLite in personal mode")
@@ -68,12 +75,11 @@ func configuration(ctx context.Context) (*gateway, error) {
 			return nil, fmt.Errorf("dashboard is missing; run just dashboard-build: %w", err)
 		}
 	}
-	if fixed != "" {
-		u, err := cloudkit.Origin(fixed)
-		if err != nil || u.Scheme != "https" && !loopback(u.Hostname()) || len(os.Getenv("GW_RUNTIME_TOKEN")) < 16 {
-			return nil, errors.New("fixed Runtime requires a server-set HTTPS or loopback origin and token")
+	if privateRuntime {
+		token := os.Getenv("GW_RUNTIME_TOKEN")
+		if len(token) < 16 {
+			return nil, errors.New("the private Runtime requires GW_RUNTIME_TOKEN")
 		}
-		g.fixed = cloudkit.RuntimeEndpoint{URL: u.String(), Token: os.Getenv("GW_RUNTIME_TOKEN"), Ready: true}
 		g.fixedOwner = owner
 		if !local && !emailPattern.MatchString(g.fixedOwner) {
 			return nil, errors.New("a fixed cloud Runtime needs GW_FIXED_OWNER_EMAIL")
@@ -81,7 +87,15 @@ func configuration(ctx context.Context) (*gateway, error) {
 		if local && !strings.HasPrefix(dsn, "sqlite:") {
 			return nil, errors.New("personal mode uses a local SQLite account store")
 		}
-
+		if runtimeHome != "" {
+			g.runtimeHome, g.runtimeToken = runtimeHome, token
+		} else {
+			u, err := cloudkit.Origin(fixed)
+			if err != nil || u.Scheme != "https" && !loopback(u.Hostname()) {
+				return nil, errors.New("a fixed Runtime requires a server-set HTTPS or loopback origin")
+			}
+			g.fixed = cloudkit.RuntimeEndpoint{URL: u.String(), Token: token, Ready: true}
+		}
 	} else {
 		u, err := cloudkit.Origin(os.Getenv("GW_CONTROL_URL"))
 		if local || err != nil || len(os.Getenv("GW_CONTROL_TOKEN")) < 32 {
@@ -96,7 +110,7 @@ func configuration(ctx context.Context) (*gateway, error) {
 		}
 	}
 	if issuer := os.Getenv("GW_OIDC_ISSUER"); issuer != "" {
-		if local || g.fixed.URL != "" {
+		if local || privateRuntime {
 			return nil, errors.New("OIDC requires the managed cloud workspace mode")
 		}
 		g.oidc, err = configureSignIn(ctx, origin, issuer)
@@ -183,7 +197,12 @@ func (g *gateway) serve(w http.ResponseWriter, r *http.Request) {
 			failure(w, err)
 			return
 		}
-		cloudkit.JSON(w, 200, map[string]bool{"ok": true})
+		status := map[string]bool{"ok": true}
+		if g.runtimeHome != "" {
+			target, err := g.discover(ctx)
+			status["runtimeReady"] = err == nil && target.Ready
+		}
+		cloudkit.JSON(w, 200, status)
 		return
 	}
 	if r.URL.Path == "/internal/desktop" && r.Method == "POST" && !g.local {

@@ -121,8 +121,8 @@ test-research-publication:
 smoke-recovery: build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-recovery.py
 
-# Runtime process lifecycle: SSE, startup ownership, and child exit (POSIX).
-smoke-lifecycle: build
+# Runtime process lifecycle and dynamic gateway rediscovery (POSIX).
+smoke-lifecycle: build gateway-build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-lifecycle.py
 
 # ---- Evals: the diamond before a release --------------------------------------------------

@@ -16,6 +16,9 @@ import (
 )
 
 func (g *gateway) locate(ctx context.Context, tenant string) (cloudkit.RuntimeEndpoint, error) {
+	if g.runtimeHome != "" {
+		return g.discover(ctx)
+	}
 	if g.fixed.URL != "" {
 		return g.fixed, nil
 	}

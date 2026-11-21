@@ -147,13 +147,13 @@ The hosted Mac app connects a device to the cloud account. Build it with `just d
 
 The following commands apply to the source checkout's Runtime development app.
 
-The Mac development app opens the Go gateway. The default for `just local-up` is `http://127.0.0.1:7788`. Developers can set `JEEVES_WEB_GATEWAY_URL`. `just desktop-build` bundles the Runtime and `just desktop-build-browser` adds the optional task browser.
+The Mac development app opens the Go gateway. The default for `just local-up` is `http://127.0.0.1:8743`. Developers can set `JEEVES_WEB_GATEWAY_URL`. `just desktop-build` bundles the Runtime and `just desktop-build-browser` adds the optional task browser.
 
 For everyday use and joint testing, run `just desktop-open` or double-click the checkout’s `desktop/src-tauri/target/release/bundle/macos/Jeeves.app` in Finder. Both open the same application bundle. If it is already running, macOS brings its window forward with the current Runtime, login and conversation. The command builds the bundle if it is missing. Use `just desktop-build` when you need to rebuild it after a code change.
 
 Before a joint test, run `just desktop-status` to record the existing app and Runtime PIDs, listener, and state and trace paths. The checkout revision describes the source tree. The running app may come from an earlier build. Use the same window and account, then leave the tested task or error open for handoff. For a reproduction, record the steps, local time and, when available, task ID or turn ID. Look up that turn under the reported trace directory. The app records Runtime diagnostics in `<home>/jeeves.log`. Automated smoke runs use fixtures and report their results separately.
 
-To have the development app start and stop the same local Runtime, put a `desktop-gateway` file in `JEEVES_HOME`. Put the loopback Go gateway origin on line one and the private Runtime origin on line two, such as `http://127.0.0.1:7777`. Use the owner-only `runtime-token` file with the gateway's credential. Start the gateway before opening the app. A Finder launch of the checkout bundle can reuse its `.jeeves` directory. Installed copies default to `~/.jeeves`.
+For a shared Mac and Web development workspace, put the Go gateway's loopback origin on one line in `<home>/desktop-gateway`, for example `https://localhost:8743`. Start that gateway with `GW_RUNTIME_HOME` set to the same absolute `JEEVES_HOME`. Give the gateway and Runtime the same private credential using `GW_RUNTIME_TOKEN` and the owner-only `<home>/runtime-token` file. The App starts the Runtime on an OS-assigned port, and the gateway discovers it after every restart. The browser and App use the same origin. A Finder launch of the checkout bundle can reuse its `.jeeves` directory. Installed copies default to `~/.jeeves`.
 
 Run `just dashboard-build` and reload the gateway page to see frontend changes. Runtime changes take effect after replacing the binary and restarting it.
 
@@ -250,7 +250,7 @@ a new database is not copied.
 | MCP tools disappeared | read the stderr warning: unreachable / not signed in (`jeeves mcp login`) / broken mcp.json |
 | `[tools used: …]` in a reply | expected folding marker; tool activity is in history |
 | "why did it answer that" | open `traces/<date>.jsonl` at that turnId |
-| Private Runtime port 7777 taken | For the Mac development profile, free the configured port or change it in both the profile and the gateway. A standalone Runtime tries the next port and logs its listener. |
+| Private Runtime port 7777 taken | A standalone Runtime tries the next port and logs its listener. The Mac development and personal launchers ask the OS for a free port. |
 
 ## Compacting and looking at memory
 

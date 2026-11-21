@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Real process lifecycle regression: open SSE, stop, and reject a duplicate home.
+"""Real process lifecycle regression: restart, drain SSE, and reject a duplicate home.
 
-Requires the built Runtime binary. Uses only ephemeral homes and ports;
-no real provider, credentials, gateway, or user runtime is touched.
+Uses the built Runtime and Go gateway with ephemeral homes, ports and accounts.
 """
+import json
 import os
 from pathlib import Path
 import signal
@@ -11,8 +11,12 @@ import socket
 import subprocess
 import tempfile
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 import urllib.error
 import urllib.request
+
+from gateway_fixture import gateway
 
 ROOT = Path(__file__).resolve().parents[1]
 BIN = ROOT / "jeeves-rs/target/debug/jeeves"
@@ -101,6 +105,73 @@ def ctrl_c_with_streams_open():
     stops_with_streams_open(signal.SIGINT)
 
 
+def gateway_follows_restarted_runtime():
+    class UnrelatedServer(BaseHTTPRequestHandler):
+        def do_HEAD(self):
+            self.send_response(204)
+            self.end_headers()
+
+        def do_GET(self):
+            raise AssertionError("The gateway routed an API request to the old port")
+
+        def log_message(self, *_):
+            pass
+
+    with tempfile.TemporaryDirectory(prefix="jeeves-dynamic-runtime-") as tmp:
+        home = Path(tmp)
+        endpoint = home / "runtime-endpoint.json"
+        with gateway(home, home, TOKEN) as (_, workspace, cookie):
+            def api(path, payload=None):
+                request = urllib.request.Request(
+                    workspace + "api/" + path,
+                    data=json.dumps(payload).encode() if payload is not None else None,
+                    headers={"Cookie": cookie, "Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    return json.load(response)
+
+            def await_endpoint(previous=None):
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline:
+                    if endpoint.is_file():
+                        record = json.loads(endpoint.read_text())
+                        if record != previous and api("workspace")["ready"]:
+                            return record
+                    time.sleep(.1)
+                raise AssertionError("Go did not discover the Runtime")
+
+            assert not api("workspace")["ready"], "the gateway started before the Runtime"
+            runtime = start(["runtime"], str(home), 0)
+            try:
+                first = await_endpoint()
+                task = api("task", {"action": "create", "sessionId": "jeeves-main", "title": "Persistent fixture task"})
+                task_id = task["task"]["id"]
+            finally:
+                cleanup(runtime)
+            with ThreadingHTTPServer(("127.0.0.1", first["port"]), UnrelatedServer) as reused:
+                thread = Thread(target=reused.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    assert not api("workspace")["ready"]
+                    try:
+                        api("tasks")
+                    except urllib.error.HTTPError as error:
+                        assert error.code == 503
+                    else:
+                        raise AssertionError("The gateway accepted a stale endpoint")
+                    runtime = start(["runtime"], str(home), 0)
+                    try:
+                        second = await_endpoint(first)
+                        assert second["port"] != first["port"]
+                        assert task_id in {row["id"] for row in api("tasks")["tasks"]}
+                    finally:
+                        cleanup(runtime)
+                finally:
+                    reused.shutdown()
+                    thread.join(timeout=2)
+            print("PASS authenticated Go workspace followed the new Runtime port and kept the original task", flush=True)
+
+
 def refuses_duplicate_home():
     with tempfile.TemporaryDirectory(prefix="jeeves-lifecycle-conflict-") as home:
         first_port, second_port = port(), port()
@@ -157,7 +228,8 @@ def exits_when_engine_crashes():
 
 if __name__ == "__main__":
     failures = []
-    for test in [stops_with_streams_open, ctrl_c_with_streams_open, refuses_duplicate_home, exits_when_engine_crashes]:
+    for test in [stops_with_streams_open, ctrl_c_with_streams_open, refuses_duplicate_home,
+                 exits_when_engine_crashes, gateway_follows_restarted_runtime]:
         try:
             test()
         except (AssertionError, subprocess.TimeoutExpired, OSError) as error:

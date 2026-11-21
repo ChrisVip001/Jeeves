@@ -546,7 +546,7 @@ requires verification, the configured backend chain continues.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JEEVES_PORT` | `7777` | Private Runtime port, scanning upward if occupied |
+| `JEEVES_PORT` | `7777` | Private Runtime port. With `0`, bind to loopback and publish the OS-assigned port for the local gateway |
 | `JEEVES_NOTIFY` | off | `1` / `true` / `yes` turns it on; then reads `<home>/notify.json` (`{"slack": "webhook URL"}`) and pushes notifications: **approval requests / background-job finish / goal outcomes**. Completion notices persist before delivery and retry after failures/restarts (see [delivery limits](limitations.md#notifications-and-audit)); approval prompts remain best-effort. Network delivery does not block the turn. The URL is admin-configured, so pointing it at a self-hosted intranet endpoint (ntfy/Gotify — anything accepting `{"text": …}`) is legitimate; no SSRF guard applies
 | `JEEVES_MORNING_BRIEFING` | off | Opt-in 08:00 proposal; set a channel and IANA zone, e.g. `outbox@Asia/Shanghai`. See [Morning brief](operations.md#morning-brief-cron-friendly). |
 | `JEEVES_OPS_HOST` | `127.0.0.1` | Private Runtime bind address. The container uses `0.0.0.0` |
@@ -554,7 +554,7 @@ requires verification, the configured backend chain continues.
 | `JEEVES_DISPATCHERS` | — | Comma-separated chat sender ids (Feishu `open_id`) allowed to hand out tasks from a group. A message from anyone else still gets an answer, but without the `task` tool; empty admits nobody. Local views are never affected. Not in `config/read` |
 | `JEEVES_BIN` | — | explicit `jeeves` binary path for the TS clients and your own scripts |
 | `JEEVES_PERSONAL_HOME` | `~/.local/share/jeeves-personal` | Account and Runtime data directory for `just local-up` |
-| `JEEVES_PERSONAL_PORT` | `7788` | Loopback Go gateway port for `just local-up` |
+| `JEEVES_PERSONAL_PORT` | `8743` | Loopback Go gateway port for `just local-up` |
 | `JEEVES_PERSONAL_BROWSER` | `1` | Open the browser from `just local-up`. Use `0` for an unattended launch after setup |
 | `JEEVES_WEB_GATEWAY_URL` | — | Go gateway URL opened by the Mac development app |
 | `JEEVES_DESKTOP_BINARY` | — | read by debug builds of the desktop shell only: absolute path of the `jeeves` binary to start (default `jeeves-rs/target/debug/jeeves`) |

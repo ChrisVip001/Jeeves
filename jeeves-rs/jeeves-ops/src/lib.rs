@@ -15,6 +15,7 @@
 mod api;
 mod capabilities;
 mod client;
+mod discovery;
 mod gateways;
 mod lifecycle;
 mod memory_api;
@@ -105,6 +106,16 @@ pub async fn serve(settings: Settings) -> Result<()> {
         );
     }
 
+    let first = port();
+    let bind_host = bind_addr(&settings.ops_host);
+    if first == 0 && !matches!(settings.ops_host.as_str(), "127.0.0.1" | "localhost") {
+        anyhow::bail!("JEEVES_PORT=0 requires the loopback Runtime host 127.0.0.1");
+    }
+    let last = if first == 0 {
+        0
+    } else {
+        first.saturating_add(PORT_SCAN - 1)
+    };
     let app = Arc::new(AppServer::spawn(&settings.home, true)?);
     let signal = stop_signal();
     tokio::pin!(signal);
@@ -137,19 +148,33 @@ pub async fn serve(settings: Settings) -> Result<()> {
     }
     let gate = Gate::single(Arc::clone(&app), token);
     let gateways = Arc::clone(&gate.gateways);
-    let router = router(gate);
-    let first = port();
-    let bind_host = bind_addr(&settings.ops_host);
 
-    for candidate in first..first + PORT_SCAN {
+    for candidate in first..=last {
         match TcpListener::bind((bind_host, candidate)).await {
             Ok(listener) => {
                 if app.is_stopping() {
                     app.shutdown(EARLY_EXIT_GRACE).await;
                     anyhow::bail!("Jeeves Runtime exited during cockpit startup");
                 }
-                println!("Jeeves Runtime → http://{bind_host}:{candidate}");
-                gateways.set_url(format!("http://127.0.0.1:{candidate}"));
+                let address = listener.local_addr()?;
+                let router = if first == 0 {
+                    match discovery::publish(
+                        router(gate.clone()),
+                        &settings.home,
+                        address.port(),
+                        &gate.token,
+                    ) {
+                        Ok(router) => router,
+                        Err(error) => {
+                            app.shutdown(EARLY_EXIT_GRACE).await;
+                            return Err(error);
+                        }
+                    }
+                } else {
+                    router(gate)
+                };
+                println!("Jeeves Runtime → http://{address}");
+                gateways.set_url(format!("http://127.0.0.1:{}", address.port()));
                 gateways.autostart().await;
                 let served = axum::serve(listener, router)
                     .with_graceful_shutdown(app.stopping())
@@ -172,10 +197,7 @@ pub async fn serve(settings: Settings) -> Result<()> {
     }
 
     app.shutdown(EARLY_EXIT_GRACE).await;
-    anyhow::bail!(
-        "{first}–{} are all taken on {bind_host}. Pick a free port with JEEVES_PORT.",
-        first + PORT_SCAN - 1
-    )
+    anyhow::bail!("{first}–{last} are all taken on {bind_host}. Pick a free port with JEEVES_PORT.")
 }
 
 /// Request gate: the service token and the one app-server.

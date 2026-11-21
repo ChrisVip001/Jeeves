@@ -26,7 +26,7 @@ Coding tasks can run an approved CLI in a private Git worktree. A parent can int
 
 **Hosted** users register or sign in at the service's public HTTPS origin. Web and iOS share the same account and workspace. Pair the Mac app with that account to authorize work in selected windows. [Cloud deployment](control-plane/README.md)
 
-**Personal self-hosting** starts with `just local-up` from the checkout. Create the owner account in the browser and connect a model. The Mac development app opens the same Go gateway.
+**Personal self-hosting** starts with `just local-up` from the checkout. Create the owner account in the browser and connect a model. The Mac development app and browser share the Go gateway on port `8743`. The OS assigns the private Runtime port.
 
 ```bash
 just local-up          # start the Go gateway and private Runtime, then open the browser

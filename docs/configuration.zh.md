@@ -482,7 +482,7 @@ DDG Lite 使用其正常的 POST 搜索表单，优先用系统可用的 `curl` 
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `JEEVES_PORT` | `7777` | 私网 Runtime 端口，占用时向上找 |
+| `JEEVES_PORT` | `7777` | 私网 Runtime 端口。设为 `0` 时绑定回环，在数据目录中发布系统分配的端口，供本机网关发现 |
 | `JEEVES_NOTIFY` | 关 | `1` / `true` / `yes` 才开；开了才读 `<home>/notify.json`（`{"slack": "webhook URL"}`）并往外推通知：**审批请求 / 后台作业收尾 / 目标终局**。完成通知先落盘，失败或重启后重试（见[投递边界](limitations.zh.md#通知与审计)）；批准提示仍为尽力发送。网络投递不阻塞 turn。URL 是管理员配的，指向内网自建端点（ntfy/Gotify 这类收 `{"text": …}` 的）是合法用法，不做 SSRF 护栏
 | `JEEVES_MORNING_BRIEFING` | 关闭 | 手动开启 08:00 晨报，值为渠道及 IANA 时区，如 `outbox@Asia/Shanghai`。见[晨报](operations.zh.md#晨报cron-友好)。 |
 | `JEEVES_OPS_HOST` | `127.0.0.1` | 私网 Runtime 的监听地址，容器默认使用 `0.0.0.0` |
@@ -490,7 +490,7 @@ DDG Lite 使用其正常的 POST 搜索表单，优先用系统可用的 `curl` 
 | `JEEVES_DISPATCHERS` | — | 逗号分隔的聊天发送者 id（飞书 `open_id`），只有他们能在群里派任务。其他人的消息照常回答，但没有 `task` 工具；留空表示谁都不行。本地视图不受影响。不在 `config/read` 里 |
 | `JEEVES_BIN` | — | TS 客户端与你自己的脚本寻找 `jeeves` 二进制的显式路径 |
 | `JEEVES_PERSONAL_HOME` | `~/.local/share/jeeves-personal` | `just local-up` 的账号与 Runtime 数据目录 |
-| `JEEVES_PERSONAL_PORT` | `7788` | `just local-up` 的 Go 网关回环端口 |
+| `JEEVES_PERSONAL_PORT` | `8743` | `just local-up` 的 Go 网关回环端口 |
 | `JEEVES_PERSONAL_BROWSER` | `1` | `just local-up` 自动打开浏览器。完成首次设置后可设为 `0`，用于无人值守启动 |
 | `JEEVES_WEB_GATEWAY_URL` | — | 开发版 Mac App 打开的 Go 网关地址 |
 | `JEEVES_DESKTOP_BINARY` | — | 只有桌面壳的调试构建读：要启动的 `jeeves` 二进制绝对路径（默认 `jeeves-rs/target/debug/jeeves`） |

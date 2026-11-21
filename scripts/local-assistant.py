@@ -4,7 +4,6 @@ import json
 import os
 import secrets
 import signal
-import socket
 import subprocess
 import time
 import urllib.request
@@ -23,19 +22,16 @@ if not settings.exists():
     with os.fdopen(fd, "w") as stream:
         json.dump(keys, stream)
 keys = json.loads(settings.read_text())
-with socket.socket() as reservation:
-    reservation.bind(("127.0.0.1", 0))
-    runtime_port = reservation.getsockname()[1]
-gateway_port = int(os.environ.get("JEEVES_PERSONAL_PORT", "7788"))
+gateway_port = int(os.environ.get("JEEVES_PERSONAL_PORT", "8743"))
 origin = f"http://127.0.0.1:{gateway_port}"
-runtime_origin = f"http://127.0.0.1:{runtime_port}"
+runtime_home = (home / "runtime").resolve()
 asset = root / "jeeves-ts/packages/dashboard/dist"
 runtime = subprocess.Popen(
     [root / "jeeves-rs/target/debug/jeeves", "runtime"],
     cwd=root,
     env={
-        **os.environ, "JEEVES_HOME": str(home / "runtime"), "JEEVES_OPS_HOST": "127.0.0.1",
-        "JEEVES_PORT": str(runtime_port),
+        **os.environ, "JEEVES_HOME": str(runtime_home), "JEEVES_OPS_HOST": "127.0.0.1",
+        "JEEVES_PORT": "0",
         "JEEVES_OPS_TOKEN": keys["JEEVES_OPS_TOKEN"],
     },
 )
@@ -59,7 +55,6 @@ def await_health(service, started):
     raise SystemExit("Jeeves did not become ready")
 
 try:
-    await_health(runtime_origin, runtime)
     gateway = subprocess.Popen(
         [root / "jeeves-rs/target/jeeves-gateway"],
         cwd=root,
@@ -67,7 +62,7 @@ try:
             **{k: v for k, v in os.environ.items() if not k.startswith("GW_")},
             **{k: v for k, v in keys.items() if k.startswith("GW_")},
             "GW_LOCAL": "1", "GW_ADDR": f"127.0.0.1:{gateway_port}",
-            "GW_PUBLIC_ORIGIN": origin, "GW_RUNTIME_URL": runtime_origin,
+            "GW_PUBLIC_ORIGIN": origin, "GW_RUNTIME_HOME": str(runtime_home),
             "GW_RUNTIME_TOKEN": keys["JEEVES_OPS_TOKEN"],
             "GW_DATABASE_URL": "sqlite:" + str(home / "accounts.sqlite"),
             "GW_DASHBOARD_DIR": str(asset),
@@ -83,7 +78,9 @@ try:
     print(f"Jeeves is running at {origin}", flush=True)
     if os.environ.get("JEEVES_PERSONAL_BROWSER") != "0":
         webbrowser.open(entry)
-    gateway.wait()
+    while gateway.poll() is None and runtime.poll() is None:
+        time.sleep(.25)
+    raise SystemExit("The gateway or Runtime stopped")
 except KeyboardInterrupt:
     pass
 finally:

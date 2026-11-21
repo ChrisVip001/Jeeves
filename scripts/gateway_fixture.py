@@ -17,6 +17,7 @@ RUNTIME_TOKEN = 'web-fixture-token-private'
 
 @contextlib.contextmanager
 def gateway(runtime, home, token=RUNTIME_TOKEN):
+    runtime_setting = 'GW_RUNTIME_HOME' if isinstance(runtime, Path) else 'GW_RUNTIME_URL'
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
         listener_port = listener.getsockname()[1]
@@ -28,10 +29,11 @@ def gateway(runtime, home, token=RUNTIME_TOKEN):
         GW_LOCAL='1', GW_ADDR=address, GW_PUBLIC_ORIGIN=origin,
         GW_SETUP_TOKEN=setup, GW_SESSION_KEY=secrets.token_hex(32),
         GW_STATE_KEY=secrets.token_hex(32),
-        GW_RUNTIME_URL=runtime, GW_RUNTIME_TOKEN=token,
+        GW_RUNTIME_TOKEN=token,
         GW_DATABASE_URL='sqlite:' + str(Path(home) / f'fixture-accounts-{listener_port}.sqlite'),
         GW_DASHBOARD_DIR=str(ROOT / 'jeeves-ts/packages/dashboard/dist'),
     )
+    env[runtime_setting] = str(runtime)
     log = Path(home) / 'gateway.log'
     with log.open('w') as stream:
         process = subprocess.Popen(

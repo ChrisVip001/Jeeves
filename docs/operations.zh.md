@@ -140,13 +140,13 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 下节命令适用于源码仓库中的 Runtime 开发应用。
 
-开发版 Mac App 打开 Go 网关。`just local-up` 的默认地址是 `http://127.0.0.1:7788`，开发者也可以设置 `JEEVES_WEB_GATEWAY_URL`。`just desktop-build` 打包 Runtime，`just desktop-build-browser` 附加可选的任务浏览器运行时。
+开发版 Mac App 打开 Go 网关。`just local-up` 的默认地址是 `http://127.0.0.1:8743`，开发者也可以设置 `JEEVES_WEB_GATEWAY_URL`。`just desktop-build` 打包 Runtime，`just desktop-build-browser` 附加可选的任务浏览器运行时。
 
 日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
 
 共同测试前运行 `just desktop-status`，核对已有 App 与 Runtime 的 PID、监听地址、数据和追踪路径。命令显示的提交号是源码版本，正在运行的应用可能来自较早的构建。共同验收沿用同一窗口和账号，完成后把窗口留在对应的事项或报错处。复现问题时记下操作步骤和本机时间，有任务 ID 或回合 ID 就一并记下。可到命令显示的追踪目录查找对应回合。App 将 Runtime 诊断日志写到 `<home>/jeeves.log`。自动冒烟使用测试数据，结果单独记录。
 
-需要让开发版 App 启停同一份本机 Runtime 时，在 `JEEVES_HOME` 保存 `desktop-gateway`。第一行写 Go 网关的回环地址，第二行写私网 Runtime 地址，例如 `http://127.0.0.1:7777`。凭据使用同目录中仅所有者可读的 `runtime-token`，和网关一致。启动 App 前先启动网关。Finder 启动仓库构建的 App 时，可沿用仓库中的 `.jeeves`；安装到系统的副本默认使用 `~/.jeeves`。
+Mac 和 Web 共用开发工作区时，在 `<home>/desktop-gateway` 写一行 Go 网关地址，例如 `https://localhost:8743`。启动网关时把 `GW_RUNTIME_HOME` 设为同一个 `JEEVES_HOME` 的绝对路径。网关使用 `GW_RUNTIME_TOKEN`，Runtime 使用仅所有者可读的 `<home>/runtime-token`，两者使用同一服务凭据。App 启动 Runtime 时由系统分配端口，网关每次重启后都会发现它。浏览器和 App 使用同一个网关地址。Finder 启动仓库构建的 App 时可沿用仓库中的 `.jeeves`，安装到系统的副本默认使用 `~/.jeeves`。
 
 在仓库根目录运行 `just dashboard-build` 后，重新载入网关页面即可更新前端。Runtime 代码在替换二进制并重启后生效。
 
@@ -233,7 +233,7 @@ Runtime 得在运行。删是 `cancel_schedule`，列是 `list_schedules`。
 | MCP 工具不见了 | 看 stderr 警告：连不上 / 未登录（`jeeves mcp login`）/ mcp.json 坏 |
 | 回答里 `[tools used: …]` 重复 | 属预期折叠标记，说明工具活动已入历史 |
 | 想知道"它当时为什么这么答" | 打开 `traces/<日期>.jsonl` 对应 turnId 那一行 |
-| 私网 Runtime 的 7777 端口被占用 | Mac 开发版需要释放配置中的端口，或同步修改开发版配置和网关转发地址。单独启动的 Runtime 会尝试下一端口，并在启动日志中显示实际地址。 |
+| 私网 Runtime 的 7777 端口被占用 | 单独启动的 Runtime 会尝试下一端口，并在日志中显示实际地址。Mac 开发版和个人部署由系统分配空闲内部端口。 |
 
 ## 压缩与看记忆
 

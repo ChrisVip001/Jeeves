@@ -81,34 +81,18 @@ fn local_origin(raw: &str, scheme: &str) -> Option<tauri::Url> {
     })
 }
 
-fn local_profile(config: &str) -> Result<(tauri::Url, tauri::Url), String> {
-    let mut lines = config.lines().map(str::trim);
+fn local_profile(config: &str) -> Result<tauri::Url, String> {
+    let mut lines = config.trim().lines();
     let gateway = lines
         .next()
         .and_then(|raw| local_origin(raw, "https").or_else(|| local_origin(raw, "http")));
-    let expected = lines.next().and_then(|raw| local_origin(raw, "http"));
-    let (Some(mut gateway), Some(expected), None) = (gateway, expected, lines.next()) else {
-        return Err("desktop-gateway 需要两行：回环 Go 网关地址和私网 Runtime 地址".into());
+    let (Some(gateway), None) = (gateway, lines.next()) else {
+        return Err("desktop-gateway 只需填写一行回环 Go 网关地址".into());
     };
-    gateway.set_path("/app/");
-    Ok((gateway, expected))
+    Ok(gateway)
 }
 
-fn check_runtime(expected: &tauri::Url, runtime: &str) -> Result<(), String> {
-    if local_origin(runtime, "http").as_ref() != Some(expected) {
-        return Err(format!(
-            "网关配置的 Runtime 是 {expected}，本次启动地址是 {runtime}"
-        ));
-    }
-    Ok(())
-}
-
-fn start_runtime(
-    app: &tauri::AppHandle,
-    binary: &Path,
-    home: &Path,
-    port: u16,
-) -> Result<(Child, String), String> {
+fn start_runtime(app: &tauri::AppHandle, binary: &Path, home: &Path) -> Result<Child, String> {
     let log = home.join("jeeves.log");
     let mut options = OpenOptions::new();
     options.create(true).append(true);
@@ -124,7 +108,7 @@ fn start_runtime(
     command
         .env("JEEVES_HOME", home)
         .env_remove("JEEVES_OPS_TOKEN")
-        .env("JEEVES_PORT", port.to_string())
+        .env("JEEVES_PORT", "0")
         .env("JEEVES_OPS_HOST", "127.0.0.1");
     let helper = binary.with_file_name("jeeves-window");
     if std::env::var_os("JEEVES_DESKTOP_HELPER").is_none() && helper.is_file() {
@@ -146,18 +130,13 @@ fn start_runtime(
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            if let Some(rest) = line.strip_prefix(READY_MARK) {
-                let _ = tx.send(
-                    rest.split_whitespace()
-                        .next()
-                        .unwrap_or_default()
-                        .to_string(),
-                );
+            if line.starts_with(READY_MARK) {
+                let _ = tx.send(());
             }
         }
     });
     match rx.recv_timeout(START_TIMEOUT) {
-        Ok(url) => Ok((child, url)),
+        Ok(()) => Ok(child),
         Err(reason) => {
             stop_child(&mut child);
             Err(match reason {
@@ -180,17 +159,12 @@ fn desktop_target(app: &tauri::AppHandle) -> Result<String, String> {
     let config = match std::fs::read_to_string(home.join("desktop-gateway")) {
         Ok(config) => config,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok("http://127.0.0.1:7788".into());
+            return Ok("http://127.0.0.1:8743".into());
         }
         Err(error) => return Err(format!("无法读取 desktop-gateway: {error}")),
     };
-    let (gateway, expected) = local_profile(&config)?;
-    let port = expected.port_or_known_default().ok_or("Runtime 缺少端口")?;
-    let (mut child, runtime) = start_runtime(app, &binary, &home, port)?;
-    if let Err(error) = check_runtime(&expected, &runtime) {
-        stop_child(&mut child);
-        return Err(error);
-    }
+    let gateway = local_profile(&config)?;
+    let child = start_runtime(app, &binary, &home)?;
     *app.state::<Runtime>().0.lock().expect("runtime lock") = Some(child);
     Ok(gateway.to_string())
 }
@@ -274,16 +248,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_window_uses_the_gateway_configured_for_the_started_runtime() {
-        let config = "https://localhost:8743\nhttp://127.0.0.1:7777\n";
-        let (gateway, expected) = local_profile(config).unwrap();
-        assert_eq!(gateway.as_str(), "https://localhost:8743/app/");
-        assert_eq!(expected.port(), Some(7777));
-        assert!(check_runtime(&expected, "http://127.0.0.1:7777").is_ok());
-        assert!(check_runtime(&expected, "http://127.0.0.1:7778").is_err());
-        assert!(local_profile("https://example.test\nhttp://127.0.0.1:7777").is_err());
-        assert!(local_profile("https://localhost:8743/account\nhttp://127.0.0.1:7777").is_err());
+    fn the_window_only_needs_the_stable_gateway_origin() {
+        let gateway = local_profile("https://localhost:8743\n").unwrap();
+        assert_eq!(gateway.as_str(), "https://localhost:8743/");
+        assert!(local_profile("https://localhost:8743\nhttp://127.0.0.1:7777").is_err());
+        assert!(local_profile("https://example.test").is_err());
+        assert!(local_profile("https://localhost:8743/account").is_err());
     }
+
     #[test]
     fn finder_uses_checkout_data_or_the_users_home() {
         let checkout =

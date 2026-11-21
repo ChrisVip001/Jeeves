@@ -3,7 +3,6 @@
 import importlib.util
 import json
 import os
-import socket
 import subprocess
 import sys
 import tempfile
@@ -42,9 +41,9 @@ def wait_for(read, description, timeout=32):
 
 
 class Cockpit:
-    def __init__(self, probe, home, port, env, bundle):
+    def __init__(self, probe, home, env, bundle):
         self.bundle = bundle
-        self.probe, self.port = probe, port
+        self.probe, self.home, self.port = probe, home, None
         self.log = (home / "desktop.log").open("a")
         self.process = subprocess.Popen(
             [bundle / "Contents/MacOS/jeeves-desktop"],
@@ -69,6 +68,10 @@ class Cockpit:
         def listening():
             if self.process.poll() is not None:
                 raise AssertionError(f"Desktop exited with {self.process.returncode}")
+            endpoint = self.home / "runtime-endpoint.json"
+            if not endpoint.exists():
+                return None
+            port = json.loads(endpoint.read_text())["port"]
             children = subprocess.run(
                 ["pgrep", "-P", str(self.process.pid)], capture_output=True, text=True
             )
@@ -80,13 +83,14 @@ class Cockpit:
                         "-nP",
                         "-p",
                         pid,
-                        f"-iTCP@127.0.0.1:{self.port}",
+                        f"-iTCP@127.0.0.1:{port}",
                         "-sTCP:LISTEN",
                     ],
                     capture_output=True,
                     text=True,
                 )
                 if listener.returncode == 0:
+                    self.port = port
                     return int(pid)
 
         self.listener = wait_for(listening, "bundled runtime did not listen", 70)
@@ -173,8 +177,8 @@ class Cockpit:
                 )
 
 
-def exercise(home, port, env, probe, posts, bundle):
-    app = Cockpit(probe, home, port, env, bundle)
+def exercise(home, env, probe, posts, bundle):
+    app = Cockpit(probe, home, env, bundle)
     evidence = {"initialWorkingDirectory": "/", "initialHomeOverride": "JEEVES_HOME" in env}
     try:
         evidence["launch"] = app.ready()
@@ -301,7 +305,7 @@ def exercise(home, port, env, probe, posts, bundle):
         )
         evidence["completion"] = app.capture("04-completion")
         app.close()
-        app = Cockpit(probe, home, port, dict(env, JEEVES_HOME=str(home)), bundle)
+        app = Cockpit(probe, home, dict(env, JEEVES_HOME=str(home)), bundle)
         evidence["reopen"] = app.ready()
         app.sign_in()
         assert evidence["reopen"]["pid"] != evidence["launch"]["pid"]
@@ -433,23 +437,18 @@ def main():
                 allow_recipients=["oc_first", "oc_final"],
             )
             (home / "connectors.json").write_text(json.dumps({"feishu": config}))
-            with socket.socket() as reservation:
-                reservation.bind(("127.0.0.1", 0))
-                port = reservation.getsockname()[1]
             env = dict(
                 base,
                 JEEVES_OPS_HOST="127.0.0.1",
-                JEEVES_PORT=str(port),
                 JEEVES_PROVIDER="ollama",
                 JEEVES_WRITE="1",
                 JEEVES_SEARCH_DDG="0",
                 JEEVES_PROMOTION_FIXTURE="synthetic",
             )
-            runtime = f"http://127.0.0.1:{port}"
-            with gateway(runtime, home) as (origin, _, _):
-                (home / "desktop-gateway").write_text(f"{origin}\n{runtime}\n")
+            with gateway(home, home) as (origin, _, _):
+                (home / "desktop-gateway").write_text(f"{origin}\n")
                 (home / "runtime-token").write_text(RUNTIME_TOKEN)
-                evidence = exercise(home, port, env, probe, posts, bundle)
+                evidence = exercise(home, env, probe, posts, bundle)
             (OUTPUT / "report.json").write_text(
                 json.dumps(evidence, ensure_ascii=False, indent=2)
             )

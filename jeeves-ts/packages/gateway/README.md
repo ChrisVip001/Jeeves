@@ -29,7 +29,7 @@ Channel adapters run within an authorized tenant deployment. Their configuration
 
 Run `just local-up` at the repository root with Go, Rust and Node installed. It opens a one-time owner setup in the browser and binds both processes to loopback. Return to the printed address after setup. The launcher stores Runtime data and the account database in `~/.local/share/jeeves-personal` by default. Personal mode uses a locally configured model and is accessible only on the host computer. Its account is separate from a hosted account.
 
-For loopback HTTPS development, configure a trusted certificate, a private SQLite database, `GW_FIXED_OWNER_EMAIL`, `GW_RUNTIME_URL` and `GW_RUNTIME_TOKEN`. The gateway takes an authenticated browser straight to its workbench.
+For loopback HTTPS development, configure a trusted certificate, a private SQLite database, `GW_FIXED_OWNER_EMAIL` and `GW_RUNTIME_TOKEN`. Set `GW_RUNTIME_HOME` to the absolute path of the Runtime data directory. The gateway verifies the published endpoint before forwarding an authenticated workspace request. For a deliberately fixed private endpoint, configure `GW_RUNTIME_URL` in place of discovery.
 
 ## Verification
 

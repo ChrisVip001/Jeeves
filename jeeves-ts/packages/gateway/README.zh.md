@@ -29,7 +29,7 @@ SMTP 支持强制 STARTTLS 的 `smtp://`，以及连接即启用 TLS 的 `smtps:
 
 在安装 Go、Rust 和 Node 后，从仓库根目录运行 `just local-up`。浏览器会打开一次性的所有者设置页面，两个服务均只监听回环接口。设置完成后可通过命令打印的地址返回。Runtime 数据和账号数据库默认存放在 `~/.local/share/jeeves-personal`。个人部署使用自己配置的模型，只能在宿主电脑访问，账号独立于托管版。
 
-开发中使用回环 HTTPS 时，配置受信任证书、私有 SQLite、`GW_FIXED_OWNER_EMAIL` 以及 `GW_RUNTIME_URL` 和 `GW_RUNTIME_TOKEN`。网关验证账号后，将浏览器转到同一个工作台。
+开发中使用回环 HTTPS 时，配置受信任证书、私有 SQLite、`GW_FIXED_OWNER_EMAIL` 和 `GW_RUNTIME_TOKEN`，并用 `GW_RUNTIME_HOME` 指向 Runtime 数据目录的绝对路径。网关验证该目录中发布的端点后转发工作区请求。固定部署的私网端点可通过 `GW_RUNTIME_URL` 配置。
 
 ## 验证
 
