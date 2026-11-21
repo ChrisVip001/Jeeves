@@ -199,6 +199,10 @@ The unit pins `JEEVES_HOME` and `JEEVES_PORT` to the values of the shell that ra
 
 ## Mac desktop app
 
+The hosted Mac app connects a device to the cloud account. Build it with `just desktop-device-build https://jeeves.example.com` using the installation's public origin. Open the app, choose **Connect**, and approve the pairing in the browser. Jeeves requests window access on the Mac when a task needs it. Manage access in the account's device list. Open the workspace in a browser or on iOS to talk to the assistant and follow the task.
+
+The following commands apply to the source checkout's Runtime development app.
+
 The desktop shell (`desktop/`, Tauri) starts `jeeves dashboard` and loads its address; setting
 `JEEVES_RUNTIME_URL` attaches it to an already-running Runtime instead. `just desktop-install`
 installs the front-end dependencies, `just desktop-build` bundles the release `jeeves` binary
@@ -398,11 +402,6 @@ SDK hosts can inspect and reconcile through the [operation protocol](protocol.md
 
 ## Running Jeeves for many users
 
-Use the account gateway as the public entry for phone and Mac clients. The [gateway guide](../control-plane/README.md) covers login, private Runtime routing, TLS and the existing single-Runtime deployment option.
+Web and iOS users sign in at the public HTTPS origin. The Mac device app pairs with the same account. Deploy the [Go unified gateway](../jeeves-ts/packages/gateway/README.md), the private [Go control plane](../control-plane/README.md), and a Rust Runtime image for tenant Pods. Keep the control plane, PostgreSQL and Runtime endpoints private.
 
-Jeeves itself is single-tenant: one `JEEVES_HOME` is one tenant. For a hosted service, run one Pod
-and one volume per user and put the [control plane](../control-plane/README.md) in front:
-it signs users up, wakes and sleeps their Pods, and meters model use through a proxy so the
-platform key never reaches a user Pod. Per-tenant ceilings are `JEEVES_MAX_TURNS`
-(concurrent turns, at most 64) and `JEEVES_HOME_MAX_MB`; both default to `0`, no cap, and a turn over a cap is refused with an error.
-`/healthz` is the probe and SIGTERM drains turns for 25 s.
+For a personal source installation, run `just local-up` and create the owner in the browser on that machine. It runs the gateway and one Runtime on loopback.

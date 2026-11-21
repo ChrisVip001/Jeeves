@@ -16,19 +16,32 @@ interface Profile {
   factorEnabled: boolean;
   createdAt: string;
   app: string;
-  used: number;
-  quota: number | null;
+  passwordSet: boolean;
+  managed: boolean;
+  devices: boolean;
+  oidc: boolean;
   sessions: Session[];
   current: string;
 }
+interface Mac {
+  id: string;
+  name: string;
+  online: boolean;
+}
 const profile = ref<Profile>();
+const macs = ref<Mac[]>([]);
+const usage = ref<{ used: number; quota: number | null }>();
+const detailsError = ref("");
 const email = ref("");
 const password = ref("");
 const currentPassword = ref("");
 const newPassword = ref("");
 const signup = ref(false);
+const oidc = ref(false);
+const challenge = ref("");
+const mailCode = ref("");
 type Mode =
-  "login" | "register" | "forgot" | "verify" | "reset" | "factor" | "mail";
+  "login" | "register" | "forgot" | "verify" | "reset" | "factor" | "mail" | "setup";
 const mode = ref<Mode>("login");
 const token = ref("");
 const code = ref("");
@@ -50,6 +63,13 @@ function useMailLink() {
 }
 function openMailLink() {
   const fragment = new URLSearchParams(location.hash.slice(1));
+  const setup = fragment.get("setup");
+  if (setup) {
+    switchMode("setup");
+    token.value = setup;
+    history.replaceState(null, "", location.pathname + location.search);
+    return;
+  }
   const action = fragment.get("action");
   if ((action === "verify" || action === "reset") && fragment.has("token")) {
     switchMode(action);
@@ -67,21 +87,58 @@ const ready = ref(false);
 const busy = ref(false);
 const error = ref("");
 const lang = getLang();
+const deviceLogin = new URLSearchParams(location.search).get("next") === "/device/";
 const date = (value: string | number) => new Date(value).toLocaleString(lang);
 const app = computed(() => {
   const base = profile.value?.app ?? "";
   const next = new URLSearchParams(location.search).get("next") ?? "";
+  if (next === "/device/") return next;
   return base && (next === base || next.startsWith(base + "?")) ? next : base;
 });
 async function refresh() {
   const response = await fetch("/api/account", { cache: "no-store" });
   if (response.status === 401) {
     profile.value = undefined;
+    macs.value = [];
+    usage.value = undefined;
     currentPassword.value = newPassword.value = "";
-    signup.value = (await response.json()).signup === true;
+    const features = await response.json();
+    signup.value = features.signup === true;
+    oidc.value = features.oidc === true;
   } else if (response.ok) profile.value = await response.json();
   else throw Error(t("无法读取账号，请重试。"));
   ready.value = true;
+}
+async function readSecurity(event: Event) {
+  if (!(event.currentTarget as HTMLDetailsElement).open || !profile.value) return;
+  const owner = profile.value.email;
+  detailsError.value = "";
+  try {
+    const load = async <T,>(path: string): Promise<T> => {
+      const response = await fetch(path, { cache: "no-store" });
+      if (!response.ok) throw Error();
+      return response.json();
+    };
+    const [nextUsage, nextMacs] = await Promise.all([
+      profile.value.managed ? load<{ used: number; quota: number | null }>("/api/account/usage") : undefined,
+      profile.value.devices ? load<Mac[]>("/api/mac/devices") : [],
+    ]);
+    if (profile.value?.email === owner) {
+      usage.value = nextUsage;
+      macs.value = nextMacs;
+    }
+  } catch {
+    detailsError.value = t("无法载入用量和设备。请收起后重新打开。");
+  }
+}
+function forgetMac(id: string) {
+  void act(async () => {
+    const response = await fetch("/api/mac/devices/" + encodeURIComponent(id), {
+      method: "DELETE", headers: { "x-jeeves-client": "1" },
+    });
+    if (!response.ok) throw Error(t("解除连接失败，请重试。"));
+    macs.value = macs.value.filter(device => device.id !== id);
+  });
 }
 async function act(action: () => Promise<void>) {
   if (busy.value) return;
@@ -102,11 +159,18 @@ async function requestMail(path: string) {
     body: JSON.stringify({ email: email.value }),
   });
   if (!response.ok) throw Error(t("发送失败，请稍后重试。"));
+  challenge.value = (await response.json()).challenge ?? "";
+  mailCode.value = "";
   mailPath.value = path;
   mode.value = "mail";
   notice.value = t(
     "如果邮箱符合条件，你将收到一封邮件。请在 15 分钟内打开链接。",
   );
+}
+function useMailCode() {
+  const proof = challenge.value + "." + mailCode.value.trim();
+  switchMode(mailPath.value === "/api/forgot" ? "reset" : "verify");
+  token.value = proof;
 }
 function submit() {
   void act(async () => {
@@ -120,7 +184,7 @@ function submit() {
             : "/api/forgot",
       );
     const path =
-      step === "reset" || step === "verify" ? "/api/" + step : "/api/login";
+      step === "reset" || step === "verify" || step === "setup" ? "/api/" + step : "/api/login";
     const response = await fetch(path, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -153,7 +217,7 @@ function submit() {
     switchMode("login");
     if (step === "reset") notice.value = t("密码已重设，请重新登录。");
     await refresh();
-    if (location.search && profile.value) location.replace(app.value);
+    if (profile.value && (location.search || step === "verify" || step === "setup")) location.replace(app.value);
   });
 }
 function revoke(id: string) {
@@ -198,8 +262,16 @@ function restored(event: PageTransitionEvent) {
 }
 onMounted(() => {
   openMailLink();
+  if (new URLSearchParams(location.search).get("factor") === "required") {
+    notice.value = t("请使用密码和双因素验证码登录。");
+  }
   window.addEventListener("hashchange", openMailLink);
-  void act(refresh);
+  void act(async () => {
+    await refresh();
+    if (profile.value && mode.value === "login" && new URLSearchParams(location.search).has("next")) {
+      location.replace(app.value);
+    }
+  });
   window.addEventListener("pageshow", restored);
 });
 onUnmounted(() => {
@@ -220,25 +292,27 @@ onUnmounted(() => {
     <a id="account-workspace" class="primary" :href="app"
       >{{ t("打开我的助理") }} <ArrowRight :size="16"
     /></a>
-    <details class="account-security"><summary>{{ t("账号与安全") }}</summary>
+    <details class="account-security" @toggle="readSecurity"><summary>{{ t("账号与安全") }}</summary>
     <dl>
       <div>
         <dt>{{ t("注册时间") }}</dt>
         <dd>{{ date(profile.createdAt) }}</dd>
       </div>
-      <div v-if="profile.quota !== null">
+      <div v-if="usage && usage.quota !== null">
         <dt>{{ t("本月模型用量") }}</dt>
         <dd>
-          {{ profile.used.toLocaleString() }} /
-          {{ profile.quota.toLocaleString() }} tokens
+          {{ usage.used.toLocaleString() }} /
+          {{ usage.quota.toLocaleString() }} tokens
         </dd>
       </div>
     </dl>
     <FactorSettings
+      v-if="profile.passwordSet"
       :key="profile.email"
       :enabled="profile.factorEnabled"
       @updated="refresh"
     />
+    <a v-if="profile.oidc && profile.passwordSet" class="quiet" href="/api/oidc/start?link=1">{{ t("绑定第三方账号") }}</a>
     <h2>{{ t("登录会话") }}</h2>
     <ul>
       <li v-for="s in profile.sessions" :key="s.id">
@@ -267,7 +341,16 @@ onUnmounted(() => {
         </button>
       </li>
     </ul>
-    <details>
+    <h2 v-if="macs.length">{{ t("已连接的 Mac") }}</h2>
+    <ul v-if="macs.length">
+      <li v-for="mac in macs" :key="mac.id">
+        <Laptop :size="21" />
+        <div><strong>{{ mac.name }}</strong><small>{{ mac.online ? t("在线") : t("离线") }}</small></div>
+        <button class="quiet" :disabled="busy" @click="forgetMac(mac.id)">{{ t("解除连接") }}</button>
+      </li>
+    </ul>
+    <p v-if="detailsError" role="status">{{ detailsError }}</p>
+    <details v-if="profile.passwordSet">
       <summary>{{ t("修改密码") }}</summary>
       <form @submit.prevent="changePassword">
         <label
@@ -296,7 +379,7 @@ onUnmounted(() => {
   <section class="auth-page" v-else-if="ready">
     <h1>
       {{
-        mode === "register"
+        mode === "register" || mode === "setup"
           ? t("创建 Jeeves 账号")
           : mode === "forgot" || mode === "reset"
             ? t("找回密码")
@@ -310,6 +393,11 @@ onUnmounted(() => {
       }}
     </h1>
     <p v-if="notice" role="status">{{ notice }}</p>
+    <a v-if="oidc && mode === 'login'" class="primary assistant-link" :href="'/api/oidc/start' + (deviceLogin ? '?next=%2Fdevice%2F' : '')">{{ t("使用第三方账号登录") }}</a>
+    <form v-if="mode === 'mail' && challenge" @submit.prevent="useMailCode">
+      <label>{{ t("邮件验证码") }}<input v-model="mailCode" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" required /></label>
+      <button type="submit" class="primary">{{ t("继续") }}</button>
+    </form>
     <form v-if="mode === 'mail'" @submit.prevent="useMailLink">
       <label>{{ t("在此窗口打开邮件链接") }}<input id="account-mail-link" v-model="mailLink" type="url" autocomplete="off" required /></label>
       <button id="account-open-link" class="primary">{{ t("打开邮件链接") }}</button>
@@ -331,7 +419,7 @@ onUnmounted(() => {
       <small v-if="mode === 'verify'">{{
         t("新账号请设置密码，已有账号请输入原密码。")
       }}</small>
-      <label v-if="['login', 'reset', 'verify'].includes(mode)"
+      <label v-if="['login', 'reset', 'verify', 'setup'].includes(mode)"
         >{{ mode === "reset" ? t("新密码") : t("密码")
         }}<input
           id="account-password"
@@ -351,7 +439,7 @@ onUnmounted(() => {
       /></label>
       <button id="account-submit" class="primary" :disabled="busy">
         {{
-          mode === "register"
+          mode === "register" || mode === "setup"
             ? t("创建账号")
             : mode === "forgot"
               ? t("发送重设邮件")

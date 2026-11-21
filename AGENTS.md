@@ -2,8 +2,8 @@
 
 English | [简体中文](AGENTS.zh.md)
 
-Jeeves is a personal assistant built to complete complex, long-running tasks across deployments. Rust owns logic and state;
-TypeScript covers the browser and the chat gateways.
+Jeeves is a personal assistant built to complete complex, long-running tasks across deployments. Rust owns agent logic and state.
+Go owns the unified gateway and cloud control plane. TypeScript covers the browser and the channel adapters.
 Read [docs/architecture.md](docs/architecture.md) before changing `jeeves-rs/`;
 this file is the working standard for AI coding assistants and human
 contributors alike.
@@ -36,9 +36,11 @@ jeeves-rs/
   jeeves-ops/           dashboard backend (axum + SSE)
   jeeves-cli/           the jeeves binary (REPL / dashboard / eval / mcp / skill)
   jeeves-eval/          deterministic evals + judge + release gate
-jeeves-ts/                 @jeeves/client, @jeeves/gateway, @jeeves/dashboard, @jeeves/ui,
+jeeves-ts/                 @jeeves/client, @jeeves/channels, @jeeves/dashboard, @jeeves/ui,
                         @jeeves/browser-worker
-desktop/                Tauri macOS shell (src-tauri) around the Runtime's own front end (starts `jeeves dashboard`, loads its address)
+  packages/gateway/     Go account, session, device pairing and Runtime routing service
+control-plane/          Go tenant provisioning and model usage service
+desktop/                Tauri Mac device app and source-development Runtime shell
 evals/                  deterministic, replay, long-task and judge scenarios (JSONL)
 docs/                   guide / architecture / configuration / protocol / operations / limitations (+ internals/)
                         internals/ — the implementation tutorial (one chapter per layer)

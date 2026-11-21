@@ -159,7 +159,6 @@ ts-install:
 ts-check: ts-install
     cd {{ ts_dir }} && npm run typecheck
     cd {{ ts_dir }} && npm test
-    cd {{ justfile_directory() }}/control-plane && npm test
     node --test {{ justfile_directory() }}/packaging/npm/install.test.cjs
 
 # End to end: really start app-server, have the TS gateway ask it one thing.
@@ -193,6 +192,16 @@ dashboard-build: ts-install
 smoke-web: dashboard-build
     cd {{ rust_dir }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-web.py
+
+go-check:
+    test -z "$(gofmt -l internal/cloudkit control-plane/*.go jeeves-ts/packages/gateway)"
+    go vet ./...
+    go test -race ./...
+
+local-up: dashboard-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    go build -o {{ rust_dir }}/target/jeeves-gateway ./jeeves-ts/packages/gateway
+    {{ python }} {{ justfile_directory() }}/scripts/local-assistant.py
 
 smoke-account: dashboard-build
     cd {{ rust_dir }} && cargo build --bin jeeves
@@ -307,6 +316,17 @@ desktop-build *configs:
     cd desktop/src-tauri
     cargo tauri build --bundles app "${flags[@]}" "$@"
 
+[macos]
+desktop-device-build origin: desktop-window-helper
+    #!/usr/bin/env bash
+    set -euo pipefail
+    target=$(rustc -vV | sed -n 's/^host: //p')
+    mkdir -p desktop/src-tauri/binaries
+    CGO_ENABLED=0 go build -o "desktop/src-tauri/binaries/jeeves-device-$target" ./jeeves-ts/packages/gateway
+    cp jeeves-rs/target/debug/jeeves-window "desktop/src-tauri/binaries/jeeves-window-$target"
+    cd desktop/src-tauri
+    JEEVES_PUBLIC_ORIGIN="{{origin}}" cargo tauri build --bundles app --features cloud-device --config cloud-device.conf.json
+
 # Start the dashboard → http://localhost:7777 (JEEVES_PORT changes the port).
 dashboard *args:
     cd {{ rust_dir }} && cargo run --bin jeeves -- dashboard {{args}}
@@ -338,7 +358,7 @@ eval-responsibility:
 
 # ---- Run all checks in one command ----------------------------------------------
 # gate sits last: beyond green tests and lint, the deterministic eval must also pass 100%.
-check: fmt-check check-app-server-schema check-architecture check-comments check-doc-paths check-doc-links check-env-reads check-tool-docs check-config-docs check-i18n ts-check eval eval-replay eval-morning-briefing eval-responsibility
+check: fmt-check go-check check-app-server-schema check-architecture check-comments check-doc-paths check-doc-links check-env-reads check-tool-docs check-config-docs check-i18n ts-check eval eval-replay eval-morning-briefing eval-responsibility
     cd {{ rust_dir }} && cargo clippy --workspace --all-targets -- -D warnings
     cd {{ rust_dir }} && cargo test --workspace
 

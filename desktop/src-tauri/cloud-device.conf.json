@@ -1,0 +1,14 @@
+{
+  "productName": "Jeeves Device",
+  "identifier": "app.jeeves.cloud-device",
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "externalBin": ["binaries/jeeves-device", "binaries/jeeves-window"],
+    "resources": null
+  }
+}

@@ -244,7 +244,7 @@ L1 分类器只看消息文本。
   所以 SMTP 结果未知时只报告，不重放。
   → `jeeves-rs/jeeves-connector/src/{calendar,email}.rs`
 * **未做** — 微信公众号和 Lark 网关从未对接过真实平台，只对假服务测试过。WhatsApp 和语音网关不存在。
-  → `jeeves-ts/packages/gateway/`
+  → `jeeves-ts/packages/channels/`
 
 ## 运维
 

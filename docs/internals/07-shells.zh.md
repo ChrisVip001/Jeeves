@@ -152,7 +152,7 @@ Vue 3 + Vite 前端；后端是 `jeeves-ops`（7.4）。`npm run build` 先类�
 
 ## 7.7 聊天网关
 
-`@jeeves/gateway` 包含 `JeevesBridge` 和两个平台适配器：Lark/飞书（`lark.ts`、`bin-lark.ts`）和微信公众号
+`@jeeves/channels` 包含 `JeevesBridge` 和两个平台适配器：Lark/飞书（`lark.ts`、`bin-lark.ts`）和微信公众号
 （`wechat.ts`、`bin-wechat.ts`）。独立运行：`just gateway-lark`、`just gateway-wechat`。
 
 | | Lark / 飞书 | 微信 |
@@ -183,7 +183,7 @@ Vue 3 + Vite 前端；后端是 `jeeves-ops`（7.4）。`npm run build` 先类�
 
 - 设置存于 `<home>/gateways.json`（`enabled`、`appId`、`allow`、`dispatchers`、`domain`）；应用密钥存入密钥库，账户名
   `gateway:lark:app-secret`，API 从不读回。`allow` 和 `dispatchers` 中的 id 必须以 `ou_` 开头。
-- `start` 启动 `node jeeves-ts/packages/gateway/src/bin-lark.ts`（可用 `JEEVES_GATEWAY_BIN` 覆盖），传入 Lark 变量和指向本 Runtime 的
+- `start` 启动 `node jeeves-ts/packages/channels/src/bin-lark.ts`（可用 `JEEVES_GATEWAY_BIN` 覆盖），传入 Lark 变量和指向本 Runtime 的
   `JEEVES_GATEWAY_URL`，设置了令牌时还传 `JEEVES_OPS_TOKEN`。网关通过 `POST /api/gateway/rpc` 和 `/api/notifications` 附着。
 - **认领流程**：`allow` 为空时进程以 `LARK_CLAIM=1` 运行，不回答任何人；第一个发消息的人以 `claim candidate: <open_id>`
   写到 stderr，由 Runtime 捕获。带该 id 调用 `POST /api/connections/lark/claim` 会把它写成唯一的允许名单条目并重启网关；

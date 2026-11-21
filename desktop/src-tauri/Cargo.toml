@@ -4,6 +4,9 @@ version = "0.17.0"
 description = "The Jeeves desktop shell: the cockpit front end plus a client for any Jeeves server"
 edition = "2021"
 
+[features]
+cloud-device = []
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

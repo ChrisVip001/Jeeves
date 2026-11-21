@@ -24,11 +24,12 @@ per-layer implementation tutorial is under `docs/internals/`.
 
 ## Multi-tenancy
 
-A tenant is one `JEEVES_HOME`. Jeeves itself is single-tenant; a hosted service runs one silo per
-user: one Pod and one volume holding that user's home. `control-plane/` is the cloud shell
-around the unchanged engine (accounts, per-user Pod and volume, wake on demand and idle sleep,
-a metering model proxy so the platform key never reaches a user Pod); see
-[control-plane/README.md](../control-plane/README.md).
+A tenant has one workspace and one active Rust Runtime. The ingress forwards authenticated product
+traffic through the [Go unified gateway](../jeeves-ts/packages/gateway/README.md), which owns user
+accounts, sessions and Runtime routing. The private [Go control plane](../control-plane/README.md)
+reconciles one Pod and one persistent volume per tenant and meters platform model usage. The
+Runtime retains chat, tasks, checkpoints, memory and outputs in its own `JEEVES_HOME`. A source
+installation runs the same gateway and Runtime on loopback through `just local-up`.
 
 Engine-side pieces a host relies on:
 

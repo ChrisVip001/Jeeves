@@ -1,5 +1,17 @@
 /** Shared UI text. The Web host supplies its translator; desktop defaults to Chinese. */
 export const UI_EN: Record<string, string> = {
+  "使用第三方账号登录": "Sign in with a provider",
+  "绑定第三方账号": "Link a sign-in provider",
+  "请使用密码和双因素验证码登录。": "Sign in with your password and two-factor code.",
+  "已连接的 Mac": "Connected Macs",
+  "在线": "Online",
+  "离线": "Offline",
+  "解除连接": "Disconnect",
+  "解除连接失败，请重试。": "Could not disconnect this Mac. Try again.",
+  "无法载入用量和设备。请收起后重新打开。": "Could not load usage and devices. Close and reopen this section to retry.",
+  "邮件验证码": "Email code",
+  "正在准备你的工作区…": "Getting your workspace ready…",
+  "工作区还在准备中。": "Your workspace is still starting.",
   "我的事项": "My work",
   "搜索事项": "Search work",
   "没有找到匹配的事项。": "No matching work.",

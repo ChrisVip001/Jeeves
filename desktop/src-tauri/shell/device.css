@@ -1,0 +1,6 @@
+:root { color-scheme: light dark; font: 15px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; }
+body { margin: 0; }
+main { margin: 26px; }
+h1 { font-size: 30px; margin: 0 0 12px; }
+p { min-height: 3.1em; }
+button { border: 1px solid; padding: 9px 16px; border-radius: 9px; font: inherit; cursor: pointer; }

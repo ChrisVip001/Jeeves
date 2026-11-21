@@ -76,12 +76,12 @@ fn save(home: &Path, config: &LarkConfig) -> Result<()> {
         .context("could not write gateways.json")
 }
 
-/// `jeeves-ts/packages/gateway/src/bin-lark.ts` next to this checkout (override: `JEEVES_GATEWAY_BIN`).
+/// `jeeves-ts/packages/channels/src/bin-lark.ts` next to this checkout (override: `JEEVES_GATEWAY_BIN`).
 fn gateway_bin() -> PathBuf {
     match std::env::var_os("JEEVES_GATEWAY_BIN") {
         Some(bin) => PathBuf::from(bin),
         None => Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../jeeves-ts/packages/gateway/src/bin-lark.ts"),
+            .join("../../jeeves-ts/packages/channels/src/bin-lark.ts"),
     }
 }
 

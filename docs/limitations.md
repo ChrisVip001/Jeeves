@@ -348,7 +348,7 @@ straight from the file header.
   → `jeeves-rs/jeeves-connector/src/{calendar,email}.rs`
 * **Gap** — The WeChat Official Account and Lark gateways have never been pointed at the real platforms; they
   are tested against fakes only. WhatsApp and voice gateways do not exist.
-  → `jeeves-ts/packages/gateway/`
+  → `jeeves-ts/packages/channels/`
 
 ## Operations
 

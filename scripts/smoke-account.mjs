@@ -1,380 +1,258 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { once } from "node:events";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { request } from "node:http";
-import { createServer } from "node:https";
-import { setTimeout as delay } from "node:timers/promises";
+import { createServer } from "node:http";
+import { createServer as tcp } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { accountMailer } from "../control-plane/src/mail.ts";
-import { totp } from "../control-plane/src/factors.ts";
-import { Accounts } from "../control-plane/src/accounts.ts";
-import { createControlPlane } from "../control-plane/src/server.ts";
-import { singleRuntime } from "../control-plane/src/single-runtime.ts";
-import { MemoryCluster } from "../control-plane/src/cluster.ts";
+import { chromium, devices } from "../jeeves-ts/node_modules/playwright/index.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= join(
-  root,
-  "desktop/src-tauri/browser-runtime/browsers",
-);
-const { chromium, devices } =
-  await import("../jeeves-ts/node_modules/playwright/index.mjs");
-const dir = mkdtempSync(join(tmpdir(), "jeeves-account-smoke-"));
-const child = spawn("python3", ["scripts/smoke-web.py", "--hold"], {
-  cwd: root,
-  stdio: ["pipe", "pipe", "inherit"],
+const directory = mkdtempSync(join(tmpdir(), "jeeves-cloud-account-"));
+const children = [];
+const inbox = new Map();
+const mail = createServer(async (req, res) => {
+  let raw = "";
+  for await (const chunk of req) raw += chunk;
+  const letter = JSON.parse(raw);
+  const lines = letter.text.split("\n\n");
+  const address = letter.to[0];
+  inbox.set(address, { link: lines[1], code: lines[2] });
+  res.writeHead(202).end();
 });
-const done = once(child, "exit");
-let browser, gateway, hostedGateway, edge;
-async function listen(server) {
-  await new Promise((resolve, reject) =>
-    server.once("error", reject).listen(0, "127.0.0.1", resolve),
-  );
-  return server.address().port;
+let browser;
+const stopChildren = () => {
+  for (const child of children) if (child.exitCode === null) child.kill("SIGTERM");
+};
+process.on("SIGINT", stopChildren);
+process.on("SIGTERM", stopChildren);
+
+function authenticator(secret) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bits = [...secret].map(letter => alphabet.indexOf(letter).toString(2).padStart(5, "0")).join("");
+  const key = Buffer.from((bits.match(/.{8}/g) ?? []).map(value => parseInt(value, 2)));
+  const time = Buffer.alloc(8);
+  time.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30000)));
+  const hash = createHmac("sha1", key).update(time).digest();
+  const start = hash.at(-1) & 15;
+  return String((hash.readUInt32BE(start) & 0x7fffffff) % 1000000).padStart(6, "0");
 }
+
+async function freePort() {
+  const server = tcp();
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address().port;
+  await new Promise(resolve => server.close(resolve));
+  return address;
+}
+
+function run(program, args, env = {}) {
+  const child = spawn(program, args, { cwd: root, env: { ...process.env, ...env }, stdio: ["ignore", "pipe", "inherit"] });
+  children.push(child);
+  return child;
+}
+
+async function poll(check, label, timeout = 20000) {
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    try {
+      const value = await check();
+      if (value) return value;
+    } catch {}
+    await delay(120);
+  }
+  throw new Error("Timed out: " + label);
+}
+
 try {
-  let runtime;
-  for await (const line of createInterface({ input: child.stdout })) {
-    const ready = line.match(/^Web smoke passed; (http:\/\/127\.0\.0\.1:\d+)/);
-    if (ready) {
-      runtime = ready[1];
-      break;
-    }
+  await new Promise(resolve => mail.listen(0, "127.0.0.1", resolve));
+  const fixture = run("python3", ["-u", "scripts/cloud-runtime-fixture.py"], { PYTHONDONTWRITEBYTECODE: "1" });
+  let runtimeURL;
+  for await (const line of createInterface({ input: fixture.stdout })) {
+    if (line.startsWith("http://127.0.0.1:")) { runtimeURL = line; break; }
   }
-  assert.ok(runtime, "fixture Runtime did not start");
-  execFileSync(
-    "openssl",
-    [
-      "req",
-      "-x509",
-      "-newkey",
-      "rsa:2048",
-      "-nodes",
-      "-days",
-      "1",
-      "-subj",
-      "/CN=localhost",
-      "-keyout",
-      join(dir, "test.key"),
-      "-out",
-      join(dir, "test.crt"),
-    ],
-    { stdio: "ignore" },
-  );
-  let gatewayPort;
-  edge = createServer(
-    {
-      key: readFileSync(join(dir, "test.key")),
-      cert: readFileSync(join(dir, "test.crt")),
-    },
-    (req, res) => {
-      const up = request(
-        {
-          hostname: "127.0.0.1",
-          port: gatewayPort,
-          path: req.url,
-          method: req.method,
-          headers: { ...req.headers, "x-forwarded-proto": "https" },
-        },
-        (reply) => {
-          res.writeHead(reply.statusCode, reply.headers);
-          reply.pipe(res);
-        },
-      );
-      res.once("close", () => up.destroy());
-      up.on("error", () => res.destroy());
-      req.pipe(up);
-    },
-  );
-  const origin = "https://127.0.0.1:" + (await listen(edge));
-  const inbox = new Map();
-  const mail = accountMailer(
-    origin,
-    "jeeves@example.test",
-    "test-only",
-    async (url, options) => {
-      assert.equal(url, "https://api.resend.com/emails");
-      const message = JSON.parse(options.body);
-      const link = new URL(message.text.split("\n\n")[1]);
-      assert.equal(link.origin, origin);
-      assert.equal(link.pathname, "/account/");
-      inbox.set(message.to[0], link.href);
-      return Response.json({ id: "fixture-mail" });
-    },
-  );
-  const email = "owner@example.test";
-  const password = "browser-fixture-password";
-  const accounts = new Accounts(join(dir, "db"), "test-secret");
-  const owner = singleRuntime(accounts, email, password);
-  gateway = createControlPlane(accounts, owner.cluster, {
-    image: "fixture",
-    namespace: "fixture",
-    publicModelUrl: "",
-    idleMinutes: 1,
-    proxy: { upstream: "", key: "", monthlyTokens: 0 },
-    mail,
-    publicOrigin: origin,
-    podAddress: () => runtime,
-    single: { ownerId: owner.ownerId, token: "web-fixture-token" },
-  }).server;
-  gatewayPort = await listen(gateway);
-  browser = await chromium.launch({channel: process.env.JEEVES_TEST_BROWSER_CHANNEL});
-  async function login(options) {
-    const ctx = await browser.newContext({
-      ...options,
-      locale: "en-US",
-      ignoreHTTPSErrors: true,
-    });
-    const page = await ctx.newPage();
-    await page.goto(origin);
-    await page.getByLabel("Email address").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill(password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    if (!accounts.byId(owner.ownerId).verified) {
-      await page.getByRole("heading", { name: "Check your email" }).waitFor();
-      await page.goto(inbox.get(email));
-      await page.getByLabel("Password", { exact: true }).fill(password);
-      await page
-        .getByRole("button", { name: "Verify email", exact: true })
-        .click();
-    }
-    await page.getByRole("link", { name: "Open my assistant" }).waitFor();
-    assert.equal(
-      (await ctx.cookies()).find((c) => c.name === "__Host-jeeves_session")
-        ?.httpOnly,
-      true,
-    );
-    return page;
-  }
-  const mac = await login({
-    viewport: { width: 1180, height: 800 },
-    userAgent: "Jeeves test Macintosh",
+  assert.ok(runtimeURL, "Rust Runtime failed to start");
+  const control = join(directory, "control-plane");
+  const gateway = join(directory, "gateway");
+  execFileSync("go", ["build", "-o", control, "./control-plane"], { cwd: root, stdio: "inherit" });
+  execFileSync("go", ["build", "-o", gateway, "./jeeves-ts/packages/gateway"], { cwd: root, stdio: "inherit" });
+  const key = join(directory, "tls.key");
+  const cert = join(directory, "tls.crt");
+  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+    "-subj", "/CN=localhost", "-keyout", key, "-out", cert], { stdio: "ignore" });
+  const controlPort = await freePort();
+  const gatewayPort = await freePort();
+  const controlOrigin = "http://127.0.0.1:" + controlPort;
+  const origin = "https://127.0.0.1:" + gatewayPort;
+  const serviceKey = "local-fixture-private-service-key-123";
+  const database = name => {
+    const supplied = process.env["JEEVES_TEST_" + name.toUpperCase() + "_DATABASE"];
+    if (!supplied) return "sqlite:" + join(directory, name + ".sqlite");
+    const url = new URL(supplied);
+    assert.equal(url.protocol, "postgres:");
+    assert.ok(["localhost", "127.0.0.1"].includes(url.hostname) && url.pathname === "/jeeves_test_" + name);
+    return url.toString();
+  };
+  run(control, [], {
+    CP_DEVELOPMENT: "1", CP_ADDR: "127.0.0.1:" + controlPort,
+    CP_DATABASE_URL: database("control"), CP_STATE_KEY: "control-plane-fixture-storage-12345",
+    CP_GATEWAY_TOKEN: serviceKey, CP_TEST_RUNTIME_URL: runtimeURL, CP_TEST_RUNTIME_TOKEN: "web-fixture-token",
   });
-  const phone = await login(devices["iPhone 13"]);
-  const app = origin + "/app/" + owner.ownerId + "/";
-  const loaded = mac.waitForResponse(
-    (r) => r.url().startsWith(app + "api/data") && r.ok(),
-  );
-  await mac.getByRole("link", { name: "Open my assistant" }).click();
-  await loaded;
-  const task = await (
-    await mac.request.post(app + "api/task", {
-      data: { action: "create", title: "Cross-device account fixture" },
-    })
-  ).json();
-  assert.ok(task.task?.id);
-  const phoneReady = phone.waitForResponse(
-    (r) => r.url().startsWith(app + "api/data") && r.ok(),
-  );
-  await phone.getByRole("link", { name: "Open my assistant" }).click();
-  await phoneReady;
-  const tasks = await (await phone.request.get(app + "api/tasks")).json();
-  assert.ok(tasks.tasks.some((t) => t.id === task.task.id));
-  await phone.locator(".mobile-menu").click();
-  await phone
-    .getByRole("link", { name: "Account", exact: true })
-    .first()
-    .click();
-  await phone.locator(".account-security > summary").click();
-  await phone
-    .getByRole("listitem")
-    .filter({ hasText: "Mac" })
-    .getByRole("button", { name: "Sign out" })
-    .click();
-  await phone
-    .getByRole("listitem")
-    .filter({ hasText: "Mac" })
-    .waitFor({ state: "detached" });
-  assert.equal((await mac.request.get(app + "api/tasks")).status(), 401);
-  assert.equal((await phone.request.get(app + "api/tasks")).status(), 200);
-  await phone.getByRole("button", { name: "Sign out", exact: true }).click();
-  await phone.getByRole("heading", { name: "Sign in to Jeeves" }).waitFor();
-  assert.equal((await phone.request.get(app + "api/tasks")).status(), 401);
-  const ownerPage = await login({});
-  await ownerPage.locator(".account-security > summary").click();
-  await ownerPage.getByText("Change password", { exact: true }).click();
-  await ownerPage
-    .locator(".account-security > details[open]")
-    .getByLabel("Current password")
-    .fill(password);
-  await ownerPage
-    .getByLabel("New password")
-    .fill("updated-browser-fixture-password");
-  await ownerPage.getByRole("button", { name: "Update password" }).click();
-  await ownerPage.getByRole("heading", { name: "Sign in to Jeeves" }).waitFor();
-  await ownerPage.getByLabel("Email address").fill(email);
-  await ownerPage
-    .getByLabel("Password", { exact: true })
-    .fill("updated-browser-fixture-password");
-  await ownerPage.getByRole("button", { name: "Sign in", exact: true }).click();
-  await ownerPage.getByRole("link", { name: "Open my assistant" }).waitFor();
-  const hostedAccounts = new Accounts(join(dir, "hosted-db"), "test-secret");
-  hostedGateway = createControlPlane(hostedAccounts, new MemoryCluster(), {
-    image: "fixture",
-    namespace: "fixture",
-    publicModelUrl: "http://model",
-    idleMinutes: 20,
-    proxy: {
-      upstream: "https://model.example.test",
-      key: "fixture",
-      monthlyTokens: 100,
-    },
-    mail,
-    publicOrigin: origin,
-  }).server;
-  gatewayPort = await listen(hostedGateway);
-  const signup = await (
-    await browser.newContext({ locale: "en-US", ignoreHTTPSErrors: true })
-  ).newPage();
-  await signup.goto(origin);
-  await signup.getByRole("button", { name: "Create an account" }).click();
-  await signup.getByLabel("Email address").fill("new@example.test");
-  await signup
-    .getByRole("button", { name: "Create account", exact: true })
-    .click();
-  await signup.getByRole("heading", { name: "Check your email" }).waitFor();
-  const address = "new@example.test";
-  const first = "signup-fixture-password";
-  const second = "reset-fixture-password";
-  const verify = inbox.get(address);
-  await signup.goto(verify);
-  await signup.getByLabel("Password", { exact: true }).fill(first);
-  await signup
-    .getByRole("button", { name: "Verify email", exact: true })
-    .click();
-  await signup.getByText(address, { exact: true }).waitFor();
-  const verifyToken = new URLSearchParams(new URL(verify).hash.slice(1)).get(
-    "token",
-  );
-  assert.equal(
-    (
-      await signup.request.post(origin + "/api/verify", {
-        data: { email: address, password: first, token: verifyToken },
-      })
-    ).status(),
-    400,
-  );
-  await signup.locator(".account-security > summary").click();
-  await signup
-    .locator("summary")
-    .filter({ hasText: "Two-factor authentication" })
-    .click();
-  await signup
-    .locator(".account-security > details[open]")
-    .getByLabel("Current password")
-    .fill(first);
-  await signup.getByRole("button", { name: "Set up authenticator" }).click();
-  const key = await signup.locator("details code").innerText();
-  const setupStep = Math.floor(Date.now() / 30000);
-  await signup
-    .getByLabel("Authenticator or recovery code")
-    .fill(totp(key, setupStep));
-  await signup.getByRole("button", { name: "Confirm enrollment" }).click();
-  const backups = (await signup.locator("details pre").innerText()).split("\n");
-  assert.equal(backups.length, 8);
-  const mobile = await (
-    await browser.newContext({
-      ...devices["iPhone 13"],
-      locale: "en-US",
-      ignoreHTTPSErrors: true,
-    })
-  ).newPage();
-  await mobile.goto(origin);
-  await mobile.getByRole("button", { name: "Forgot password" }).click();
-  await mobile.getByLabel("Email address").fill(address);
-  await mobile.getByRole("button", { name: "Send reset email" }).click();
-  await mobile.getByRole("heading", { name: "Check your email" }).waitFor();
-  const reset = inbox.get(address);
-  await mobile.goto(reset);
-  await mobile.getByLabel("New password").fill(second);
-  await mobile.getByRole("button", { name: "Update password" }).click();
-  await mobile.getByRole("heading", { name: "Sign in to Jeeves" }).waitFor();
-  assert.equal(
-    (await signup.request.get(origin + "/api/account")).status(),
-    401,
-  );
-  const resetToken = new URLSearchParams(new URL(reset).hash.slice(1)).get(
-    "token",
-  );
-  assert.equal(
-    (
-      await mobile.request.post(origin + "/api/reset", {
-        data: { email: address, password: first, token: resetToken },
-      })
-    ).status(),
-    400,
-  );
-  assert.equal(
-    (
-      await mobile.request.post(origin + "/api/login", {
-        data: { email: address, password: first },
-      })
-    ).status(),
-    401,
-  );
-  await mobile.getByLabel("Password", { exact: true }).fill(second);
-  await mobile.getByRole("button", { name: "Sign in", exact: true }).click();
-  await mobile
-    .getByRole("heading", { name: "Two-factor authentication" })
-    .waitFor();
-  assert.equal(
-    (await mobile.request.get(origin + "/api/account")).status(),
-    401,
-  );
-  await mobile.getByLabel("Authenticator or recovery code").fill(backups[0]);
-  await mobile.getByRole("button", { name: "Sign in", exact: true }).click();
-  await mobile.getByText(address, { exact: true }).waitFor();
-  await signup.goto(origin);
-  await signup.getByLabel("Email address").fill(address);
-  await signup.getByLabel("Password", { exact: true }).fill(second);
-  await signup.getByRole("button", { name: "Sign in", exact: true }).click();
-  await signup.getByLabel("Authenticator or recovery code").fill(backups[0]);
-  await signup.getByRole("button", { name: "Sign in", exact: true }).click();
-  await signup.getByRole("alert").waitFor();
-  await delay(Math.max(0, (setupStep + 1) * 30000 - Date.now()));
-  await signup
-    .getByLabel("Authenticator or recovery code")
-    .fill(totp(key, Math.floor(Date.now() / 30000)));
-  await signup.getByRole("button", { name: "Sign in", exact: true }).click();
-  await signup.getByText(address, { exact: true }).waitFor();
-  assert.equal(
-    (await (await signup.request.get(origin + "/api/account")).json()).app,
-    (await (await mobile.request.get(origin + "/api/account")).json()).app,
-  );
-  await mobile.locator(".account-security > summary").click();
-  await mobile
-    .locator("summary")
-    .filter({ hasText: "Two-factor authentication" })
-    .click();
-  await mobile
-    .locator(".account-security > details[open]")
-    .getByLabel("Current password")
-    .fill(second);
-  await mobile.getByLabel("Authenticator or recovery code").fill(backups[1]);
-  await mobile
-    .getByRole("button", { name: "Disable two-factor authentication" })
-    .click();
-  await mobile.getByRole("button", { name: "Set up authenticator" }).waitFor();
-  assert.equal(
-    (await signup.request.get(origin + "/api/account")).status(),
-    401,
-  );
-  assert.equal(hostedAccounts.all().length, 1);
-  console.log(
-    "Account smoke passed: registration, HTTPS login, desktop/mobile workspace, shared task, session revocation, password change, verified signup, email reset, authenticator login and one-use recovery.",
-  );
-} finally {
-  await browser?.close();
-  for (const server of [gateway, hostedGateway, edge]) {
-    server?.closeAllConnections();
-    server?.close();
+  await poll(async () => (await fetch(controlOrigin + "/healthz")).ok, "Go control plane");
+  run(gateway, [], {
+    GW_DEVELOPMENT: "1", GW_ADDR: "127.0.0.1:" + gatewayPort, GW_PUBLIC_ORIGIN: origin,
+    GW_TLS_CERT: cert, GW_TLS_KEY: key,
+    GW_DATABASE_URL: database("gateway"), GW_SESSION_KEY: "test-fixture-session-key-12345678",
+    GW_STATE_KEY: "test-fixture-storage-key-12345678", GW_CONTROL_TOKEN: serviceKey, GW_CONTROL_URL: controlOrigin,
+    GW_MAIL_FROM: "jeeves@example.test", GW_RESEND_API_KEY: "placeholder",
+    GW_TEST_MAIL_URL: "http://127.0.0.1:" + mail.address().port,
+  });
+  browser = await chromium.launch({ channel: process.env.JEEVES_TEST_BROWSER_CHANNEL ?? "chrome" });
+  const desktop = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-US", userAgent: "Test Macintosh" });
+  const phone = await browser.newContext({ ...devices["iPhone 13"], ignoreHTTPSErrors: true, locale: "en-US" });
+  await poll(async () => (await desktop.request.get(origin + "/healthz")).ok(), "Go gateway");
+  const email = "new-user@example.test";
+  let password = "new-account-smoke-password";
+  const page = await desktop.newPage();
+  page.setDefaultTimeout(10000);
+  page.setDefaultNavigationTimeout(10000);
+  page.on("pageerror", e => console.error("Dashboard browser error:", e.message));
+  page.on("response", res => { if (res.url().endsWith("/api/interaction") || res.status() >= 500) console.error("Dashboard reply", res.status(), new URL(res.url()).pathname); });
+
+  await page.goto(origin);
+  await page.getByRole("button", { name: "Create an account" }).click();
+  await page.getByLabel("Email address").fill(email);
+  await page.locator("#account-submit").click();
+  await page.getByRole("heading", { name: "Check your email" }).waitFor();
+  const verification = await poll(() => inbox.get(email), "verification email");
+  assert.equal(new URL(verification.link).origin, origin);
+  await page.getByLabel("Email code").fill(verification.code);
+  await page.getByLabel("Email code").press("Enter");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.locator("#account-submit").click();
+  await page.waitForURL(/\/app\/u-[a-f0-9]{12}\//);
+  const workspace = new URL(page.url()).pathname;
+  const api = origin + workspace + "api/";
+  await page.locator("#input").waitFor();
+  await poll(() => page.locator("#input").isEnabled(), "workspace composer");
+  const policy = await desktop.request.post(api + "session/permission", { data: {
+    sessionId: "jeeves-main", mode: "fullAccess", expectedRevision: 1, confirmFullAccess: true,
+  } });
+  assert.ok(policy.ok(), await policy.text());
+  await page.locator("#input").fill("task-alpha-fixture");
+  try {
+    await Promise.all([
+      page.waitForResponse(res => res.url().endsWith("/api/interaction"), {timeout: 12000}),
+      page.locator("#send").click({timeout: 10000}),
+    ]);
+  } catch (error) {
+    console.error((await page.locator("body").innerText()).slice(-1700));
+    throw error;
   }
-  if (!child.stdin.destroyed) child.stdin.end("\n");
-  const [exit] = await done;
-  rmSync(dir, { recursive: true, force: true });
-  assert.equal(exit, 0, "fixture Runtime failed");
+  const task = await poll(async () => {
+    const payload = await (await desktop.request.get(api + "tasks")).json();
+    return payload.tasks?.find(t => t.title === "task-alpha-fixture" && t.status === "done");
+  }, "first task").catch(async error => { console.error(await (await desktop.request.get(api+"tasks")).text()); console.error((await page.locator("body").innerText()).slice(-1700)); throw error; });
+  await page.locator("#mode-cowork").click();
+  await page.locator(`[data-cowork-task="${task.id}"]`).click();
+  await page.locator(".work-file").filter({ hasText: "report.txt" }).click();
+  const review = page.getByRole("complementary", { name: /report.txt/ });
+  assert.equal(await review.locator("pre").textContent(), "task-alpha-fixture");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    review.getByRole("button", { name: "Save text copy" }).click(),
+  ]);
+  assert.equal(download.suggestedFilename(), "report.txt");
+  assert.equal(readFileSync(await download.path(), "utf8"), "task-alpha-fixture");
+  const mobile = await phone.newPage();
+  mobile.setDefaultTimeout(10000);
+  mobile.setDefaultNavigationTimeout(10000);
+  async function login(target) {
+    await target.goto(origin);
+    await target.getByLabel("Email address").fill(email);
+    await target.getByLabel("Password", { exact: true }).fill(password);
+    await target.locator("#account-submit").click();
+  }
+  await login(mobile);
+  await mobile.waitForURL(origin + workspace);
+  await mobile.locator("#mode-cowork").click();
+  await mobile.getByRole("button", { name: /task-alpha-fixture/ }).click();
+  await mobile.locator("#cowork-input").fill("task-follow-fixture");
+  await mobile.locator("#cowork-send").click();
+  await poll(async () => {
+    const payload = await (await phone.request.get(api + "tasks")).json();
+    return payload.tasks?.find(t => t.id === task.id && t.runCount >= 2 && t.status === "done");
+  }, "the same task completed after phone revision");
+  assert.equal((await phone.request.get(origin + "/app/u-000000000000/api/session/main")).status(), 403);
+  assert.equal((await phone.request.post(api + "gateway/rpc", { data: {} })).status(), 404);
+  console.log("Registration, delivery preview/download and cross-client continuation passed");
+
+  await mobile.goto(origin + "/account/");
+  await mobile.locator(".account-security > summary").click();
+  await mobile.getByRole("listitem").filter({ hasText: "Mac" }).getByRole("button", { name: "Sign out" }).click();
+  assert.equal((await desktop.request.get(api + "tasks")).status(), 401);
+  console.log("Remote session revocation passed");
+
+  await page.goto(origin + "/account/");
+  await page.locator("#account-forgot").click();
+  await page.getByLabel("Email address").fill(email);
+  await page.locator("#account-submit").click();
+  const reset = await poll(() => inbox.get(email) !== verification && inbox.get(email), "password reset email");
+  console.log("Reset email received");
+  await page.locator("#account-mail-link").fill(reset.link);
+  await page.locator("#account-open-link").click();
+  password = "changed-account-smoke-password";
+  await page.getByLabel("New password").fill(password);
+  const [resetReply] = await Promise.all([
+    page.waitForResponse(res => res.url().endsWith("/api/reset"), { timeout: 5000 }),
+    page.locator("#account-submit").click(),
+  ]);
+  if (!resetReply.ok()) assert.fail(await resetReply.text());
+  console.log("Reset accepted by gateway");
+  await page.getByRole("heading", { name: "Sign in to Jeeves" }).waitFor();
+  assert.equal((await phone.request.get(api + "tasks")).status(), 401);
+  await login(page);
+  await page.waitForURL(origin + workspace);
+  const receipt = await (await desktop.request.get(api + "tasks")).json();
+  assert.ok(receipt.tasks.some(t => t.id === task.id && t.runCount >= 2));
+  const cookie = (await desktop.cookies()).find(c => c.name === "__Host-jeeves_session");
+  assert.ok(cookie?.secure && cookie.httpOnly);
+  console.log("Password recovery and task lookup passed");
+
+  await page.goto(origin + "/account/");
+  await page.locator(".account-security > summary").click();
+  await page.locator("#account-factor-settings").click();
+  await page.locator("#factor-password").fill(password);
+  await page.locator("#factor-submit").click();
+  const secret = await page.locator("#factor-setup-key").innerText();
+  await page.locator("#factor-code").fill(authenticator(secret));
+  await page.locator("#factor-submit").click();
+  const recovery = (await page.locator(".account-security pre").innerText()).split("\n")[0];
+  await page.locator("#account-logout").click();
+  await page.getByRole("heading", { name: "Sign in to Jeeves" }).waitFor();
+  await login(page);
+  await page.getByRole("heading", { name: "Two-factor authentication" }).waitFor();
+  await page.locator("#account-code").fill(recovery);
+  await page.locator("#account-submit").click();
+  await page.waitForURL(origin + workspace);
+  assert.ok((await (await desktop.request.get(api + "tasks")).json()).tasks.some(t => t.id === task.id && t.runCount >= 2));
+  const secondUse = await phone.request.post(origin + "/api/login", { data: { email, password, code: recovery } });
+  assert.equal(secondUse.status(), 403);
+  console.log("Go gateway → Go control plane → Rust Runtime passed the full isolated browser acceptance.");
+} catch (error) {
+  console.error(error);
+  throw error;
+} finally {
+  const waiting = children.map(child => child.exitCode !== null ? Promise.resolve() : once(child, "exit"));
+  stopChildren();
+  if (browser) await Promise.race([browser.close(), delay(5000)]);
+  await Promise.race([Promise.all(waiting), delay(12000)]);
+  for (const child of children) if (child.exitCode === null) child.kill("SIGKILL");
+  mail.close();
+  rmSync(directory, { recursive: true, force: true });
 }

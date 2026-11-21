@@ -8,7 +8,7 @@ English | [简体中文](README.zh.md)
 
 Give Jeeves an outcome to deliver. For an incident review, that might mean gathering evidence, checking the figures and producing a report another person can verify. In main chat you can name an output file and quote text it must contain. The task can check the file, correct a missing result and bring the outcome back to the conversation. Open the original task from its receipt to follow up. [Main chat and task threads](docs/design/main-entry.md) · [Long-task roadmap](docs/planning/long-task-roadmap.md)
 
-The same Rust Runtime can run on a personal computer, on a self-hosted server or in an isolated per-user deployment behind the cloud control plane. The deployment determines where task state and tools live. Models and connectors use the providers configured for that Runtime. [Architecture](docs/architecture.md) · [Email verification, password recovery, two-factor sign-in and hosted deployment](control-plane/README.md)
+Cloud users sign in through one Go gateway. Rust Runtimes isolate tasks and data per tenant. Run a source installation in your local browser with `just local-up`. [Architecture](docs/architecture.md) · [Unified gateway](jeeves-ts/packages/gateway/README.md) · [Hosted deployment](control-plane/README.md)
 
 Pair a device by public key and revoke its grant through the [device protocol](docs/protocol.md#device-pairing-and-revocation). The cockpit’s [global emergency stop](docs/protocol.md#global-emergency-stop) freezes managed task browsers across restarts. Take over a task browser from your phone or desktop and [save a download to that task](docs/protocol.md#remote-browser-input-and-downloads).
 
@@ -26,7 +26,7 @@ Coding tasks can run an approved CLI in a private Git worktree. A parent can int
 
 Jeeves runs on macOS and Linux (Windows through WSL2). After any install, the dashboard opens a three-step wizard that connects a model and sets permissions; see the [getting started guide](docs/guide.md).
 
-**Mac app** — a thin shell around the Runtime's own front end, built from source:
+**Mac development** can build the Runtime and its cockpit into a test app.
 
 ```bash
 just desktop-install   # one-time setup

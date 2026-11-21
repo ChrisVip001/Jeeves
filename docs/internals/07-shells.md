@@ -167,7 +167,7 @@ and placeholders match.
 
 ## 7.7 Chat gateways
 
-`@jeeves/gateway` holds `JeevesBridge` and two platform adapters: Lark/Feishu (`lark.ts`, `bin-lark.ts`) and WeChat Official Account
+`@jeeves/channels` holds `JeevesBridge` and two platform adapters: Lark/Feishu (`lark.ts`, `bin-lark.ts`) and WeChat Official Account
 (`wechat.ts`, `bin-wechat.ts`). Standalone runs: `just gateway-lark`, `just gateway-wechat`.
 
 | | Lark / Feishu | WeChat |
@@ -203,7 +203,7 @@ second terminal:
 - Settings are stored in `<home>/gateways.json` (`enabled`, `appId`, `allow`, `dispatchers`, `domain`); the app secret goes to
   the secret store under account `gateway:lark:app-secret` and is never read back through the API. Ids in `allow` and `dispatchers` must
   start with `ou_`.
-- `start` spawns `node jeeves-ts/packages/gateway/src/bin-lark.ts` (override with `JEEVES_GATEWAY_BIN`) with the Lark variables and
+- `start` spawns `node jeeves-ts/packages/channels/src/bin-lark.ts` (override with `JEEVES_GATEWAY_BIN`) with the Lark variables and
   `JEEVES_GATEWAY_URL` pointing at this Runtime, plus `JEEVES_OPS_TOKEN` when a token is set. The gateway attaches through
   `POST /api/gateway/rpc` and `/api/notifications`.
 - **Claim flow**: with an empty `allow` the process runs with `LARK_CLAIM=1` and answers nobody; the first sender is reported on stderr as

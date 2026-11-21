@@ -2,8 +2,8 @@
 
 [English](AGENTS.md) | 简体中文
 
-Jeeves 是面向复杂长任务的超级个人助理，可按需要部署。Rust 持有逻辑与状态，TypeScript 负责浏览器
-与聊天网关。改 `jeeves-rs/` 前先读
+Jeeves 是面向复杂长任务的超级个人助理，可按需要部署。Rust 持有助理逻辑与状态。
+Go 负责统一网关和云控制面，TypeScript 负责浏览器与渠道适配。改 `jeeves-rs/` 前先读
 [docs/architecture.md](docs/architecture.md)；本文件是 AI 编码助手与人类
 贡献者共用的仓库工作规范。
 
@@ -33,9 +33,11 @@ jeeves-rs/
   jeeves-ops/           驾驶舱后端（axum + SSE）
   jeeves-cli/           jeeves 二进制（REPL / dashboard / eval / mcp / skill）
   jeeves-eval/          确定性 eval + judge + release gate
-jeeves-ts/                 @jeeves/client、@jeeves/gateway、@jeeves/dashboard、@jeeves/ui、
+jeeves-ts/                 @jeeves/client、@jeeves/channels、@jeeves/dashboard、@jeeves/ui、
                         @jeeves/browser-worker
-desktop/                Tauri macOS 外壳（src-tauri），包住 Runtime 自己的前端（启动 `jeeves dashboard` 并加载其地址）
+  packages/gateway/     Go 账号、会话、设备配对和 Runtime 路由服务
+control-plane/          Go 租户实例配置和模型用量服务
+desktop/                Tauri Mac 设备端及源码开发 Runtime 外壳
 evals/                  确定性、回放、长任务与 judge 用例（JSONL）
 docs/                   guide / architecture / configuration / protocol / operations / limitations（含 internals/）
                         internals/ —— 实现原理教程（每层一章）

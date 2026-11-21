@@ -187,7 +187,7 @@ function manageMcp() {
 const SETUP_KEY = "jeeves.setup.dismissed";
 const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
 const needsSetup = computed(
-  () => state.connected && !state.profiles.length && !setupDismissed.value,
+  () => state.connected && !state.managed && !state.profiles.length && !setupDismissed.value,
 );
 function endSetup() {
   setupDismissed.value = true;

@@ -1,6 +1,3 @@
-# The control plane itself. Per-user Pods are created by it at runtime (see control-plane/README.md).
-# Fill the Secret first:  kubectl -n jeeves create secret generic cp-env \
-#   --from-literal=CP_SESSION_SECRET=$(openssl rand -hex 32) --from-literal=CP_STATE_KEY=$(openssl rand -hex 32) --from-literal=CP_MODEL_KEY=<platform key> --from-literal=CP_MAIL_FROM=<verified sender> --from-literal=CP_RESEND_API_KEY=<send-only key>
 apiVersion: v1
 kind: Namespace
 metadata: { name: jeeves }
@@ -9,13 +6,20 @@ apiVersion: v1
 kind: ServiceAccount
 metadata: { name: control-plane, namespace: jeeves }
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: gateway, namespace: jeeves }
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: { name: control-plane, namespace: jeeves }
 rules:
-  - apiGroups: ["", "apps"]
-    resources: [secrets, persistentvolumeclaims, services, deployments, deployments/scale]
-    verbs: [get, list, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [secrets, persistentvolumeclaims, services]
+    verbs: [get, create, patch]
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale]
+    verbs: [get, create, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -23,45 +27,63 @@ metadata: { name: control-plane, namespace: jeeves }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: control-plane }
 subjects: [{ kind: ServiceAccount, name: control-plane, namespace: jeeves }]
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata: { name: cp-state, namespace: jeeves }
-spec:
-  accessModes: [ReadWriteOnce]
-  resources: { requests: { storage: 1Gi } }
----
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: control-plane, namespace: jeeves }
 spec:
   replicas: 1
-  strategy: { type: Recreate }
   selector: { matchLabels: { app: control-plane } }
   template:
     metadata: { labels: { app: control-plane } }
     spec:
       serviceAccountName: control-plane
-      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
+      securityContext: { runAsNonRoot: true, runAsUser: 1000 }
       containers:
         - name: control-plane
           image: registry.example.com/jeeves-control-plane:latest
           ports: [{ containerPort: 8080 }]
           env:
-            - { name: CP_STATE, value: /state/control-plane.json }
-            - { name: CP_PUBLIC_ORIGIN, value: "https://jeeves.example.com" }
             - { name: CP_IMAGE, value: "registry.example.com/jeeves:latest" }
             - { name: CP_MODEL_URL, value: "http://control-plane.jeeves.svc:8080" }
             - { name: CP_MODEL_UPSTREAM, value: "https://api.anthropic.com" }
           envFrom: [{ secretRef: { name: cp-env } }]
           readinessProbe: { httpGet: { path: /healthz, port: 8080 } }
-          volumeMounts: [{ name: state, mountPath: /state }]
-      volumes: [{ name: state, persistentVolumeClaim: { claimName: cp-state } }]
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: control-plane, namespace: jeeves }
 spec:
   selector: { app: control-plane }
+  ports: [{ port: 8080, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: gateway, namespace: jeeves }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: jeeves-gateway } }
+  template:
+    metadata: { labels: { app: jeeves-gateway } }
+    spec:
+      serviceAccountName: gateway
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 1000 }
+      containers:
+        - name: gateway
+          image: registry.example.com/jeeves-gateway:latest
+          ports: [{ containerPort: 8080 }]
+          env:
+            - { name: GW_PUBLIC_ORIGIN, value: "https://jeeves.example.com" }
+            - { name: GW_TRUST_PROXY, value: "1" }
+            - { name: GW_CONTROL_URL, value: "http://control-plane.jeeves.svc:8080" }
+          envFrom: [{ secretRef: { name: gateway-env } }]
+          readinessProbe: { httpGet: { path: /healthz, port: 8080 } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: gateway, namespace: jeeves }
+spec:
+  selector: { app: jeeves-gateway }
   ports: [{ port: 8080, targetPort: 8080 }]
 ---
 apiVersion: networking.k8s.io/v1
@@ -71,8 +93,22 @@ spec:
   podSelector: { matchLabels: { app: jeeves } }
   policyTypes: [Ingress]
   ingress:
-    - from: [{ podSelector: { matchLabels: { app: control-plane } } }]
+    - from:
+        - podSelector: { matchLabels: { app: control-plane } }
+        - podSelector: { matchLabels: { app: jeeves-gateway } }
       ports: [{ protocol: TCP, port: 7777 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: control-plane-ingress, namespace: jeeves }
+spec:
+  podSelector: { matchLabels: { app: control-plane } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: jeeves-gateway } }
+        - podSelector: { matchLabels: { app: jeeves } }
+      ports: [{ protocol: TCP, port: 8080 }]
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -89,5 +125,5 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: control-plane
+                name: gateway
                 port: { number: 8080 }

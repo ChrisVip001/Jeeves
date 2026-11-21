@@ -181,13 +181,17 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 ## Mac 桌面应用
 
+托管版 Mac 应用将电脑连接到云端账号。用安装服务的公网地址运行 `just desktop-device-build https://jeeves.example.com` 打包。打开应用，点击**连接**并在浏览器确认配对。任务需要操作电脑时，Jeeves 会在 Mac 上请求窗口访问权限。在账号的设备列表管理访问。通过浏览器或 iOS 打开工作区，与助理对话并跟进事项。
+
+下节命令适用于源码仓库中的 Runtime 开发应用。
+
 桌面壳（`desktop/`，Tauri）启动 `jeeves dashboard` 并加载它的地址；设 `JEEVES_RUNTIME_URL` 则改为接入已在运行的 Runtime。`just desktop-install` 装前端依赖，`just desktop-build` 把 release 版 `jeeves` 打进应用，`just desktop-dev` 用于开发，`just desktop-build-browser` 再加上 `just browser-runtime` 准备好的可选任务浏览器运行时。
 
 日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
 
 双击 Mac 应用会自动启动内置后台。Finder 从根目录启动且未指定 `JEEVES_HOME` 时，仓库构建目录中的应用会沿用仓库已有的 `.jeeves`。安装到「应用程序」的副本默认使用 `~/.jeeves`。从终端启动时也可以用 `JEEVES_HOME` 明确指定其他数据目录。
 
-Mac 和手机使用同一套界面，并跟随设备的深浅色设置。
+开发版应用和手机网页共用工作台，并跟随设备的深浅色设置。
 
 仓库中的开发版应用正在运行时，执行 `just desktop-refresh-ui` 并重新载入当前窗口，可以更新网页界面。Runtime 的更新在下次启动时生效。
 
@@ -358,6 +362,6 @@ SDK 宿主通过[操作协议](protocol.zh.md#操作日志与人工核对)检查
 
 ## 给多个用户运行 Jeeves
 
-手机和 Mac 使用账号网关作为公网入口。[账号网关手册](../control-plane/README.zh.md)包含登录、私网 Runtime 路由、TLS，以及给已有单个 Runtime 加登录的方法。
+Web 和 iOS 用户在公网 HTTPS 地址登录，Mac 设备端与同一账号配对。部署 [Go 统一网关](../jeeves-ts/packages/gateway/README.zh.md)、私网 [Go 控制面](../control-plane/README.zh.md)，以及供租户 Pod 使用的 Rust Runtime 镜像。控制面、PostgreSQL 和 Runtime 均使用私网端点。
 
-Jeeves 本身是单租户：一个 `JEEVES_HOME` 就是一个租户。做托管服务时，每个用户一个 Pod 加一块卷，前面放[控制面](../control-plane/README.zh.md)：它负责注册、唤醒与休眠 Pod，并通过代理计量模型用量，平台密钥因此不会进用户 Pod。每租户上限用 `JEEVES_MAX_TURNS`（并发回合数，最大 64）与 `JEEVES_HOME_MAX_MB`，默认都是 `0`（不设上限），超限的新回合会报错拒绝；`/healthz` 做探针，SIGTERM 会用 25 秒排空回合。
+个人源码部署运行 `just local-up`，在这台电脑的浏览器中创建所有者。网关和单实例 Runtime 均监听回环接口。

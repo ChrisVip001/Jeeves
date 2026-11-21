@@ -35,6 +35,7 @@ export const webState = reactive<{
   connected: boolean;
   config?: SettingsView;
   profiles: ModelProfileView[];
+  managed: boolean;
   models: ModelInfo[];
   policy?: SessionPermissionResponse;
   policySaving: boolean;
@@ -49,6 +50,7 @@ export const webState = reactive<{
   busy: true,
   connected: false,
   profiles: [],
+  managed: false,
   models: [],
   policySaving: false,
   policyLoading: false,

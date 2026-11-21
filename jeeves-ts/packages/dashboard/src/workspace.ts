@@ -1,4 +1,4 @@
-import { accountKey, accountStorage } from "./hosted.ts";
+import { accountKey, accountStorage, hostedBase, loginPage } from "./hosted.ts";
 import {
   closeMobileNavigation,
   setupNavigation,
@@ -767,9 +767,48 @@ function addStopButton(): void {
  * keeps the drag alive when the cursor outruns the 7px handle.
  */
 
+async function waitForHostedWorkspace(): Promise<boolean> {
+  const base = hostedBase();
+  if (!base) return true;
+  dom.input.disabled = dom.send.disabled = true;
+  dom.status.hidden = false;
+  dom.status.textContent = t("正在准备你的工作区…");
+  for (let attempt = 0; attempt < 25; attempt++) {
+    try {
+      const response = await fetch(base + "/api/workspace", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (response.status === 401) {
+        location.replace(loginPage());
+        return false;
+      }
+      if (response.ok) {
+        const workspace = await response.json();
+        webState.managed = workspace.managed === true;
+        if (workspace.ready === true) {
+          dom.status.hidden = true;
+          dom.send.disabled = false;
+          return true;
+        }
+      }
+    } catch (error) {
+      console.debug("Workspace will retry after a connection error", error);
+    }
+    await new Promise(resolve => window.setTimeout(resolve, 2000));
+  }
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = t("重试");
+  retry.onclick = () => location.reload();
+  dom.status.replaceChildren(t("工作区还在准备中。"), retry);
+  return false;
+}
+
 async function boot(): Promise<void> {
   initLang();
   applyStatic(document);
+  if (!(await waitForHostedWorkspace())) return;
   dom.lang.textContent = getLang() === "zh" ? "EN" : "中文";
   dom.lang.addEventListener("click", () =>
     setLang(getLang() === "zh" ? "en" : "zh"),

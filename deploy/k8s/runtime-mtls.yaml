@@ -12,7 +12,7 @@ spec:
   rules:
     - from:
         - source:
-            principals: ["cluster.local/ns/jeeves/sa/control-plane"]
+            principals: ["cluster.local/ns/jeeves/sa/control-plane", "cluster.local/ns/jeeves/sa/gateway"]
       to:
         - operation:
             ports: ["7777"]

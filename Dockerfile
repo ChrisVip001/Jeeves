@@ -55,6 +55,14 @@ COPY jeeves-ts ./jeeves-ts
 COPY jeeves-rs/jeeves-protocol/schema ./jeeves-rs/jeeves-protocol/schema
 RUN cd jeeves-ts && npm ci && npm run build --workspace @jeeves/dashboard
 
+FROM golang:1.26-bookworm AS relay
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY internal/cloudkit ./internal/cloudkit
+COPY jeeves-ts/packages/gateway ./jeeves-ts/packages/gateway
+RUN CGO_ENABLED=0 go build -trimpath -o /out/jeeves-desktop-relay ./jeeves-ts/packages/gateway
+
 # ---- Runtime ---------------------------------------------------------------
 # Node 22 is here for the chat gateway the Runtime hosts (Settings -> Connections).
 FROM node:22-trixie-slim
@@ -66,9 +74,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /src/jeeves-rs/target/release/jeeves /usr/local/bin/jeeves
+COPY --from=relay /out/jeeves-desktop-relay /usr/local/bin/jeeves-desktop-relay
 COPY --from=web /src/jeeves-ts /opt/jeeves/jeeves-ts
 ENV JEEVES_DASHBOARD_DIR=/opt/jeeves/jeeves-ts/packages/dashboard/dist \
-    JEEVES_GATEWAY_BIN=/opt/jeeves/jeeves-ts/packages/gateway/src/bin-lark.ts
+    JEEVES_GATEWAY_BIN=/opt/jeeves/jeeves-ts/packages/channels/src/bin-lark.ts
 
 # Run as non-root: nothing in the container needs privilege.
 RUN useradd --create-home --shell /bin/bash jeeves
