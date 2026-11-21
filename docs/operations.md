@@ -211,6 +211,8 @@ adds the optional task-browser runtime prepared by `just browser-runtime`.
 
 For everyday use and joint testing, run `just desktop-open` or double-click the checkout’s `desktop/src-tauri/target/release/bundle/macos/Jeeves.app` in Finder. Both open the same application bundle. If it is already running, macOS brings its window forward with the current Runtime, login and conversation. The command builds the bundle if it is missing. Use `just desktop-build` when you need to rebuild it after a code change.
 
+Before a joint test, run `just desktop-status` to record the existing app and Runtime PIDs, listener, and state and trace paths. The checkout revision describes the source tree. The running app may come from an earlier build. Use the same window and account, then leave the tested task or error open for handoff. For a reproduction, record the steps, local time and, when available, task ID or turn ID. Look up that turn under the reported trace directory. If the Runtime's stderr goes to `/dev/null`, record the visible error as well. Automated smoke runs use fixtures and report their results separately.
+
 Double-clicking the Mac app starts its bundled Runtime. With Finder’s root working directory and no explicit `JEEVES_HOME`, the app in the repository build output reuses the checkout’s existing `.jeeves` directory. An installed copy defaults to `~/.jeeves`. Set `JEEVES_HOME` explicitly when launching from a terminal to select a different profile.
 
 The Mac app and mobile web view share one interface and follow the device’s light or dark appearance.

@@ -255,6 +255,46 @@ desktop-open:
     fi
     /usr/bin/open "$app"
 
+# Locate the checkout's running app and its Runtime without opening another window.
+[macos]
+desktop-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bundle="{{justfile_directory()}}/desktop/src-tauri/target/release/bundle/macos/Jeeves.app/Contents/MacOS"
+    processes="$(ps -axo pid=,ppid=,comm=)"
+    app="$(awk -v binary="$bundle/jeeves-desktop" '
+        {
+            name=$0
+            sub(/^[[:space:]]*[0-9]+[[:space:]]+[0-9]+[[:space:]]+/, "", name)
+            if (name==binary) print $1
+        }
+    ' <<<"$processes")"
+    if [[ -z "$app" || "$app" == *$'\n'* ]]; then
+        echo 'Expected one running Jeeves.app from this checkout. Use just desktop-open to bring it up.' >&2
+        exit 1
+    fi
+    printf 'App PID %s\nCheckout %s %s\n' "$app" "$(git branch --show-current)" "$(git rev-parse --short HEAD)"
+    runtime="$(awk -v pid="$app" '$2==pid && $0 ~ /\/jeeves$/ {print $1}' <<<"$processes")"
+    if [[ -z "$runtime" || "$runtime" == *$'\n'* ]]; then
+        echo 'No single bundled Runtime child. Check the address in the existing window if it attaches to a running service.'
+        exit 0
+    fi
+    printf 'Runtime PID %s\n' "$runtime"
+    lsof -nP -a -p "$runtime" -iTCP -sTCP:LISTEN || true
+    runtime_stderr="$(lsof -a -p "$runtime" -d 2 -Fn | awk '/^n/ {print substr($0,2)}' || true)"
+    if [[ -n "$runtime_stderr" ]]; then
+        printf 'Runtime stderr %s\n' "$runtime_stderr"
+    fi
+    engine="$(awk -v pid="$runtime" '$2==pid && $0 ~ /\/jeeves$/ {print $1}' <<<"$processes")"
+    if [[ -n "$engine" && "$engine" != *$'\n'* ]]; then
+        printf 'Engine PID %s\n' "$engine"
+        files="$(lsof -a -p "$engine" -Fn || true)"
+        database="$(awk '/^n.*\/state\.db$/ && !seen++ {print substr($0,2)}' <<<"$files")"
+        if [[ -n "$database" ]]; then
+            printf 'State %s\nTurn traces %s/traces\n' "$database" "${database%/*}"
+        fi
+    fi
+
 # Refresh the web resources of the checkout's running development bundle.
 desktop-refresh-ui: dashboard-build
     #!/usr/bin/env bash

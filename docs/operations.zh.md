@@ -189,6 +189,8 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
 
+共同测试前运行 `just desktop-status`，核对已有 App 与 Runtime 的 PID、监听地址、数据和追踪路径。命令显示的提交号是源码版本，正在运行的应用可能来自较早的构建。共同验收沿用同一窗口和账号，完成后把窗口留在对应的事项或报错处。复现问题时记下操作步骤和本机时间，有任务 ID 或回合 ID 就一并记下。可到命令显示的追踪目录查找对应回合。若 Runtime 的 stderr 指向 `/dev/null`，请也保留界面上的报错。自动冒烟使用测试数据，结果单独记录。
+
 双击 Mac 应用会自动启动内置后台。Finder 从根目录启动且未指定 `JEEVES_HOME` 时，仓库构建目录中的应用会沿用仓库已有的 `.jeeves`。安装到「应用程序」的副本默认使用 `~/.jeeves`。从终端启动时也可以用 `JEEVES_HOME` 明确指定其他数据目录。
 
 开发版应用和手机网页共用工作台，并跟随设备的深浅色设置。
