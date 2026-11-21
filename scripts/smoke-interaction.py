@@ -105,7 +105,23 @@ def run(browser_channel=None):
             assert sorted(m['taskId'] for m in receipts) == sorted([alpha['id'], *(t['id'] for t in rows)])
             assert all(m['receiptStatus'] == 'produced_unverified' for m in receipts)
             artifacts = web.request(base, '/api/task', {'action': 'artifacts', 'taskId': alpha['id']})
-            assert artifacts['artifacts'], artifacts
+            assert artifacts['latestDelivery']['status'] == 'produced_unverified' and artifacts['latestDelivery']['runId'], artifacts
+            assert artifacts['latestDelivery']['summary'], artifacts
+            assert artifacts['artifacts'][0]['writtenText'] == 'task-follow-fixture', artifacts
+            process.terminate()
+            process.wait(timeout=12)
+            provider.shutdown()
+            provider.server_close()
+            provider, process = web.start(home, port)
+            for _ in range(100):
+                try:
+                    restored = web.request(base, '/api/task', {'action': 'artifacts', 'taskId': alpha['id']})
+                    break
+                except OSError:
+                    time.sleep(.1)
+            else:
+                raise AssertionError('Runtime did not recover')
+            assert restored == artifacts, (restored, artifacts)
 
             # Independent GET subscription must carry worker approvals after the POST closes.
             request = urllib.request.Request(base + '/api/notifications', headers={'Authorization': 'Bearer web-fixture-token'})

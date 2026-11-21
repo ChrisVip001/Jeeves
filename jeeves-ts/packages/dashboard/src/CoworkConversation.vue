@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { accountStorage } from "./hosted.ts";
-import { computed, ref } from "vue";
+import { accountKey, accountStorage } from "./hosted.ts";
+import { computed, ref, watch } from "vue";
 import ApprovalCard from "./ui/ApprovalCard.vue";
-import { ArrowUp } from "lucide-vue-next";
+import { ArrowUp, Ellipsis } from "lucide-vue-next";
 import { interact } from "./api";
 import { t } from "./i18n";
 import { webTasks } from "./tasks";
 import { submissionTracker } from "./ui/submission";
+import TaskDelivery from "./TaskDelivery.vue";
 import TaskTranscript from "./ui/TaskTranscript.vue";
 import type { AgentTaskView } from "./ui/types";
 const props=defineProps<{task:AgentTaskView}>();
-const emit=defineEmits<{details:[]; back:[]}>();
+const emit=defineEmits<{details:[]}>();
 const approval = computed(() => webTasks.approvalFor(props.task));
 const tracker=submissionTracker(accountStorage);
-const text=ref("");
+const draftKey = accountKey("jeeves.task-draft." + props.task.id);
+const text = ref(sessionStorage.getItem(draftKey) ?? "");
+const historyOpen = ref(false);
+watch(text, value => {
+  if (value) sessionStorage.setItem(draftKey, value);
+  else sessionStorage.removeItem(draftKey);
+}, { flush: "sync" });
 const sending=ref(false);
 const feedback=ref("");
 const revision=ref(0);
@@ -30,6 +37,7 @@ async function send() {
       if (event.type==="error") throw new Error(event.message);
       if (event.type==="turnCompleted") {
         tracker.complete(submission);
+        if (sessionStorage.getItem(draftKey)?.trim() === message) sessionStorage.removeItem(draftKey);
         text.value="";
         feedback.value=event.reply;
         revision.value++;
@@ -41,22 +49,28 @@ async function send() {
   } catch(error) { feedback.value=String(error); }
   finally { sending.value=false; }
 }
+watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed, props.task.runCount, revision.value],
+  () => void webTasks.inspect(props.task), { immediate: true });
 </script>
 <template>
   <section class="cowork-detail" :aria-label="task.title" :data-task-id="task.id">
     <header class="cowork-head">
-      <div><button type="button" class="activity-back" @click="emit('back')">‹ {{ t("动态") }}</button><h2>{{ task.title }}</h2></div>
-      <button id="cowork-details" type="button" class="today-btn" @click="emit('details')">{{ t("任务详情") }}</button>
+      <div class="work-title"><h2>{{ task.title }}</h2></div>
+      <button id="cowork-details" type="button" class="icon-action" :aria-label="t('任务详情')" :title="t('任务详情')" @click="emit('details')"><Ellipsis :size="21" /></button>
     </header>
     <div class="cowork-thread">
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
         :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
       <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
-      <TaskTranscript :task="task" :center="webTasks" :revision="revision" />
+      <TaskDelivery :task="task" :center="webTasks" />
+      <details class="work-history" @toggle="historyOpen = ($event.currentTarget as HTMLDetailsElement).open">
+        <summary id="work-history-toggle">{{ t("查看往来记录") }}</summary>
+        <TaskTranscript v-if="historyOpen" :task="task" :center="webTasks" :revision="revision" history-only />
+      </details>
     </div>
     <form class="cowork-compose" v-if="['pending','running','done'].includes(task.status)" @submit.prevent="send">
-      <label for="cowork-input">{{ t("补充要求") }}</label>
+      <label class="sr" for="cowork-input">{{ t("补充要求") }}</label>
       <textarea id="cowork-input" v-model="text" :disabled="sending" :placeholder="t('给这个任务补充要求…')" rows="2" @keydown.meta.enter.prevent="send" />
       <button id="cowork-send" type="submit" class="primary-button" :disabled="sending || !text.trim()"><ArrowUp :size="16" />{{ t("发送") }}</button>
     </form>

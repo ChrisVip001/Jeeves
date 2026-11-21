@@ -3,4 +3,12 @@
 /**
  * One delivered file.
  */
-export type ArtifactView = { path: string; bytes: number; at: string };
+export type ArtifactView = {
+  /**
+   * Complete text of an observed successful whole-file write up to 64 KiB.
+   */
+  writtenText?: string;
+  path: string;
+  bytes: number;
+  at: string;
+};

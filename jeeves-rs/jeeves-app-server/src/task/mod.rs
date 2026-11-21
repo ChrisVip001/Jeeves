@@ -474,10 +474,21 @@ pub(crate) async fn artifacts(
     task_id: &str,
 ) -> Result<TaskArtifactsResponse, ErrorObject> {
     let rows = server.artifacts.list(task_id, 50).await.map_err(internal)?;
+    let delivery = jeeves_state::completions::Completions::new(server.pool.clone())
+        .latest_delivery(task_id)
+        .await
+        .map_err(internal)?;
     Ok(TaskArtifactsResponse {
+        latest_delivery: delivery.map(|row| jeeves_protocol::TaskDeliveryView {
+            status: row.status,
+            summary: row.summary,
+            run_id: row.run_id,
+            at: row.at,
+        }),
         artifacts: rows
             .iter()
             .map(|row| ArtifactView {
+                written_text: row.written_text.clone(),
                 path: row.path.clone(),
                 bytes: narrow(row.bytes),
                 at: row.at.clone(),

@@ -124,6 +124,8 @@ metadata. `TurnMeta.routeReason` (optional) says how the model was chosen this t
 
 `TurnStartParams.requestId` (optional, 1-120 characters of `[A-Za-z0-9_-]`) names the message a turn answers. A second `turn/start` with the same id in the same session replays the first turn's notifications and response without calling the model again; the same id with a different message or parameters is refused. The receipt lives in `interaction_receipts` under a `turn:` key, so it survives a restart. Without `requestId` nothing changes.
 
+The optional `latestDelivery` on `task/artifacts` identifies the most recent terminal run and its recorded status, time and summary, including while a revision is running. An artifact’s optional `writtenText` is the complete text recorded at the write. A later partial edit clears it.
+
 ## turn/start notification sequence
 
 ```

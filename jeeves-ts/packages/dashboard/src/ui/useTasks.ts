@@ -44,6 +44,7 @@ export function useTasks(actions: TaskActions) {
     busy: "",
     error: "",
     results: {} as Record<string, string>,
+    deliveries: {} as Record<string, TaskArtifactsResponse["latestDelivery"]>,
     artifacts: {} as Record<string, TaskArtifactsResponse["artifacts"]>,
     approvals: {} as Record<string, ApprovalRequestedNotification>,
     /** Approvals that outlived a restart, by turn: answering grants the resumed turn one yes. */
@@ -128,7 +129,7 @@ export function useTasks(actions: TaskActions) {
     })();
     return refreshing;
   }
-  async function openReceipt(taskId: string, destination: "detail" | "reply" = "detail"): Promise<boolean> {
+  async function openReceipt(taskId: string, destination: "detail" | "reply" | "workspace" = "detail"): Promise<boolean> {
     const owner = state.owner;
     if (!owner) return false;
     const findTask = () => state.tasks.find(task => task.id === taskId && task.sessionId === owner);
@@ -138,10 +139,14 @@ export function useTasks(actions: TaskActions) {
     if (destination === "reply") {
       if (!["pending", "running", "done"].includes(task.status)) return false;
       state.selected = taskId;
-    } else state.detailId = taskId;
+    } else if (destination === "detail") state.detailId = taskId;
     return true;
   }
+  const inspections = new Map<string, symbol>();
   async function inspect(task: AgentTaskView) {
+    const version = Symbol();
+    inspections.set(task.id, version);
+    const owner = state.owner;
     try {
       const [messages, artifacts] = await Promise.all([
         task.executionSessionId
@@ -149,6 +154,7 @@ export function useTasks(actions: TaskActions) {
           : Promise.resolve(null),
         actions.artifacts(task.id),
       ]);
+      if (owner !== state.owner || inspections.get(task.id) !== version) return;
       const reply =
         messages?.data.find((message) => message.role === "assistant")
           ?.content ?? "";
@@ -157,8 +163,11 @@ export function useTasks(actions: TaskActions) {
         "",
       );
       state.artifacts[task.id] = artifacts.artifacts;
+      state.deliveries[task.id] = artifacts.latestDelivery;
     } catch (error) {
-      state.error = String(error);
+      if (owner === state.owner && inspections.get(task.id) === version) state.error = String(error);
+    } finally {
+      if (inspections.get(task.id) === version) inspections.delete(task.id);
     }
   }
   async function action(kind: "suspend" | "resume" | "cancel", id: string) {

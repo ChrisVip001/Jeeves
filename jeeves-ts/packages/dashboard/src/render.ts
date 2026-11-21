@@ -759,7 +759,7 @@ export function welcome(): HTMLElement {
       alt: "",
       "aria-hidden": "true",
     }),
-    el("h1", { class: "welcome-title", text: t("你好，今天想做点什么？") }),
+    el("h1", { class: "welcome-title", text: t("交给 Jeeves 什么事？") }),
 
   );
 }
@@ -815,29 +815,34 @@ export function taskNoticeHeading(message: Message): string {
   }
 }
 
-export function messageRow(message: Message, openTask: (id: string, destination?: "detail" | "reply") => Promise<boolean>): HTMLElement {
+export function messageRow(message: Message, openTask: (id: string) => Promise<boolean>): HTMLElement {
   const notice = taskNotice(message);
   if (notice) {
     const decision = notice === "task_decision";
+    const split = message.content.indexOf("\n\n");
+    const summary = split >= 0 ? message.content.slice(split + 2) : "";
+    const heading = taskNoticeHeading(message);
+    const firstLine = message.content.split("\n", 1)[0] ?? "";
+    const suffix = " · " + message.taskId;
+    const title = message.taskId && firstLine.endsWith(suffix) ? firstLine.slice(0, -suffix.length) : "";
     const row = el("div", { class: `msg jeeves task-notice ${notice}` },
-      el("strong", { text: taskNoticeHeading(message) }),
-      decision
-        ? el("details", {}, el("summary", { text: t("查看原始请求") }), el("div", { class: "bubble", text: message.content }))
-        : el("div", { class: "bubble", text: message.content }));
+      el("strong", { text: title ? title + " · " + heading : heading }));
+    if (!decision && summary) {
+      const body = el("div", { class: "bubble md" });
+      body.append(renderMarkdown(summary));
+      row.append(body);
+    } else {
+      row.append(el("details", {}, el("summary", { text: decision ? t("查看原始请求") : t("执行记录") }), el("div", { class: "bubble", text: message.content })));
+    }
     const taskId = message.taskId;
     if (taskId) {
       const status = el("span", { role: "status" });
-      const button = el("button", { type: "button", class: "today-btn", text: t("查看任务对话") });
+      const label = ["done", "produced_unverified"].includes(message.receiptStatus ?? "") ? t("继续这件事") : t("查看任务对话");
+      const button = el("button", { type: "button", class: "today-btn", text: label });
       button.addEventListener("click", async () => {
         status.textContent = await openTask(taskId) ? "" : t("暂时无法打开原任务，请重试。");
       });
       row.append(button);
-      if (message.receiptStatus === "done" || message.receiptStatus === "produced_unverified") {
-        row.append(el("button", { type: "button", class: "today-btn", text: t("继续这件事"), onclick: async () => {
-          if (await openTask(taskId, "reply")) document.querySelector<HTMLTextAreaElement>("#input")?.focus();
-          else status.textContent = t("暂时无法跟进，请查看任务对话。");
-        } }));
-      }
       row.append(status);
     }
     row.dataset.noticeId = String(message.id);
@@ -868,9 +873,10 @@ export function messageRow(message: Message, openTask: (id: string, destination?
   return el(
     "div",
     { class: "msg jeeves" },
-    trace,
     bubble,
-    el("div", { class: "foot", text: historyFooter(message) }),
+    el("details", { class: "message-meta" },
+      el("summary", { text: formatWhen(message.at), title: t("执行记录") }),
+      trace, el("div", { class: "foot", text: historyFooter(message) })),
   );
 }
 

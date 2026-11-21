@@ -1,28 +1,26 @@
-# Chat and Activity in Jeeves
+# Chat, work and delivery in Jeeves
 
 English | [简体中文](main-entry.zh.md)
 
-## 1. Two destinations
+## 1. Start with a message
 
-Jeeves opens in Chat. Ask a question, delegate an assignment or change direction there. Activity keeps delegated work under Needs your decision, Running and Finished. Jeeves answers ordinary questions directly and creates a task for sustained work. The person can move on to another subject as soon as they delegate.
+Ask a question, delegate work or amend an assignment in conversation. Chat and My work are the everyday entry points. The menu holds the account, tools and settings. Messages lead with the request and reply. The timestamp reveals the execution details.
 
 ## 2. Design references
 
-Grok lets people describe a recurring job in chat and reopen an individual run to continue the conversation. In Jeeves each receipt leads back to the work it reports on. [Automations in Grok](https://x.ai/news/grok-automations)
-
-Grok Bot presents the recipients and draft of an outgoing message for review in chat. A new message can redirect work in progress. In Jeeves the conversation therefore carries the current decision and its preview. [Messaging and collaborating with Grok Bot](https://docs.x.ai/grok-bot/chat-and-collaboration)
-
-A dot accepts a goal in conversation, continues between conversations and reports scheduled updates in chat. Tasks retain their own context. Jeeves gives talking to the assistant and finding work across assignments separate destinations. [Getting started with your dot](https://help.openai.com/en/articles/20001530-getting-started-with-your-dot)
+Grok allows people to reopen an automation run and continue its conversation. A dot takes assignments in chat, works between conversations and brings decisions back to its owner. Each Jeeves assignment therefore has a return address and opens on the latest outcome, decisions and files. [Grok automations](https://x.ai/news/grok-automations) · [Working with a dot](https://help.openai.com/en/articles/20001530-getting-started-with-your-dot)
 
 ## 3. From assignment to delivery
 
 | Intent | Interaction |
 |---|---|
-| Delegate | In Chat, ask for a one-page summary of open issues for Monday’s client meeting. Attach a file beside the composer. Chat options hold the model, workspace and permissions. |
-| Change direction | Send an amendment. If the reference is ambiguous, Jeeves asks which assignment you mean. Selecting Follow up on a receipt puts the original task’s name in the composer. |
-| Decide | Expand Pending decisions in Chat, review the exact action and choose Allow once or Deny. Older requests are available as expandable history. |
-| Review results | Each receipt shows its run’s outcome. Activity lists other assignments. On Mac, selecting one opens its working conversation. On a phone, inspect it and return to Chat with that task selected. |
-| Manage Jeeves | The menu holds settings, connections, schedules and advanced tools. A signed notification still opens its corresponding approval request. |
+| Delegate | Describe the outcome in Chat and attach files if needed. Carry on talking after the handoff. |
+| Decide | One pending decision opens with its action and exact preview. Allow once or deny the current request. |
+| Find work | Search titles in My work or follow a receipt. Mac and phone open the same work page. Reload, back and forward retain the destination. |
+| Inspect delivery | The latest terminal run has its own receipt. Results and files precede expandable conversation history. Replies from older runtimes are labeled separately. |
+| Take a file | Expand a successful whole-file text write of up to 64 KiB to read the recorded version or save a copy. Older artifacts, downloads, partial edits and larger files can have metadata only. |
+| Amend | Reply directly in the work page. Drafts are scoped to their chat or assignment within the current browser tab and survive reload. |
+| Manage the account | The profile leads with the account and entry to the assistant. Account and security groups devices, password changes and two-factor authentication. |
 
 ### Main-chat model and task references
 
@@ -60,7 +58,7 @@ At kickoff, Jeeves briefly explains how it intends to approach the assignment an
 
 ## 5. Remaining interface work
 
-The phone task list and Mac Cowork show the same execution session. The main chat collects task notices and receipts. Search and chronological browsing of earlier tasks remain planned.
+Mac and phone can search task titles and open the same execution session. The main conversation collects task notices and receipts.
 
 ## 6. Related documents
 

@@ -33,13 +33,20 @@
             data-sidebar-toggle
             data-i18n-aria="收起侧栏"
           >
-            ☰
+            <span class="menu-glyph" aria-hidden="true"></span>
           </button>
         </div>
         <button class="new-chat" id="new-session" type="button">
           <span aria-hidden="true">＋</span
           ><span data-i18n="主会话">主会话</span><kbd>⌘ N</kbd>
         </button>
+        <div class="rail-block conversations">
+          <p class="rail-label" data-i18n="最近对话">最近对话</p>
+          <ul class="session-list" id="sessions"></ul>
+        </div>
+        <div id="connections-entry"></div>
+        <details class="rail-tools">
+          <summary data-i18n="更多工具">更多工具</summary>
         <div id="task-progress-entry"></div>
         <nav class="workspace-nav" aria-label="Workspace">
           <button class="nav-entry" id="nav-memory" type="button">
@@ -48,13 +55,7 @@
           <button class="nav-entry" id="progress" type="button" data-i18n="概览">概览</button>
           <button class="nav-entry" id="chat-operations" type="button" data-i18n="核对聊天操作">核对聊天操作</button>
         </nav>
-        <div class="rail-block conversations">
-          <p class="rail-label" data-i18n="最近对话">最近对话</p>
-          <ul class="session-list" id="sessions"></ul>
-        </div>
-        <div class="rail-block capabilities">
-          <p class="rail-label" data-i18n="能力中心">能力中心</p>
-          <div id="connections-entry"></div>
+          <div class="capabilities">
           <button class="cap-entry" id="cap-skills" type="button">
             <span class="cap-entry-name" data-i18n="技能">技能</span
             ><span class="cap-count" id="cap-skills-count">0</span>
@@ -68,6 +69,7 @@
             ><span class="cap-count" id="cap-schedules-count">0</span>
           </button>
         </div>
+        </details>
         <div class="sidebar-foot">
           <div id="settings-entry"></div>
           <div class="foot-row">
@@ -101,10 +103,10 @@
             data-sidebar-toggle
             data-i18n-aria="展开侧栏"
           >
-            ☰
+            <span class="menu-glyph" aria-hidden="true"></span>
           </button>
           <div class="chat-heading">
-            <h2 id="session">Jeeves</h2>
+            <img src="./icon.svg" width="27" height="27" alt="" /><h2 id="session">Jeeves</h2>
 
           </div>
           <div id="primary-navigation"></div>
@@ -138,7 +140,7 @@
             <div id="composer-target"></div>
             <input id="file" type="file" multiple hidden />
             <textarea
-              id="input"
+              id="input" disabled
               rows="2"
               data-i18n-placeholder="向 Jeeves 说说你的想法…"
               data-i18n-aria="消息"

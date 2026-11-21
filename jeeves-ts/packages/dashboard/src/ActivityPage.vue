@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { ChevronRight } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import { ChevronRight, Search } from "lucide-vue-next";
 import { t } from "./i18n";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import type { TaskCenter } from "./ui/useTasks";
 import type { AgentTaskView } from "./protocol";
 const props = defineProps<{ center: TaskCenter }>();
 defineEmits<{ inspect: [id: string]; chat: [] }>();
+const search = ref("");
+const query = computed(() => search.value.trim().toLocaleLowerCase());
 const chatRequests = computed(() => Object.values(props.center.state.approvals).filter(request => !props.center.taskOf(request)));
 
 function status(task: AgentTaskView) {
@@ -28,13 +30,14 @@ function status(task: AgentTaskView) {
 const sections = computed(() => {
   const waiting: AgentTaskView[] = [], working: AgentTaskView[] = [], past: AgentTaskView[] = [];
   for (const task of props.center.state.tasks) {
+    if (query.value && !task.title.toLocaleLowerCase().includes(query.value)) continue;
     if (["done", "failed", "cancelled"].includes(task.status)) past.push(task);
     else if (props.center.approvalFor(task) || ["needs_attention", "needsAttention"].includes(task.status)
       || (task.inputCondition?.state === "pending" && task.inputCondition.source === "manual")) waiting.push(task);
     else working.push(task);
   }
   return [
-    { label: t("等你决定"), rows: waiting, requests: chatRequests.value },
+    { label: t("等你决定"), rows: waiting, requests: chatRequests.value.filter(request => !query.value || request.tool.toLocaleLowerCase().includes(query.value)) },
     { label: t("进行中"), rows: working, requests: [] },
     { label: t("已结束"), rows: past, requests: [] },
   ];
@@ -43,7 +46,10 @@ const sections = computed(() => {
 
 <template>
   <section class="activity-page" aria-labelledby="activity-title">
-    <h1 id="activity-title">{{ t("动态") }}</h1>
+    <header class="work-list-head"><h1 id="activity-title">{{ t("我的事项") }}</h1>
+      <label v-if="center.state.tasks.length || chatRequests.length" class="work-search"><Search :size="18" /><input v-model="search" type="search" :aria-label="t('搜索事项')" :placeholder="t('搜索事项')" /></label>
+    </header>
+    <p v-if="query && sections.every(s => !s.rows.length && !s.requests.length)" role="status">{{ t("没有找到匹配的事项。") }}</p>
     <p v-if="center.state.error" role="alert">{{ center.state.error }} <button type="button" class="today-btn" @click="center.retry">{{ t("重试") }}</button></p>
     <p v-else-if="!center.state.loadedOwner || center.state.loadedOwner !== center.state.owner" role="status">{{ t("正在读取任务…") }}</p>
     <div v-else-if="!center.state.tasks.length && !chatRequests.length" class="activity-empty">

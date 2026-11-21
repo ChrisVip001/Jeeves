@@ -701,6 +701,13 @@
         },
         "path": {
           "type": "string"
+        },
+        "writtenText": {
+          "description": "Complete text of an observed successful whole-file write up to 64 KiB.",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -6152,6 +6159,16 @@
             "$ref": "#/definitions/ArtifactView"
           },
           "type": "array"
+        },
+        "latestDelivery": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/TaskDeliveryView"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -6252,6 +6269,34 @@
         "title"
       ],
       "title": "TaskCreateParams",
+      "type": "object"
+    },
+    "TaskDeliveryView": {
+      "description": "The most recent terminal execution, including while a later revision is running.",
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "runId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "status"
+      ],
       "type": "object"
     },
     "TaskEnvelope": {

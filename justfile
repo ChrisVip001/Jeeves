@@ -246,6 +246,18 @@ desktop-open:
     fi
     /usr/bin/open "$app"
 
+# Refresh the web resources of the checkout's running development bundle.
+desktop-refresh-ui: dashboard-build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    app="{{justfile_directory()}}/desktop/src-tauri/target/release/bundle/macos/Jeeves.app"
+    signature="$(codesign --display --verbose=2 "$app" 2>&1)"
+    if [[ "$signature" != *"Signature=adhoc"* || "$signature" != *"Sealed Resources=none"* ]]; then
+        echo "This app seals its resources. Use the regular desktop build." >&2
+        exit 1
+    fi
+    rsync -rlt --delay-updates "{{ts_dir}}/packages/dashboard/dist/" "$app/Contents/Resources/dashboard/"
+
 # The shell starts `jeeves dashboard` itself; JEEVES_RUNTIME_URL attaches to a running Runtime instead.
 desktop-dev:
     cd {{ rust_dir }} && cargo build --bin jeeves

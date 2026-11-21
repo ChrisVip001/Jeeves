@@ -132,6 +132,12 @@ async fn task_and_exact_run_completion_commit_or_rollback_together() {
             .unwrap();
     assert_eq!(rows.len(), 1);
     assert!(rows[0].ends_with("Fixture result"));
+    let persisted: String =
+        sqlx::query_scalar("SELECT summary FROM task_completions WHERE run_id='run'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(persisted, "Fixture result");
     let history = crate::Chat::new(pool.clone())
         .messages("jeeves-main", None, 10)
         .await
@@ -176,4 +182,26 @@ async fn a_model_judged_goal_without_acceptance_is_produced_unverified() {
     let receipt = Completions::new(pool).pending().await.unwrap().remove(0);
     assert!(receipt.is_goal);
     assert_eq!(receipt.status, "produced_unverified");
+}
+
+#[tokio::test]
+async fn edits_replace_the_written_version_even_if_the_file_size_is_unchanged() {
+    let home = tempfile::tempdir().unwrap();
+    let pool = crate::open(&home.path().join("state.db")).await.unwrap();
+    let files = crate::Artifacts::new(pool);
+    files
+        .add_with_text("report", None, "weekly.md", 3, Some("one"))
+        .await
+        .unwrap();
+    files
+        .add_with_text("report", None, "weekly.md", 3, Some("two"))
+        .await
+        .unwrap();
+    let first = files.list("report", 10).await.unwrap();
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].written_text.as_deref(), Some("two"));
+    files.add("report", None, "weekly.md", 3).await.unwrap();
+    assert!(files.list("report", 10).await.unwrap()[0]
+        .written_text
+        .is_none());
 }

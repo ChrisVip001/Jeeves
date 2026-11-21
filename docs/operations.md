@@ -210,9 +210,11 @@ For everyday use and joint testing, run `just desktop-open` or double-click the 
 
 Double-clicking the Mac app starts its bundled Runtime. With Finder’s root working directory and no explicit `JEEVES_HOME`, the app in the repository build output reuses the checkout’s existing `.jeeves` directory. An installed copy defaults to `~/.jeeves`. Set `JEEVES_HOME` explicitly when launching from a terminal to select a different profile.
 
-The Mac app and desktop and mobile web views share the [Teal palette](design/today-preview.html#p=teal&f=sans) and follow the device’s light or dark appearance.
+The Mac app and mobile web view share one interface and follow the device’s light or dark appearance.
 
-The app opens in Chat. Activity opens the task conversations for this account. [Chat and Activity](design/main-entry.md)
+For the running development bundle in this checkout, run `just desktop-refresh-ui` and reload its window to pick up interface changes. A replaced Runtime binary takes effect on its next launch.
+
+The app opens in Chat. Open a receipt or My work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
 
 To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `jeeves-rs/target/acceptance/mac-cockpit/<run>/`.
 

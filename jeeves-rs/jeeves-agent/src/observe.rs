@@ -27,6 +27,7 @@ pub enum Fact {
     Wrote {
         path: String,
         bytes: u64,
+        written_text: Option<String>,
     },
     Missing {
         path: String,
@@ -84,11 +85,15 @@ impl Observation {
     }
 
     /// Files that really exist, with their sizes.
-    pub fn artifacts(&self) -> Vec<(String, u64)> {
+    pub fn artifacts(&self) -> Vec<(&str, u64, Option<&str>)> {
         self.facts
             .iter()
             .filter_map(|fact| match fact {
-                Fact::Wrote { path, bytes } => Some((path.clone(), *bytes)),
+                Fact::Wrote {
+                    path,
+                    bytes,
+                    written_text,
+                } => Some((path.as_str(), *bytes, written_text.as_deref())),
                 _ => None,
             })
             .collect()
@@ -169,7 +174,14 @@ pub fn observe(
 
             if WRITE_TOOLS.contains(&name.as_str()) {
                 if let Some(path) = input.get("path").and_then(|value| value.as_str()) {
-                    observation.facts.push(check_written(path, ok, output, cwd));
+                    let text = if name == "write_file" {
+                        input.get("content").and_then(|v| v.as_str())
+                    } else {
+                        None
+                    };
+                    observation
+                        .facts
+                        .push(check_written(path, ok, output, cwd, text));
                 }
             }
 
@@ -181,15 +193,24 @@ pub fn observe(
 }
 
 /// Does the file a write tool claims to have written actually exist?
-fn check_written(path: &str, ok: bool, output: &str, cwd: Option<&std::path::Path>) -> Fact {
+fn check_written(
+    path: &str,
+    ok: bool,
+    output: &str,
+    cwd: Option<&std::path::Path>,
+    text: Option<&str>,
+) -> Fact {
     let full = match cwd {
         Some(root) if !std::path::Path::new(path).is_absolute() => root.join(path),
         _ => std::path::PathBuf::from(path),
     };
     match std::fs::metadata(&full) {
-        Ok(meta) if meta.is_file() => Fact::Wrote {
+        Ok(meta) if ok && meta.is_file() => Fact::Wrote {
             path: full.display().to_string(),
             bytes: meta.len(),
+            written_text: text
+                .filter(|s| s.len() <= 64 * 1024 && s.len() as u64 == meta.len())
+                .map(str::to_owned),
         },
         _ if !ok => Fact::Missing {
             path: full.display().to_string(),
@@ -243,9 +264,9 @@ impl Recorder<'_> {
                 .await
                 .map_err(|error| format!("Step result could not be recorded: {error}"))?;
         }
-        for (path, bytes) in observation.artifacts() {
+        for (path, bytes, text) in observation.artifacts() {
             self.artifacts
-                .add(self.task_id, self.run_id, &path, bytes as i64)
+                .add_with_text(self.task_id, self.run_id, path, bytes as i64, text)
                 .await
                 .map_err(|error| format!("Artifact observation could not be recorded: {error}"))?;
         }

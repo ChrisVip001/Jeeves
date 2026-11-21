@@ -5,7 +5,7 @@ import type { TaskCenter } from "./useTasks";
 import { stripToolFold } from "../markdown";
 import { useUiText } from "./translate";
 const t = useUiText();
-const props = defineProps<{ task: AgentTaskView; center: TaskCenter; revision?: number }>();
+const props = defineProps<{ task: AgentTaskView; center: TaskCenter; revision?: number; historyOnly?: boolean }>();
 const messages = ref<SessionMessagesResponse["data"]>([]);
 const activeInputs = ref<string[]>([]);
 const cursor = ref<string | null>(null);
@@ -40,14 +40,14 @@ async function read(older: boolean) {
     if (refreshPending) { refreshPending = false; void read(false); }
   }
 }
-onMounted(() => { void read(false); void props.center.inspect(props.task); });
-watch(() => [props.task, props.revision], () => {
-  void read(false); void props.center.inspect(props.task);
+onMounted(() => { void read(false); if (!props.historyOnly) void props.center.inspect(props.task); });
+watch(() => [props.task.status, props.task.currentTurnId, props.task.runCount, props.task.roundsUsed, props.revision], () => {
+  void read(false); if (!props.historyOnly) void props.center.inspect(props.task);
 });
 </script>
 <template>
   <section class="task-transcript">
-    <h3 class="block-head">{{ t("任务对话") }}</h3>
+    <h3 v-if="!historyOnly" class="block-head">{{ t("任务对话") }}</h3>
     <button v-if="cursor" class="today-btn" type="button" :disabled="loading" @click="read(true)">{{ t("更早的 ↑") }}</button>
     <p v-if="error" role="status">{{ error }} <button class="today-btn" @click="read(!!cursor)">{{ t("重试") }}</button></p>
     <ol v-if="messages.length || activeInputs.length">
@@ -60,7 +60,7 @@ watch(() => [props.task, props.revision], () => {
       </li>
     </ol>
     <p v-else-if="!loading && !error" class="meta">{{ t("还没有任务消息。") }}</p>
-    <template v-if="center.state.artifacts[task.id]?.length">
+    <template v-if="!historyOnly && center.state.artifacts[task.id]?.length">
       <h3 class="block-head">{{ t("产物") }}</h3>
       <ul><li v-for="file in center.state.artifacts[task.id]" :key="file.path"><code>{{ file.path }}</code></li></ul>
     </template>

@@ -187,9 +187,11 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 双击 Mac 应用会自动启动内置后台。Finder 从根目录启动且未指定 `JEEVES_HOME` 时，仓库构建目录中的应用会沿用仓库已有的 `.jeeves`。安装到「应用程序」的副本默认使用 `~/.jeeves`。从终端启动时也可以用 `JEEVES_HOME` 明确指定其他数据目录。
 
-Mac 应用、桌面网页和手机网页共用[黛青色板](design/today-preview.html#p=teal&f=sans)，随各自设备切换亮色和暗色。
+Mac 和手机使用同一套界面，并跟随设备的深浅色设置。
 
-应用打开后进入「对话」。在「动态」里可以打开当前账号的任务。[对话与动态](design/main-entry.zh.md)
+仓库中的开发版应用正在运行时，执行 `just desktop-refresh-ui` 并重新载入当前窗口，可以更新网页界面。Runtime 的更新在下次启动时生效。
+
+应用打开后进入「对话」。从「我的事项」或回执打开交付页面并补充要求。[对话、事项与交付](design/main-entry.zh.md)
 
 在 Mac 的仓库目录运行 `just smoke-mac-cockpit` 可复验桌面端。命令会构建 Jeeves.app，在自己的前台窗口中操作主聊天和 Cowork；运行时使用临时目录，模型和发布服务均由本机模拟。测试随后退出并重新打开应用，用同一份临时数据核对任务 ID、完整会话和唯一的完成摘要。运行终端需已有辅助功能权限。若已有屏幕录制权限，测试会将 Jeeves 单窗口截图和 JSON 报告一起保存在 `jeeves-rs/target/acceptance/mac-cockpit/<运行时间>/`。
 

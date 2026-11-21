@@ -419,11 +419,14 @@ impl Tasks {
         if status == TaskStatus::Done {
             crate::verification::Verifications::require_completion(&mut tx, id, run_id).await?;
         }
-        let previous_notice = if summary.is_some() && run_id.is_some() {
+        let previous_completion = if summary.is_some() && run_id.is_some() {
             Some(
-                sqlx::query_scalar::<_, i64>("SELECT COALESCE(MAX(id),0) FROM chat_log")
-                    .fetch_one(&mut *tx)
-                    .await?,
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT COALESCE(MAX(id),0) FROM task_completions WHERE task_id=?",
+                )
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await?,
             )
         } else {
             None
@@ -440,11 +443,20 @@ impl Tasks {
         .bind(id)
         .execute(&mut *tx)
         .await?;
-        if let (Some(summary), Some(previous), Some(run)) = (summary, previous_notice, run_id) {
+        if let (Some(summary), Some(previous), Some(run)) = (summary, previous_completion, run_id) {
+            sqlx::query(
+                "UPDATE task_completions SET summary=? WHERE task_id=? AND run_id=? AND id>?",
+            )
+            .bind(summary)
+            .bind(id)
+            .bind(run)
+            .bind(previous)
+            .execute(&mut *tx)
+            .await?;
             sqlx::query("UPDATE chat_log SET content=content||char(10)||char(10)||?
-                WHERE id>? AND session_id='jeeves-main' AND source='task_completion' AND task_id=?
-                AND notice_key IN (SELECT CAST(id AS TEXT) FROM task_completions WHERE task_id=? AND run_id=?)")
-                .bind(summary).bind(previous).bind(id).bind(id).bind(run).execute(&mut *tx).await?;
+                WHERE session_id='jeeves-main' AND source='task_completion' AND task_id=?
+                AND notice_key IN (SELECT CAST(id AS TEXT) FROM task_completions WHERE task_id=? AND run_id=? AND id>?)")
+                .bind(summary).bind(id).bind(id).bind(run).bind(previous).execute(&mut *tx).await?;
         }
         tx.commit().await?;
         Ok(())

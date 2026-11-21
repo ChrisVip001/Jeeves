@@ -121,6 +121,8 @@ you>  /goal 让测试全绿
 
 `TurnStartParams.requestId`（可选，1-120 个 `[A-Za-z0-9_-]` 字符）标明这一轮回答的是哪条消息。同一会话里用同一个 id 再发 `turn/start`，会原样重放第一次那一轮的通知和应答，不再调用模型；同一个 id 配不同的消息或参数会被拒绝。回执存在 `interaction_receipts` 表里（键带 `turn:` 前缀），重启后依然有效。不带 `requestId` 时行为不变。
 
+`task/artifacts` 的 `latestDelivery` 返回最近一次结束的执行、结果状态、记录时间与摘要。新一轮运行中仍可查看上次回执。文件的可选 `writtenText` 是写入时记录的完整文本，局部编辑会清除旧文本。
+
 ## turn/start 的通知序列
 
 ```

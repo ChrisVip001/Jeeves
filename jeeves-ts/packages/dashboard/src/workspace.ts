@@ -1,4 +1,4 @@
-import { accountStorage } from "./hosted.ts";
+import { accountKey, accountStorage } from "./hosted.ts";
 import { phoneLayout } from "./phone";
 import {
   closeMobileNavigation,
@@ -131,6 +131,8 @@ let knownSessions: string[] = [];
 /** Switch the label *and* remember it. Every path that changes `current` goes through here. */
 function rememberSession(id: string): void {
   current = id;
+  dom.input.value = sessionStorage.getItem(accountKey("jeeves.chat-draft." + id)) ?? "";
+  dom.input.disabled = false;
   accountStorage.setItem(SESSION_KEY, id);
 }
 
@@ -868,6 +870,9 @@ async function boot(): Promise<void> {
   });
 
   dom.input.addEventListener("input", () => {
+    const key = accountKey("jeeves.chat-draft." + current);
+    if (dom.input.value) sessionStorage.setItem(key, dom.input.value);
+    else sessionStorage.removeItem(key);
     dom.input.style.height = "auto";
     dom.input.style.height = `${Math.min(dom.input.scrollHeight, 180)}px`;
   });
@@ -1676,6 +1681,7 @@ async function submit(): Promise<void> {
   }
 
   const snapshot = staged.slice();
+  sessionStorage.removeItem(accountKey("jeeves.chat-draft." + current));
   dom.input.value = "";
   dom.input.style.height = "auto";
   staged.length = 0;
@@ -1691,6 +1697,7 @@ async function submit(): Promise<void> {
  * page can promise, so it does not claim it: "applies from the next turn" is the honest wording.
  */
 async function steer(text: string): Promise<void> {
+  sessionStorage.removeItem(accountKey("jeeves.chat-draft." + current));
   dom.input.value = "";
   dom.input.style.height = "auto";
   dom.messages.append(
@@ -1723,6 +1730,7 @@ async function steer(text: string): Promise<void> {
  * the part that differs: it runs later, behind whatever is already waiting.
  */
 async function followUp(text: string): Promise<void> {
+  sessionStorage.removeItem(accountKey("jeeves.chat-draft." + current));
   dom.input.value = "";
   dom.input.style.height = "auto";
   dom.messages.append(
@@ -2110,13 +2118,19 @@ async function open(sessionId: string): Promise<void> {
  * back, prepended at the front. This is how `session/messages` works: the protocol gives
  * **newest first** (easy to page toward earlier), the screen needs it upright, so flip here.
  */
+async function openWorkFromReceipt(id: string): Promise<boolean> {
+  if (!await webTasks.openReceipt(id, "workspace")) return false;
+  workspaceActions.openWork(id);
+  return true;
+}
+
 async function loadHistory(
   sessionId: string,
   cursor: string | null,
 ): Promise<void> {
   const page = await fetchMessages(sessionId, cursor);
   if (sessionId !== current) return;
-  const nodes = [...page.data].reverse().map(row => messageRow(row, webTasks.openReceipt));
+  const nodes = [...page.data].reverse().map(row => messageRow(row, openWorkFromReceipt));
   if (cursor === null) {
     historySession = sessionId;
     newestHistoryId = page.data[0]?.id ?? 0;
@@ -2159,7 +2173,7 @@ async function appendTaskNotices(): Promise<void> {
     for (const row of notices.reverse()) {
       if (dom.messages.querySelector(`[data-notice-id="${row.id}"]`)) continue;
       dom.messages.querySelector(".welcome")?.remove();
-      dom.messages.append(messageRow(row, webTasks.openReceipt));
+      dom.messages.append(messageRow(row, openWorkFromReceipt));
     }
     newestHistoryId = latest;
     if (notices.length && followingLatest) pinToEnd();

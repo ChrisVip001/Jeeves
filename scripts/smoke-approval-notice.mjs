@@ -9,7 +9,7 @@ import path from "node:path";
 import { webcrypto } from "node:crypto";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const out = path.join(root, "jeeves-rs/target/acceptance/m4-05");
+const out = path.join(process.env.CARGO_TARGET_DIR ?? path.join(root, "jeeves-rs/target"), "acceptance/m4-05");
 await mkdir(out, { recursive: true });
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= path.join(root, "desktop/src-tauri/browser-runtime/browsers");
 const { chromium } = await import("../jeeves-ts/node_modules/playwright/index.mjs");
@@ -27,7 +27,7 @@ try {
     if (ready) { origin = ready[1]; break; }
   }
   assert.ok(origin, "Isolated cockpit failed to start");
-  browser = await chromium.launch();
+  browser = await chromium.launch({channel: process.env.JEEVES_TEST_BROWSER_CHANNEL});
   await coldOfflineNotice(browser, origin);
   if (!process.argv.includes("--offline-only")) await captureViews(browser, origin);
 } finally {
@@ -298,6 +298,7 @@ async function captureViews(browser, origin) {
         await page.setViewportSize({ width: 1280, height: 900 });
         await page.locator("#mode-cowork").click();
         await page.locator(`[data-cowork-task="${mailTasks[0]}"]`).click();
+        await page.locator(".work-history summary").click();
         await page.locator("#cowork-view").getByText(/Saved draft.*travel fixture body/s).last().waitFor();
         console.log("Mail follow-up reached the original Cowork transcript");
       }

@@ -297,6 +297,7 @@ macro_rules! protocol_types {
             TaskRunsResponse,
             ArtifactView,
             TaskArtifactsResponse,
+            TaskDeliveryView,
             TaskActionParams,
             TaskUpdatedNotification,
             ErrorNotification,

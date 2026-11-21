@@ -10,7 +10,7 @@ const requests = computed(() => Object.values(props.center.state.approvals)
 </script>
 
 <template>
-  <details v-if="requests.length || center.state.late || center.state.error" class="chat-decisions">
+  <details v-if="requests.length || center.state.late || center.state.error" class="chat-decisions" :open="requests.length === 1">
     <summary id="chat-review-requests">{{ requests.length ? t("待确认（{count}）", { count: requests.length }) : t("任务通知") }}</summary>
     <p v-if="center.state.error" role="alert">{{ center.state.error }} <button type="button" class="today-btn" @click="center.retry">{{ t("重试") }}</button></p>
     <p v-if="center.state.late" role="status">{{ center.state.late.answeredBy

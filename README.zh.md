@@ -34,7 +34,7 @@ just desktop-build     # 把 Runtime 打包进 Mac 应用
 just desktop-open      # 打开项目 App，已运行时回到原窗口
 ```
 
-Mac 和 iPhone 都从「对话」交办，在「动态」找回任务。[对话与动态](docs/design/main-entry.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
+Mac 和手机都能在「我的事项」搜索交办过的工作、阅读交付文件并就地补充要求。[对话、事项与交付](docs/design/main-entry.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
 
 **Docker**——模型、权限和聊天渠道都在驾驶舱里一步步设置：
 

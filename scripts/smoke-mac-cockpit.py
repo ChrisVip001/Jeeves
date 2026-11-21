@@ -214,6 +214,7 @@ def exercise(home, port, env, probe, posts, bundle):
         wait_for(lambda: app.control(target), "same task in Cowork")
         app.native("press", target)
         wait_for(lambda: app.control("cowork-input"), "task conversation")
+        app.native("press", "work-history-toggle")
         wait_for(
             lambda: app.see("Prepare the open-source-promotion-fixture first edition"),
             "visible active instruction",
@@ -310,6 +311,7 @@ def exercise(home, port, env, probe, posts, bundle):
         assert (
             len(posts) == 1 and posts[0][0] == "oc_final" and posts[0][1] == final_copy
         )
+        app.native("press", "work-history-toggle")
         for wording in ("first edition", "second edition", "final edition"):
             assert app.see(wording), f"Missing {wording} in reopened task"
         evidence["restoredConversation"] = app.capture("05-reopened-cowork")

@@ -49,6 +49,7 @@ async fn a_real_write_becomes_an_artifact() {
     let artifacts = observation.artifacts();
     assert_eq!(artifacts.len(), 1);
     assert!(artifacts[0].0.ends_with("report.md"));
+    assert_eq!(artifacts[0].2, Some("verdict: ready to ship\n"));
     assert!(
         artifacts[0].1 > 0,
         "the size has to be measured, not assumed"
@@ -156,4 +157,18 @@ fn human_receipts_do_not_count_as_observed_successful_tool_calls() {
     );
     assert_eq!(observation.steps.len(), 1);
     assert!(!observation.steps[0].ok);
+}
+
+#[test]
+fn a_denied_write_to_an_existing_file_cannot_publish_an_artifact() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("draft.txt"), "prior").unwrap();
+    let messages = round(
+        "write_file",
+        json!({"path":"draft.txt","content":"other"}),
+        "Error: denied",
+    );
+    assert!(observe(&messages, "turn", 1, Some(dir.path()))
+        .artifacts()
+        .is_empty());
 }

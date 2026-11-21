@@ -959,3 +959,67 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
   .sidebar .workspace-nav { display: grid; }
   #sidebar #progress { display: flex; }
 }
+
+.chat-heading { display:flex; align-items:center; gap:9px; }
+.chat .bar { border:0; background:var(--bg); }
+.chat .bar .chat-heading h2 { font-weight:650; letter-spacing:-.03em; }
+.menu-glyph { display:inline-block; width:17px; height:11px; border-block:1.6px solid currentColor; }
+.primary-navigation { background:transparent; gap:4px; }
+.primary-navigation button { display:inline-flex; align-items:center; justify-content:center; gap:7px; font-size:14px; }
+.primary-navigation button[aria-current=page] { background:var(--surface-hover); box-shadow:none; }
+.chat .welcome { max-width:740px; margin:0 auto; }
+.chat .welcome-logo { width:52px; height:52px; margin:0 auto 12px; }
+.chat .welcome-title { margin:0; font-size:clamp(27px,4vw,42px); line-height:1.22; color:var(--text); font-weight:600; }
+.chat .composer-wrap { width:min(760px, calc(100% - 32px)); padding-bottom:max(18px,env(safe-area-inset-bottom)); }
+.chat .composer { padding:14px; border-radius:22px; box-shadow:0 2px 12px color-mix(in srgb,var(--text) 7%,transparent); }
+#send,.cowork-compose .primary-button { min-height:38px; border-radius:15px; font-size:14px; padding:6px 16px; }
+.message-meta { font-size:12px; color:var(--text-3); }
+.message-meta summary,.work-history summary,.work-checks summary,.rail-tools summary { cursor:pointer; padding:6px 0; }
+.message-meta .trace { margin:6px 0; }
+.rail-tools { margin:8px 10px; }
+.rail-tools > summary { font-weight:550; min-height:38px; }
+.rail-tools .workspace-nav { display:grid; }
+.return-work,.text-action,.icon-action { display:inline-flex; align-items:center; gap:7px; }
+.return-work { width:100%; padding:8px 4px; color:var(--text-2); }
+.return-work strong { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+.return-work span { flex:none; }
+.work-list-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; margin-bottom:34px; }
+.work-list-head h1 { margin:0; }
+.work-search { display:flex; align-items:center; gap:8px; color:var(--text-2); background:var(--surface-hover); padding:0 12px; border-radius:12px; }
+.work-search input { min-width:0; width:13em; height:42px; background:none; border:0; padding:6px 0; }
+.activity-task { min-height:58px; }
+.activity-group h2,.delivery h3 { font-size:14px; color:var(--text-2); font-weight:550; }
+.work-title { min-width:0; }
+.cowork-head { border:0; width:min(100%,820px); margin:0 auto; padding:16px 24px 8px; }
+.cowork-head h2 { font-size:clamp(24px,3.5vw,37px); letter-spacing:-.035em; line-height:1.25; }
+.icon-action { min-width:42px; height:42px; justify-content:center; border-radius:50%; background:var(--surface-hover); }
+.cowork-thread { padding:8px 24px 24px; }
+.cowork-thread > * { max-width:772px; margin-inline:auto; }
+.delivery > * { margin-block:12px 22px; }
+.delivery h3 { margin:0 0 10px; }
+.delivery .bubble { font-size:16px; line-height:1.75; }
+.delivery-verdict,.live-status { color:var(--accent); font-size:14px; }
+.work-file,.file-record,.work-checks,.work-history { border-block-start:1px solid var(--line); }
+.work-file > summary,.file-record { display:flex; align-items:center; gap:10px; padding:13px 4px; }
+.work-file > summary { cursor:pointer; }
+.work-file span,.file-record span { overflow-wrap:anywhere; min-width:0; }
+.work-file small,.file-record small { margin-inline-start:auto; flex:none; color:var(--text-2); }
+.work-file pre { margin:0; padding:14px; border-radius:10px; background:var(--surface-hover); font:13px/1.55 var(--mono); max-height:34vh; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+.work-file .text-action { min-height:42px; color:var(--accent); }
+.work-checks summary,.work-history summary { min-height:44px; align-content:center; color:var(--text-2); }
+.work-history { margin-top:16px; }
+.missing-work { margin:auto; text-align:center; }
+.cowork-compose { border-radius:18px; }
+@media(max-width:640px) {
+  .work-list-head,.work-search,.work-search input { width:100%; }
+  .chat .bar { flex-wrap:nowrap; gap:4px; }
+  .chat .chat-heading img { display:none; }
+  .primary-navigation button { padding-inline:9px; }
+  .cowork-head,.cowork-thread { padding-inline:16px; }
+  .cowork-compose { width:calc(100% - 24px); margin-block-end:max(12px,env(safe-area-inset-bottom)); }
+  .chat .composer-wrap { width:calc(100% - 18px); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .msg { animation:none; }
+  .messages { scroll-behavior:auto; }
+}

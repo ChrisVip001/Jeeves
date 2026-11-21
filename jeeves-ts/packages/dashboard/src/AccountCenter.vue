@@ -214,12 +214,13 @@ onUnmounted(() => {
       {{ lang === "en" ? "中文" : "English" }}
     </button>
   </header>
-  <section v-if="profile && mode === 'login'">
+  <section class="profile-page" v-if="profile && mode === 'login'">
     <h1>{{ t("个人中心") }}</h1>
     <p class="identity">{{ profile.email }}</p>
     <a id="account-workspace" class="primary" :href="app"
       >{{ t("打开我的助理") }} <ArrowRight :size="16"
     /></a>
+    <details class="account-security"><summary>{{ t("账号与安全") }}</summary>
     <dl>
       <div>
         <dt>{{ t("注册时间") }}</dt>
@@ -290,8 +291,9 @@ onUnmounted(() => {
         <button class="primary" :disabled="busy">{{ t("更新密码") }}</button>
       </form>
     </details>
+    </details>
   </section>
-  <section v-else-if="ready">
+  <section class="auth-page" v-else-if="ready">
     <h1>
       {{
         mode === "register"
@@ -402,9 +404,10 @@ onUnmounted(() => {
   font:
     16px/1.5 system-ui,
     sans-serif;
-  color: #22332b;
-  background: #f5f6f2;
-  color-scheme: light;
+  color: var(--ink);
+  background: var(--paper);
+  --ink:#192236; --paper:#fcfcfd; --rule:#cbd1de; --muted:#59657a; --action:#394fb6; --button-text:white;
+  color-scheme: light dark;
 }
 * {
   box-sizing: border-box;
@@ -428,7 +431,7 @@ li {
 header {
   justify-content: space-between;
   padding: 27px 0;
-  border-bottom: 1px solid #d4dcd4;
+  border-bottom: 1px solid var(--rule);
 }
 .brand {
   font-size: 21px;
@@ -467,9 +470,9 @@ a {
 }
 input {
   padding: 11px;
-  border: 1px solid #9eaca1;
+  border: 1px solid var(--rule);
   border-radius: 6px;
-  background: #fff;
+  background: var(--paper);
   color: inherit;
 }
 button,
@@ -481,8 +484,8 @@ button:disabled {
 }
 .primary {
   justify-content: center;
-  background: #23583d;
-  color: white;
+  background: var(--action);
+  color: var(--button-text);
   text-decoration: none;
   font-weight: 600;
   border: 0;
@@ -493,7 +496,7 @@ button:disabled {
 .quiet {
   background: none;
   border: 0;
-  color: #28583f;
+  color: var(--action);
   text-decoration: underline;
   text-underline-offset: 3px;
   min-height: 44px;
@@ -506,7 +509,7 @@ dl {
 }
 dl div,
 li {
-  border-bottom: 1px solid #d4dcd4;
+  border-bottom: 1px solid var(--rule);
   padding: 13px 0;
 }
 dl div {
@@ -521,7 +524,7 @@ dd {
 li p,
 small,
 dt {
-  color: #506457;
+  color: var(--muted);
 }
 li p {
   margin: 0;
@@ -543,7 +546,16 @@ p[role="alert"] {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible {
-  outline: 3px solid #36714e;
+  outline: 3px solid var(--action);
   outline-offset: 3px;
 }
+@media (prefers-color-scheme: dark) {
+  :root { --ink:#edf0f6; --paper:#151822; --rule:#454c60; --muted:#b1bbcd; --action:#acb9ff; --button-text:#14204f; }
+}
+.account-security { margin-top:32px; border-top:1px solid var(--rule); }
+.account-security > summary { cursor:pointer; padding:18px 0; font-weight:600; }
+.auth-page { max-width:390px; }
+.profile-page { max-width:560px; }
+.auth-page .primary { width:100%; border-radius:12px; }
+input { min-height:46px; border-radius:10px; }
 </style>

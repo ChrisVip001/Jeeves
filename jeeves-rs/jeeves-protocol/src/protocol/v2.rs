@@ -975,8 +975,23 @@ pub struct TaskRunsResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct ArtifactView {
+    /// Complete text of an observed successful whole-file write up to 64 KiB.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub written_text: Option<String>,
     pub path: String,
     pub bytes: i32,
+    pub at: String,
+}
+
+/// The most recent terminal execution, including while a later revision is running.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct TaskDeliveryView {
+    pub status: String,
+    pub summary: Option<String>,
+    pub run_id: Option<String>,
     pub at: String,
 }
 
@@ -986,6 +1001,9 @@ pub struct ArtifactView {
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct TaskArtifactsResponse {
     pub artifacts: Vec<ArtifactView>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub latest_delivery: Option<TaskDeliveryView>,
 }
 
 /// `task/suspend|resume|cancel`: address one task and say why (the reason is shown, not dropped).

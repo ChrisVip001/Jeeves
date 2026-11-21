@@ -1,17 +1,17 @@
-/* Shared cockpit palette: 黛青, from docs/design/today-preview.html. */
+/* Shared colors for chat, work and settings. */
 :root {
   color-scheme: light dark;
-  --bg: #f1f2f0;
-  --bg-panel: #e7e9e6;
-  --surface: #f9faf8;
-  --surface-hover: #eef0ed;
-  --line: #dcdfdb;
+  --bg: #fcfcfd;
+  --bg-panel: #f1f3f7;
+  --surface: #ffffff;
+  --surface-hover: #eef1f8;
+  --line: #d8dce5;
   --line-soft: color-mix(in srgb, var(--line) 60%, var(--bg));
-  --text: #1c2220;
-  --text-2: #4f5856;
-  --text-3: #5e6865;
-  --accent: #1d6563;
-  --accent-hover: #175553;
+  --text: #192236;
+  --text-2: #505c70;
+  --text-3: #626d80;
+  --accent: #394fb6;
+  --accent-hover: #2f4196;
   --on-accent: #ffffff;
   --warn: #8c5b0c;
   --on-warn: #ffffff;
@@ -39,17 +39,17 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121615;
-    --bg-panel: #181d1c;
-    --surface: #1e2423;
-    --surface-hover: #242b2a;
-    --line: #29302f;
-    --text: #e3e8e5;
-    --text-2: #9fa9a6;
-    --text-3: #85908d;
-    --accent: #6cb5ae;
-    --accent-hover: #80c2bb;
-    --on-accent: #0c1413;
+    --bg: #151822;
+    --bg-panel: #1a1e29;
+    --surface: #222735;
+    --surface-hover: #2a3042;
+    --line: #393f50;
+    --text: #edf0f6;
+    --text-2: #b1bbcd;
+    --text-3: #9da9bd;
+    --accent: #acb9ff;
+    --accent-hover: #c7ceff;
+    --on-accent: #14204f;
     --warn: #dba646;
     --on-warn: #1a1306;
     --bad: #e27d72;

@@ -262,6 +262,7 @@ export type * from "./RunView";
 export type * from "./TaskRunsResponse";
 export type * from "./ArtifactView";
 export type * from "./TaskArtifactsResponse";
+export type * from "./TaskDeliveryView";
 export type * from "./TaskActionParams";
 export type * from "./TaskUpdatedNotification";
 export type * from "./ErrorNotification";

@@ -122,7 +122,7 @@ try {
     single: { ownerId: owner.ownerId, token: "web-fixture-token" },
   }).server;
   gatewayPort = await listen(gateway);
-  browser = await chromium.launch();
+  browser = await chromium.launch({channel: process.env.JEEVES_TEST_BROWSER_CHANNEL});
   async function login(options) {
     const ctx = await browser.newContext({
       ...options,
@@ -174,10 +174,12 @@ try {
   await phoneReady;
   const tasks = await (await phone.request.get(app + "api/tasks")).json();
   assert.ok(tasks.tasks.some((t) => t.id === task.task.id));
+  await phone.locator(".mobile-menu").click();
   await phone
     .getByRole("link", { name: "Account", exact: true })
     .first()
     .click();
+  await phone.locator(".account-security > summary").click();
   await phone
     .getByRole("listitem")
     .filter({ hasText: "Mac" })
@@ -193,9 +195,10 @@ try {
   await phone.getByRole("heading", { name: "Sign in to Jeeves" }).waitFor();
   assert.equal((await phone.request.get(app + "api/tasks")).status(), 401);
   const ownerPage = await login({});
+  await ownerPage.locator(".account-security > summary").click();
   await ownerPage.getByText("Change password", { exact: true }).click();
   await ownerPage
-    .locator("details[open]")
+    .locator(".account-security > details[open]")
     .getByLabel("Current password")
     .fill(password);
   await ownerPage
@@ -255,12 +258,13 @@ try {
     ).status(),
     400,
   );
+  await signup.locator(".account-security > summary").click();
   await signup
     .locator("summary")
     .filter({ hasText: "Two-factor authentication" })
     .click();
   await signup
-    .locator("details[open]")
+    .locator(".account-security > details[open]")
     .getByLabel("Current password")
     .fill(first);
   await signup.getByRole("button", { name: "Set up authenticator" }).click();
@@ -341,12 +345,13 @@ try {
     (await (await signup.request.get(origin + "/api/account")).json()).app,
     (await (await mobile.request.get(origin + "/api/account")).json()).app,
   );
+  await mobile.locator(".account-security > summary").click();
   await mobile
     .locator("summary")
     .filter({ hasText: "Two-factor authentication" })
     .click();
   await mobile
-    .locator("details[open]")
+    .locator(".account-security > details[open]")
     .getByLabel("Current password")
     .fill(second);
   await mobile.getByLabel("Authenticator or recovery code").fill(backups[1]);

@@ -57,12 +57,14 @@ export const webState = reactive<{
 });
 
 export const workspaceActions: {
+  openWork: (id: string) => void;
   refresh: () => Promise<void>;
   browse: () => void;
   upload: () => void;
   cwdChanged: (cwd: string | null) => void;
   main: () => Promise<void>;
 } = {
+  openWork: () => {},
   refresh: async () => {},
   browse: () => {},
   upload: () => {},
