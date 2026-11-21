@@ -197,6 +197,8 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 仓库中的开发版应用正在运行时，执行 `just desktop-refresh-ui` 并重新载入当前窗口，可以更新网页界面。Runtime 的更新在下次启动时生效。
 
+要在这个 App 里打开已有的 Go 账号网关，在 Runtime 的 `JEEVES_HOME` 中保存 `desktop-gateway` 文件。第一行是回环 HTTPS 网关地址，第二行是它转发到的回环 HTTP Runtime 地址，例如第一行 `https://localhost:8743`，第二行 `http://127.0.0.1:7777`。打开 App 前先启动网关。App 启动常用的 Runtime，核对实际地址和文件第二行，再直接打开网关。设置保存在数据目录中，重新打包仍然有效。
+
 应用打开后进入「对话」。从「我的事项」或回执打开交付页面并补充要求。[对话、事项与交付](design/main-entry.zh.md)
 
 在 Mac 的仓库目录运行 `just smoke-mac-cockpit` 可复验桌面端。命令会构建 Jeeves.app，在自己的前台窗口中操作主聊天和 Cowork；运行时使用临时目录，模型和发布服务均由本机模拟。测试随后退出并重新打开应用，用同一份临时数据核对任务 ID、完整会话和唯一的完成摘要。运行终端需已有辅助功能权限。若已有屏幕录制权限，测试会将 Jeeves 单窗口截图和 JSON 报告一起保存在 `jeeves-rs/target/acceptance/mac-cockpit/<运行时间>/`。

@@ -219,6 +219,8 @@ The Mac app and mobile web view share one interface and follow the device’s li
 
 For the running development bundle in this checkout, run `just desktop-refresh-ui` and reload its window to pick up interface changes. A replaced Runtime binary takes effect on its next launch.
 
+To open an existing Go account gateway in this app, put a `desktop-gateway` file in the Runtime's `JEEVES_HOME`. Put the loopback HTTPS gateway origin on the first line and its loopback HTTP Runtime origin on the second, for example `https://localhost:8743` followed by `http://127.0.0.1:7777`. Start the gateway before opening the app. The app starts its usual Runtime, checks the reported Runtime address against the second line, and opens the gateway directly. This setting belongs to the data directory and survives app builds.
+
 The app opens in Chat. Open a receipt or My work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
 
 To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `jeeves-rs/target/acceptance/mac-cockpit/<run>/`.
