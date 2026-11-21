@@ -2,6 +2,7 @@ import { LarkInbox } from "./lark-inbox.ts";
 import { explain } from "./bridge.ts";
 import type { Responder } from "./bridge.ts";
 import { Allowlist, parseApprovalReply, splitMessage } from "./shared/index.ts";
+import type { ApprovalReply } from "./shared/index.ts";
 import type { ChannelAdapter, ChannelCapabilities, ChannelProbe, ChannelTarget, OutboundMessage, SendReceipt } from "./channel.ts";
 import {
   METHOD_CONTROL,
@@ -14,7 +15,7 @@ import {
 import type { LarkFrame, LarkFrameHeader } from "./lark-proto.ts";
 
 export type { Responder } from "./bridge.ts";
-import { NOT_ALLOWED, answerLine, approvalActionOf } from "./approvals.ts";
+import { NOT_ALLOWED, answerLine, approvalActionOf, approvalCard, approvalReplyText } from "./approvals.ts";
 import type { ApprovalAnswer } from "./approvals.ts";
 import type { ApprovalAction } from "./approvals.ts";
 import type { ApprovalRequestedNotification, InteractionSource } from "@jeeves/client";
@@ -308,7 +309,7 @@ export class LarkAdapter implements ChannelAdapter {
 
   readonly #inbox: LarkInbox;
   readonly #processing = new Set<string>();
-  readonly #textApprovals = new Map<string, {
+  readonly #originApprovals = new Map<string, {
     source: InteractionSource;
     request: ApprovalRequestedNotification;
     expiresAt: number;
@@ -487,7 +488,8 @@ export class LarkAdapter implements ChannelAdapter {
           return;
         }
 
-        if (headerValue(frame, "type") !== "event") {
+        const type = headerValue(frame, "type");
+        if (type !== "event" && type !== "card") {
           this.#ack(socket, frame);
           this.#log("non-event frame ignored");
           return;
@@ -679,28 +681,35 @@ export class LarkAdapter implements ChannelAdapter {
 
     const origin = { channel: "lark", chatId, messageId: message.message_id ?? "", senderId: openId };
     const source = inGroup && this.#dispatchers.has(openId) ? origin : undefined;
-    const textApprovalSource = !source && this.#canApproveOwnTurn(openId) && this.#onApproval
+    const originApprovalSource = !source && this.#canApproveOwnTurn(openId) && this.#onApproval
       ? origin
       : undefined;
     const requestId = message.message_id ? `lark_${message.message_id}` : undefined;
-    const reply = await this.#respond(conversation, text, source, requestId, textApprovalSource);
+    const reply = await this.#respond(conversation, text, source, requestId, originApprovalSource);
     if (await this.#say(chatId, reply)) this.#log("Reply delivered to Feishu");
   }
 
-  async requestTextApproval(source: InteractionSource, request: ApprovalRequestedNotification): Promise<void> {
+  async requestOriginApproval(source: InteractionSource, request: ApprovalRequestedNotification): Promise<void> {
     if (!this.#canApproveOwnTurn(source.senderId) || !this.#onApproval || request.expiresInMs <= 0) return;
     const key = `${request.requestId} v${request.version}`;
     const pending = { source, request, expiresAt: Date.now() + request.expiresInMs };
-    this.#textApprovals.set(key, pending);
+    this.#originApprovals.set(key, pending);
     setTimeout(() => {
-      if (this.#textApprovals.get(key) === pending) this.#textApprovals.delete(key);
+      if (this.#originApprovals.get(key) === pending) this.#originApprovals.delete(key);
     }, request.expiresInMs).unref();
+    try {
+      await this.sendCard(source.chatId, source.messageId, approvalCard(request, null, true));
+      this.#log(`Approval card ${request.requestId} delivered to Feishu`);
+      return;
+    } catch (error) {
+      this.#log(`Approval card ${request.requestId} could not be sent: ${explain(error)}`);
+    }
     const message = [
       `Jeeves 请求确认一次操作（${Math.ceil(request.expiresInMs / 1000)} 秒内有效）`,
       `工具 ${request.tool}`,
       request.argsPreview,
       request.reason,
-      `回复「批准 ${key}」或「拒绝 ${key}」。群聊请同时 @机器人。`,
+      approvalReplyText(request),
     ].join("\n");
     if (await this.#say(source.chatId, message, source.messageId || undefined)) {
       this.#log(`Text approval request ${request.requestId} delivered to Feishu`);
@@ -715,33 +724,39 @@ export class LarkAdapter implements ChannelAdapter {
   async #answerTextApproval(chatId: string, senderId: string, text: string): Promise<boolean> {
     const reply = parseApprovalReply(text.replace(/^批准\s+/, "1 ").replace(/^拒绝\s+/, "2 "));
     if (!reply?.requestId.startsWith("ap-")) return false;
+    await this.#answerOriginApproval(chatId, senderId, reply);
+    return true;
+  }
+
+  async #answerOriginApproval(
+    chatId: string,
+    senderId: string,
+    reply: ApprovalReply,
+    card?: { turnId: string; messageId?: string },
+  ): Promise<void> {
     const key = `${reply.requestId} v${reply.version}`;
-    const pending = this.#textApprovals.get(key);
+    const pending = this.#originApprovals.get(key);
     if (!pending || pending.expiresAt <= Date.now() || pending.source.chatId !== chatId ||
-        pending.source.senderId !== senderId || !this.#canApproveOwnTurn(senderId) || !this.#onApproval) {
-      await this.#say(chatId, "当前对话中没有可由你确认的这条请求，可能已处理或过期。");
-      return true;
+        pending.source.senderId !== senderId || !this.#canApproveOwnTurn(senderId) || !this.#onApproval ||
+        (card && card.turnId !== pending.request.turnId)) {
+      await this.#say(chatId, "当前对话中没有可由你确认的这条请求，可能已处理或过期。", card?.messageId);
+      return;
     }
     const { turnId, requestId, version } = pending.request;
     const { approved } = reply;
     try {
       const answer = await this.#onApproval({ jeeves: "approval", turnId, requestId, version, approved }, `lark:${senderId}`);
-      this.#textApprovals.delete(key);
+      this.#originApprovals.delete(key);
       const accepted = typeof answer === "boolean" ? answer : answer.accepted;
       const message = approved ? "已批准本次操作。" : "已拒绝本次操作。";
-      await this.#say(chatId, accepted ? message : "这条请求已处理或过期。");
+      await this.#say(chatId, accepted ? message : "这条请求已处理或过期。", card?.messageId);
     } catch (error) {
-      this.#log(`text approval answer failed: ${explain(error)}`);
-      await this.#say(chatId, "审批未确认送达，请检查请求状态后再试。");
+      this.#log(`approval answer failed: ${explain(error)}`);
+      await this.#say(chatId, "审批未确认送达，请检查请求状态后再试。", card?.messageId);
     }
-    return true;
   }
 
-  /**
-   * A button on one of our approval cards was clicked. Only a listed dispatcher's click counts
-   * (the Runtime then takes it once; a second click finds nothing waiting). Anyone else is told
-   * so in the card's thread, and nothing is sent to the Runtime.
-   */
+  /** Ordinary-turn cards check the original sender and chat. Dispatch cards check the dispatcher list. */
   async #cardClicked(event: LarkEvent): Promise<void> {
     const action = approvalActionOf(event.event?.action?.value);
     if (action === null) return;
@@ -753,6 +768,14 @@ export class LarkAdapter implements ChannelAdapter {
       return;
     }
     const replyTo = cardId === "" ? undefined : cardId;
+    if (action.bindToSender && action.version !== undefined) {
+      await this.#answerOriginApproval(chatId, who, {
+        requestId: action.requestId,
+        version: action.version,
+        approved: action.approved,
+      }, { turnId: action.turnId, ...(replyTo === undefined ? {} : { messageId: replyTo }) });
+      return;
+    }
     if (!this.#dispatchers.has(who)) {
       this.#log(`a card click from ${who || "someone unknown"}, not a dispatcher; not answered`);
       await this.#say(chatId, NOT_ALLOWED, replyTo);
@@ -917,16 +940,9 @@ export class LarkAdapter implements ChannelAdapter {
     await this.#say(chatId, text, messageId === "" ? undefined : messageId);
   }
 
-  /**
-   * Post an interactive card into a chat, as a reply to `messageId` when given. Failures are
-   * logged, never thrown, like reports.
-   */
+  /** Post an interactive card into the chat, replying to `messageId` when available. */
   async sendCard(chatId: string, messageId: string, card: Record<string, unknown>): Promise<void> {
-    try {
-      await this.#post(chatId, "interactive", card, messageId === "" ? undefined : messageId);
-    } catch (error) {
-      this.#log(`sending the card failed: ${explain(error)}`);
-    }
+    await this.#post(chatId, "interactive", card, messageId || undefined);
   }
 
   async #sendText(chatId: string, text: string, replyTo?: string): Promise<void> {

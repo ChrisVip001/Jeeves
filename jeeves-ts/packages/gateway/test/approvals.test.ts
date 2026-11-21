@@ -26,8 +26,8 @@ test("the card says what, why, which task and when silence means no; buttons car
   }
   const actions = (card["elements"] as Array<Record<string, unknown>>)[1]!["actions"] as Array<{ value: unknown }>;
   assert.deepEqual(actions.map((a) => approvalActionOf(a.value)), [
-    { jeeves: "approval", turnId: "t1", requestId: "ap-1", approved: true },
-    { jeeves: "approval", turnId: "t1", requestId: "ap-1", approved: false },
+    { jeeves: "approval", turnId: "t1", requestId: "ap-1", approved: true, version: 1 },
+    { jeeves: "approval", turnId: "t1", requestId: "ap-1", approved: false, version: 1 },
   ]);
 });
 
@@ -64,12 +64,12 @@ test("local requests and requests no longer waiting are left alone", async () =>
   assert.equal(sent, 0);
 });
 
-test("a private origin uses the text approval sender once per revision", async () => {
+test("an origin-bound request uses the origin approval sender once per revision", async () => {
   const deliveries: number[] = [];
   const relay = approvalRelay({
-    locate: async () => ({ source: lark, task: null, replyWithText: true }),
+    locate: async () => ({ source: lark, task: null, bindToSender: true }),
     sendCard: async () => assert.fail("private approval used the group card sender"),
-    sendTextApproval: async (source, approval) => {
+    sendOriginApproval: async (source, approval) => {
       assert.deepEqual(source, lark);
       deliveries.push(approval.version);
     },

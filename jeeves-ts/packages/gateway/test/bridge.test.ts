@@ -133,7 +133,7 @@ test("a private Feishu turn keeps its own session and can route an approval", as
   assert.equal(await unrelated, null);
   server.notify({ ...started("t-private", "lark:oc_private"), userMessage: "ls" } as ServerNotification);
   assert.deepEqual(await bridge.locateApproval("t-private", "ap-1"), {
-    source: origin, task: null, replyWithText: true,
+    source: origin, task: null, bindToSender: true,
   });
   server.notify(completed("t-private", "finished"));
   server.reply(0, { turnId: "t-private" });

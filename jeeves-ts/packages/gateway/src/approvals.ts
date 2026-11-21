@@ -14,6 +14,7 @@ export interface ApprovalAction {
   requestId: string;
   approved: boolean;
   version?: number;
+  bindToSender?: true;
 }
 
 /** Read a card button's `value` back; anything else is not ours and returns `null`. */
@@ -23,7 +24,20 @@ export function approvalActionOf(value: unknown): ApprovalAction | null {
   if (v["jeeves"] !== "approval") return null;
   if (typeof v["turnId"] !== "string" || typeof v["requestId"] !== "string") return null;
   if (typeof v["approved"] !== "boolean") return null;
-  return { jeeves: "approval", turnId: v["turnId"], requestId: v["requestId"], approved: v["approved"] };
+  const version = v["version"];
+  const bindToSender = v["bindToSender"];
+  if (version !== undefined && (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1)) return null;
+  if (bindToSender !== undefined && (bindToSender !== true || version === undefined)) return null;
+  return {
+    jeeves: "approval", turnId: v["turnId"], requestId: v["requestId"], approved: v["approved"],
+    ...(version === undefined ? {} : { version }),
+    ...(bindToSender === true ? { bindToSender } : {}),
+  };
+}
+
+export function approvalReplyText(request: ApprovalRequestedNotification): string {
+  const key = `${request.requestId} v${request.version}`;
+  return `也可回复「批准 ${key}」或「拒绝 ${key}」。群聊请同时 @机器人。`;
 }
 
 /** Lark markdown treats `*`, `_`, `~` and backticks as markup; a command line must show as typed. */
@@ -39,6 +53,7 @@ function code(text: string): string {
 export function approvalCard(
   request: ApprovalRequestedNotification,
   task: AgentTaskView | null,
+  bindToSender = false,
 ): Record<string, unknown> {
   const minutes = Math.max(1, Math.round(request.expiresInMs / 60_000));
   const lines = [
@@ -46,7 +61,10 @@ export function approvalCard(
     `**Wants to run:** ${request.tool}`,
     code(request.argsPreview),
     `**Why it asks:** ${request.reason}`,
-    `No answer within ${minutes} min counts as a no. Only listed dispatchers can answer, once.`,
+    bindToSender
+      ? `原发起人可在 ${Math.ceil(request.expiresInMs / 1000)} 秒内确认一次。`
+      : `No answer within ${minutes} min counts as a no. Only listed dispatchers can answer, once.`,
+    bindToSender ? approvalReplyText(request) : null,
   ].filter((line): line is string => line !== null);
   const button = (label: string, kind: string, approved: boolean) => ({
     tag: "button",
@@ -57,6 +75,8 @@ export function approvalCard(
       turnId: request.turnId,
       requestId: request.requestId,
       approved,
+      version: request.version,
+      ...(bindToSender ? { bindToSender: true } : {}),
     } satisfies ApprovalAction,
   });
   return {
@@ -64,7 +84,10 @@ export function approvalCard(
     header: { template: "orange", title: { tag: "plain_text", content: "Jeeves needs your confirmation" } },
     elements: [
       { tag: "div", text: { tag: "lark_md", content: lines.join("\n") } },
-      { tag: "action", actions: [button("Approve once", "primary", true), button("Deny", "danger", false)] },
+      { tag: "action", actions: [
+        button(bindToSender ? "批准一次" : "Approve once", "primary", true),
+        button(bindToSender ? "拒绝" : "Deny", "danger", false),
+      ] },
     ],
   };
 }
@@ -73,7 +96,7 @@ export function approvalCard(
 export interface ApprovalOrigin {
   source: InteractionSource | null;
   task: AgentTaskView | null;
-  replyWithText?: boolean;
+  bindToSender?: boolean;
 }
 
 export interface RelayDeps {
@@ -81,15 +104,11 @@ export interface RelayDeps {
   locate(turnId: string, requestId: string): Promise<ApprovalOrigin | null>;
   /** Post a card into a chat as a reply to the dispatching message. */
   sendCard(chatId: string, messageId: string, card: Record<string, unknown>): Promise<void>;
-  sendTextApproval?(source: InteractionSource, request: ApprovalRequestedNotification): Promise<void>;
+  sendOriginApproval?(source: InteractionSource, request: ApprovalRequestedNotification): Promise<void>;
   onLog?: (text: string) => void;
 }
 
-/**
- * Returns the handler for `approvalRequested`: when the asking turn was dispatched from a Lark
- * group (directly, or through a task it created), ask in that thread with a card. Requests from
- * local views are left to the views; nothing else here answers on anyone's behalf.
- */
+/** Route a live approval to its originating Lark conversation. Local views handle their own requests. */
 export function approvalRelay(
   deps: RelayDeps,
 ): (request: ApprovalRequestedNotification) => void {
@@ -104,8 +123,8 @@ export function approvalRelay(
         const origin = await deps.locate(request.turnId, request.requestId);
         const source = origin?.source ?? null;
         if (source === null || source.channel !== "lark") return;
-        if (origin?.replyWithText) {
-          await deps.sendTextApproval?.(source, request);
+        if (origin?.bindToSender) {
+          await deps.sendOriginApproval?.(source, request);
           return;
         }
         await deps.sendCard(source.chatId, source.messageId, approvalCard(request, origin?.task ?? null));

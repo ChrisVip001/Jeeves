@@ -765,7 +765,7 @@ test("a report goes out as a reply to the dispatching message", async () => {
   await world.stop();
 });
 
-test("private Feishu approval reaches the sender and is answered while the turn waits", async () => {
+test("a rejected Feishu card falls back to a text approval while the turn waits", async () => {
   const decisions: unknown[] = [];
   const wake: unknown[] = [];
   const request = {
@@ -789,11 +789,12 @@ test("private Feishu approval reaches the sender and is answered while the turn 
   }, async (_chat, _text, dispatch, _id, origin) => {
     assert.equal(dispatch, undefined);
     assert.ok(origin);
-    await world.adapter.requestTextApproval(origin, request);
+    await world.adapter.requestOriginApproval(origin, request);
     return result;
   });
   try {
     const socket = await world.connect();
+    world.lark.script("/open-apis/im/v1/messages/om_1/reply", { code: 230001, msg: "card unavailable" });
     const send = (id: string, text: string, openId = "ou_owner", chatId = "oc_private") =>
       socket.push(dataFrame(eventBody({ openId, chatId, text }), { messageId: id }));
     send("command", "执行ls命令");
@@ -822,7 +823,7 @@ test("private Feishu approval reaches the sender and is answered while the turn 
   }
 });
 
-test("the sole Feishu owner can approve their ordinary group turn without dispatch permissions", async () => {
+test("the sole Feishu owner can approve their ordinary group turn using a card", async () => {
   let finish!: (reply: string) => void;
   const result = new Promise<string>(resolve => { finish = resolve; });
   const world = harness({
@@ -835,7 +836,7 @@ test("the sole Feishu owner can approve their ordinary group turn without dispat
   }, async (_chat, _text, dispatch, _id, origin) => {
     assert.equal(dispatch, undefined);
     assert.ok(origin);
-    await world.adapter.requestTextApproval(origin, {
+    await world.adapter.requestOriginApproval(origin, {
       turnId: "t1", requestId: "ap-1", tool: "run_command",
       version: 1, argsPreview: "ls", reason: "confirm", expiresInMs: 120_000,
     });
@@ -848,10 +849,27 @@ test("the sole Feishu owner can approve their ordinary group turn without dispat
       mentions: [{ open_id: "ou_jeeves" }],
     }), { messageId: id }));
     send("group-command", "执行ls命令");
-    await waitFor(() => world.lark.said.length === 1, "the group approval");
-    assert.match(world.lark.said[0]!, /批准 ap-1 v1.*@机器人/);
-    send("group-approval", "批准 ap-1 v1");
+    await waitFor(() => world.lark.posts.length === 1, "the group approval");
+    const post = world.lark.posts[0]!;
+    assert.equal(post.kind, "interactive");
+    assert.match(JSON.stringify(post.content), /批准 ap-1 v1.*@机器人/);
+    const elements = post.content["elements"] as Array<{ actions?: Array<{ value: unknown }> }>;
+    const value = elements.find(element => element.actions)?.actions?.[0]?.value;
+    assert.ok(value);
+    socket.push(dataFrame(cardClick({ openId: "ou_guest", chatId: "oc_chat", value }), {
+      messageId: "guest-click", type: "card",
+    }));
+    await waitFor(() => world.lark.said.length === 1, "the guest is refused");
+    socket.push(dataFrame(cardClick({ openId: "ou_owner", chatId: "oc_other", value }), {
+      messageId: "other-chat-click", type: "card",
+    }));
+    await waitFor(() => world.lark.said.length === 2, "a click from another chat is refused");
+    socket.push(dataFrame(cardClick({ openId: "ou_owner", chatId: "oc_chat", value }), {
+      messageId: "owner-click", type: "card",
+    }));
     await waitFor(() => world.lark.said.includes("ls executed"), "the command result");
+    send("stale-text-answer", "批准 ap-1 v1");
+    await waitFor(() => world.lark.said.some(reply => reply.includes("没有可由你确认")), "the text fallback cannot answer again");
   } finally {
     finish("test finished");
     await world.stop();
@@ -859,7 +877,7 @@ test("the sole Feishu owner can approve their ordinary group turn without dispat
 });
 
 
-function cardClick(options: { openId: string; approved?: boolean; value?: unknown }): string {
+function cardClick(options: { openId: string; chatId?: string; approved?: boolean; value?: unknown }): string {
   return JSON.stringify({
     schema: "2.0",
     header: { event_type: "card.action.trigger", event_id: "ev_card" },
@@ -874,7 +892,7 @@ function cardClick(options: { openId: string; approved?: boolean; value?: unknow
           approved: options.approved ?? true,
         },
       },
-      context: { open_message_id: "om_card", open_chat_id: "oc_g" },
+      context: { open_message_id: "om_card", open_chat_id: options.chatId ?? "oc_g" },
     },
   });
 }
