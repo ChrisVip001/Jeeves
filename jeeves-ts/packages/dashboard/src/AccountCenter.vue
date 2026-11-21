@@ -491,13 +491,9 @@ onUnmounted(() => {
 </template>
 <style>
 :root {
-  font:
-    16px/1.5 system-ui,
-    sans-serif;
-  color: var(--ink);
-  background: var(--paper);
-  --ink:#192236; --paper:#fcfcfd; --rule:#cbd1de; --muted:#59657a; --action:#394fb6; --button-text:white;
-  color-scheme: light dark;
+  font: 16px/1.5 var(--jeeves-font);
+  color: var(--text);
+  background: var(--bg);
 }
 * {
   box-sizing: border-box;
@@ -521,7 +517,7 @@ li {
 header {
   justify-content: space-between;
   padding: 27px 0;
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--line);
 }
 .brand {
   font-size: 21px;
@@ -560,9 +556,9 @@ a {
 }
 input {
   padding: 11px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--paper);
+  background: var(--surface);
   color: inherit;
 }
 button,
@@ -574,8 +570,8 @@ button:disabled {
 }
 .primary {
   justify-content: center;
-  background: var(--action);
-  color: var(--button-text);
+  background: var(--accent);
+  color: var(--on-accent);
   text-decoration: none;
   font-weight: 600;
   border: 0;
@@ -583,10 +579,13 @@ button:disabled {
   min-height: 44px;
   padding: 9px 18px;
 }
+.primary:not(:disabled):hover {
+  background: var(--accent-hover);
+}
 .quiet {
   background: none;
   border: 0;
-  color: var(--action);
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
   min-height: 44px;
@@ -599,7 +598,7 @@ dl {
 }
 dl div,
 li {
-  border-bottom: 1px solid var(--rule);
+  border-bottom: 1px solid var(--line);
   padding: 13px 0;
 }
 dl div {
@@ -614,7 +613,7 @@ dd {
 li p,
 small,
 dt {
-  color: var(--muted);
+  color: var(--text-2);
 }
 li p {
   margin: 0;
@@ -629,20 +628,17 @@ li button {
   margin-left: auto;
 }
 p[role="alert"] {
-  color: #942e24;
+  color: var(--bad);
   max-width: 490px;
   margin: 16px auto;
 }
 button:focus-visible,
 a:focus-visible,
 input:focus-visible {
-  outline: 3px solid var(--action);
+  outline: 3px solid var(--accent);
   outline-offset: 3px;
 }
-@media (prefers-color-scheme: dark) {
-  :root { --ink:#edf0f6; --paper:#151822; --rule:#454c60; --muted:#b1bbcd; --action:#acb9ff; --button-text:#14204f; }
-}
-.account-security { margin-top:32px; border-top:1px solid var(--rule); }
+.account-security { margin-top:32px; border-top:1px solid var(--line); }
 .account-security > summary { cursor:pointer; padding:18px 0; font-weight:600; }
 .auth-page { max-width:390px; }
 .profile-page { max-width:560px; }

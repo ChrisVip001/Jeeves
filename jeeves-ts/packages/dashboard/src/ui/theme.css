@@ -1,0 +1,62 @@
+/* Shared cockpit palette: 黛青, from docs/design/today-preview.html. */
+:root {
+  color-scheme: light dark;
+  --bg: #f1f2f0;
+  --bg-panel: #e7e9e6;
+  --surface: #f9faf8;
+  --surface-hover: #eef0ed;
+  --line: #dcdfdb;
+  --line-soft: color-mix(in srgb, var(--line) 60%, var(--bg));
+  --text: #1c2220;
+  --text-2: #4f5856;
+  --text-3: #5e6865;
+  --accent: #1d6563;
+  --accent-hover: #175553;
+  --on-accent: #ffffff;
+  --warn: #8c5b0c;
+  --on-warn: #ffffff;
+  --warn-soft: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  --bad: #a8403a;
+  --selection: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  --scrim: rgba(18, 22, 21, 0.28);
+  --scrim-strong: rgba(12, 20, 19, 0.78);
+  --shadow-overlay: 0 8px 32px rgba(28, 34, 32, 0.12);
+  --frost: color-mix(in srgb, var(--surface) 72%, transparent);
+  --frost-highlight: rgba(255, 255, 255, 0.7);
+  --grain-opacity: 0.025;
+
+  --jeeves-background: var(--bg);
+  --jeeves-sidebar: var(--bg-panel);
+  --jeeves-surface: var(--surface);
+  --jeeves-text: var(--text);
+  --jeeves-muted: var(--text-2);
+  --jeeves-accent: var(--accent);
+  --jeeves-line: var(--line);
+  /* All PingFang: one sans stack for headings and body (M0-12). */
+  --jeeves-font: "PingFang SC", "PingFang TC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --jeeves-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121615;
+    --bg-panel: #181d1c;
+    --surface: #1e2423;
+    --surface-hover: #242b2a;
+    --line: #29302f;
+    --text: #e3e8e5;
+    --text-2: #9fa9a6;
+    --text-3: #85908d;
+    --accent: #6cb5ae;
+    --accent-hover: #80c2bb;
+    --on-accent: #0c1413;
+    --warn: #dba646;
+    --on-warn: #1a1306;
+    --bad: #e27d72;
+    --scrim: rgba(0, 0, 0, 0.5);
+    --scrim-strong: rgba(0, 0, 0, 0.82);
+    --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.45);
+    --frost-highlight: rgba(255, 255, 255, 0.06);
+    --grain-opacity: 0.03;
+  }
+}

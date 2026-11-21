@@ -69,6 +69,18 @@ async function poll(check, label, timeout = 20000) {
   throw new Error("Timed out: " + label);
 }
 
+async function assertTealTheme(page, primary) {
+  for (const [scheme, canvas, accent] of [
+    ["light", "#f1f2f0", "rgb(29, 101, 99)"],
+    ["dark", "#121615", "rgb(108, 181, 174)"],
+  ]) {
+    await page.emulateMedia({ colorScheme: scheme });
+    assert.equal(await primary.evaluate(el => getComputedStyle(el).backgroundColor), accent);
+    assert.equal(await page.locator("html").evaluate(el => getComputedStyle(el).getPropertyValue("--bg").trim()), canvas);
+  }
+  await page.emulateMedia({ colorScheme: "no-preference" });
+}
+
 try {
   await new Promise(resolve => mail.listen(0, "127.0.0.1", resolve));
   const fixture = run("python3", ["-u", "scripts/cloud-runtime-fixture.py"], { PYTHONDONTWRITEBYTECODE: "1" });
@@ -132,6 +144,7 @@ try {
   });
 
   await page.goto(origin);
+  await assertTealTheme(page, page.locator("#account-submit"));
   await page.getByRole("button", { name: "Create an account" }).click();
   await page.getByLabel("Email address").fill(email);
   await page.locator("#account-submit").click();
@@ -158,6 +171,7 @@ try {
   await poll(async () => await page.locator("#input").inputValue() === "task-alpha-fixture", "draft after reload during startup");
   starting = false;
   await poll(() => page.locator("#send").isEnabled(), "workspace ready to send");
+  await assertTealTheme(page, page.locator("#send"));
   assert.equal(await page.locator("#input").inputValue(), "task-alpha-fixture");
   const policy = await desktop.request.post(api + "session/permission", { data: {
     sessionId: "jeeves-main", mode: "fullAccess", expectedRevision: 1, confirmFullAccess: true,
@@ -198,6 +212,7 @@ try {
   }
   await login(mobile);
   await mobile.waitForURL(origin + workspace);
+  await assertTealTheme(mobile, mobile.locator("#send"));
   await mobile.locator("#mode-cowork").click();
   await mobile.getByRole("button", { name: /task-alpha-fixture/ }).click();
   await mobile.locator("#cowork-input").fill("task-follow-fixture");
