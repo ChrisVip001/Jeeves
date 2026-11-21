@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -18,6 +20,13 @@ func testPlane(t *testing.T) *plane {
 	t.Helper()
 	ctx := context.Background()
 	dsn := "sqlite:" + filepath.Join(t.TempDir(), "control.sqlite")
+	if postgres := os.Getenv("JEEVES_TEST_CONTROL_DATABASE"); postgres != "" {
+		u, err := url.Parse(postgres)
+		if err != nil || u.Scheme != "postgres" || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost") || u.Path != "/jeeves_test_control" {
+			t.Fatal("the PostgreSQL fixture must use the local jeeves_test_control database")
+		}
+		dsn = u.String()
+	}
 	db, err := cloudkit.Open(ctx, dsn)
 	if err != nil {
 		t.Fatal(err)

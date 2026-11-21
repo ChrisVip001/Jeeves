@@ -31,4 +31,4 @@ SMTP 支持强制 STARTTLS 的 `smtp://`，以及连接即启用 TLS 的 `smtps:
 
 ## 验证
 
-运行 `just go-check` 检查 Go 包。在安装 Chrome 的机器上运行 `just smoke-account`，可以复验浏览器注册、找回密码，以及在独立的桌面和手机尺寸会话之间续办同一任务。测试使用隔离数据、模拟模型和测试收件箱。
+运行 `just go-check` 检查 Go 包。在安装 Chrome 的机器上运行 `just smoke-account`，可以复验浏览器注册、找回密码，以及在独立的桌面和手机尺寸会话之间续办同一任务。测试使用隔离数据、模拟模型和测试收件箱。要使用 PostgreSQL 测试，将 `JEEVES_TEST_GATEWAY_DATABASE` 和 `JEEVES_TEST_CONTROL_DATABASE` 分别指向全新创建的本机 `jeeves_test_gateway` 和 `jeeves_test_control` 数据库。控制面的 Go 测试也可使用后一个变量。

@@ -31,4 +31,4 @@ Run `just local-up` at the repository root with Go, Rust and Node installed. It 
 
 ## Verification
 
-Run `just go-check` for the Go packages. Run `just smoke-account` on a machine with Chrome for browser registration, recovery and task continuity across independent desktop and phone-sized sessions. The smoke uses its own data, a simulated model and a test mail inbox.
+Run `just go-check` for the Go packages. Run `just smoke-account` on a machine with Chrome for browser registration, recovery and task continuity across independent desktop and phone-sized sessions. The smoke uses its own data, a simulated model and a test mail inbox. To exercise PostgreSQL, set `JEEVES_TEST_GATEWAY_DATABASE` and `JEEVES_TEST_CONTROL_DATABASE` to fresh local `jeeves_test_gateway` and `jeeves_test_control` databases. The control-plane Go tests also accept the latter variable.

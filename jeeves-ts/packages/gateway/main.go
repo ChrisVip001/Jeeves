@@ -163,7 +163,7 @@ func (g *gateway) cleanup(ctx context.Context) {
 			if _, err := g.store.db.ExecContext(ctx, "DELETE FROM gw_macs WHERE owner IS NULL AND expires<=$1", now.UnixMilli()); err != nil {
 				log.Printf("device claim cleanup failed (%T)", err)
 			}
-			if _, err := g.store.db.ExecContext(ctx, "DELETE FROM gw_rates WHERE window<$1", now.Unix()/60-2); err != nil {
+			if _, err := g.store.db.ExecContext(ctx, `DELETE FROM gw_rates WHERE "window"<$1`, now.Unix()/60-2); err != nil {
 				log.Printf("rate cleanup failed (%T)", err)
 			}
 		}

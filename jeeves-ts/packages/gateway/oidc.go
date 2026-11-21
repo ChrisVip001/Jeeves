@@ -57,7 +57,11 @@ func (g *gateway) oauth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/api/oidc/start" && r.Method == "GET" {
-		g.beginOAuth(w, r)
+		g.beginOAuth(w, r, false)
+		return
+	}
+	if r.URL.Path == "/api/oidc/start" && r.Method == "POST" && r.Header.Get("Origin") == g.origin.String() {
+		g.beginOAuth(w, r, true)
 		return
 	}
 	if r.URL.Path == "/api/oidc/callback" && (r.Method == "GET" || r.Method == "POST") {
@@ -67,7 +71,7 @@ func (g *gateway) oauth(w http.ResponseWriter, r *http.Request) {
 	cloudkit.Error(w, 405, "method not allowed")
 }
 
-func (g *gateway) beginOAuth(w http.ResponseWriter, r *http.Request) {
+func (g *gateway) beginOAuth(w http.ResponseWriter, r *http.Request, link bool) {
 	ctx := r.Context()
 	if !g.rate(w, r, "oauth:"+g.clientIP(r), 30) {
 		return
@@ -80,7 +84,7 @@ func (g *gateway) beginOAuth(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("next") == "/device/" {
 		destination = "/device/"
 	}
-	if r.URL.Query().Get("link") == "1" {
+	if link {
 		ss, a, err := g.store.authenticate(ctx, g.sessionToken(r))
 		if err != nil || time.Since(time.UnixMilli(ss.Issued)) > 10*time.Minute {
 			cloudkit.Error(w, 403, "sign in again before linking")

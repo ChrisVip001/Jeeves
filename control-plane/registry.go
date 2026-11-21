@@ -104,7 +104,7 @@ func (s registry) claim(ctx context.Context, id string) (tenant, error) {
 
 func (s registry) result(ctx context.Context, t tenant, ready bool, delay time.Duration) error {
 	next := time.Now().Add(delay).UnixMilli()
-	_, err := s.db.ExecContext(ctx, `UPDATE cp_tenants SET ready=$1,lease_until=0,next_check=CASE WHEN wanted=$2 THEN $3 ELSE 0 END
+	_, err := s.db.ExecContext(ctx, `UPDATE cp_tenants SET ready=$1,lease_until=0,next_check=CASE WHEN wanted=$2 THEN CAST($3 AS BIGINT) ELSE 0 END
 		WHERE id=$4 AND lease_until=$5`, ready, t.wanted, next, t.id, t.lease)
 	return err
 }

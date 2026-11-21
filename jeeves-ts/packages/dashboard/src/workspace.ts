@@ -118,6 +118,8 @@ import {
  */
 const SESSION_KEY = "jeeves.session";
 let current = accountStorage.getItem(SESSION_KEY) ?? "default";
+const startupDraftKey = accountKey("jeeves.chat-draft.preparing");
+let preparing = false;
 
 /** Ids the last `refresh()` saw, newest first. Boot uses this to tell "the remembered
  *  session still exists" from "it was deleted since" — opening a session the list no longer
@@ -126,9 +128,24 @@ let current = accountStorage.getItem(SESSION_KEY) ?? "default";
 /** Switch the label *and* remember it. Every path that changes `current` goes through here. */
 function rememberSession(id: string): void {
   current = id;
+  if (preparing) {
+    const draft = sessionStorage.getItem(startupDraftKey);
+    if (draft !== null) {
+      saveDraft(draft);
+      sessionStorage.removeItem(startupDraftKey);
+    }
+    preparing = false;
+    dom.send.disabled = false;
+  }
   dom.input.value = sessionStorage.getItem(accountKey("jeeves.chat-draft." + id)) ?? "";
   dom.input.disabled = false;
   accountStorage.setItem(SESSION_KEY, id);
+}
+
+function saveDraft(text: string): void {
+  const key = accountKey("jeeves.chat-draft." + current);
+  if (text) sessionStorage.setItem(key, text);
+  else sessionStorage.removeItem(key);
 }
 
 /**
@@ -770,9 +787,12 @@ function addStopButton(): void {
 async function waitForHostedWorkspace(): Promise<boolean> {
   const base = hostedBase();
   if (!base) return true;
-  dom.input.disabled = dom.send.disabled = true;
+  preparing = true;
+  dom.send.disabled = true;
+  dom.input.disabled = false;
+  dom.input.value = sessionStorage.getItem(startupDraftKey) ?? sessionStorage.getItem(accountKey("jeeves.chat-draft." + current)) ?? "";
   dom.status.hidden = false;
-  dom.status.textContent = t("正在准备你的工作区…");
+  dom.status.textContent = t("工作区正在启动，你可以先写下要交办的事。");
   for (let attempt = 0; attempt < 25; attempt++) {
     try {
       const response = await fetch(base + "/api/workspace", {
@@ -788,7 +808,6 @@ async function waitForHostedWorkspace(): Promise<boolean> {
         webState.managed = workspace.managed === true;
         if (workspace.ready === true) {
           dom.status.hidden = true;
-          dom.send.disabled = false;
           return true;
         }
       }
@@ -808,6 +827,12 @@ async function waitForHostedWorkspace(): Promise<boolean> {
 async function boot(): Promise<void> {
   initLang();
   applyStatic(document);
+  dom.input.addEventListener("input", () => {
+    if (preparing) sessionStorage.setItem(startupDraftKey, dom.input.value);
+    else saveDraft(dom.input.value);
+    dom.input.style.height = "auto";
+    dom.input.style.height = `${Math.min(dom.input.scrollHeight, 180)}px`;
+  });
   if (!(await waitForHostedWorkspace())) return;
   dom.lang.textContent = getLang() === "zh" ? "EN" : "中文";
   dom.lang.addEventListener("click", () =>
@@ -892,14 +917,6 @@ async function boot(): Promise<void> {
       event.preventDefault();
       void submit();
     }
-  });
-
-  dom.input.addEventListener("input", () => {
-    const key = accountKey("jeeves.chat-draft." + current);
-    if (dom.input.value) sessionStorage.setItem(key, dom.input.value);
-    else sessionStorage.removeItem(key);
-    dom.input.style.height = "auto";
-    dom.input.style.height = `${Math.min(dom.input.scrollHeight, 180)}px`;
   });
 
   dom.queueToggle.addEventListener("click", () => {
@@ -1641,6 +1658,7 @@ function removeScheduleAsk(job: ScheduleJob): void {
 }
 
 async function submit(): Promise<void> {
+  if (preparing) return;
   const text = dom.input.value.trim();
   if (text === "" && staged.length === 0) return;
   webState.view = "chat";

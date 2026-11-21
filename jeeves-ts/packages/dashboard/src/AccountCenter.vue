@@ -312,7 +312,9 @@ onUnmounted(() => {
       :enabled="profile.factorEnabled"
       @updated="refresh"
     />
-    <a v-if="profile.oidc && profile.passwordSet" class="quiet" href="/api/oidc/start?link=1">{{ t("绑定第三方账号") }}</a>
+    <form v-if="profile.oidc && profile.passwordSet" method="post" action="/api/oidc/start">
+      <button class="quiet" type="submit">{{ t("绑定第三方账号") }}</button>
+    </form>
     <h2>{{ t("登录会话") }}</h2>
     <ul>
       <li v-for="s in profile.sessions" :key="s.id">

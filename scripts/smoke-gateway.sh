@@ -3,8 +3,8 @@
 #
 # In the gateways' unit tests the app-server is a stand-in — that proves queuing, notification
 # folding and long-message splitting, but not the real "@jeeves/client + stdio + app-server" chain.
-# This script proves exactly that, above all the key assumption: session ids are **derived** from
-# platform identities (`telegram:42`, `wechat:openid`, `lark:oc_…`) the server must own itself.
+# The Runtime uses one canonical conversation and receives a verified channel identity
+# (`telegram:42`, `wechat:openid`, `lark:oc_…`) with the message.
 # The wechat section also proves the "real HTTP server + signature verify + XML reply" half;
 # the lark section proves the "private binary frames + ACK echoed verbatim" half.
 #
@@ -59,8 +59,8 @@ node --input-type=module -e '
 echo "  the gateway got: $(cat "$OUT")"
 
 # ---- Assertions ------------------------------------------------------------------
-grep -q '"sessionId":"telegram:42"' "$OUT" \
-  || fail "the derived session id did not come back as it went in — the gateway's statelessness rides on it"
+grep -q '"sessionId":"jeeves-main"' "$OUT" \
+  || fail "the channel was not routed to the Runtime's canonical conversation"
 grep -q '"reply":"hello, world"' "$OUT" \
   || fail "the reply is not the full text joined from the notifications"
 grep -q '"iterations":1' "$OUT" \
@@ -68,10 +68,10 @@ grep -q '"iterations":1' "$OUT" \
 grep -q '"model":"[^"]' "$OUT" \
   || fail "the telemetry carries no model name — a user wants to know who answered"
 
-# The session really hit disk: the server accepted this derived id and created it itself.
+# The Runtime persisted its own conversation.
 [[ -f "$WORK/.jeeves/state.db" ]] || fail "state.db was not created under .jeeves/"
 
-echo "  ✓ derived session + real stdio + notifications folded → the full reply"
+echo "  ✓ canonical conversation + real stdio + notifications folded → the full reply"
 
 # ---- The wechat section: a real HTTP server ----------------------------------------------
 #
@@ -161,7 +161,7 @@ grep -q '"verify":"200 echo-ok"' "$WX_OUT" \
 grep -q '"status":200' "$WX_OUT" \
   || fail "pushing a message did not get a 200"
 grep -q 'wechat:openid-smoke' "$WX_OUT" \
-  || fail "the wechat session id has to be derived from the platform identity too"
+  || fail "WeChat did not preserve the platform identity"
 grep -q 'hello, world' "$WX_OUT" \
   || fail "the reply never reached the passive-reply XML"
 grep -q 'ToUserName><!\[CDATA\[openid-smoke' "$WX_OUT" \
@@ -175,7 +175,7 @@ echo "  ✓ real HTTP + signature check + XML parsing → passive reply"
 # lark-specific half: trade AppID/AppSecret for a ticketed wss URL, decode **binary frames** into
 # events, ACK before answering, and send the reply out over HTTP. Real Lark needs a published
 # enterprise app, unavailable locally and in CI, so only the two remote addresses are stubbed
-# (fake socket + fake HTTP) — codec, ACK echo, dedup, session derivation, app-server all real.
+# (fake socket + fake HTTP). Codec, ACK echo, dedup, channel identity and app-server are real.
 LARK_OUT="$WORK/lark.json"
 JEEVES_BIN="$BIN" \
 JEEVES_HOME="$WORK/.jeeves" \
@@ -330,7 +330,7 @@ grep -qF '"seqId":"0"' "$LARK_OUT" \
 grep -qF '"bizRt":"0"' "$LARK_OUT" \
   || fail "the ACK is missing the biz_rt header"
 grep -qF 'lark:oc_smoke' "$LARK_OUT" \
-  || fail "the Feishu session id has to be derived from the platform identity too"
+  || fail "Feishu did not preserve the platform identity"
 grep -qF '"said":["hello, world"]' "$LARK_OUT" \
   || fail "the reply was never sent back to Feishu over HTTP"
 

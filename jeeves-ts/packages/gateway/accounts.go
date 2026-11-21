@@ -33,7 +33,7 @@ var schema = []string{
 		digest TEXT NOT NULL, expires BIGINT NOT NULL)`,
 	`CREATE INDEX IF NOT EXISTS gw_challenges_identity ON gw_challenges(identity, purpose)`,
 	`CREATE INDEX IF NOT EXISTS gw_challenges_expiry ON gw_challenges(expires)`,
-	`CREATE TABLE IF NOT EXISTS gw_rates (id TEXT PRIMARY KEY, window BIGINT NOT NULL, attempts BIGINT NOT NULL)`,
+	`CREATE TABLE IF NOT EXISTS gw_rates (id TEXT PRIMARY KEY, "window" BIGINT NOT NULL, attempts BIGINT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS gw_oidc (
 		issuer TEXT NOT NULL, subject TEXT NOT NULL, owner TEXT NOT NULL REFERENCES gw_users(id) ON DELETE CASCADE,
 		PRIMARY KEY (issuer, subject))`,
@@ -170,8 +170,8 @@ func (s *store) list(ctx context.Context, owner string) ([]session, error) {
 func (s *store) rate(ctx context.Context, id string, max int) (bool, error) {
 	window := time.Now().Unix() / 60
 	var attempts int
-	err := s.db.QueryRowContext(ctx, `INSERT INTO gw_rates(id,window,attempts) VALUES($1,$2,1)
-	 ON CONFLICT(id) DO UPDATE SET attempts=CASE WHEN gw_rates.window=excluded.window THEN gw_rates.attempts+1 ELSE 1 END, window=excluded.window RETURNING attempts`, s.digest(id), window).Scan(&attempts)
+	err := s.db.QueryRowContext(ctx, `INSERT INTO gw_rates(id,"window",attempts) VALUES($1,$2,1)
+	 ON CONFLICT(id) DO UPDATE SET attempts=CASE WHEN gw_rates."window"=excluded."window" THEN gw_rates.attempts+1 ELSE 1 END, "window"=excluded."window" RETURNING attempts`, s.digest(id), window).Scan(&attempts)
 	return attempts <= max, err
 }
 

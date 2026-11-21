@@ -123,6 +123,11 @@ try {
   page.setDefaultNavigationTimeout(10000);
   page.on("pageerror", e => console.error("Dashboard browser error:", e.message));
   page.on("response", res => { if (res.url().endsWith("/api/interaction") || res.status() >= 500) console.error("Dashboard reply", res.status(), new URL(res.url()).pathname); });
+  let starting = true;
+  await page.route("**/api/workspace", async route => {
+    if (starting) await route.fulfill({ json: { ready: false, managed: true } });
+    else await route.continue();
+  });
 
   await page.goto(origin);
   await page.getByRole("button", { name: "Create an account" }).click();
@@ -140,11 +145,17 @@ try {
   const api = origin + workspace + "api/";
   await page.locator("#input").waitFor();
   await poll(() => page.locator("#input").isEnabled(), "workspace composer");
+  await page.locator("#input").fill("task-alpha-fixture");
+  assert.ok(await page.locator("#send").isDisabled());
+  await page.reload();
+  await poll(async () => await page.locator("#input").inputValue() === "task-alpha-fixture", "draft after reload during startup");
+  starting = false;
+  await poll(() => page.locator("#send").isEnabled(), "workspace ready to send");
+  assert.equal(await page.locator("#input").inputValue(), "task-alpha-fixture");
   const policy = await desktop.request.post(api + "session/permission", { data: {
     sessionId: "jeeves-main", mode: "fullAccess", expectedRevision: 1, confirmFullAccess: true,
   } });
   assert.ok(policy.ok(), await policy.text());
-  await page.locator("#input").fill("task-alpha-fixture");
   try {
     await Promise.all([
       page.waitForResponse(res => res.url().endsWith("/api/interaction"), {timeout: 12000}),
@@ -190,7 +201,7 @@ try {
   }, "the same task completed after phone revision");
   assert.equal((await phone.request.get(origin + "/app/u-000000000000/api/session/main")).status(), 403);
   assert.equal((await phone.request.post(api + "gateway/rpc", { data: {} })).status(), 404);
-  console.log("Registration, delivery preview/download and cross-client continuation passed");
+  console.log("Registration, cold-start draft recovery, delivery preview/download and cross-client continuation passed");
 
   await mobile.goto(origin + "/account/");
   await mobile.locator(".account-security > summary").click();

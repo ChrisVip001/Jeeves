@@ -57,6 +57,9 @@ func (g *gateway) rate(w http.ResponseWriter, r *http.Request, id string, max in
 	return ok
 }
 func failure(w http.ResponseWriter, err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
 	if errors.Is(err, rejected) || errors.Is(err, sql.ErrNoRows) {
 		cloudkit.Error(w, 403, "invalid or expired request")
 		return

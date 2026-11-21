@@ -10,7 +10,7 @@ export const UI_EN: Record<string, string> = {
   "解除连接失败，请重试。": "Could not disconnect this Mac. Try again.",
   "无法载入用量和设备。请收起后重新打开。": "Could not load usage and devices. Close and reopen this section to retry.",
   "邮件验证码": "Email code",
-  "正在准备你的工作区…": "Getting your workspace ready…",
+  "工作区正在启动，你可以先写下要交办的事。": "Your workspace is starting. You can draft your request now.",
   "工作区还在准备中。": "Your workspace is still starting.",
   "我的事项": "My work",
   "搜索事项": "Search work",

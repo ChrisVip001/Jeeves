@@ -4,7 +4,9 @@ English | [简体中文](main-entry.zh.md)
 
 ## 1. Start with a message
 
-Mac, phone and connected Feishu use one Runtime conversation. Feishu retains its verified chat and sender and can follow up on work assigned from that origin. Chat and My work are the everyday entry points. The menu holds the account, tools and settings. Messages lead with the request and reply. The timestamp reveals the execution details.
+The Web and iOS workspaces share one Runtime conversation. Feishu retains its verified chat and sender and can follow up on work assigned from that origin. The paired Mac device grants access to selected windows when an assignment needs it. Chat and My work are the everyday entry points. The menu holds the account, tools and settings. Messages lead with the request and reply. The timestamp reveals the execution details.
+
+While the cloud workspace starts, you can draft your request. Reloading the tab keeps that draft, and Send becomes available when the conversation opens.
 
 ## 2. Design references
 

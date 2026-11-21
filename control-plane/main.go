@@ -176,6 +176,9 @@ func (p *plane) runtime(w http.ResponseWriter, r *http.Request) {
 	cloudkit.JSON(w, 200, cloudkit.RuntimeEndpoint{URL: p.cluster.url(t.id), Token: t.ops, Ready: t.ready && t.wanted})
 }
 func internalError(w http.ResponseWriter, err error) {
+	if errors.Is(err, context.Canceled) {
+		return
+	}
 	log.Printf("control-plane request failed (%T)", err)
 	cloudkit.Error(w, 503, "control plane unavailable")
 }
