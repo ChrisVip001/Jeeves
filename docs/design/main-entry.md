@@ -14,7 +14,7 @@ Grok allows people to reopen an automation run and continue its conversation. A 
 
 | Intent | Interaction |
 |---|---|
-| Delegate | Describe the outcome in Chat and attach files if needed. A bound project folder is visible above the message. Select it to switch back to automatic workspaces. |
+| Delegate | Describe the outcome in Chat and attach files if needed. Open implementation choices can be resolved in the task. A bound project folder is visible above the message. Select it to switch back to automatic workspaces. |
 | Decide | One pending decision opens with its action and exact preview. Allow once or deny the current request. |
 | Recover | A stopped work page offers [operation review](../operations.md#reviewing-unknown-operations) and an explicit resume on the same assignment. |
 | Find work | Search titles in My work or follow a receipt. Mac and phone open the same work page. Reload, back and forward retain the destination. |

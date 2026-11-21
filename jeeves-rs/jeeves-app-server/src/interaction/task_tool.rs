@@ -18,6 +18,7 @@ const MAX_ITEMS: usize = 4;
 
 const DESCRIPTION: &str = "Hand real work to a task thread that runs on its own while the conversation stays free. \
 Use it when the human explicitly asks you to do work: draft or send email, change files, build something, run a multi-step job. \
+Create the handoff even when implementation choices are open; the worker can inspect and make safe progress before requesting a material decision. \
 Do not use it for chat, questions, advice or progress inquiries; answer those yourself. \
 create: one item per independent request (at most 4). `instruction` must be copied word for word from the human's current message, never reworded or invented. \
 Include file_checks for explicitly named output files. Copy each path from the instruction. Add contains only for literal text the human requires in that file. \

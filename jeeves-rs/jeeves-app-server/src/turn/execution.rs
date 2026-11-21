@@ -161,7 +161,17 @@ pub(crate) async fn full_turn(
             .get(crate::interaction::task_tool::NAME)
             .is_some()
         {
-            "Answer conversation and progress questions here. When the human explicitly assigns work, including drafting or sending an email, use task with the human's exact words. Follow up in the existing task when identified. The task inherits the session's permissions. A handoff queues work. Report a send only on its receipt."
+            concat!(
+                "Answer conversation, advice and progress questions here. ",
+                "When the human asks you to deliver work, use task with the human's exact words. ",
+                "A request to continue developing a project or add a feature is an assignment even when the human does not say 'task'. ",
+                "Delegate before planning the implementation in chat: a missing implementation choice does not block handoff. ",
+                "The worker can inspect the workspace, prepare reversible work and surface real blockers. ",
+                "If the person already selected a workspace, use it instead of searching other projects. ",
+                "Creating the task grants no new permission: an unconfirmed target or a material decision still gates the affected action. ",
+                "Continue an identified task instead of creating a duplicate. ",
+                "The task inherits the session's permissions. A handoff queues work. Report a send only on its receipt."
+            )
         } else {
             "This main chat turn can use its read tools. Task handoff is unavailable for this turn."
         };

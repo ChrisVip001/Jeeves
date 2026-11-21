@@ -241,6 +241,26 @@ async fn main_chat_follow_up_runs_in_the_original_task_only() {
 }
 
 #[tokio::test]
+async fn main_chat_explains_handoff_before_implementation_choices() {
+    let (_home, server, model) = setup().await;
+    send(
+        &server,
+        "这个菜单已经有小程序预览版，请继续改进，添加认证、鉴权和个人信息页",
+        "coding-assignment",
+        None,
+    )
+    .await
+    .unwrap();
+    let calls = model.calls.lock().unwrap();
+    let first = &calls[0];
+    assert!(first.tools.iter().any(|tool| tool.name == "task"));
+    let policy = first.system_text().unwrap();
+    assert!(policy.contains("a missing implementation choice does not block handoff"));
+    assert!(policy
+        .contains("an unconfirmed target or a material decision still gates the affected action"));
+}
+
+#[tokio::test]
 async fn one_main_conversation_routes_independent_workspaces_and_deduplicates_retries() {
     let (home, server, model) = setup().await;
     let (sink, _) = EventSink::channel();
