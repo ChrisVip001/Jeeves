@@ -17,6 +17,26 @@ pub(super) fn branch_of(task_id: &str) -> String {
     format!("jeeves/{task_id}")
 }
 
+/// Offer an isolated checkout for a clean repository selected by the owner.
+pub(super) async fn clean_repository(root: PathBuf) -> Option<String> {
+    tokio::task::spawn_blocking(move || {
+        if !root.join(".git").exists() {
+            return None;
+        }
+        let root = root.canonicalize().ok()?;
+        let repo = git(&root, &["rev-parse", "--show-toplevel"]).ok()?;
+        let status = git(
+            &root,
+            &["status", "--porcelain", "--untracked-files=normal"],
+        )
+        .ok()?;
+        (repo == root.to_string_lossy() && status.is_empty()).then_some(repo)
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// Create (or reuse) `<home>/worktrees/<task-id>` on branch `jeeves/<task-id>` for `repo`.
 /// The result is the task's only writable root. Never deletes anything.
 pub(super) async fn ensure(

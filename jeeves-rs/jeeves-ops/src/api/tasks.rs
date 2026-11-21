@@ -101,6 +101,15 @@ pub async fn task(
         .and_then(|value| value.as_str())
         .unwrap_or_default()
         .to_string();
+    if action == "reviewCapture" {
+        return match app
+            .request::<jeeves_protocol::TaskReviewView>(methods::TASK_REVIEW_CAPTURE, body)
+            .await
+        {
+            Ok(response) => Json(response).into_response(),
+            Err(error) => failed(StatusCode::BAD_REQUEST, error),
+        };
+    }
     if action == "artifacts" {
         return match app
             .request::<jeeves_protocol::TaskArtifactsResponse>(methods::TASK_ARTIFACTS, body)

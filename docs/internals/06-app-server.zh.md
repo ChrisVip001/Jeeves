@@ -60,7 +60,7 @@ std 锁只守一次读改写，绝不跨 await。每会话写段锁覆盖历史�
 
 `dispatch.rs::handle` 一定产出响应：`Ok(Value)` 成为响应，`Err` 成为错误，`Outcome::SelfSent`（轮与交互方法）表示轮已自己发过响应。match 覆盖会话、记忆、配置、模型、定时、用量、批准、权限、任务、浏览器与轮方法；未知方法先交给 `memory_center::handle`，否则回 `METHOD_NOT_FOUND`。权威方法清单是 `jeeves_protocol::methods`，这里不抄数量。
 
-改之前值得知道的约定：存储的 `i64` 通过 `narrow` 夹取成协议的 `i32`；列表方法按不透明游标分页，游标在原始行上计算；`session/new` 写入真实会话行；`turn/interrupt` 对未知轮返回 `interrupted: false`；`approval/respond` 来迟时返回 `accepted: false`。
+改之前值得知道的约定：存储的 `i64` 通过 `narrow` 夹取成协议的 `i32`；列表方法按不透明游标分页，游标在原始行上计算；`session/main` 打开唯一公开会话；`turn/interrupt` 对未知轮返回 `interrupted: false`；`approval/respond` 来迟时返回 `accepted: false`。
 
 ## 一轮
 

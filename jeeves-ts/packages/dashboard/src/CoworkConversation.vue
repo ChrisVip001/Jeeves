@@ -9,6 +9,8 @@ import { t } from "./i18n";
 import { webTasks } from "./tasks";
 import { submissionTracker } from "./ui/submission";
 import TaskDelivery from "./TaskDelivery.vue";
+import TaskFileReview from "./TaskFileReview.vue";
+import type { TaskReviewFile } from "./protocol";
 import TaskTranscript from "./ui/TaskTranscript.vue";
 import type { AgentTaskView } from "./ui/types";
 const props=defineProps<{task:AgentTaskView}>();
@@ -18,6 +20,17 @@ const tracker=submissionTracker(accountStorage);
 const draftKey = accountKey("jeeves.task-draft." + props.task.id);
 const text = ref(sessionStorage.getItem(draftKey) ?? "");
 const historyOpen = ref(false);
+const reviewFile = ref<TaskReviewFile | null>(null);
+const review = computed(() => webTasks.state.reviews[props.task.id]);
+let reviewOpener: HTMLElement | undefined;
+function openReview(file: TaskReviewFile, opener: HTMLElement) {
+  reviewOpener = opener;
+  reviewFile.value = file;
+}
+function closeReview() {
+  reviewFile.value = null;
+  reviewOpener?.focus();
+}
 watch(text, value => {
   if (value) sessionStorage.setItem(draftKey, value);
   else sessionStorage.removeItem(draftKey);
@@ -54,6 +67,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
   () => void webTasks.inspect(props.task), { immediate: true });
 </script>
 <template>
+  <div class="cowork-layout" :class="{ 'with-file-review': reviewFile }">
   <section class="cowork-detail" :aria-label="task.title" :data-task-id="task.id">
     <header class="cowork-head">
       <div class="work-title"><h2>{{ task.title }}</h2></div>
@@ -64,7 +78,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
         :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
       <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
-      <TaskDelivery :task="task" :center="webTasks" />
+      <TaskDelivery :task="task" :center="webTasks" :selected="reviewFile?.path" @open="openReview" />
       <div v-if="!approval && ['suspended','needs_attention','needsAttention'].includes(task.status)" class="td-actions">
         <button v-if="task.runCount" type="button" class="today-btn" @click="workspaceActions.reviewOperations(task)">{{ t("核对操作") }}</button>
         <button type="button" class="today-btn primary" :disabled="!!webTasks.state.busy" @click="webTasks.action('resume', task.id)">{{ t("继续任务") }}</button>
@@ -81,4 +95,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
     </form>
     <p v-if="feedback" class="cw-feedback" role="status">{{ feedback }}</p>
   </section>
+  <TaskFileReview v-if="reviewFile" :key="reviewFile.path" :file="reviewFile"
+    :base="review?.baseCommit" :result="review?.resultCommit" @close="closeReview" />
+  </div>
 </template>

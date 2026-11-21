@@ -13,9 +13,8 @@ use jeeves_protocol::{
     MemorySearchResponse, MessageRole, ModelInfo, ModelListParams, ModelListResponse,
     ModelProfilesParams, ModelRemoveParams, ModelRoutesSaveParams, ModelSaveParams, RequestId,
     ScheduleListParams, ScheduleRemoveParams, ScheduleSaveParams, ServerNotification,
-    SessionCapabilitiesParams, SessionCapabilitiesResponse, SessionForkParams, SessionForkResponse,
-    SessionGetParams, SessionGetResponse, SessionListParams, SessionListResponse,
-    SessionMessagesParams, SessionMessagesResponse, SessionNewParams, SessionNewResponse,
+    SessionCapabilitiesParams, SessionCapabilitiesResponse, SessionGetParams, SessionGetResponse,
+    SessionListParams, SessionListResponse, SessionMessagesParams, SessionMessagesResponse,
     SessionUpdateParams, SessionUpdateResponse, SessionViewParams, TaskActionParams,
     TaskCreateParams, TaskGetParams, TurnFollowUpParams, TurnFollowUpResponse, TurnInterruptParams,
     TurnInterruptResponse, TurnListParams, TurnListResponse, TurnStartParams, TurnSteerParams,
@@ -382,7 +381,7 @@ async fn dispatch(
                 .await
                 .map_err(internal)?
                 .into_iter()
-                .filter(|session| !session.id.starts_with("task-work:"))
+                .filter(|session| session.id == crate::interaction::MAIN_SESSION)
                 .collect();
             let data: Vec<_> = all
                 .iter()
@@ -398,21 +397,6 @@ async fn dispatch(
             })
         }
 
-        methods::SESSION_NEW => {
-            let p: SessionNewParams = parse(params, method)?;
-            let session_id = p
-                .session_id
-                .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(new_session_id);
-            let cwd = checked_cwd(p.cwd.as_deref())?;
-            server
-                .chat
-                .create_session(&session_id, p.title.as_deref(), cwd.as_deref())
-                .await
-                .map_err(internal)?;
-            respond(SessionNewResponse { session_id })
-        }
-
         methods::SESSION_GET => {
             let p: SessionGetParams = parse(params, method)?;
             let row = server.chat.session(&p.session_id).await.map_err(internal)?;
@@ -426,6 +410,7 @@ async fn dispatch(
 
         methods::SESSION_UPDATE => {
             let p: SessionUpdateParams = parse(params, method)?;
+            crate::interaction::require_main(Some(&p.session_id))?;
             let cwd = match p.cwd.as_deref() {
                 None => None,
                 Some(text) if text.trim().is_empty() => Some(String::new()),
@@ -441,31 +426,6 @@ async fn dispatch(
                     session: to_session(row),
                 }),
                 None => Err(no_such_session(&p.session_id)),
-            }
-        }
-
-        methods::SESSION_FORK => {
-            let p: SessionForkParams = parse(params, method)?;
-            let new_id = p
-                .new_session_id
-                .filter(|s| !s.trim().is_empty())
-                .unwrap_or_else(new_session_id);
-            let turns = p.turns.map(|n| n as usize).unwrap_or(FORK_DEFAULT_TURNS);
-            let copied = server
-                .chat
-                .fork_session(&p.session_id, &new_id, turns)
-                .await
-                .map_err(|e| ErrorObject {
-                    code: codes::INVALID_PARAMS,
-                    message: format!("the branch failed: {e}"),
-                    data: None,
-                })?;
-            match server.chat.session(&new_id).await.map_err(internal)? {
-                Some(row) => respond(SessionForkResponse {
-                    session: to_session(row),
-                    copied: narrow(copied),
-                }),
-                None => Err(no_such_session(&new_id)),
             }
         }
 
@@ -738,13 +698,7 @@ async fn dispatch(
         }
         methods::TURN_START => {
             let p: TurnStartParams = parse(params, method)?;
-            match p.request_id.clone() {
-                Some(request) => {
-                    crate::interaction::start_once(server, p, request, request_id.clone(), sink)
-                        .await?
-                }
-                None => turn::run_turn(server, p, request_id.clone(), sink).await?,
-            }
+            crate::interaction::submit_main(server, p, request_id.clone(), sink).await?;
             Ok(Outcome::SelfSent)
         }
 
@@ -765,10 +719,7 @@ async fn dispatch(
                     data: None,
                 });
             }
-            let session_id = match p.session_id.trim() {
-                "" => "default".to_string(),
-                id => id.to_string(),
-            };
+            let session_id = crate::interaction::require_main(Some(&p.session_id))?.to_string();
             match server.steer(&session_id, message) {
                 Ok((turn_id, queued)) => {
                     sink.notification(ServerNotification::TurnSteered(TurnSteeredNotification {
@@ -801,10 +752,7 @@ async fn dispatch(
                     data: None,
                 });
             }
-            let session_id = match p.session_id.trim() {
-                "" => "default".to_string(),
-                id => id.to_string(),
-            };
+            let session_id = crate::interaction::require_main(Some(&p.session_id))?.to_string();
             match server.follow_up(&session_id, message).await {
                 crate::FollowUp::Queued(queued) => {
                     respond(TurnFollowUpResponse { session_id, queued })
@@ -849,7 +797,10 @@ async fn dispatch(
             respond(crate::task::start(server, sink, p).await?)
         }
         methods::TASK_CREATE => {
-            let p: TaskCreateParams = parse(params, method)?;
+            let mut p: TaskCreateParams = parse(params, method)?;
+            let main = crate::interaction::require_main(p.session_id.as_deref())?;
+            crate::interaction::main_session(server, sink).await?;
+            p.session_id = Some(main.into());
             respond(crate::task::create(server, p).await?)
         }
 
@@ -945,6 +896,11 @@ async fn dispatch(
         methods::TASK_RUNS => {
             let p: TaskGetParams = parse(params, method)?;
             respond(crate::task::runs(server, &p.task_id).await?)
+        }
+
+        methods::TASK_REVIEW_CAPTURE => {
+            let p: jeeves_protocol::TaskReviewCaptureParams = parse(params, method)?;
+            respond(crate::task::review::capture(server, p).await?)
         }
 
         methods::TASK_ARTIFACTS => {
@@ -1079,14 +1035,6 @@ fn checked_cwd(cwd: Option<&str>) -> Result<Option<String>, ErrorObject> {
     Ok(owned)
 }
 
-fn new_session_id() -> String {
-    let millis = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    format!("s{millis}")
-}
-
 fn to_fact(row: jeeves_state::FactRow) -> jeeves_protocol::Fact {
     jeeves_protocol::Fact {
         id: narrow(row.id),
@@ -1106,10 +1054,6 @@ fn to_episode(row: jeeves_state::EpisodeRow) -> jeeves_protocol::Episode {
         created_at: iso_opt(row.created_at),
     }
 }
-
-/// How many exchanges a fork copies when the caller did not say: enough to carry the thread
-/// of a conversation, small enough to stay cheap to rebuild into a prompt.
-const FORK_DEFAULT_TURNS: usize = 6;
 
 fn to_session(row: jeeves_state::SessionRow) -> jeeves_protocol::SessionSummary {
     jeeves_protocol::SessionSummary {

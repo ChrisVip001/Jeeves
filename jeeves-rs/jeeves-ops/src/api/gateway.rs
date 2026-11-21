@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 fn allowed(method: &str) -> bool {
     [
-        methods::TURN_START,
         methods::INTERACTION_START,
         methods::SESSION_MAIN,
         methods::TASK_GET,
@@ -29,6 +28,17 @@ pub async fn rpc(
             json!({"jsonrpc":"2.0", "id":id, "error":{"code":codes::METHOD_NOT_FOUND,"message":"Method is not available to chat gateways"}}),
         );
     }
+    if request.method == methods::INTERACTION_START
+        && !request
+            .params
+            .as_ref()
+            .and_then(|p| p.get("source"))
+            .is_some_and(Value::is_object)
+    {
+        return Json(
+            json!({"jsonrpc":"2.0","id":id,"error":{"code":codes::INVALID_PARAMS,"message":"A gateway message must include its channel source"}}),
+        );
+    }
     Json(
         match app
             .call(&request.method, request.params.unwrap_or(Value::Null))
@@ -46,7 +56,7 @@ mod tests {
 
     #[test]
     fn gateway_surface_excludes_runtime_configuration_and_task_execution() {
-        assert!(allowed(methods::TURN_START));
+        assert!(!allowed(methods::TURN_START));
         assert!(allowed(methods::INTERACTION_START));
         assert!(allowed(methods::TASK_WAKE));
         for method in [

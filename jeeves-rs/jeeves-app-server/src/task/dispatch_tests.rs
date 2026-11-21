@@ -113,7 +113,7 @@ async fn queued_task_and_conversation_run_independently() {
     let created = rpc(
         &server,
         "task/create",
-        json!({"title":"Research a private task","sessionId":"conversation","cwd":home.path(),"acceptance":[{"kind":"fileExists","path":"contract-proof.txt"}],"budget":{"tokens":500}}),
+        json!({"title":"Research a private task","sessionId":"jeeves-main","cwd":home.path(),"acceptance":[{"kind":"fileExists","path":"contract-proof.txt"}],"budget":{"tokens":500}}),
     )
     .await
     .unwrap();
@@ -141,7 +141,7 @@ async fn queued_task_and_conversation_run_independently() {
         crate::run_turn(
             &server,
             TurnStartParams {
-                session_id: Some("conversation".into()),
+                session_id: Some(crate::interaction::MAIN_SESSION.into()),
                 message: "I am anxious; keep me company.".into(),
                 ..Default::default()
             },
@@ -167,7 +167,10 @@ async fn queued_task_and_conversation_run_independently() {
     let task = rpc(&server, "task/get", json!({"taskId":id}))
         .await
         .unwrap();
-    assert_ne!(task["task"]["executionSessionId"], "conversation");
+    assert_ne!(
+        task["task"]["executionSessionId"],
+        crate::interaction::MAIN_SESSION
+    );
     assert!(!model
         .requests
         .lock()
@@ -318,7 +321,7 @@ async fn a_queued_pause_survives_until_explicit_resume() {
     let created = rpc(
         &server,
         "task/create",
-        json!({"title":"pause before starting","sessionId":"chat"}),
+        json!({"title":"pause before starting","sessionId":"jeeves-main"}),
     )
     .await
     .unwrap();
@@ -537,7 +540,7 @@ async fn a_second_worker_runs_a_task_while_the_first_slot_is_busy() {
     let created = rpc(
         &server,
         "task/create",
-        json!({"title":"parallel","sessionId":"chat"}),
+        json!({"title":"parallel","sessionId":"jeeves-main"}),
     )
     .await
     .unwrap();
@@ -557,7 +560,7 @@ async fn one_worker_leaves_the_second_task_waiting() {
     let created = rpc(
         &server,
         "task/create",
-        json!({"title":"waits","sessionId":"chat"}),
+        json!({"title":"waits","sessionId":"jeeves-main"}),
     )
     .await
     .unwrap();

@@ -23,7 +23,6 @@ import type {
   MemoryPageView,
   Message,
   TodoListView,
-  SessionSummary,
   TokenUsage,
   ToolStartedNotification,
   TurnCompletedNotification,
@@ -59,11 +58,9 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-/** Overview panel: the current state. `onPick` is what happens after a session is clicked (switch). */
+/** Overview panel for the current Runtime. */
 export function renderOverview(
   data: DashboardData,
-  session: string,
-  onPick: (id: string) => void,
   onTask: (
     task: AgentTaskView,
     action:
@@ -100,7 +97,6 @@ export function renderOverview(
     ),
     el("div", { class: "path", text: config.home, title: config.home }),
     numbers([
-      [t("会话"), data.sessions.length],
       [t("事实"), data.facts.length],
       [t("情景"), data.episodes.length],
     ]),
@@ -132,19 +128,6 @@ export function renderOverview(
   if (data.connectors.length > 0 || data.connectorsError != null) {
     fragment.append(renderConnectors(data));
   }
-
-  fragment.append(
-    section(
-      t("最近会话（当前：{session}）", { session: session }),
-      data.sessions.length === 0
-        ? muted(t("还没有会话。说第一句话就有了。"))
-        : el(
-            "ul",
-            { class: "list" },
-            ...data.sessions.map((item) => sessionRow(item, session, onPick)),
-          ),
-    ),
-  );
 
   return fragment;
 }
@@ -631,65 +614,6 @@ function formatDuration(ms: number, clock: boolean): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-/**
- * The sidebar's session list — same rows as the overview's, one source of truth
- * (`sessionRow`), two surfaces. The sidebar is where switching actually happens;
- * the overview keeps the fuller picture. The host in index.html is already the
- * `<ul class="session-list">`, so this returns `<li>` rows directly (no nested list).
- */
-export function sessionList(
-  data: DashboardData,
-  current: string,
-  onPick: (id: string) => void,
-  onFork?: (id: string) => void,
-): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  const sessions = [...data.sessions];
-  if (!sessions.some((item) => item.id === current)) {
-    const fresh: SessionSummary = {
-      id: current,
-      title: t("新会话"),
-      messages: 0,
-      startedAt: null,
-      lastAt: null,
-    };
-    sessions.unshift(fresh);
-  }
-  if (sessions.length === 0) {
-    fragment.append(muted(t("还没有会话")));
-    return fragment;
-  }
-  for (const item of sessions) {
-    const li = sessionRow(item, current, onPick, onFork);
-    arrowKeyNav(li);
-    fragment.append(li);
-  }
-  return fragment;
-}
-
-/**
- * Claude Code resume-list keys: ↑/↓ move the focus along the rows (Enter activates —
- * that part is native to buttons). Bound per row; the handler reaches the whole list
- * through `closest("ul")`, so it works in both surfaces that render these rows.
- */
-function arrowKeyNav(li: HTMLElement): void {
-  li.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    const list = li.closest("ul");
-    if (list === null) return;
-    const rows = [
-      ...list.querySelectorAll<HTMLButtonElement>("button.session-row"),
-    ];
-    const at = rows.indexOf(document.activeElement as HTMLButtonElement);
-    if (at === -1) return;
-    event.preventDefault();
-    const step = event.key === "ArrowDown" ? 1 : rows.length - 1;
-    const next = rows[(at + step) % rows.length];
-    next?.focus();
-    next?.scrollIntoView({ block: "nearest" });
-  });
-}
-
 /** What a notification said (gate / tool), as a small capsule. */
 export function chip(
   text: string,
@@ -947,162 +871,6 @@ function row(label: string, value: string): [HTMLElement, HTMLElement] {
   return [el("dt", { text: label }), el("dd", { text: value, title: value })];
 }
 
-/**
- * One session row — **exactly one line**, like the Claude Code / Codex / WorkBuddy
- * sidebars: title on the left (ellipsis when it overflows), relative time on the
- * right, nothing else. No second line, no card box; hover and the current selection
- * are the only backgrounds. Details live in the tooltip, not on the row.
- *
- * The inner element is a `<button>` rather than a click on `<li>`: something clickable
- * and hoverable should be a button; only then keyboard and screen readers recognize it.
- */
-function sessionRow(
-  item: SessionSummary,
-  current: string,
-  onPick: (id: string) => void,
-  onFork?: (id: string) => void,
-): HTMLElement {
-  const fresh = item.messages === 0;
-  const button = el(
-    "button",
-    {
-      class: item.id === current ? "session-row current" : "session-row",
-      type: "button",
-      title: fresh
-        ? t("新会话「{id}」—— 说第一句就有了", { id: item.id })
-        : t("「{title}」 · {messages} 条消息 · {id}", {
-            title: item.title,
-            messages: item.messages,
-            id: item.id,
-          }),
-    },
-    el(
-      "span",
-      { class: "row-title" },
-      el("span", {
-        class: "row-title-text",
-        text:
-          item.id === "jeeves-main"
-            ? t("主会话")
-            : fresh
-              ? t("新会话")
-              : item.title,
-      }),
-    ),
-    el("span", {
-      class: "row-when",
-      text: fresh ? "" : formatWhen(item.lastAt),
-    }),
-  );
-  button.addEventListener("click", () => onPick(item.id));
-  marqueeOnHover(button);
-  const li = el("li", {}, button);
-  if (item.forkedFrom !== undefined) {
-    li.classList.add("forked");
-    button.title = t("{title} · 分支自「{forkedFrom}」", {
-      title: button.title,
-      forkedFrom: item.forkedFrom,
-    });
-  }
-  if (onFork !== undefined) {
-    const fork = el("button", {
-      class: "session-fork",
-      type: "button",
-      text: "⑂",
-      title:
-        item.forkedFrom === undefined
-          ? t("从这段对话开一个分支")
-          : t("再开一个分支"),
-      "aria-label": t("从「{title}」开一个分支", { title: item.title }),
-    });
-    fork.addEventListener("click", (event) => {
-      event.stopPropagation();
-      onFork(item.id);
-    });
-    li.append(fork);
-  }
-  return li;
-}
-
-/**
- * Hover a truncated title for 500ms and it scrolls horizontally so the whole
- * text becomes readable — the marquee pattern: scroll to the end, hold a beat,
- * scroll back, repeat while the pointer stays. Leave, and it snaps back
- * instantly. Titles that fit never move; reduced-motion users never see it
- * move at all (the tooltip already carries the full text).
- */
-function marqueeOnHover(row: HTMLElement): void {
-  const box = row.querySelector<HTMLElement>(".row-title");
-  const text = row.querySelector<HTMLElement>(".row-title-text");
-  if (box === null || text === null) return;
-
-  const SPEED = 40;
-  const DELAY = 500;
-  let timer: number | null = null;
-  let running = false;
-
-  const stop = (): void => {
-    if (timer !== null) {
-      window.clearTimeout(timer);
-      timer = null;
-    }
-    running = false;
-    text.getAnimations().forEach((animation) => animation.cancel());
-    text.classList.remove("scrolling");
-  };
-
-  const play = async (): Promise<void> => {
-    if (running || !row.isConnected) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const distance = text.scrollWidth - box.clientWidth;
-    if (distance <= 0) return;
-    running = true;
-    text.classList.add("scrolling");
-    const hold = (ms: number) =>
-      new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-    try {
-      while (running && row.isConnected) {
-        const out = text.animate(
-          [
-            { transform: "translateX(0)" },
-            { transform: `translateX(${-distance}px)` },
-          ],
-          {
-            duration: (distance / SPEED) * 1000,
-            easing: "linear",
-            fill: "forwards",
-          },
-        );
-        await out.finished;
-        await hold(1000);
-        const back = text.animate(
-          [
-            { transform: `translateX(${-distance}px)` },
-            { transform: "translateX(0)" },
-          ],
-          {
-            duration: Math.min((distance / SPEED) * 1000, 600),
-            easing: "ease-in-out",
-            fill: "forwards",
-          },
-        );
-        await back.finished;
-        await hold(500);
-      }
-    } catch {
-    } finally {
-      if (!running) text.classList.remove("scrolling");
-    }
-  };
-
-  box.addEventListener("mouseenter", () => {
-    timer = window.setTimeout(() => void play(), DELAY);
-  });
-  box.addEventListener("mouseleave", stop);
-}
-
-
-/** ISO time → "just now / 12 minutes ago / 09:31 / 3 Aug". */
 export function formatWhen(iso: string | null | undefined): string {
   if (iso === null || iso === undefined || iso === "") return "—";
   const at = new Date(iso);

@@ -43,11 +43,14 @@ pub(super) async fn conversation(
     id: RequestId,
     sink: &EventSink,
     interaction_tool: Option<&jeeves_tools::Tool>,
+    tier: Option<String>,
 ) -> Result<(), ErrorObject> {
     let params = TurnStartParams {
         session_id: Some(p.session_id.clone()),
         message: p.message.clone(),
         stream: Some(true),
+        cwd: p.cwd.clone(),
+        tier,
         attachments: p.attachments.clone(),
         ..Default::default()
     };
@@ -58,6 +61,7 @@ pub(super) async fn conversation(
         id,
         sink,
         interaction_tool,
+        p.source.is_some(),
     )
     .await
 }
@@ -71,6 +75,7 @@ pub(crate) async fn recorded(
     id: RequestId,
     sink: &EventSink,
     interaction_tool: Option<&jeeves_tools::Tool>,
+    channel: bool,
 ) -> Result<(), ErrorObject> {
     let (outlet, mut frames) = EventSink::channel();
     let (sender, receiver) = tokio::sync::oneshot::channel();
@@ -98,8 +103,16 @@ pub(crate) async fn recorded(
             }
         }
     });
-    crate::turn::run_turn_inner(server, params, id.clone(), &outlet, None, interaction_tool)
-        .await?;
+    crate::turn::run_turn_inner(
+        server,
+        params,
+        id.clone(),
+        &outlet,
+        None,
+        interaction_tool,
+        Some((key, channel)),
+    )
+    .await?;
     drop(outlet);
     let (result, events) = receiver.await.map_err(internal)?;
     finish(server, (session, key), &result, &events).await?;
@@ -114,7 +127,7 @@ pub(super) async fn acknowledge(
     reply: String,
     started: Instant,
 ) -> Result<(), ErrorObject> {
-    let turn_id = format!("interaction-{}", p.message_id);
+    let turn_id = jeeves_protocol::interaction_turn_id(&p.message_id, p.source.is_some());
     let resolved = server
         .resolved()
         .ok_or_else(|| invalid("Configure a model before sending a message"))?;

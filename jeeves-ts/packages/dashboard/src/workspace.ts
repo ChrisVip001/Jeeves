@@ -1,5 +1,4 @@
 import { accountKey, accountStorage } from "./hosted.ts";
-import { phoneLayout } from "./phone";
 import {
   closeMobileNavigation,
   setupNavigation,
@@ -64,7 +63,6 @@ import {
   fetchRecents,
   fetchSessionMeta,
   fetchSkills,
-  forkSession,
   fetchTurns,
   followUpTurn,
   installSkill,
@@ -77,7 +75,6 @@ import {
   saveMcpServer,
   saveSchedule,
   steerTurn,
-  talk,
   interact,
   taskAction,
   updateSession,
@@ -103,7 +100,6 @@ import {
   renderOverview,
   renderSkills,
   renderWiki,
-  sessionList,
   toolSummary,
   turnFooter,
   welcome,
@@ -126,7 +122,6 @@ let current = accountStorage.getItem(SESSION_KEY) ?? "default";
 /** Ids the last `refresh()` saw, newest first. Boot uses this to tell "the remembered
  *  session still exists" from "it was deleted since" — opening a session the list no longer
  *  shows would paint an empty shell with no way back except the list. */
-let knownSessions: string[] = [];
 
 /** Switch the label *and* remember it. Every path that changes `current` goes through here. */
 function rememberSession(id: string): void {
@@ -180,8 +175,6 @@ const dom = {
   staged: must<HTMLElement>("staged"),
   session: must("session"),
   stamp: must("stamp"),
-  sessions: must("sessions"),
-  newSession: must<HTMLButtonElement>("new-session"),
   drawer: must("drawer"),
   drawerClose: must<HTMLButtonElement>("drawer-close"),
   tabOverview: must<HTMLButtonElement>("tab-overview"),
@@ -795,10 +788,6 @@ async function boot(): Promise<void> {
     const close = openOverlay(panel);
     panel.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   });
-  dom.newSession.addEventListener("click", () => {
-    webState.view = "chat";
-    void newSession();
-  });
   dom.drawerClose.addEventListener("click", closeDrawer);
   setupSidebarResize();
   document.getElementById("nav-memory")?.addEventListener("click", () => {
@@ -809,10 +798,7 @@ async function boot(): Promise<void> {
     switchTab("overview");
     closeMobileNavigation();
   });
-  setupNavigation(() => {
-    webState.view = "chat";
-    void newSession();
-  }, closeDrawer);
+  setupNavigation(closeDrawer);
 
   for (const area of [dom.messages, dom.staged]) {
     area.addEventListener("click", (event) => {
@@ -920,8 +906,8 @@ async function boot(): Promise<void> {
   });
 
   await refresh();
-  await newSession();
-  workspaceActions.main = newSession;
+  await openMain();
+  workspaceActions.main = openMain;
   openHashPanel();
   setWorkspace(workspace);
 
@@ -1023,24 +1009,7 @@ async function refresh(): Promise<void> {
     dom.overview.replaceChildren(
       renderOverview(
         data,
-        current,
-        (id) => {
-          webState.view = "chat";
-          void open(id);
-        },
         (task, action) => void switchTask(task, action),
-      ),
-    );
-    knownSessions = data.sessions.map((session) => session.id);
-    dom.sessions.replaceChildren(
-      sessionList(
-        data,
-        current,
-        (id) => {
-          webState.view = "chat";
-          void open(id);
-        },
-        (id) => void branchFrom(id),
       ),
     );
     dom.stamp.textContent = formatStamp(data.generatedAt);
@@ -1800,29 +1769,18 @@ async function send(
 
   try {
     const targetTask = webTasks.state.selected;
-    const submission =
-      current === webState.mainSessionId
-        ? await submissions.prepare({
-            sessionId: current,
-            message: text,
-            taskId: targetTask || null,
-            cwd: targetTask ? null : workspace,
-            attachments,
-          })
-        : null;
-    const events = submission
-      ? interact(submission)
-      : talk({
-          sessionId: current,
-          message: text,
-          stream: true,
-          cwd: workspace,
-          attachments,
-        });
+    const submission = await submissions.prepare({
+      sessionId: current,
+      message: text,
+      taskId: targetTask || null,
+      cwd: targetTask ? null : workspace,
+      attachments,
+    });
+    const events = interact(submission);
     for await (const notification of events) {
       if (notification.type === "turnCompleted") {
         webTasks.state.selected = "";
-        if (submission) submissions.complete(submission);
+        submissions.complete(submission);
       }
       switch (notification.type) {
         case "permissionChanged":
@@ -2041,7 +1999,7 @@ function paintReply(bubble: HTMLElement, markdown: string): void {
  * Create a server-owned session with standard permissions, then clear the composer
  * and show the welcome screen. Previous sessions remain available in the sidebar.
  */
-async function newSession(): Promise<void> {
+async function openMain(): Promise<void> {
   if (busy) return;
   try {
     const { sessionId } =
@@ -2060,25 +2018,8 @@ async function newSession(): Promise<void> {
   }
 }
 
-/**
- * Branch the conversation: the server copies the last few exchanges into a new session, and
- * we switch to it. The original keeps its own thread — that is the whole point, so nothing
- * is deleted or rewritten on this side.
- */
-async function branchFrom(sessionId: string): Promise<void> {
-  try {
-    const result = await forkSession({ sessionId });
-    const target = result.session.id;
-    await open(target);
-    void refresh();
-  } catch (error) {
-    dom.messages.append(failureOf(error));
-    scrollToEnd();
-  }
-}
-
 async function open(sessionId: string): Promise<void> {
-  if (matchMedia(phoneLayout).matches && webState.mainSessionId && sessionId !== webState.mainSessionId) return;
+  if (sessionId !== webState.mainSessionId) return;
   if (busy) return;
 
   captureReading();
@@ -2276,7 +2217,6 @@ function setBusy(value: boolean): void {
     setOtherTurn(null);
   }
   dom.send.disabled = value;
-  dom.newSession.disabled = value;
   dom.composer.classList.toggle("busy", value);
   paintComposerMode();
 }

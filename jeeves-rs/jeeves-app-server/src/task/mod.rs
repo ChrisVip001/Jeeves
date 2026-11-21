@@ -18,6 +18,7 @@
 
 pub(crate) mod git_checkpoint;
 pub(crate) mod integration;
+pub(crate) mod review;
 mod workspace;
 pub(crate) mod worktree;
 
@@ -246,8 +247,13 @@ pub(crate) async fn create(
     } else {
         None
     };
-    let repo = parent_root.as_deref().or(repo);
-    let cwd_path = match (repo, crate::turn::resolve_turn_cwd(&params.cwd)?) {
+    let cwd = crate::turn::resolve_turn_cwd(&params.cwd)?;
+    let implicit_repo = match (repo, parent_root.as_ref(), cwd.as_ref()) {
+        (None, None, Some(path)) => worktree::clean_repository(path.clone()).await,
+        _ => None,
+    };
+    let repo = parent_root.as_deref().or(repo).or(implicit_repo.as_deref());
+    let cwd_path = match (repo, cwd.filter(|_| implicit_repo.is_none())) {
         (Some(_), Some(_)) => return Err(invalid("give either a repo or a cwd, not both")),
         (Some(repo), None) => {
             Some(worktree::ensure(server.settings().home, id.clone(), repo.to_string()).await?)
@@ -281,6 +287,13 @@ pub(crate) async fn create(
         )
         .await
         .map_err(|e| invalid(format!("the task was not created: {e}")))?;
+
+    if repo.is_some() {
+        let path = cwd_path.as_deref().expect("Git task worktree");
+        if let Err(error) = review::remember_base(server, &id, path).await {
+            eprintln!("(jeeves) task {id}: could not record the Git review baseline: {error}");
+        }
+    }
 
     if !edit_checks.is_empty() {
         let json = serde_json::to_string(&edit_checks).map_err(|e| invalid(e.to_string()))?;
@@ -478,7 +491,12 @@ pub(crate) async fn artifacts(
         .latest_delivery(task_id)
         .await
         .map_err(internal)?;
+    let review = match delivery.as_ref().and_then(|row| row.run_id.as_deref()) {
+        Some(run) => review::load(server, task_id, run).await.map_err(internal)?,
+        None => None,
+    };
     Ok(TaskArtifactsResponse {
+        review,
         latest_delivery: delivery.map(|row| jeeves_protocol::TaskDeliveryView {
             status: row.status,
             summary: row.summary,

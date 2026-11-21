@@ -80,7 +80,7 @@ def run():
             home = Path(temp)/'home'
             rpc = desktop.Rpc(binary,home,{'JEEVES_BROWSER_RUNTIME':str(runtime),'JEEVES_BROWSER_HEADLESS':'1'})
             try:
-                owner = rpc.call('session/new',{})['sessionId']
+                owner = rpc.call('session/main', {})['sessionId']
                 def open_task(title):
                     task = rpc.call('task/create',dict(sessionId=owner,title=title))['task']['id']
                     row = rpc.call('browser/start',dict(taskId=task,url=origin,allowLocalhost=True))

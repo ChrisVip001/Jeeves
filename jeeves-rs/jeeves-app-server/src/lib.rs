@@ -34,6 +34,7 @@ mod goal;
 mod image_meta;
 mod input_wake;
 mod interaction;
+pub use interaction::{main_session, submit_main, MAIN_SESSION};
 mod job_delivery;
 mod jobs;
 mod ledger_writer;

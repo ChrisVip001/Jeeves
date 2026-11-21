@@ -64,6 +64,27 @@ def stream(base, session, message, approve=False):
     return events
 
 
+def task_stream(base, session, message, approve=False):
+    req = urllib.request.Request(base + '/api/notifications',
+                                 headers={'Authorization': 'Bearer web-fixture-token'})
+    events = []
+    with urllib.request.urlopen(req, timeout=20) as response:
+        task = request(base, '/api/task', {'action': 'create', 'sessionId': session, 'title': message})['task']
+        request(base, '/api/task', {'action': 'start', 'taskId': task['id'], 'message': message})
+        for line in response:
+            if not line.startswith(b'data: '):
+                continue
+            event = json.loads(line[6:])
+            events.append(event)
+            if approve and event['type'] == 'approvalRequested':
+                params = {'turnId': event['turnId'], 'requestId': event['requestId'], 'approved': True, 'remember': 'once'}
+                assert request(base, '/api/approval', params)['accepted']
+                assert not request(base, '/api/approval', params)['accepted']
+            if event['type'] == 'turnCompleted':
+                return events
+    raise AssertionError('Task completed without its receipt')
+
+
 def custom_connector(base, session, home):
     recovery = importlib.util.spec_from_file_location('recovery', ROOT / 'scripts/smoke-recovery.py')
     module = importlib.util.module_from_spec(recovery)
@@ -82,7 +103,7 @@ def custom_connector(base, session, home):
     for disabled in [True, False]:
         current = request(base, '/api/connector/tools/set', dict(switch, disabled=disabled))
         assert current['tools'][0]['disabled'] == disabled
-        events = stream(base, session, 'custom-connector-fixture', approve=True)
+        events = task_stream(base, session, 'custom-connector-fixture', approve=True)
         asks = [e for e in events if e['type'] == 'approvalRequested']
         if disabled:
             assert not asks and not (Path(home) / 'commits').exists()
@@ -274,8 +295,8 @@ def run(port=0, hold=False, mail_followup=False):
             for paused, expected in [(True, 'paused'), (False, 'active')]:
                 assert request(base, duties + '/pause', {'id': contract['id'], 'paused': paused})['status'] == expected
             assert request(base, duties)['responsibilities'][0]['contract']['budget'] == {'tools': 2}
-            session = request(base, '/api/session/new', {})['sessionId']
-            policy = request(base, '/api/session/permission', {'sessionId': session, 'mode': 'standard', 'expectedRevision': 0, 'confirmFullAccess': False})
+            session = request(base, '/api/session/main')['sessionId']
+            policy = request(base, '/api/session/permission?sessionId=' + session)
             assert policy['mode'] == 'standard'
             custom_connector(base, session, home)
             params = {'sessionId': session, 'mode': 'fullAccess', 'expectedRevision': 1, 'confirmFullAccess': False}
@@ -296,11 +317,11 @@ def run(port=0, hold=False, mail_followup=False):
             events = stream(base, session, 'hello fixture')
             assert any(e['type'] == 'textDelta' for e in events)
             assert any(e['type'] == 'turnCompleted' for e in events)
-            events = stream(base, session, 'approval-fixture', approve=True)
+            events = task_stream(base, session, 'approval-fixture', approve=True)
             assert sum(e['type'] == 'approvalRequested' for e in events) == 1
             assert any(e['type'] == 'toolCompleted' and e['status'] == 'ok' for e in events)
             request(base, '/api/session/permission', {'sessionId': session, 'mode': 'readOnly', 'expectedRevision': 1, 'confirmFullAccess': False})
-            events = stream(base, session, 'approval-fixture')
+            events = task_stream(base, session, 'approval-fixture')
             assert not any(e['type'] == 'approvalRequested' for e in events)
             assert any(e['type'] == 'toolCompleted' and 'Read-only' in e['output'] for e in events)
             assert len(request(base, '/api/session?sessionId=' + session)['data']) >= 6

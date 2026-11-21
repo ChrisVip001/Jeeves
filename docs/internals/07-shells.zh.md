@@ -91,7 +91,7 @@ Ctrl-C 或 SIGTERM 会停止接受请求、停止网关，并最多 25 秒等待
 | 首屏与配置 | `GET /api/data`、`GET/POST /api/config`、`GET /api/usage`、`GET /api/inbox` |
 | 回合 | `POST /api/turn`（`ServerNotification` 的 SSE 流）、`POST /api/turn/steer`、`POST /api/turn/follow-up`、`POST /api/interrupt`、`GET /api/turns`、`POST /api/interaction`、`POST /api/run`（任务 API：一轮进、一个 `RunResponse` 出，无 SSE） |
 | 审批 | `GET /api/approval/pending`、`POST /api/approval`、`GET /api/approvals`、`GET/POST /api/session/permission` |
-| 会话 | `GET /api/session`、`GET /api/session/main`、`GET /api/session/meta`、`POST /api/session/new\|update\|fork` |
+| 会话 | `GET /api/session`、`GET /api/session/main`、`GET /api/session/meta`、`POST /api/session/update` |
 | 任务与浏览器 | `GET /api/tasks`、`POST /api/task`、`POST /api/turn-operation`、`GET /api/browser`、`POST /api/browser/start\|control`、`GET /api/browser/frame` |
 | 模型 | `GET /api/model/catalog\|profiles\|routes`、`POST /api/model/save\|remove\|routes/save` |
 | 能力 | `/api/skills`（+ `install`、`remove`、`stats`）、`/api/mcp`（+ `save`、`remove`）、`/api/schedules/jobs`、`/api/schedules/save\|remove`、`/api/vault`（+ `remove`） |

@@ -20,9 +20,8 @@ need_bin
 [[ -f "$ASSETS/index.html" ]] || fail "the front end has not been built; run: just dashboard-build"
 
 # Fake SSE endpoint: completes the "SSE → full reply" chain without a real key.
-# It serves this many streaming replies, then exits — two questions are asked below (the
-# first screen's turn, and one in a freshly created session).
-python3 "$REPO/scripts/fake_sse_server.py" 2 >"$WORK/fake_port" &
+# The main conversation makes one streaming model request.
+python3 "$REPO/scripts/fake_sse_server.py" 1 >"$WORK/fake_port" &
 FAKE_PID=$!
 track_pid "$FAKE_PID"
 for _ in $(seq 1 50); do
@@ -130,9 +129,7 @@ curl -sS -o /dev/null -w '%{http_code}' "$BASE/$BUNDLE" | grep -q '^200$' \
 grep -q '/api/data' "$WORK/main.js" || fail "main.js has no /api/data"
 # This one matches by path only: a template string with interpolation — backticks after bundling.
 grep -q '/api/session' "$WORK/main.js" || fail "main.js has no /api/session"
-# createSession is dead code in the bundle (the browser labels conversations locally);
-# the real POST /api/session/new check below is the assertion that matters.
-grep -q '/api/session/fork' "$WORK/main.js" || fail "main.js has no /api/session/fork"
+grep -q '/api/session/main' "$WORK/main.js" || fail "main.js has no main conversation endpoint"
 grep -q '/api/session/meta' "$WORK/main.js" || fail "main.js has no /api/session/meta"
 grep -q '/api/turn/steer' "$WORK/main.js" || fail "main.js has no /api/turn/steer"
 grep -q '/api/turn/follow-up' "$WORK/main.js" || fail "main.js has no /api/turn/follow-up"
@@ -199,7 +196,7 @@ echo "  ✓ four read methods → one JSON screen"
 # ---- Say one thing: turn/start → SSE ----------------------------------------------
 curl -sS -N -X POST "$BASE/api/turn" \
   -H 'content-type: application/json' \
-  -d '{"sessionId":"default","message":"hello","stream":true}' \
+  -d '{"sessionId":"jeeves-main","message":"hello","stream":true}' \
   --max-time 20 >"$WORK/turn.sse" || fail "POST /api/turn did not go through"
 
 echo "  this turn arrived as:"
@@ -218,77 +215,31 @@ curl -sS "$BASE/api/data" >"$WORK/data2.json"
 grep -q '"sessions":\[\]' "$WORK/data2.json" && fail "after one message the session list is still empty"
 echo "  ✓ what was said shows up on the first screen"
 
-# ---- 0.15: a session is a row — named, with its own working directory ---------------------
-# Before 0018 "new session" created nothing: an empty conversation could not be listed, named,
-# or bound to a folder. These four assertions are exactly that sentence.
-CREATE_JSON="$(curl -sS -X POST "$BASE/api/session/new" -H 'content-type: application/json' \
-  -d "{\"title\":\"release check\",\"cwd\":\"$WORK\"}")" || fail "session/new did not go through"
-SID="$(sed -n 's/.*"sessionId":"\([^"]*\)".*/\1/p' <<<"$CREATE_JSON" | head -n1)"
-[[ -n "$SID" ]] || fail "session/new gave no session id: $CREATE_JSON"
-
-curl -sS "$BASE/api/data" >"$WORK/data-meta.json"
-python3 - "$WORK/data-meta.json" "$SID" "$WORK" <<'PY' || fail "an empty session did not appear in the list with its name and directory"
+# ---- One durable main conversation, with a configurable workspace ----------------------
+SID=jeeves-main
+curl -fsS "$BASE/api/session/main" | grep -q '"sessionId":"jeeves-main"' \
+  || fail "the main conversation cannot be reopened"
+curl -fsS -X POST "$BASE/api/session/update" -H 'content-type: application/json' \
+  -d "{\"sessionId\":\"$SID\",\"title\":\"release check\",\"cwd\":\"$WORK\"}" \
+  | grep -q '"title":"release check"' || fail "the main conversation could not be named"
+curl -fsS "$BASE/api/data" | python3 -c '
 import json, sys
-data = json.load(open(sys.argv[1]))
-row = next((s for s in data["sessions"] if s["id"] == sys.argv[2]), None)
-assert row is not None, "nothing was said, but it has to exist already"
-assert row["title"] == "release check", row
-assert row["cwd"] == sys.argv[3], row
-assert row["messages"] == 0, row
-PY
-
-# Rename, then clear: "" means "no name", and the read side falls back to the first message.
-curl -sS -X POST "$BASE/api/session/update" -H 'content-type: application/json' \
-  -d "{\"sessionId\":\"$SID\",\"title\":\"renamed\"}" | grep -q '"title":"renamed"' \
-  || fail "the rename did not take effect"
-curl -sS -X POST "$BASE/api/session/update" -H 'content-type: application/json' \
-  -d "{\"sessionId\":\"$SID\",\"title\":\"\"}" | grep -q '"title":"(empty session)"' \
-  || fail "clearing the title should fall back to «(empty session)»"
-curl -sS "$BASE/api/session/meta?sessionId=$SID" | grep -q "\"cwd\":\"$WORK\"" \
-  || fail "renaming lost the working directory"
-
-# A turn in that session needs no `cwd`: the session already knows it. The reply lands there,
-# and with the title cleared the list falls back to this first message — both in one shot.
-curl -sS -N -X POST "$BASE/api/turn" -H 'content-type: application/json' \
-  -d "{\"sessionId\":\"$SID\",\"message\":\"hello\",\"stream\":false}" --max-time 20 \
-  >"$WORK/turn2.sse" || fail "a turn with no cwd did not go through (the session directory should be the fallback)"
-grep -q '"type":"turnCompleted"' "$WORK/turn2.sse" || fail "the second turn never ended — the front end would wait forever"
-
-# ---- 0.17: forking — copy the last few turns into a new session, the original untouched ------
-messages_of() {
-  curl -sS "$BASE/api/data" | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-print(next(s["messages"] for s in data["sessions"] if s["id"] == sys.argv[1]))
-' "$1"
-}
-BEFORE="$(messages_of "$SID")"
-FORK_JSON="$(curl -sS -X POST "$BASE/api/session/fork" -H 'content-type: application/json' \
-  -d "{\"sessionId\":\"$SID\"}")" || fail "session/fork did not go through"
-grep -q '"copied":[1-9]' <<<"$FORK_JSON" || fail "the fork copied no messages: $FORK_JSON"
-grep -q "\"forkedFrom\":\"$SID\"" <<<"$FORK_JSON" || fail "the fork did not record where it came from: $FORK_JSON"
-grep -q "\"cwd\":\"$WORK\"" <<<"$FORK_JSON" || fail "the fork lost the working directory: $FORK_JSON"
-FORK_ID="$(sed -n 's/.*"id":"\([^"]*\)".*/\1/p' <<<"$FORK_JSON" | head -n1)"
-[[ -n "$FORK_ID" && "$FORK_ID" != "$SID" ]] || fail "the fork gave a bad id: $FORK_JSON"
-AFTER="$(messages_of "$SID")"
-[[ "$BEFORE" == "$AFTER" ]] || fail "the fork changed the original session ($BEFORE → $AFTER)"
-
-curl -sS "$BASE/api/data" >"$WORK/data-meta2.json"
-python3 - "$WORK/data-meta2.json" "$SID" <<'PY' || fail "a session with a cleared title did not fall back to its first user message"
-import json, sys
-data = json.load(open(sys.argv[1]))
-row = next((s for s in data["sessions"] if s["id"] == sys.argv[2]), None)
-assert row is not None, row
-assert row["title"] == "hello", row
-assert row["messages"] == 2, row
-PY
-echo "  ✓ session metadata: an empty session can be named and bound to a folder → renamed → cleared back → a turn without cwd lands in its own directory"
+sessions = json.load(sys.stdin)["sessions"]
+assert [session["id"] for session in sessions] == ["jeeves-main"], sessions
+assert sessions[0]["cwd"] == sys.argv[1], sessions
+' "$WORK" || fail "the Runtime did not expose a single main conversation"
+for retired in new fork; do
+  status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$BASE/api/session/$retired" \
+    -H 'content-type: application/json' -d '{"sessionId":"jeeves-main"}')"
+  [[ "$status" == 404 || "$status" == 405 ]] || fail "session/$retired still responds"
+done
+echo "  ✓ one main conversation; session creation and forking are retired"
 
 # ---- Spoken messages must read back ------------------------------------------------------
 # That's why `/api/session` exists: after a refresh the conversation is still there, and after
 # switching away and back too. The protocol gives **newest first** (easy to page earlier), and
 # with only two entries here, `nextCursor` should be null — "bottomed out".
-curl -sS "$BASE/api/session?sessionId=default" >"$WORK/session.json"
+curl -sS "$BASE/api/session?sessionId=jeeves-main" >"$WORK/session.json"
 grep -q '"role":"user"'      "$WORK/session.json" || fail "the history holds nothing from the user"
 grep -q '"role":"assistant"' "$WORK/session.json" || fail "the history holds no assistant message"
 grep -q 'hello, world'       "$WORK/session.json" || fail "the reply in the history is wrong"
@@ -301,13 +252,13 @@ echo "  ✓ what was said reads back (newest first + already at the bottom)"
 # machine) live in app-server, so the assertions check the state machine end to end.
 curl -sS -X POST "$BASE/api/task" \
   -H 'content-type: application/json' \
-  -d '{"action":"create","sessionId":"default","title":"watch the server for three days","goalCondition":"watch it all three days"}' \
+  -d '{"action":"create","sessionId":"jeeves-main","title":"watch the server for three days","goalCondition":"watch it all three days"}' \
   >"$WORK/task1.json" || fail "creating the task did not go through"
 grep -q '"status":"pending"' "$WORK/task1.json" || fail "a new task should be pending: $(cat "$WORK/task1.json")"
 TASK_ID="$(sed -n 's/.*"id":"\([^"]*\)".*/\1/p' "$WORK/task1.json" | head -n1)"
 [[ -n "$TASK_ID" ]] || fail "the reply carries no task id"
 
-curl -sS "$BASE/api/data?sessionId=default" >"$WORK/data3.json"
+curl -sS "$BASE/api/data?sessionId=jeeves-main" >"$WORK/data3.json"
 grep -q '"title":"watch the server for three days"' "$WORK/data3.json" || fail "the task never reached the first-screen data (the task card would be empty)"
 grep -q '"goalCondition":"watch it all three days"' "$WORK/data3.json" || fail "the goal never reached the task row"
 grep -q '"acceptance":\[\]' "$WORK/data3.json" || fail "with no acceptance conditions it should be an empty array"
@@ -319,9 +270,9 @@ grep -q '"taskArtifacts":\[\]' "$WORK/data3.json" || fail "with no deliverables 
 # the newest. (It used to refuse the second one.)
 curl -sS -X POST "$BASE/api/task" \
   -H 'content-type: application/json' \
-  -d '{"action":"create","sessionId":"default","title":"a second thing"}' >"$WORK/task2.json"
+  -d '{"action":"create","sessionId":"jeeves-main","title":"a second thing"}' >"$WORK/task2.json"
 grep -q '"title":"a second thing"' "$WORK/task2.json" || fail "the second task should be creatable: $(cat "$WORK/task2.json")"
-grep -q '"sessionId":"default"' "$WORK/task2.json" || fail "the task row should carry the session id back"
+grep -q '"sessionId":"jeeves-main"' "$WORK/task2.json" || fail "the task row should carry the session id back"
 
 # Acceptance conditions are normalised at creation: the card's wording and the checker's
 # condition are the same sentence, so this string is a real end-to-end assertion.
@@ -330,10 +281,8 @@ curl -sS -X POST "$BASE/api/task" -H 'content-type: application/json' \
   >"$WORK/task3.json" || fail "a task with acceptance conditions did not get created"
 grep -q '"label":"report.md exists"' "$WORK/task3.json" || fail "the acceptance condition has no human label: $(cat "$WORK/task3.json")"
 grep -q '"status":"pending"' "$WORK/task3.json" || fail "a task with acceptance conditions should be pending too"
-# A task with no session carries **no** sessionId field at all (absent, not null): absence is
-# the honest shape for "belongs to nothing".
-python3 -c "import json,sys; t=json.load(open('$WORK/task3.json'))['task']; sys.exit(0 if t.get('sessionId') is None else 1)" \
-  || fail "a task given no session must not grow one out of thin air"
+grep -q '"sessionId":"jeeves-main"' "$WORK/task3.json" \
+  || fail "an ownerless public task must attach to the main conversation"
 
 curl -sS -X POST "$BASE/api/task" -H 'content-type: application/json' \
   -d "{\"action\":\"suspend\",\"taskId\":\"$TASK_ID\"}" >"$WORK/suspend.json"
@@ -355,7 +304,7 @@ TASK_COUNT="$(python3 -c "import json;print(len(json.load(open('$WORK/tasks.json
 echo "  ✓ tasks: create → visible on the first screen (acceptance / spend / run count) → a second one works too → suspend → resume → cancel"
 
 # The connector panel is read-only truth from connectors.json: draft mode + allowlist width.
-curl -sS "$BASE/api/data?sessionId=default" >"$WORK/data4.json"
+curl -sS "$BASE/api/data?sessionId=jeeves-main" >"$WORK/data4.json"
 grep -q '"connectors":\[{"id":"feishu","live":false,"allowRecipients":1}\]' "$WORK/data4.json" \
   || fail "the connector panel data is wrong: $(python3 -c "import json,sys; print(json.load(open('$WORK/data4.json')).get('connectors'))")"
 echo "  ✓ connectors: draft mode + a one-entry allowlist, shown as they are"
@@ -456,25 +405,25 @@ curl -sS "$BASE/api/mcp" | grep -q '"name":"notes"' && fail "the deleted connect
 curl -sS "$BASE/api/mcp" | grep -q '"name":"pack-server"' || fail "the built-in connector should still be there"
 echo "  ✓ capability center: built-ins greyed out and write-refused, user skills/connectors added and removed, duplicates and invalid input both answered"
 
-# Sessions are hard boundaries: paging an untouched session must yield an empty page, never default's.
+# An invalid history address cannot expose the main conversation.
 curl -sS "$BASE/api/session?sessionId=nobody" | grep -q '"data":\[\]' \
   || fail "an empty session must not see what others said"
-echo "  ✓ sessions do not leak into each other"
+echo "  ✓ an unknown history address returns no messages"
 
 # ---- Nothing is running now ---------------------------------------------------------------
 # turn/list answers "what is happening" from the live turn table; idle must be an empty array,
 # not an error and not a guess. (The non-empty side is covered in app-server's own tests.)
 curl -sS "$BASE/api/turns" | grep -q '"turns":\[\]' || fail "when idle, turn/list should be an empty array"
-curl -sS "$BASE/api/turns?sessionId=default" | grep -q '"turns":\[\]' \
+curl -sS "$BASE/api/turns?sessionId=jeeves-main" | grep -q '"turns":\[\]' \
   || fail "filtering by session should not fail"
 echo "  ✓ turn/list: an empty array when idle"
 
 # Human operation review is available independently of model execution.
 curl -sS -X POST "$BASE/api/turn-operation" -H 'content-type: application/json' \
-  -d '{"action":"operations","sessionId":"default"}' | grep -q '"operations":\[\]' \
+  -d '{"action":"operations","sessionId":"jeeves-main"}' | grep -q '"operations":\[\]' \
   || fail "ordinary-chat operation inspection should return an empty list"
 curl -sS -X POST "$BASE/api/turn-operation" -H 'content-type: application/json' \
-  -d '{"action":"reconcile","sessionId":"default","turnId":"missing","operationId":"missing","checkpointDigest":"stale","resolution":"not_executed","evidence":"Synthetic check"}' \
+  -d '{"action":"reconcile","sessionId":"jeeves-main","turnId":"missing","operationId":"missing","checkpointDigest":"stale","resolution":"not_executed","evidence":"Synthetic check"}' \
   | grep -q '"code":-32602' || fail "an unavailable chat operation must be refused"
 echo "  ✓ ordinary-chat operations: inspect without a model call, invalid reconciliation refused"
 
@@ -483,14 +432,14 @@ echo "  ✓ ordinary-chat operations: inspect without a model call, invalid reco
 # With nothing in flight this must fail **and say why** — silently starting a new turn would
 # turn "add to what you're doing" into "start something else" without telling anyone.
 STEER_ERR="$(curl -sS -X POST "$BASE/api/turn/steer" -H 'content-type: application/json' \
-  -d '{"sessionId":"default","message":"have a look at the README too"}')"
+  -d '{"sessionId":"jeeves-main","message":"have a look at the README too"}')"
 grep -q 'has no turn running' <<<"$STEER_ERR" || fail "when idle, turn/steer has to say there is no turn: $STEER_ERR"
 echo "  ✓ turn/steer: with no turn running it says so instead of silently starting one"
 
 # "Queue for after" also needs a turn to wait on: queueing while idle would hang a sentence
 # off a turn that has already ended, which is worse than a refusal — a human would believe
 FOLLOW_ERR="$(curl -sS -X POST "$BASE/api/turn/follow-up" -H 'content-type: application/json' \
-  -d '{"sessionId":"default","message":"add it to the CHANGELOG"}')"
+  -d '{"sessionId":"jeeves-main","message":"add it to the CHANGELOG"}')"
 grep -q 'has no turn running' <<<"$FOLLOW_ERR" \
   || fail "when idle, turn/follow-up has to say there is no turn: $FOLLOW_ERR"
 echo "  ✓ turn/follow-up: with no turn running it does not pretend to have queued anything"
@@ -498,7 +447,7 @@ echo "  ✓ turn/follow-up: with no turn running it does not pretend to have que
 # ---- Memory center: the read-only windows really answer -----------------------------------
 # Every read endpoint has to return JSON rather than 500. `/api/context` is `usage: null` when
 # no turn has run — that is "not measured yet", not "zero usage"; the front end shows an empty
-curl -sS "$BASE/api/ledger/turns?sessionId=default" >"$WORK/ledger.json" \
+curl -sS "$BASE/api/ledger/turns?sessionId=jeeves-main" >"$WORK/ledger.json" \
   || fail "GET /api/ledger/turns did not go through"
 grep -q '"turns"' "$WORK/ledger.json" || fail "the ledger should return turns"
 grep -q '"entries":\[\]' "$WORK/ledger.json" \
@@ -506,7 +455,7 @@ grep -q '"entries":\[\]' "$WORK/ledger.json" \
 curl -sS "$BASE/api/memory/index" | grep -q '"catalog"' || fail "/api/memory/index should return the catalog"
 curl -sS "$BASE/api/memory/page?page=definitely-not-a-page" \
   | grep -q '"page":null' || fail "a page that does not exist should be page:null (not a pretend empty page)"
-curl -sS "$BASE/api/context?sessionId=default" | grep -q '"usage"' \
+curl -sS "$BASE/api/context?sessionId=jeeves-main" | grep -q '"usage"' \
   || fail "/api/context should return usage (null is allowed)"
 curl -sS "$BASE/api/skills/stats" | grep -q '"data"' || fail "/api/skills/stats should return data"
 # A missing parameter has to be refused explicitly, not turned into an empty string for the query.

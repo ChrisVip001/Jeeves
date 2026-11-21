@@ -82,7 +82,13 @@ bridge.onTaskUpdated(
 
 bridge.onApprovalRequested(
   approvalRelay({
-    locate: (turnId, requestId) => bridge.locateApproval(turnId, requestId),
+    locate: async (turnId, requestId) => {
+      const origin = await bridge.locateApproval(turnId, requestId);
+      if (origin?.source?.channel === "lark" && allow.length === 1 && allow[0] === origin.source.senderId) {
+        return { ...origin, bindToSender: true };
+      }
+      return origin;
+    },
     sendCard: (chatId, messageId, card) => adapter.sendCard(chatId, messageId, card),
     sendOriginApproval: (source, request) => adapter.requestOriginApproval(source, request),
     onLog: (text) => console.error(`[lark] ${text}`),

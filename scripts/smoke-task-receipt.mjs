@@ -38,18 +38,20 @@ try {
       assert.equal(await taskComposer.inputValue(), "unsent task draft");
       if (!decisionId) {
         const file = work.locator(".work-file").filter({hasText:"report.txt"});
-        await file.locator("summary").click();
-        assert.equal(await file.locator("pre").textContent(), "task-alpha-fixture");
+        await file.click();
+        const review = work.getByRole("complementary", {name: /report.txt/});
+        assert.equal(await review.locator("pre").textContent(), "task-alpha-fixture");
         if (process.env.JEEVES_TEST_SCREENSHOTS) {
           const dir = process.env.JEEVES_TEST_SCREENSHOTS;
           await mkdir(dir, {recursive:true});
           await page.screenshot({path:join(dir, width === 390 ? "phone.png" : "desktop.png")});
         }
         const downloading = page.waitForEvent("download");
-        await file.getByRole("button", {name:"保存文本副本"}).click();
+        await review.getByRole("button", {name:"保存文本副本"}).click();
         const download = await downloading;
         assert.equal(download.suggestedFilename(), "report.txt");
         assert.equal(await readFile(await download.path(), "utf8"), "task-alpha-fixture");
+        await review.getByRole("button", {name:"关闭文件审阅"}).click();
       }
       await nav.getByRole("button", {name:"我的事项"}).click();
       const search = page.getByRole("searchbox", {name:"搜索事项"});

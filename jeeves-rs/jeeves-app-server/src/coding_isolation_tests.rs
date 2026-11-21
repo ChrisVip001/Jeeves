@@ -319,6 +319,9 @@ async fn dispatched_task_applies_its_stored_scope_to_model_write_tools() {
     )
     .await
     .unwrap();
+    rpc(&server, "session/permission/set", json!({
+        "sessionId":"jeeves-main", "mode":"fullAccess", "expectedRevision":1, "confirmFullAccess":true
+    })).await.unwrap();
     let task = &made["task"];
     rpc(
         &server,

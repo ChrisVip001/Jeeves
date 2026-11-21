@@ -7,20 +7,23 @@
 //! No readline: line-based stdin suffices; arrow-key history is the shell's job.
 
 use std::io::Write as _;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
-use jeeves_app_server::{run_turn, EventSink, Frame, Server};
+use jeeves_app_server::{main_session, submit_main, EventSink, Frame, Server, MAIN_SESSION};
 use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams, TurnStartedNotification};
 
-const HELP: &str = "\nCommands:\n  /memory [term]  see what was remembered recently (with a term: search it)\n  /compact [focus] fold earlier turns into the summary now (the last two turns stay in context)\n  /sessions      list past sessions\n  /new           start a new session\n  /quit          quit (/exit works too)\nAny other input is sent to Jeeves as a message.\n/goal <condition>   set a goal (it auto-continues while unmet); /goal clear removes it\n/model          see the configured models; /model use <name> switches; /model add <name> <provider> [model] [--env VAR] [--vision] adds one\n/cwd [path]     show or set this session's working directory (/cwd clear clears it); relative paths resolve against it\n/route          see the model routing table; /route auto|fixed switches mode; /route set <tier> <profile> edits the mapping";
+const HELP: &str = "\nCommands:\n  /memory [term]  see what was remembered recently (with a term: search it)\n  /compact [focus] fold earlier turns into the summary now (the last two turns stay in context)\n  /quit          quit (/exit works too)\nAny other input is sent to Jeeves as a message.\n/goal <condition>   set a goal (it auto-continues while unmet); /goal clear removes it\n/model          see the configured models; /model use <name> switches; /model add <name> <provider> [model] [--env VAR] [--vision] adds one\n/cwd [path]     show or set this session's working directory (/cwd clear clears it); relative paths resolve against it\n/route          see the model routing table; /route auto|fixed switches mode; /route set <tier> <profile> edits the mapping";
 
 /// Enters the terminal conversation. Receives an already-assembled Server.
 pub async fn run(server: Server) -> Result<()> {
     println!("Jeeves — a personal assistant for complex, long-running tasks. /help for commands, /quit to leave.");
     println!();
 
-    let mut session_id = new_session_id();
+    let session_id = MAIN_SESSION;
+    let (sink, _) = EventSink::channel();
+    main_session(&server, &sink)
+        .await
+        .map_err(|e| anyhow::anyhow!(e.message))?;
     let mut cwd: Option<std::path::PathBuf> = None;
     let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());
     let mut line = String::new();
@@ -40,21 +43,16 @@ pub async fn run(server: Server) -> Result<()> {
         match input {
             "/quit" | "/exit" | "/q" => break,
             "/help" => println!("{HELP}"),
-            "/new" => {
-                session_id = new_session_id();
-                println!("New session: {session_id}");
-            }
-            "/sessions" => list_sessions(&server).await,
             s if s.starts_with("/memory") => show_memory(&server, s).await,
-            s if s.starts_with("/compact") => compact(&server, &session_id, s).await,
-            s if s.starts_with("/goal") => set_goal(&server, &session_id, s).await,
+            s if s.starts_with("/compact") => compact(&server, session_id, s).await,
+            s if s.starts_with("/goal") => set_goal(&server, session_id, s).await,
             s if s.starts_with("/cwd") => cwd = set_cwd(cwd, s),
             s if s.starts_with("/model") => models(&server, s),
             s if s.starts_with("/route") => route_cmd(&server, s),
             s if s.starts_with('/') => {
                 println!("Unknown command {s}. /help lists them.");
             }
-            message => chat_turn(&server, &session_id, cwd.as_ref(), message).await,
+            message => chat_turn(&server, session_id, cwd.as_ref(), message).await,
         }
     }
     server.stop_memory_worker().await;
@@ -398,14 +396,6 @@ async fn ask_approval(server: &Server, ask: jeeves_protocol::ApprovalRequestedNo
     }
 }
 
-fn new_session_id() -> String {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    format!("cli-{millis}")
-}
-
 /// One chat turn: stream-render text; gate and tool activity each get a small line.
 async fn chat_turn(
     server: &Server,
@@ -424,10 +414,9 @@ async fn chat_turn(
         tier: None,
     };
     let task_server = server.clone();
-    let task =
-        tokio::spawn(
-            async move { run_turn(&task_server, params, RequestId::Number(0), &sink).await },
-        );
+    let task = tokio::spawn(async move {
+        submit_main(&task_server, params, RequestId::Number(0), &sink).await
+    });
 
     let mut streamed = 0usize;
     loop {
@@ -648,28 +637,5 @@ async fn show_memory(server: &Server, input: &str) {
     }
     for episode in &episodes {
         println!("- ({}) {}", episode.happened_at, episode.summary);
-    }
-}
-
-async fn list_sessions(server: &Server) {
-    let sessions = match server.chat().sessions().await {
-        Ok(sessions) => sessions,
-        Err(error) => {
-            eprintln!("Could not list sessions: {error}");
-            return;
-        }
-    };
-    if sessions.is_empty() {
-        println!("No past sessions yet.");
-        return;
-    }
-    for s in sessions {
-        println!(
-            "- {}  {} ({} messages, latest {})",
-            s.id,
-            s.title,
-            s.messages,
-            s.last_at.as_deref().unwrap_or("?")
-        );
     }
 }

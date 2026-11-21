@@ -192,22 +192,34 @@ def run(binary):
             try:
                 rpc.call('model/save', {'id': 'desktop-fixture', 'provider': 'ollama', 'model': 'fixture', 'smallModel': 'fixture', 'baseUrl': f'http://127.0.0.1:{provider.server_port}/v1', 'makeActive': True})
                 rpc.call('config/write', {'patch': {'consolidateEvery': 1000, 'graphWorkflows': False}})
-                session = rpc.call('session/new', {})['sessionId']
-                policy = rpc.call('session/permission/set', {'sessionId': session, 'mode': 'standard', 'expectedRevision': 0, 'confirmFullAccess': False})
-                assert policy['revision'] == 1
+                session = rpc.call('session/main', {})['sessionId']
+                policy = rpc.call('session/permission/get', {'sessionId': session})
+                assert policy['mode'] == 'standard' and policy['revision'] == 1
                 _, events = rpc.until(rpc.send('turn/start', {'sessionId': session, 'message': 'hello fixture', 'stream': True}))
                 assert any(e['type'] == 'textDelta' for e in events)
                 assert any(e['type'] == 'turnCompleted' and e['reply'] == '桌面连接测试完成。' for e in events)
+                def run_task(message, on_event=None):
+                    task = rpc.call('task/create', {'title': message})['task']['id']
+                    start = len(rpc.notifications)
+                    rpc.until(rpc.send('task/start', {'taskId': task, 'message': message}), on_event)
+                    deadline = time.monotonic() + 12
+                    while time.monotonic() < deadline:
+                        result, _ = rpc.until(rpc.send('task/get', {'taskId': task}), on_event)
+                        if result['task']['dispatchState'] == 'finished':
+                            return rpc.notifications[start:]
+                        time.sleep(.05)
+                    raise AssertionError(f'Worker did not finish {message}')
+
                 asked = []
                 def answer(event):
                     if event['type'] == 'approvalRequested':
                         asked.append(event)
                         rpc.call('approval/respond', {'turnId': event['turnId'], 'requestId': event['requestId'], 'approved': True, 'remember': 'once'})
-                _, events = rpc.until(rpc.send('turn/start', {'sessionId': session, 'message': 'approval-fixture', 'stream': True}), answer)
+                events = run_task('approval-fixture', answer)
                 assert len(asked) == 1, asked
                 assert any(e['type'] == 'toolCompleted' and not e['output'].startswith('Error:') for e in events)
                 rpc.call('session/permission/set', {'sessionId': session, 'mode': 'readOnly', 'expectedRevision': 1, 'confirmFullAccess': False})
-                _, events = rpc.until(rpc.send('turn/start', {'sessionId': session, 'message': 'approval-fixture', 'stream': True}))
+                events = run_task('approval-fixture')
                 assert not any(e['type'] == 'approvalRequested' for e in events)
                 assert any(e['type'] == 'toolCompleted' and 'Read-only' in e['output'] for e in events)
                 interrupted = []
@@ -227,7 +239,7 @@ def run(binary):
             rpc = Rpc(binary, home)
             try:
                 assert rpc.call('session/permission/get', {'sessionId': session})['mode'] == 'readOnly'
-                assert len(rpc.call('session/messages', {'sessionId': session, 'limit': 100})['data']) >= 6
+                assert len(rpc.call('session/messages', {'sessionId': session, 'limit': 100})['data']) >= 4
             finally:
                 rpc.close()
     finally:

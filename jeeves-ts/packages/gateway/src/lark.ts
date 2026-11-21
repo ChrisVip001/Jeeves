@@ -685,7 +685,7 @@ export class LarkAdapter implements ChannelAdapter {
       ? origin
       : undefined;
     const requestId = message.message_id ? `lark_${message.message_id}` : undefined;
-    const reply = await this.#respond(conversation, text, source, requestId, originApprovalSource);
+    const reply = await this.#respond(conversation, text, origin, requestId, originApprovalSource);
     if (await this.#say(chatId, reply)) this.#log("Reply delivered to Feishu");
   }
 

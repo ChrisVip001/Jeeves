@@ -59,6 +59,13 @@ async fn call(
     method: &str,
     params: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
+    if method == jeeves_protocol::methods::TASK_CREATE {
+        let params = serde_json::from_value(params).map_err(|error| error.to_string())?;
+        let task = super::create(server, params)
+            .await
+            .map_err(|error| error.message)?;
+        return Ok(serde_json::to_value(task).unwrap());
+    }
     let request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
         id: RequestId::Number(1),
@@ -1507,7 +1514,7 @@ async fn failed_budget_stop_is_reported_by_the_turn() {
     call(
         &server,
         "task/create",
-        json!({"sessionId":"default","title":"fixture budget","budget":{"tokens":10}}),
+        json!({"sessionId":"jeeves-main","title":"fixture budget","budget":{"tokens":10}}),
     )
     .await
     .unwrap();
@@ -1516,7 +1523,7 @@ async fn failed_budget_stop_is_reported_by_the_turn() {
     let result = call(
         &server,
         "turn/start",
-        json!({"sessionId":"default","message":"start"}),
+        json!({"sessionId":"jeeves-main","message":"start"}),
     )
     .await;
     assert!(result.unwrap_err().contains("fixture status write failed"));

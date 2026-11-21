@@ -33,7 +33,6 @@ import type {
   SessionPermissionGetParams,
   SessionPermissionSetParams,
   SessionPermissionResponse,
-  SessionNewParams,
   SessionNewResponse,
   TurnInterruptParams,
   TurnInterruptResponse,
@@ -173,10 +172,6 @@ export interface Methods {
   [METHODS.SESSION_LIST]: {
     params: SessionListParams;
     result: SessionListResponse;
-  };
-  [METHODS.SESSION_NEW]: {
-    params: SessionNewParams;
-    result: SessionNewResponse;
   };
   [METHODS.MEMORY_SEARCH]: {
     params: MemorySearchParams;

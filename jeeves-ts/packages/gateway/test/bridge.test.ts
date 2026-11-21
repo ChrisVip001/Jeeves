@@ -4,7 +4,7 @@ import test from "node:test";
 import { CODES, JeevesClient, JeevesError } from "@jeeves/client";
 import type { ServerNotification, Transport } from "@jeeves/client";
 
-import { JeevesBridge, explain, sessionIdFor } from "../src/bridge.ts";
+import { JeevesBridge, explain } from "../src/bridge.ts";
 import type { ProgressNote } from "../src/bridge.ts";
 
 interface SentRequest {
@@ -85,14 +85,17 @@ function meta(overrides: Record<string, unknown> = {}): Record<string, unknown> 
   };
 }
 
-function started(turnId: string, sessionId = "telegram:42"): ServerNotification {
-  return {
+function startFor(server: FakeServer, index: number, turnId?: string): string {
+  const request = server.written[index]!;
+  const id = turnId ?? `channel-turn:${request.params["messageId"]}`;
+  server.notify({
     type: "turnStarted",
-    turnId,
-    sessionId,
-    userMessage: "hello",
+    turnId: id,
+    sessionId: "jeeves-main",
+    userMessage: String(request.params["message"]),
     ts: "2026-09-19T00:00:00.000Z",
-  };
+  });
+  return id;
 }
 
 function completed(
@@ -115,49 +118,42 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-test("the session id is derived from the platform identity, so the gateway keeps no map", () => {
-  assert.equal(sessionIdFor("telegram:42"), "telegram:42");
-  assert.equal(sessionIdFor("telegram:42"), "telegram:42");
-});
-
-test("a private Feishu turn keeps its own session and can route an approval", async () => {
+test("a private Feishu turn routes its own approval and ignores identical local input", async () => {
   const { bridge, server } = setup();
   const origin = { channel: "lark", chatId: "oc_private", messageId: "om_1", senderId: "ou_owner" };
   const outcome = bridge.ask("lark:oc_private", "ls", undefined, "om_1", origin);
   await tick();
-  assert.equal(server.written[0]?.method, "turn/start");
-  assert.equal(server.written[0]?.params["sessionId"], "lark:oc_private");
-  server.notify(started("another-turn", "lark:oc_private"));
+  assert.equal(server.written[0]?.method, "interaction/start");
+  assert.equal(server.written[0]?.params["sessionId"], "jeeves-main");
+  startFor(server, 0, "another-turn");
   const unrelated = bridge.locateApproval("another-turn", "ap-unrelated");
   server.reply(1, { approvals: [] });
   assert.equal(await unrelated, null);
-  server.notify({ ...started("t-private", "lark:oc_private"), userMessage: "ls" } as ServerNotification);
-  assert.deepEqual(await bridge.locateApproval("t-private", "ap-1"), {
+  const turnId = startFor(server, 0);
+  assert.deepEqual(await bridge.locateApproval(turnId, "ap-1"), {
     source: origin, task: null, bindToSender: true,
   });
-  server.notify(completed("t-private", "finished"));
-  server.reply(0, { turnId: "t-private" });
+  server.notify(completed(turnId, "finished"));
+  server.reply(0, { turnId });
   await outcome;
 });
 
-test("a request id rides on turn/start in the shape the Runtime accepts", async () => {
+test("platform message identities are valid, stable and scoped to their source", async () => {
   const { bridge, server } = setup();
-
-  const promise = bridge.ask("lark:oc_1", "hello", undefined, "lark_om.1/x");
-  await tick();
-  assert.equal(server.written[0]!.params["requestId"], "lark_om_1_x");
-  server.notify(started("t9", "lark:oc_1"));
-  server.notify(completed("t9", "ok"));
-  server.reply(0, { turnId: "t9" });
-  await promise;
-
-  const plain = bridge.ask("lark:oc_1", "again");
-  await tick();
-  assert.equal("requestId" in server.written[1]!.params, false, "no id, no field");
-  server.notify(started("t10", "lark:oc_1"));
-  server.notify(completed("t10", "ok"));
-  server.reply(1, { turnId: "t10" });
-  await plain;
+  const submit = async (conversation: string, index: number) => {
+    const promise = bridge.ask(conversation, "hello", undefined, "om.1/x");
+    await tick();
+    const messageId = server.written[index]!.params["messageId"];
+    assert.match(String(messageId), /^[a-f0-9]{64}$/);
+    const turnId = startFor(server, index);
+    server.notify(completed(turnId, "ok"));
+    server.reply(index, { turnId });
+    await promise;
+    return messageId;
+  };
+  const first = await submit("lark:oc_1", 0);
+  assert.equal(await submit("lark:oc_1", 1), first);
+  assert.notEqual(await submit("lark:oc_2", 2), first);
 });
 
 test("one turn: the request is right, the reply and the telemetry come back as they were", async () => {
@@ -168,31 +164,27 @@ test("one turn: the request is right, the reply and the telemetry come back as t
   assert.equal(server.written.length, 1);
 
   const request = server.written[0]!;
-  assert.equal(request.method, "turn/start");
-  assert.equal(request.params["sessionId"], "telegram:42");
+  assert.equal(request.method, "interaction/start");
+  assert.equal(request.params["sessionId"], "jeeves-main");
   assert.equal(request.params["message"], "hello");
-  assert.equal(
-    request.params["stream"],
-    false,
-    "a chat platform wants one whole sentence, not a per-character wobble",
-  );
+  assert.equal((request.params["source"] as {senderId: string}).senderId, "42");
 
-  server.notify(started("t1"));
-  server.notify({ type: "toolStarted", turnId: "t1", toolUseId: "tu-1", tool: "memory_search", args: {} });
+  const firstTurn = startFor(server, 0);
+  server.notify({ type: "toolStarted", turnId: firstTurn, toolUseId: "tu-1", tool: "memory_search", args: {} });
   server.notify({
     type: "toolCompleted",
-    turnId: "t1",
+    turnId: firstTurn,
     toolUseId: "tu-1",
     tool: "memory_search",
     output: "three",
     status: "ok",
     durationMs: 3,
   });
-  server.notify(completed("t1", "hello there", { model: "big-model", iterations: 2 }));
-  server.reply(0, { turnId: "t1" });
+  server.notify(completed(firstTurn, "hello there", { model: "big-model", iterations: 2 }));
+  server.reply(0, { turnId: firstTurn });
 
   const outcome = await promise;
-  assert.equal(outcome.sessionId, "telegram:42");
+  assert.equal(outcome.sessionId, "jeeves-main");
   assert.equal(outcome.reply, "hello there");
   assert.deepEqual(outcome.tools, ["memory_search"]);
   assert.equal(outcome.model, "big-model");
@@ -208,40 +200,40 @@ test("two messages in one conversation: the second waits for the first to finish
   await tick();
   assert.equal(server.written.length, 1, "two messages must not hold the server at once");
 
-  server.notify(started("t1"));
-  server.notify(completed("t1", "the first answer"));
-  server.reply(0, { turnId: "t1" });
+  const firstTurn = startFor(server, 0);
+  server.notify(completed(firstTurn, "the first answer"));
+  server.reply(0, { turnId: firstTurn });
   assert.equal((await first).reply, "the first answer");
 
   await tick();
   assert.equal(server.written.length, 2, "only once the first is back may the second go out");
   assert.equal(server.written[1]!.params["message"], "the second");
 
-  server.notify(started("t2"));
-  server.notify(completed("t2", "the second answer"));
-  server.reply(1, { turnId: "t2" });
+  const secondTurn = startFor(server, 1);
+  server.notify(completed(secondTurn, "the second answer"));
+  server.reply(1, { turnId: secondTurn });
   assert.equal((await second).reply, "the second answer");
 });
 
-test("different conversations do not touch each other", async () => {
+test("different channel conversations share the Runtime entry but keep distinct origins", async () => {
   const { bridge, server } = setup();
-
   const alice = bridge.ask("telegram:1", "I am alpha");
   const bob = bridge.ask("telegram:2", "I am beta");
   await tick();
-  assert.equal(server.written.length, 2, "different conversations must not queue behind each other");
-
-  assert.equal(server.written[0]!.params["sessionId"], "telegram:1");
-  assert.equal(server.written[1]!.params["sessionId"], "telegram:2");
-
-  server.notify(started("t1", "telegram:1"));
-  server.notify(completed("t1", "hello alpha"));
-  server.reply(0, { turnId: "t1" });
-  server.notify(started("t2", "telegram:2"));
-  server.notify(completed("t2", "hello beta"));
-  server.reply(1, { turnId: "t2" });
-
+  assert.equal(server.written.length, 1);
+  const aliceTurn = startFor(server, 0);
+  server.notify(completed(aliceTurn, "hello alpha"));
+  server.reply(0, { turnId: aliceTurn });
   assert.equal((await alice).reply, "hello alpha");
+  await tick();
+  assert.equal(server.written.length, 2);
+  for (const [index, request] of server.written.entries()) {
+    assert.equal(request.params["sessionId"], "jeeves-main");
+    assert.equal((request.params["source"] as {chatId: string}).chatId, String(index + 1));
+  }
+  const bobTurn = startFor(server, 1);
+  server.notify(completed(bobTurn, "hello beta"));
+  server.reply(1, { turnId: bobTurn });
   assert.equal((await bob).reply, "hello beta");
 });
 
@@ -250,16 +242,16 @@ test("a failed turn: the error comes through and no debris reaches the next turn
 
   const first = bridge.ask("telegram:42", "this one will fail");
   await tick();
-  server.notify(started("t1"));
-  server.notify(completed("t1", "the first turn's answer"));
+  const firstTurn = startFor(server, 0);
+  server.notify(completed(firstTurn, "the first turn's answer"));
   server.fail(0, CODES.INTERNAL_ERROR, "the write failed");
   await assert.rejects(first, /the write failed/);
 
   const second = bridge.ask("telegram:42", "this one will work");
   await tick();
-  server.notify(started("t2"));
-  server.notify(completed("t2", "the second turn's answer"));
-  server.reply(1, { turnId: "t2" });
+  const secondTurn = startFor(server, 1);
+  server.notify(completed(secondTurn, "the second turn's answer"));
+  server.reply(1, { turnId: secondTurn });
 
   assert.equal((await second).reply, "the second turn's answer", "it must not pick up the previous turn's answer");
 });
@@ -269,8 +261,8 @@ test("the answer came but the notification chain broke: report it plainly, do no
 
   const promise = bridge.ask("telegram:42", "hello");
   await tick();
-  server.notify(started("t1"));
-  server.reply(0, { turnId: "t1" });
+  const firstTurn = startFor(server, 0);
+  server.reply(0, { turnId: firstTurn });
 
   await assert.rejects(promise, /never saw turnCompleted/);
 });
@@ -283,21 +275,21 @@ test("progress: say when a tool starts, and say when one fails too", async () =>
 
   const promise = bridge.ask("telegram:42", "look this up for me");
   await tick();
-  server.notify(started("t1"));
-  server.notify({ type: "toolStarted", turnId: "t1", toolUseId: "tu-read_file", tool: "read_file", args: {} });
+  const firstTurn = startFor(server, 0);
+  server.notify({ type: "toolStarted", turnId: firstTurn, toolUseId: "tu-read_file", tool: "read_file", args: {} });
   server.notify({
     type: "toolCompleted",
-    turnId: "t1",
+    turnId: firstTurn,
     toolUseId: "tu-read_file",
     tool: "read_file",
     output: "ENOENT",
     status: "error",
     durationMs: 1,
   });
-  server.notify({ type: "toolStarted", turnId: "t1", toolUseId: "tu-http_get", tool: "http_get", args: {} });
+  server.notify({ type: "toolStarted", turnId: firstTurn, toolUseId: "tu-http_get", tool: "http_get", args: {} });
   server.notify({
     type: "toolCompleted",
-    turnId: "t1",
+    turnId: firstTurn,
     toolUseId: "tu-http_get",
     tool: "http_get",
     output: "200",
@@ -305,8 +297,8 @@ test("progress: say when a tool starts, and say when one fails too", async () =>
     durationMs: 20,
   });
   server.notify({ type: "consolidationCompleted", newFacts: 2 });
-  server.notify(completed("t1", "found it"));
-  server.reply(0, { turnId: "t1" });
+  server.notify(completed(firstTurn, "found it"));
+  server.reply(0, { turnId: firstTurn });
 
   await promise;
   assert.deepEqual(notes, [
@@ -339,33 +331,19 @@ test("closing the gateway closes the app-server's stdin", () => {
   assert.ok(server.closeCalled);
 });
 
-test("a dispatched message opens the main conversation once and goes through interaction/start", async () => {
+test("a dispatched message goes through interaction/start with its provenance", async () => {
   const { bridge, server } = setup();
   const source = { channel: "lark", chatId: "oc_g", messageId: "om/1", senderId: "ou_owner" };
-
   const first = bridge.ask("lark:oc_g", "do the thing", source);
   await tick();
-  assert.equal(server.written[0]?.method, "session/main");
-  server.reply(0, { sessionId: "jeeves-main" });
-  await tick();
-  const request = server.written[1]!;
+  const request = server.written[0]!;
   assert.equal(request.method, "interaction/start");
   assert.equal(request.params["sessionId"], "jeeves-main");
-  assert.equal(request.params["messageId"], "om_1", "ids are made safe and stay stable per message");
   assert.deepEqual(request.params["source"], source);
-
-  server.notify(started("t9", "jeeves-main"));
-  server.notify(completed("t9", "done"));
-  server.reply(1, { turnId: "t9" });
+  const turnId = startFor(server, 0, `interaction-${request.params["messageId"]}`);
+  server.notify(completed(turnId, "done"));
+  server.reply(0, { turnId });
   assert.equal((await first).reply, "done");
-
-  const second = bridge.ask("lark:oc_g", "again", source);
-  await tick();
-  assert.equal(server.written[2]?.method, "interaction/start", "the main conversation is not reopened");
-  server.notify(started("t10", "jeeves-main"));
-  server.notify(completed("t10", "ok"));
-  server.reply(2, { turnId: "t10" });
-  await second;
 });
 
 test("an approval in a dispatched turn is located from the turn itself", async () => {
@@ -376,12 +354,10 @@ test("an approval in a dispatched turn is located from the turn itself", async (
 
   const turn = bridge.ask("lark:oc_g", "push it", source);
   await tick();
-  server.reply(0, { sessionId: "jeeves-main" });
-  await tick();
-  server.notify(started("t1", "jeeves-main"));
+  const firstTurn = startFor(server, 0);
   server.notify({
     type: "approvalRequested",
-    turnId: "t1",
+    turnId: firstTurn,
     requestId: "ap-1",
     tool: "run_command",
     argsPreview: "git push",
@@ -390,11 +366,11 @@ test("an approval in a dispatched turn is located from the turn itself", async (
     version: 1,
   });
   assert.deepEqual(seen, ["ap-1"]);
-  assert.deepEqual(await bridge.locateApproval("t1", "ap-1"), { source, task: null });
-  assert.equal(server.written.length, 2, "no lookup needed for a turn in flight");
+  assert.deepEqual(await bridge.locateApproval(firstTurn, "ap-1"), { source, task: null });
+  assert.equal(server.written.length, 1, "no lookup needed for a turn in flight");
 
-  server.notify(completed("t1", "done"));
-  server.reply(1, { turnId: "t1" });
+  server.notify(completed(firstTurn, "done"));
+  server.reply(0, { turnId: firstTurn });
   await turn;
 });
 

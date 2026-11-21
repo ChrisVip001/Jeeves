@@ -40,14 +40,50 @@ pub(crate) async fn full_turn(
         ..
     } = frame.clone();
     let settings = server.settings();
-    let chat_operations = crate::turn::operations::context(server, session_id).await?;
+    let run = server
+        .runs
+        .for_turn(turn_id)
+        .await
+        .map_err(|error| ErrorObject {
+            code: codes::INTERNAL_ERROR,
+            message: format!("Cannot resolve task execution identity: {error}"),
+            data: None,
+        })?;
+    let scoped_task = if let Some(run) = &run {
+        jeeves_state::task_sources::get(&server.pool, &run.task_id)
+            .await
+            .map_err(|error| ErrorObject {
+                code: codes::INTERNAL_ERROR,
+                message: format!("Cannot resolve task origin: {error}"),
+                data: None,
+            })?
+            .is_some()
+    } else {
+        false
+    };
+    let channel_chat = turn_id.starts_with(jeeves_protocol::CHANNEL_TURN_PREFIX);
+    let shared = channel_chat || scoped_task;
+    let chat_operations = if channel_chat {
+        crate::turn::operations::ChatContext {
+            unresolved: false,
+            prompt: String::new(),
+        }
+    } else {
+        crate::turn::operations::context(server, session_id).await?
+    };
     let task_handoff = crate::task::handoff::load(server, turn_id, session_id).await?;
 
-    let memory_context = retrieve_memory(server, message, &settings, &frame).await;
+    let memory_context = if shared {
+        String::new()
+    } else {
+        retrieve_memory(server, message, &settings, &frame).await
+    };
 
-    let mut skill_loader = jeeves_memory::skills::SkillLoader::new(
-        jeeves_memory::skills::SkillLoader::dirs_for(&settings.home),
-    );
+    let mut skill_loader = jeeves_memory::skills::SkillLoader::new(if shared {
+        Vec::new()
+    } else {
+        jeeves_memory::skills::SkillLoader::dirs_for(&settings.home)
+    });
     let skill_hits = skill_loader.hits_capped(message, settings.skill_body_tokens.max(1) as usize);
     let skills = skill_hits.section;
     let skill_index = skill_loader.index_text(settings.skill_index_tokens.max(1) as usize);
@@ -60,14 +96,22 @@ pub(crate) async fn full_turn(
     let memory_context = format!(
         "{}{}{}",
         memory_context,
-        crate::task::dispatch::projection(server, session_id).await,
+        if shared {
+            String::new()
+        } else {
+            crate::task::dispatch::projection(server, session_id).await
+        },
         task_handoff
     );
 
-    let soul = load_soul(
-        &settings.home,
-        thin_soul_for(&settings.soul_mode, &resolved.provider_id),
-    );
+    let soul = if shared {
+        "You are Jeeves. Reply to the current request in the originating chat.".into()
+    } else {
+        load_soul(
+            &settings.home,
+            thin_soul_for(&settings.soul_mode, &resolved.provider_id),
+        )
+    };
     if let Some((added, removed)) = server.mcp.refresh(&settings.home).await {
         eprintln!(
             "(jeeves) MCP tools rebuilt between turns: added [{}], removed [{}]",
@@ -79,6 +123,30 @@ pub(crate) async fn full_turn(
         crate::connector_settings::apply(&settings.home, &server.mcp.apply(&server.tools));
     let mut turn_tools = crate::enabled_tools(&current_tools, &settings)
         .session_view_with(server.activation_set(session_id));
+    if channel_chat {
+        turn_tools = jeeves_tools::ToolRegistry::new();
+    } else if scoped_task {
+        for name in turn_tools
+            .names()
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+        {
+            if !matches!(
+                name.as_str(),
+                "read_file"
+                    | "glob"
+                    | "grep"
+                    | "write_file"
+                    | "edit"
+                    | "apply_patch"
+                    | "run_command"
+                    | "todo_write"
+            ) {
+                turn_tools = turn_tools.without(&name);
+            }
+        }
+    }
     let main_chat = session_id == crate::interaction::MAIN_SESSION;
     if chat_operations.unresolved || main_chat {
         turn_tools.restrict_to_reads(!chat_operations.unresolved);
@@ -110,7 +178,7 @@ pub(crate) async fn full_turn(
         messages: mut history,
         mut summary,
         stats: mut history_stats,
-    } = if resume.is_some() {
+    } = if resume.is_some() || channel_chat {
         Loaded::empty()
     } else {
         {
@@ -144,19 +212,31 @@ pub(crate) async fn full_turn(
             }
         }
     };
-    let memory_index = jeeves_memory::mirror::recall_catalog(
-        &server.facts,
-        &jeeves_memory::bundle::Bundle::new(&settings.home),
-    )
-    .await
-    .unwrap_or_else(|error| {
-        eprintln!("(jeeves) memory catalog unavailable: {error}");
+    let memory_index = if shared {
         String::new()
-    });
+    } else {
+        jeeves_memory::mirror::recall_catalog(
+            &server.facts,
+            &jeeves_memory::bundle::Bundle::new(&settings.home),
+        )
+        .await
+        .unwrap_or_else(|error| {
+            eprintln!("(jeeves) memory catalog unavailable: {error}");
+            String::new()
+        })
+    };
 
     let instructions = turn_cwd.as_deref().and_then(crate::agents_md::discover);
     let tools_available = !turn_tools.schemas().is_empty();
-    let capabilities = if main_chat && tools_available {
+    let capabilities = if channel_chat {
+        Some(if frame.interaction_tool.is_some() {
+            "Use task for work and refer only to tasks available in the originating chat. For a request to execute a command, hand off the exact request."
+        } else {
+            "Answer only the current message. The sender has no task dispatch permission."
+        }.into())
+    } else if scoped_task {
+        Some("Work in this task's isolated directory. Report results for the chat that requested this work.".into())
+    } else if main_chat && tools_available {
         let note = if turn_tools
             .get(crate::interaction::task_tool::NAME)
             .is_some()
@@ -249,20 +329,15 @@ pub(crate) async fn full_turn(
 
     let mut ctx = server.tool_ctx(
         session_id,
-        turn_cwd,
+        turn_cwd.clone(),
         server.session_approval(session_id, turn_id, sink),
     );
-    ctx.worktree = frame.worktree.clone();
-    ctx.task_run_id = server
-        .runs
-        .for_turn(turn_id)
-        .await
-        .map_err(|e| ErrorObject {
-            code: codes::INTERNAL_ERROR,
-            message: format!("Cannot resolve task execution identity: {e}"),
-            data: None,
-        })?
-        .map(|run| run.id);
+    ctx.worktree = if scoped_task {
+        turn_cwd.clone()
+    } else {
+        frame.worktree.clone()
+    };
+    ctx.task_run_id = run.map(|run| run.id);
     ctx.edit_checks = Some(std::sync::Arc::new(crate::edit_check_host::HostEditChecks(
         server.clone(),
     )));

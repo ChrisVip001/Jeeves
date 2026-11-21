@@ -153,6 +153,7 @@ fn spawn_worker(server: Server, sink: EventSink, slot: usize, workers: usize) {
                 &sink,
                 Some(row.clone()),
                 None,
+                None,
             )
             .await;
             if let Err(error) = result {

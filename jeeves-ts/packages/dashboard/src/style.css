@@ -1001,13 +1001,40 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
 .delivery h3 { margin:0 0 10px; }
 .delivery .bubble { font-size:16px; line-height:1.75; }
 .delivery-verdict,.live-status { color:var(--accent); font-size:14px; }
-.work-file,.file-record,.work-checks,.work-history { border-block-start:1px solid var(--line); }
-.work-file > summary,.file-record { display:flex; align-items:center; gap:10px; padding:13px 4px; }
-.work-file > summary { cursor:pointer; }
-.work-file span,.file-record span { overflow-wrap:anywhere; min-width:0; }
-.work-file small,.file-record small { margin-inline-start:auto; flex:none; color:var(--text-2); }
-.work-file pre { margin:0; padding:14px; border-radius:10px; background:var(--surface-hover); font:13px/1.55 var(--mono); max-height:34vh; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
-.work-file .text-action { min-height:42px; color:var(--accent); }
+.work-checks,.work-history { border-block-start:1px solid var(--line); }
+.work-file { display:flex; align-items:center; width:100%; gap:10px; padding:11px 8px; min-height:44px; text-align:start; border-block-start:1px solid var(--line); color:var(--text); }
+.work-file:hover,.work-file[aria-expanded="true"] { background:var(--surface-hover); }
+.work-file > svg { flex:none; color:var(--text-2); }
+.work-file span { overflow-wrap:anywhere; min-width:0; flex:1; }
+.work-file small { flex:none; color:var(--text-2); }
+.cowork-layout { display:grid; grid-template-columns:minmax(0,1fr); width:100%; min-width:0; min-height:0; }
+.cowork-layout.with-file-review { grid-template-columns:minmax(0,1fr) minmax(320px,45%); }
+.file-review { min-width:0; min-height:0; display:flex; flex-direction:column; border-inline-start:1px solid var(--line); background:var(--bg-panel); }
+.file-review-head,.file-review-toolbar { display:flex; flex:none; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line); }
+.file-review-head h3 { margin:0; font-size:14px; overflow-wrap:anywhere; }
+.review-revisions { color:var(--text-2); font:12px/1.4 var(--mono); margin:5px 0 0; }
+.file-review-toolbar { padding-block:5px; min-height:52px; }
+.file-review .icon-action { flex:none; }
+.file-review-modes { display:flex; gap:3px; background:var(--surface-hover); border-radius:8px; padding:3px; }
+.file-review-modes button { border-radius:6px; min-height:34px; padding:4px 9px; font-size:13px; color:var(--text-2); }
+.file-review-modes button[aria-pressed="true"] { background:var(--bg-panel); color:var(--text); }
+.file-review-body { min-height:0; flex:1; overflow:auto; }
+.review-empty { color:var(--text-2); font-size:13px; margin:16px; }
+.review-source { font:13px/1.65 var(--mono); margin:0; padding:14px; tab-size:4; }
+.review-document { padding:16px; overflow-wrap:anywhere; }
+.review-diff { min-width:100%; border-collapse:collapse; font:12px/1.55 var(--mono); }
+.review-diff th { white-space:nowrap; text-align:start; background:var(--bg-panel); position:sticky; top:0; font-weight:500; }
+.review-diff th,.review-diff td { padding:2px 8px; }
+.review-diff td:nth-child(-n+2) { text-align:end; color:var(--text-2); border-inline-end:1px solid var(--line); user-select:none; }
+.review-diff td:last-child { white-space:pre; width:100%; tab-size:4; }
+.review-diff .hunk { background:var(--surface-hover); color:var(--text-2); }
+.review-diff .addition { background:color-mix(in srgb,#278449 18%,transparent); }
+.review-diff .deletion { background:color-mix(in srgb,#ce4c48 18%,transparent); }
+@media(max-width:760px) {
+  .cowork-layout.with-file-review { grid-template-columns:minmax(0,1fr); }
+  .with-file-review .cowork-detail { visibility:hidden; }
+  .file-review { position:fixed; inset:0; z-index:90; border:0; padding:max(8px,env(safe-area-inset-top)) 0 env(safe-area-inset-bottom); }
+}
 .work-checks summary,.work-history summary { min-height:44px; align-content:center; color:var(--text-2); }
 .work-history { margin-top:16px; }
 .missing-work { margin:auto; text-align:center; }

@@ -79,8 +79,8 @@ def run(binary=None,runtime=None):
         try:
             rpc.call('model/save',dict(id='browser-fixture',provider='ollama',model='fixture',smallModel='fixture',baseUrl=f'http://127.0.0.1:{fixture.server_port}/v1',makeActive=True))
             rpc.call('config/write',{'patch':{'consolidateEvery':1000,'graphWorkflows':False}})
-            owner=rpc.call('session/new',{})['sessionId']
-            rpc.call('session/permission/set',dict(sessionId=owner,mode='standard',expectedRevision=0,confirmFullAccess=False))
+            owner=rpc.call('session/main', {})['sessionId']
+            assert rpc.call('session/permission/get', dict(sessionId=owner))['mode'] == 'standard'
             task=rpc.call('task/create',dict(sessionId=owner,title='Browser fixture'))['task']['id']
             row=rpc.call('browser/start',dict(taskId=task,url=f'http://127.0.0.1:{fixture.server_port}',origins=[],allowLocalhost=True))
             assert row['status']=='agent'
@@ -117,9 +117,7 @@ def run(binary=None,runtime=None):
                 operations=db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%operation%'").fetchall()
                 assert operations
             rpc.call('browser/control',dict(taskId=task,generation=row['generation'],action='close'))
-            readonly=rpc.call('session/new',{})['sessionId']
-            rpc.call('session/permission/set',dict(sessionId=readonly,mode='readOnly',expectedRevision=0,confirmFullAccess=False))
-            denied=rpc.call('task/create',dict(sessionId=readonly,title='Read-only browser fixture'))['task']['id']
+            denied=rpc.call('task/create',dict(sessionId=owner,title='Read-only browser fixture'))['task']['id']
             rpc.call('browser/start',dict(taskId=denied,url=f'http://127.0.0.1:{fixture.server_port}',allowLocalhost=True))
             rpc.call('task/start',dict(taskId=denied,message='readonly-browser-fixture'))
             for _ in range(100):
@@ -155,7 +153,7 @@ def run(binary=None,runtime=None):
             rows=rpc.call('browser/list',dict(sessionId=owner))['sessions'];assert next(row for row in rows if row['taskId']==task)['status']=='closed'
             assert next(row for row in rows if row['taskId']==unknown_task)['status']=='needsAttention'
             assert Fixture.uncertain==1
-            interrupted=rpc.call('browser/list',dict(sessionId=readonly))['sessions'];assert interrupted[0]['status']=='needsAttention'
+            assert next(row for row in rows if row['taskId']==denied)['status']=='needsAttention'
             assert Fixture.submitted==1
         finally:rpc.close()
         emergency_stop(binary, home, runtime, fixture)
@@ -168,8 +166,10 @@ def emergency_stop(binary, home, runtime, fixture):
     url = f'http://127.0.0.1:{fixture.server_port}'
     before = Fixture.uncertain
     try:
-        owner = rpc.call('session/new', {})['sessionId']
-        rpc.call('session/permission/set',dict(sessionId=owner,mode='fullAccess',expectedRevision=0,confirmFullAccess=True))
+        owner = rpc.call('session/main', {})['sessionId']
+        policy = rpc.call('session/permission/get', dict(sessionId=owner))
+        if policy['mode'] != 'fullAccess':
+            rpc.call('session/permission/set',dict(sessionId=owner,mode='fullAccess',expectedRevision=policy['revision'],confirmFullAccess=True))
         def open_task(title):
             task = rpc.call('task/create',dict(sessionId=owner,title=title))['task']['id']
             return rpc.call('browser/start',dict(taskId=task,url=url,allowLocalhost=True))
@@ -187,7 +187,8 @@ def emergency_stop(binary, home, runtime, fixture):
         assert time.monotonic()-start < 5, 'stop waited for the worker’s 12-second navigation timeout'
         assert stopped['stopped'] and rpc.call('executor/stop',{}) == stopped
         rows = rpc.call('browser/list',dict(sessionId=owner))['sessions']
-        assert len(rows)==2 and all(r['status']=='needsAttention' and not r['observedAt'] for r in rows), rows
+        active_ids = {first['taskId'], second['taskId']}
+        assert active_ids == {r['taskId'] for r in rows if r['taskId'] in active_ids and r['status']=='needsAttention' and not r['observedAt']}, rows
         deadline = time.monotonic()+10
         while time.monotonic() < deadline:
             task = rpc.call('task/get',dict(taskId=second['taskId']))['task']

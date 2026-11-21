@@ -7,7 +7,7 @@ mod tests;
 use crate::{EventSink, Server};
 use jeeves_protocol::*;
 use std::time::Instant;
-pub(crate) const MAIN_SESSION: &str = "jeeves-main";
+pub const MAIN_SESSION: &str = "jeeves-main";
 pub(super) fn invalid(message: impl ToString) -> ErrorObject {
     ErrorObject {
         code: codes::INVALID_PARAMS,
@@ -23,7 +23,7 @@ pub(super) fn internal(error: impl ToString) -> ErrorObject {
     }
 }
 
-pub(crate) async fn main_session(
+pub async fn main_session(
     server: &Server,
     sink: &EventSink,
 ) -> Result<SessionNewResponse, ErrorObject> {
@@ -64,6 +64,28 @@ pub(crate) async fn start(
     id: RequestId,
     sink: &EventSink,
 ) -> Result<(), ErrorObject> {
+    start_with_tier(server, p, id, sink, None).await
+}
+
+#[derive(serde::Serialize)]
+struct TieredInteraction<'a> {
+    #[serde(flatten)]
+    interaction: &'a InteractionStartParams,
+    tier: &'a str,
+}
+
+async fn start_with_tier(
+    server: &Server,
+    p: InteractionStartParams,
+    id: RequestId,
+    sink: &EventSink,
+    tier: Option<String>,
+) -> Result<(), ErrorObject> {
+    if p.source.is_some() && (p.cwd.is_some() || p.attachments.is_some()) {
+        return Err(invalid(
+            "A channel cannot supply a local workspace or attachments",
+        ));
+    }
     if p.session_id != MAIN_SESSION
         || p.message.trim().is_empty()
         || p.message.len() > 64_000
@@ -76,16 +98,15 @@ pub(crate) async fn start(
     {
         return Err(invalid("Invalid main interaction"));
     }
-    if server
-        .chat
-        .session(&p.session_id)
-        .await
-        .map_err(internal)?
-        .is_none()
-    {
-        return Err(invalid("Open the main conversation first"));
+    main_session(server, sink).await?;
+    let input = match &tier {
+        Some(tier) => serde_json::to_string(&TieredInteraction {
+            interaction: &p,
+            tier,
+        }),
+        None => serde_json::to_string(&p),
     }
-    let input = serde_json::to_string(&p).map_err(internal)?;
+    .map_err(internal)?;
     let lock = server.session_write_lock(&format!("interaction:{}", p.session_id));
     let _guard = lock.lock().await;
     if !jeeves_state::interactions::claim(&server.pool, &p.session_id, &p.message_id, &input)
@@ -94,7 +115,7 @@ pub(crate) async fn start(
     {
         return receipt::replay(server, (&p.session_id, &p.message_id), &input, id, sink).await;
     }
-    let result = execute(server, &p, id, sink).await;
+    let result = execute(server, &p, id, sink, tier).await;
     if let Err(error) = &result {
         if let Err(failure) = jeeves_state::interactions::fail(
             &server.pool,
@@ -109,48 +130,45 @@ pub(crate) async fn start(
     }
     result
 }
-/// `turn/start` with a `requestId`: the same message delivered twice runs one turn. The
-/// receipt shares the interaction table under a `turn:` key, so the two entries never collide.
-pub(crate) async fn start_once(
+pub(crate) fn require_main(session: Option<&str>) -> Result<&'static str, ErrorObject> {
+    match session.map(str::trim) {
+        None | Some("" | MAIN_SESSION) => Ok(MAIN_SESSION),
+        _ => Err(invalid("Jeeves has one conversation. Use session/main.")),
+    }
+}
+
+pub async fn submit_main(
     server: &Server,
     params: TurnStartParams,
-    request: String,
     id: RequestId,
     sink: &EventSink,
 ) -> Result<(), ErrorObject> {
-    if request.is_empty()
-        || request.len() > 120
-        || !request
-            .bytes()
-            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
-    {
-        return Err(invalid(
-            "requestId must be 1-120 characters of letters, digits, '-' or '_'",
-        ));
-    }
-    let session = params
-        .session_id
-        .clone()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "default".to_string());
-    let key = format!("turn:{request}");
-    let input = serde_json::to_string(&params).map_err(internal)?;
-    if !jeeves_state::interactions::claim(&server.pool, &session, &key, &input)
-        .await
-        .map_err(internal)?
-    {
-        eprintln!("(jeeves) turn/start {request} was already received; replaying its result");
-        return receipt::replay(server, (&session, &key), &input, id, sink).await;
-    }
-    let result = receipt::recorded(server, (&session, &key), params, id, sink, None).await;
-    if let Err(error) = &result {
-        if let Err(failure) =
-            jeeves_state::interactions::fail(&server.pool, &session, &key, &error.message).await
-        {
-            eprintln!("(jeeves) turn receipt failure unavailable: {failure}");
-        }
-    }
-    result
+    require_main(params.session_id.as_deref())?;
+    let message_id = params
+        .request_id
+        .map(|request| format!("turn-{request}"))
+        .unwrap_or_else(|| {
+            format!(
+                "turn-{}",
+                chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+            )
+        });
+    start_with_tier(
+        server,
+        InteractionStartParams {
+            session_id: MAIN_SESSION.into(),
+            message_id,
+            message: params.message,
+            cwd: params.cwd,
+            attachments: params.attachments,
+            task_id: None,
+            source: None,
+        },
+        id,
+        sink,
+        params.tier,
+    )
+    .await
 }
 
 /// One human message. An explicit `task_id` is a direct follow-up to that task; anything else is an
@@ -160,8 +178,13 @@ async fn execute(
     p: &InteractionStartParams,
     id: RequestId,
     sink: &EventSink,
+    tier: Option<String>,
 ) -> Result<(), ErrorObject> {
-    let may_dispatch = may_dispatch(&server.settings().dispatchers, p.source.as_ref());
+    let settings = server.settings();
+    let may_dispatch = may_dispatch(&settings.dispatchers, p.source.as_ref())
+        || p.source
+            .as_ref()
+            .is_some_and(|source| lark_owner(&settings.home, source));
     if let Some(reply) = decision::answer(server, p, may_dispatch).await? {
         return receipt::acknowledge(server, p, id, sink, reply, Instant::now()).await;
     }
@@ -218,7 +241,28 @@ async fn execute(
         eprintln!("(jeeves) a message from outside the dispatchers gets a conversation without the task tool");
     }
     let tool = may_dispatch.then(|| task_tool::build(server.clone(), p.clone(), sink.clone()));
-    receipt::conversation(server, p, id, sink, tool.as_ref()).await
+    receipt::conversation(server, p, id, sink, tool.as_ref(), tier).await
+}
+
+fn lark_owner(home: &std::path::Path, source: &InteractionSource) -> bool {
+    if source.channel != "lark" {
+        return false;
+    }
+    #[derive(serde::Deserialize)]
+    struct LarkAccess {
+        enabled: bool,
+        allow: Vec<String>,
+        #[serde(default)]
+        dispatchers: Vec<String>,
+    }
+    std::fs::read(home.join("gateways.json"))
+        .ok()
+        .and_then(|data| serde_json::from_slice::<LarkAccess>(&data).ok())
+        .is_some_and(|config| {
+            config.enabled
+                && config.allow.contains(&source.sender_id)
+                && (config.allow.len() == 1 || config.dispatchers.contains(&source.sender_id))
+        })
 }
 
 /// Local views (no source) are the owner; a chat sender must be on the dispatcher list.

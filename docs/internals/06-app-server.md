@@ -60,7 +60,7 @@ Std locks are held only for a read-modify-write and never across an await. The p
 
 `dispatch.rs::handle` always produces a response: `Ok(Value)` becomes a response, `Err` an error, and `Outcome::SelfSent` (turn and interaction methods) means the turn already sent it. The match covers session, memory, config, model, schedule, usage, approval, permission, task, browser and turn methods; anything unknown is offered to `memory_center::handle` and otherwise answers `METHOD_NOT_FOUND`. The authoritative method list is `jeeves_protocol::methods`; do not copy counts here.
 
-Conventions worth knowing before editing: storage `i64` is narrowed to protocol `i32` by clamping (`narrow`); list methods page by an opaque cursor computed on raw rows; `session/new` writes a real session row; `turn/interrupt` returns `interrupted: false` for an unknown turn; `approval/respond` returns `accepted: false` when it arrived too late.
+Conventions worth knowing before editing: storage `i64` is narrowed to protocol `i32` by clamping (`narrow`); list methods page by an opaque cursor computed on raw rows; `session/main` opens the sole public conversation; `turn/interrupt` returns `interrupted: false` for an unknown turn; `approval/respond` returns `accepted: false` when it arrived too late.
 
 ## One turn
 

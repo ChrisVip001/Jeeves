@@ -187,6 +187,9 @@ async fn automatic_policy_maps_real_execution_boundaries_only_after_human_opt_in
     )
     .await
     .unwrap();
+    rpc(&server, "session/permission/set", json!({
+        "sessionId":"jeeves-main", "mode":"fullAccess", "expectedRevision":1, "confirmFullAccess":true
+    })).await.unwrap();
     let task = &made["task"];
     let id = task["id"].as_str().unwrap();
     let root = std::path::Path::new(task["worktreePath"].as_str().unwrap());
@@ -327,21 +330,20 @@ async fn coding_task_cannot_select_another_worktree_as_its_turn_cwd() {
     let parent = rpc(
         &server,
         "task/create",
-        json!({"sessionId":"coding", "repo":repo.path(),"title":"owner"}),
+        json!({"sessionId":"jeeves-main", "repo":repo.path(),"title":"owner"}),
     )
     .await
     .unwrap();
-    let sibling = rpc(
+    let sibling = super::task::create(
         &server,
-        "task/create",
-        json!({"repo":repo.path(),"title":"sibling"}),
+        serde_json::from_value(json!({"repo": repo.path(), "title": "sibling"})).unwrap(),
     )
     .await
     .unwrap();
     let result = rpc(
         &server,
         "turn/start",
-        json!({"sessionId":"coding","message":"fixture","cwd":sibling["task"]["cwd"]}),
+        json!({"sessionId":"jeeves-main","message":"fixture","cwd":sibling.task.cwd}),
     )
     .await;
     assert!(result.unwrap_err().contains("worktree"));

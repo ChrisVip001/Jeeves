@@ -4,7 +4,7 @@ English | [简体中文](main-entry.zh.md)
 
 ## 1. Start with a message
 
-Ask a question, delegate work or amend an assignment in conversation. Chat and My work are the everyday entry points. The menu holds the account, tools and settings. Messages lead with the request and reply. The timestamp reveals the execution details.
+Mac, phone and connected Feishu use one Runtime conversation. Feishu retains its verified chat and sender and can follow up on work assigned from that origin. Chat and My work are the everyday entry points. The menu holds the account, tools and settings. Messages lead with the request and reply. The timestamp reveals the execution details.
 
 ## 2. Design references
 
@@ -14,12 +14,12 @@ Grok allows people to reopen an automation run and continue its conversation. A 
 
 | Intent | Interaction |
 |---|---|
-| Delegate | Describe the outcome in Chat and attach files if needed. Open implementation choices can be resolved in the task. A bound project folder is visible above the message. Select it to switch back to automatic workspaces. |
+| Delegate | Describe the outcome in Chat and attach files if needed. Open implementation choices can be resolved in the task. A bound project folder is visible above the message. A new assignment in a clean Git repository uses its own checkout. Select it to switch back to automatic workspaces. |
 | Decide | One pending decision opens with its action and exact preview. Allow once or deny the current request. |
 | Recover | A stopped work page offers [operation review](../operations.md#reviewing-unknown-operations) and an explicit resume on the same assignment. |
 | Find work | Search titles in My work or follow a receipt. Mac and phone open the same work page. Reload, back and forward retain the destination. |
 | Inspect delivery | The latest terminal run has its own receipt. Results and files precede expandable conversation history. Replies from older runtimes are labeled separately. |
-| Take a file | Expand a successful whole-file text write of up to 64 KiB to read the recorded version or save a copy. Older artifacts, downloads, partial edits and larger files can have metadata only. |
+| Review a file | Open a delivered file in the right pane on Mac or full screen on phone. For repository tasks, switch to Line changes to see additions and deletions with old and new line numbers. Save a copy from the text preview. |
 | Amend | Reply directly in the work page. Drafts are scoped to their chat or assignment within the current browser tab and survive reload. |
 | Manage the account | The profile leads with the account and entry to the assistant. Account and security groups devices, password changes and two-factor authentication. |
 

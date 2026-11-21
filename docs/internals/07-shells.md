@@ -97,7 +97,7 @@ protocol version, or 503), and `POST /api/hook/{name}`, which proves itself with
 | First screen and config | `GET /api/data`, `GET/POST /api/config`, `GET /api/usage`, `GET /api/inbox` |
 | Turns | `POST /api/turn` (SSE stream of `ServerNotification`), `POST /api/turn/steer`, `POST /api/turn/follow-up`, `POST /api/interrupt`, `GET /api/turns`, `POST /api/interaction`, `POST /api/run` (task API: one turn in, one `RunResponse` out, no SSE) |
 | Approvals | `GET /api/approval/pending`, `POST /api/approval`, `GET /api/approvals`, `GET/POST /api/session/permission` |
-| Sessions | `GET /api/session`, `GET /api/session/main`, `GET /api/session/meta`, `POST /api/session/new\|update\|fork` |
+| Sessions | `GET /api/session`, `GET /api/session/main`, `GET /api/session/meta`, `POST /api/session/update` |
 | Tasks and browsers | `GET /api/tasks`, `POST /api/task`, `POST /api/turn-operation`, `GET /api/browser`, `POST /api/browser/start\|control`, `GET /api/browser/frame` |
 | Models | `GET /api/model/catalog\|profiles\|routes`, `POST /api/model/save\|remove\|routes/save` |
 | Capabilities | `/api/skills` (+ `install`, `remove`, `stats`), `/api/mcp` (+ `save`, `remove`), `/api/schedules/jobs`, `/api/schedules/save\|remove`, `/api/vault` (+ `remove`) |

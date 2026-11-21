@@ -387,6 +387,9 @@ impl Server {
         else {
             return Err(());
         };
+        if turn_id.starts_with(jeeves_protocol::CHANNEL_TURN_PREFIX) {
+            return Err(());
+        }
         let mut steering = turn
             .steering
             .lock()

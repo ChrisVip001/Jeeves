@@ -46,6 +46,7 @@ export function useTasks(actions: TaskActions) {
     results: {} as Record<string, string>,
     deliveries: {} as Record<string, TaskArtifactsResponse["latestDelivery"]>,
     artifacts: {} as Record<string, TaskArtifactsResponse["artifacts"]>,
+    reviews: {} as Record<string, TaskArtifactsResponse["review"]>,
     approvals: {} as Record<string, ApprovalRequestedNotification>,
     /** Approvals that outlived a restart, by turn: answering grants the resumed turn one yes. */
     restored: {} as Record<string, boolean>,
@@ -163,6 +164,7 @@ export function useTasks(actions: TaskActions) {
         "",
       );
       state.artifacts[task.id] = artifacts.artifacts;
+      state.reviews[task.id] = artifacts.review;
       state.deliveries[task.id] = artifacts.latestDelivery;
     } catch (error) {
       if (owner === state.owner && inspections.get(task.id) === version) state.error = String(error);

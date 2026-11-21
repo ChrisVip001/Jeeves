@@ -13,10 +13,7 @@ import type {
   SkillStatsResponse,
   SessionMessagesResponse,
   SessionGetResponse,
-  SessionNewParams,
   SessionNewResponse,
-  SessionForkParams,
-  SessionForkResponse,
   SessionUpdateParams,
   SessionUpdateResponse,
   TaskCreateParams,
@@ -132,26 +129,6 @@ export async function fetchMessages(
   return (await response.json()) as SessionMessagesResponse;
 }
 
-/**
- * Create a session that exists **before** its first message (0.15).
- *
- * The id comes back from the server: an id generated in the browser can collide with another
- * tab (or another device), and two conversations sharing one row is not a recoverable state.
- * A name and a working directory can be given right away, so the empty session is already
- * meaningful in the list instead of a placeholder the page invents locally.
- */
-export async function createSession(
-  params: SessionNewParams,
-): Promise<SessionNewResponse> {
-  const response = await apiFetch("/api/session/new", {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!response.ok) throw new ApiError(await errorOf(response));
-  return (await response.json()) as SessionNewResponse;
-}
-
 /** One session's record — used on switch, because the list is capped and may not contain it. */
 export async function fetchSessionMeta(
   sessionId: string,
@@ -179,22 +156,6 @@ export async function updateSession(
   });
   if (!response.ok) throw new ApiError(await errorOf(response));
   return (await response.json()) as SessionUpdateResponse;
-}
-
-/**
- * Branch a conversation: the server copies the last few exchanges into a new session and the
- * original keeps running untouched. Returns the new session so the caller can switch to it.
- */
-export async function forkSession(
-  params: SessionForkParams,
-): Promise<SessionForkResponse> {
-  const response = await apiFetch("/api/session/fork", {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!response.ok) throw new ApiError(await errorOf(response));
-  return (await response.json()) as SessionForkResponse;
 }
 
 /**

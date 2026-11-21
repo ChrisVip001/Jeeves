@@ -26,8 +26,7 @@ cd jeeves-rs && cargo build
 JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 ```
 
-Streaming output; `/memory [term]` queries memory, `/sessions` lists
-conversations, `/new` starts one, `/quit` exits. `Ctrl-C` in the terminal
+The terminal opens the Runtime’s main conversation. `/memory [term]` queries memory, and `/quit` exits. `Ctrl-C` in the terminal
 exits the process — the dashboard uses `turn/interrupt` to cancel a turn.
 
 Explicit memory and session reads report storage errors. If one memory index is available, the terminal still prints its results.

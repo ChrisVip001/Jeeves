@@ -8,11 +8,10 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::Json;
 use jeeves_protocol::{
-    methods, ApprovalRespondParams, ApprovalRespondResponse, SessionForkParams,
-    SessionForkResponse, SessionGetParams, SessionGetResponse, SessionMessagesParams,
-    SessionMessagesResponse, SessionNewParams, SessionNewResponse, SessionUpdateParams,
-    SessionUpdateResponse, TurnFollowUpParams, TurnFollowUpResponse, TurnInterruptParams,
-    TurnInterruptResponse, TurnListParams, TurnListResponse, TurnSteerParams, TurnSteerResponse,
+    methods, ApprovalRespondParams, ApprovalRespondResponse, SessionGetParams, SessionGetResponse,
+    SessionMessagesParams, SessionMessagesResponse, SessionUpdateParams, SessionUpdateResponse,
+    TurnFollowUpParams, TurnFollowUpResponse, TurnInterruptParams, TurnInterruptResponse,
+    TurnListParams, TurnListResponse, TurnSteerParams, TurnSteerResponse,
 };
 use std::sync::Arc;
 
@@ -57,25 +56,6 @@ pub async fn session_meta(
     }
 }
 
-/// `POST /api/session/new` — create a session that exists before its first message (0.15).
-///
-/// The id is allocated by app-server, not by the browser: two tabs (or two devices) generating
-/// ids locally is how conversations end up sharing a row. A name and a working directory can be
-/// given at creation, so an empty session is already meaningful in the list.
-pub async fn session_new(
-    Extension(app): Extension<Arc<AppServer>>,
-    Json(params): Json<SessionNewParams>,
-) -> Response {
-    let payload = serde_json::to_value(&params).expect("SessionNewParams always serialises");
-    match app
-        .request::<SessionNewResponse>(methods::SESSION_NEW, payload)
-        .await
-    {
-        Ok(response) => Json(response).into_response(),
-        Err(error) => failed(StatusCode::OK, error),
-    }
-}
-
 /// `POST /api/session/update` — rename, or rebind the working directory ("" clears).
 pub async fn session_update(
     Extension(app): Extension<Arc<AppServer>>,
@@ -84,22 +64,6 @@ pub async fn session_update(
     let payload = serde_json::to_value(&params).expect("SessionUpdateParams always serialises");
     match app
         .request::<SessionUpdateResponse>(methods::SESSION_UPDATE, payload)
-        .await
-    {
-        Ok(response) => Json(response).into_response(),
-        Err(error) => failed(StatusCode::OK, error),
-    }
-}
-
-/// `POST /api/session/fork` — branch a conversation: copy the last few exchanges into a new
-/// session and leave the original running untouched.
-pub async fn session_fork(
-    Extension(app): Extension<Arc<AppServer>>,
-    Json(params): Json<SessionForkParams>,
-) -> Response {
-    let payload = serde_json::to_value(&params).expect("SessionForkParams always serialises");
-    match app
-        .request::<SessionForkResponse>(methods::SESSION_FORK, payload)
         .await
     {
         Ok(response) => Json(response).into_response(),

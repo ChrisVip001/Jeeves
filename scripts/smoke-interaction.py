@@ -6,6 +6,7 @@ scripted provider. No account or paid model is involved.
 """
 import importlib.util
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import queue
@@ -75,6 +76,12 @@ def run(browser_channel=None):
                 raise AssertionError('Runtime did not start')
             assert web.request(base, '/api/session/main')['sessionId'] == 'jeeves-main'
             interact(base, 'hello fixture', 'hello')
+            with ThreadPoolExecutor(max_workers=2) as clients:
+                messages = ['simultaneous-a', 'simultaneous-b']
+                responses = [clients.submit(interact, base, 'same message text', key) for key in messages]
+                for key, response in zip(messages, responses):
+                    completion = next(event for event in response.result() if event['type'] == 'turnCompleted')
+                    assert completion['turnId'] == 'interaction-' + key, completion
             assert not Path(home, 'workspaces').exists(), 'chat should allocate no task folder'
             web.request(base, '/api/session/permission', dict(sessionId='jeeves-main', mode='fullAccess', expectedRevision=1, confirmFullAccess=True))
             interact(base, 'task-alpha-fixture;task-beta-fixture', 'two-tasks')
@@ -155,8 +162,17 @@ def run(browser_channel=None):
             assert len(restored) == 1 and restored[0]['request']['requestId'] == event['requestId']
             assert restored[0]['task']['id'] == alpha['id']
             assert 0 < restored[0]['request']['expiresInMs'] <= event['expiresInMs']
-            other = web.request(base, '/api/session/new', {})['sessionId']
-            assert not web.request(base, '/api/approval/pending?sessionId=' + other)['approvals']
+            other = 'outside-main'
+            try:
+                web.request(base, '/api/session/new', {})
+                raise AssertionError('public session creation must be unavailable')
+            except urllib.error.HTTPError as error:
+                assert error.code in (404, 405)
+            try:
+                pending_outside = web.request(base, '/api/approval/pending?sessionId=' + other)
+                assert not pending_outside['approvals']
+            except urllib.error.HTTPError as error:
+                assert error.code == 400
             params = dict(turnId=event['turnId'], requestId=event['requestId'], approved=True, remember='once')
             if browser_channel:
                 subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', base, alpha['id'], browser_channel, event['requestId']], check=True)
@@ -169,7 +185,7 @@ def run(browser_channel=None):
             # Ordinary turns and goal verification both produce durable task timeline events.
             verified_ids = []
             for index in range(3):
-                verified = web.request(base, '/api/task', {'action': 'create', 'sessionId': other, 'title': f'Timeline verification fixture {index}', 'cwd': alpha['cwd'], 'acceptance': [{'kind': 'fileExists', 'path': 'report.txt'}], 'maxRounds': 1})['task']
+                verified = web.request(base, '/api/task', {'action': 'create', 'sessionId': 'jeeves-main', 'title': f'Timeline verification fixture {index}', 'cwd': alpha['cwd'], 'acceptance': [{'kind': 'fileExists', 'path': 'report.txt'}], 'maxRounds': 1})['task']
                 web.request(base, '/api/task', {'action': 'start', 'taskId': verified['id'], 'message': 'Verify the existing local report'})
                 assert settled(base, verified['id'])['status'] == 'done'
                 verified_ids.append(verified['id'])

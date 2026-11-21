@@ -21,7 +21,7 @@ pub async fn run_turn(
     id: RequestId,
     sink: &EventSink,
 ) -> Result<(), ErrorObject> {
-    run_turn_inner(server, params, id, sink, None, None).await
+    run_turn_inner(server, params, id, sink, None, None, None).await
 }
 
 pub(crate) async fn run_turn_inner(
@@ -31,8 +31,10 @@ pub(crate) async fn run_turn_inner(
     sink: &EventSink,
     dispatch: Option<jeeves_state::dispatch::DispatchRow>,
     interaction_tool: Option<&jeeves_tools::Tool>,
+    interaction: Option<(&str, bool)>,
 ) -> Result<(), ErrorObject> {
     let started = std::time::Instant::now();
+    let channel = interaction.is_some_and(|(_, channel)| channel);
 
     let session_id = params
         .session_id
@@ -49,7 +51,9 @@ pub(crate) async fn run_turn_inner(
         }
     }
 
-    let task = if let Some(dispatch) = &dispatch {
+    let task = if channel {
+        Ok(None)
+    } else if let Some(dispatch) = &dispatch {
         server.tasks.get(&dispatch.task_id).await
     } else {
         server.tasks.active(&session_id).await
@@ -140,6 +144,9 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
     let turn_id = dispatch
         .as_ref()
         .map(|row| row.turn_id.clone())
+        .or_else(|| {
+            interaction.map(|(key, channel)| jeeves_protocol::interaction_turn_id(key, channel))
+        })
         .unwrap_or_else(new_turn_id);
 
     if let Err(why) = server.turn_capacity() {
@@ -232,7 +239,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
     );
 
     let mut turn_cwd = requested.or(task_root);
-    if turn_cwd.is_none() {
+    if !channel && turn_cwd.is_none() {
         turn_cwd = session_cwd(server, &session_id).await;
     }
 
@@ -266,7 +273,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         interrupt: Some(interrupt),
         worktree,
         turn_cwd,
-        steering: Some(steering),
+        steering: (!channel).then_some(steering),
         resume: None,
         checkpoint: Some(checkpoint),
     };

@@ -196,7 +196,7 @@ test("on a dropped connection every pending request is rejected, and it says wha
   await assert.rejects(waiting, /memory\/search never got its response; the connection dropped/);
 
   await assert.rejects(
-    client.request(METHODS.SESSION_NEW, {}),
+    client.request(METHODS.SESSION_MAIN, null),
     /the connection is gone/,
   );
 });
@@ -213,7 +213,7 @@ test("a deliberate close wraps up politely and settles the pending requests", as
 
 test("method names come from the artefacts, letter for letter with the Rust side", () => {
   assert.equal(METHODS.TURN_START, "turn/start");
-  assert.equal(METHODS.SESSION_NEW, "session/new");
+  assert.equal(METHODS.SESSION_MAIN, "session/main");
   assert.equal(METHODS.MEMORY_REMEMBER, "memory/remember");
   assert.equal(CODES.NOT_IMPLEMENTED, -32002);
 });

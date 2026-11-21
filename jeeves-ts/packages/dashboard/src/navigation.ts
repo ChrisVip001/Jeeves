@@ -8,7 +8,6 @@ export function closeMobileNavigation(): void {
     .forEach((button) => button.setAttribute("aria-expanded", "false"));
 }
 export function setupNavigation(
-  newSession: () => void,
   closePanels: () => void,
 ): void {
   const narrow = matchMedia("(max-width: 640px)");
@@ -37,10 +36,6 @@ export function setupNavigation(
     if (event.key === "Escape") {
       closeMobileNavigation();
       closePanels();
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
-      event.preventDefault();
-      newSession();
     }
     if ((event.metaKey || event.ctrlKey) && event.key === ",") {
       event.preventDefault();

@@ -142,6 +142,18 @@ pub(crate) async fn finish_task(
     turn_id: &str,
     run_id: Option<&str>,
 ) -> Result<(), jeeves_protocol::ErrorObject> {
+    if let (jeeves_state::TaskStatus::Done, Some(run_id)) = (status, run_id) {
+        let captured = async {
+            if let Some(task) = server.tasks.get(task_id).await? {
+                crate::task::review::at_delivery(server, &task, run_id).await?;
+            }
+            Ok::<(), anyhow::Error>(())
+        }
+        .await;
+        if let Err(error) = captured {
+            eprintln!("(jeeves) task {task_id}: Git delivery review unavailable: {error}");
+        }
+    }
     let summary = reply
         .map(str::trim)
         .filter(|text| !text.is_empty())

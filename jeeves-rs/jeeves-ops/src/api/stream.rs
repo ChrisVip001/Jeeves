@@ -10,8 +10,8 @@ use axum::response::Response;
 use axum::Json;
 use futures_util::stream::{self, Stream, StreamExt};
 use jeeves_protocol::{
-    codes, methods, ErrorObject, MessageRole, RunResponse, ServerNotification,
-    SessionMessagesResponse, TurnStartParams, TurnStartResponse,
+    codes, interaction_turn_id, methods, ErrorObject, RunResponse, ServerNotification,
+    TurnStartParams, TurnStartResponse,
 };
 use serde_json::json;
 use std::convert::Infallible;
@@ -161,7 +161,7 @@ pub async fn events(Extension(app): Extension<Arc<AppServer>>) -> Response {
 /// management, and the browser-native EventSource only does GET — it cannot send this POST.
 pub async fn turn(
     Extension(app): Extension<Arc<AppServer>>,
-    Json(params): Json<TurnStartParams>,
+    Json(mut params): Json<TurnStartParams>,
 ) -> Response {
     if params.message.trim().is_empty() {
         return failed(
@@ -178,15 +178,24 @@ pub async fn turn(
         .session_id
         .clone()
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "default".to_string());
+        .unwrap_or_else(|| "jeeves-main".to_string());
 
+    let key = prepare_public_turn(&mut params);
     let events = app.subscribe();
     let stopping = app.stopping();
     let (tx, rx) = mpsc::channel::<ServerNotification>(TURN_BUFFER);
 
     let payload = serde_json::to_value(&params).expect("TurnStartParams always serialises");
     tokio::spawn(async move {
-        forward(&app, payload, session_id, tx, events).await;
+        forward_method(
+            &app,
+            payload,
+            (session_id, key),
+            tx,
+            events,
+            methods::TURN_START,
+        )
+        .await;
     });
 
     Sse::new(bytes_stream(rx).take_until(stopping))
@@ -219,105 +228,63 @@ pub async fn run(
     }
 }
 
-/// One turn in, one answer out — shared by `/api/run` and inbound webhooks.
-///
-/// `turn/start` answers only when the turn is over, but its answer carries just the turn id;
-/// the reply rides on `turnCompleted`. So subscribe **before** sending (same reason as `/api/turn`),
-/// then wait. If the completion was lost to a full buffer while the request was still pending,
-/// fall back to the newest assistant row — by then the turn is over and that row exists.
+fn prepare_public_turn(params: &mut TurnStartParams) -> String {
+    let request = params.request_id.get_or_insert_with(|| {
+        format!(
+            "http-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        )
+    });
+    interaction_turn_id(&format!("turn-{request}"), false)
+}
+
+/// One turn in, one answer out, shared by the JSON endpoint and inbound webhooks.
 pub(crate) async fn run_headless(
     app: &Arc<AppServer>,
-    params: TurnStartParams,
+    mut params: TurnStartParams,
 ) -> Result<RunResponse, ErrorObject> {
-    let session_id = params
-        .session_id
-        .clone()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "default".to_string());
+    let expected = prepare_public_turn(&mut params);
     let payload = serde_json::to_value(&params).expect("TurnStartParams always serialises");
     let mut events = app.subscribe();
     let request = app.request::<TurnStartResponse>(methods::TURN_START, payload);
     tokio::pin!(request);
-
-    let mut turn_id: Option<String> = None;
-    loop {
+    let response = loop {
         tokio::select! {
-            result = &mut request => {
-                result?;
-                break;
-            }
-            received = events.recv() => {
-                let notification = match received {
-                    Ok(notification) => notification,
-                    Err(broadcast::error::RecvError::Lagged(missed)) => {
-                        eprintln!("(jeeves) the task API's notifications arrived too late; {missed} were dropped");
-                        continue;
+            response = &mut request => break response?,
+            event = events.recv() => match event {
+                Ok(notification) if turn_id_of(&notification) == Some(expected.as_str()) => {
+                    if let Some(run) = completed_turn(&notification) {
+                        request.await?;
+                        return Ok(run);
                     }
-                    Err(broadcast::error::RecvError::Closed) => break,
-                };
-                let Some(id) = belongs(&notification, &session_id, turn_id.as_deref()) else {
-                    continue;
-                };
-                turn_id = Some(id);
-                if let Some(run) = completed_turn(&notification) {
-                    return Ok(run);
                 }
+                Err(broadcast::error::RecvError::Closed) => break request.await?,
+                _ => {}
+            }
+        }
+    };
+    while let Ok(notification) = events.try_recv() {
+        if turn_id_of(&notification) == Some(expected.as_str()) {
+            if let Some(run) = completed_turn(&notification) {
+                return Ok(run);
             }
         }
     }
-
-    while let Ok(notification) = events.try_recv() {
-        if let Some(run) = completed_turn(&notification) {
-            return Ok(run);
-        }
-    }
-
-    let last = app
-        .request::<SessionMessagesResponse>(
-            methods::SESSION_MESSAGES,
-            json!({ "sessionId": session_id, "limit": 1 }),
-        )
-        .await?;
-    let reply = last
-        .data
-        .into_iter()
-        .find(|message| matches!(message.role, MessageRole::Assistant))
-        .ok_or_else(|| ErrorObject {
-            code: codes::INTERNAL_ERROR,
-            message: "the turn finished, but the reply could not be read (the notification queue overflowed and it is not in the history)".to_string(),
-            data: None,
-        })?;
-    let meta = reply.meta;
-    Ok(RunResponse {
-        turn_id: turn_id.unwrap_or_default(),
-        reply: reply.content,
-        model: meta.as_ref().map(|m| m.model.clone()).unwrap_or_default(),
-        provider: meta
-            .as_ref()
-            .map(|m| m.provider.clone())
-            .unwrap_or_default(),
-        route_reason: meta.and_then(|m| m.route_reason),
+    Err(ErrorObject {
+        code: codes::INTERNAL_ERROR,
+        message: format!(
+            "The turn {} finished without a matching reply",
+            response.turn_id
+        ),
+        data: None,
     })
 }
 
-/// Forward this turn's notifications to the browser one by one (subscriptions + response).
-///
-/// The request's response (the `turn/start` return) is usually **ignored by everyone** —
-/// `turnCompleted` already carries back reply, usage and telemetry. But the request may
-/// fail outright (bad model config or params); then it is the only word, and must be shown.
-pub(super) async fn forward(
-    app: &AppServer,
-    payload: serde_json::Value,
-    session_id: String,
-    tx: mpsc::Sender<ServerNotification>,
-    events: broadcast::Receiver<ServerNotification>,
-) {
-    forward_method(app, payload, session_id, tx, events, methods::TURN_START).await;
-}
+/// Forward exactly the originating interaction's notifications to this stream.
 async fn forward_method(
     app: &AppServer,
     payload: serde_json::Value,
-    session_id: String,
+    (session_id, expected): (String, String),
     tx: mpsc::Sender<ServerNotification>,
     mut events: broadcast::Receiver<ServerNotification>,
     method: &str,
@@ -347,6 +314,9 @@ async fn forward_method(
                     Err(broadcast::error::RecvError::Closed) => break,
                 };
 
+                if matches!(&notification, ServerNotification::TurnStarted(started) if started.turn_id != expected) {
+                    continue;
+                }
                 let Some(id) = belongs(&notification, &session_id, turn_id.as_deref()) else {
                     continue;
                 };
@@ -391,7 +361,7 @@ pub(super) fn belongs(
 ) -> Option<String> {
     use ServerNotification as N;
     match notification {
-        N::TurnStarted(started) if started.session_id == session_id => {
+        N::TurnStarted(started) if started.session_id == session_id && known.is_none() => {
             Some(started.turn_id.clone())
         }
         N::PermissionChanged(policy) if policy.session_id != session_id => None,
@@ -448,15 +418,26 @@ pub async fn interaction(
     Extension(app): Extension<Arc<AppServer>>,
     Json(params): Json<jeeves_protocol::InteractionStartParams>,
 ) -> Response {
+    if params.source.is_some() {
+        return failed(
+            StatusCode::BAD_REQUEST,
+            ErrorObject {
+                code: codes::INVALID_PARAMS,
+                message: "Use the gateway entry for channel interactions".into(),
+                data: None,
+            },
+        );
+    }
     let events = app.subscribe();
     let stopping = app.stopping();
     let (tx, rx) = mpsc::channel::<ServerNotification>(TURN_BUFFER);
+    let key = interaction_turn_id(&params.message_id, params.source.is_some());
     let payload = serde_json::to_value(&params).expect("interaction serialises");
     tokio::spawn(async move {
         forward_method(
             &app,
             payload,
-            params.session_id,
+            (params.session_id, key),
             tx,
             events,
             methods::INTERACTION_START,

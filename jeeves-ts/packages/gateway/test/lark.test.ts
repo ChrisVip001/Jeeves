@@ -718,7 +718,7 @@ test("the platform's message id goes to the Runtime as the request id", async ()
   await world.stop();
 });
 
-test("a dispatcher's group message carries its source; anyone else's does not", async () => {
+test("every accepted Feishu message retains its verified source", async () => {
   const seen: Array<{ text: string; source: unknown }> = [];
   const world = harness({ dispatchers: ["ou_owner"] }, async (_conversation, text, source) => {
     seen.push({ text, source });
@@ -748,11 +748,11 @@ test("a dispatcher's group message carries its source; anyone else's does not", 
     messageId: "om_1",
     senderId: "ou_owner",
   });
-  assert.equal(seen[1]?.source, undefined, "a non-dispatcher gets an ordinary chat, no source");
+  assert.equal((seen[1]?.source as {senderId:string}).senderId, "ou_guest");
 
   socket.push(dataFrame(eventBody({ openId: "ou_owner", text: "hi in a DM" }), { messageId: "om_c" }));
   await waitFor(() => seen.length === 3, "the DM");
-  assert.equal(seen[2]?.source, undefined, "a direct message is the owner's own conversation");
+  assert.equal((seen[2]?.source as {senderId:string}).senderId, "ou_owner");
   await world.stop();
 });
 
@@ -787,8 +787,8 @@ test("a rejected Feishu card falls back to a text approval while the turn waits"
       return true;
     },
   }, async (_chat, _text, dispatch, _id, origin) => {
-    assert.equal(dispatch, undefined);
     assert.ok(origin);
+    assert.deepEqual(dispatch, origin);
     await world.adapter.requestOriginApproval(origin, request);
     return result;
   });
@@ -834,8 +834,8 @@ test("the sole Feishu owner can approve their ordinary group turn using a card",
       return true;
     },
   }, async (_chat, _text, dispatch, _id, origin) => {
-    assert.equal(dispatch, undefined);
     assert.ok(origin);
+    assert.deepEqual(dispatch, origin);
     await world.adapter.requestOriginApproval(origin, {
       turnId: "t1", requestId: "ap-1", tool: "run_command",
       version: 1, argsPreview: "ls", reason: "confirm", expiresInMs: 120_000,

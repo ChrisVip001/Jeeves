@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { JeevesClient, JeevesError, METHODS, StdioTransport, HttpTransport } from "@jeeves/client";
 import type {
   AgentTaskView,
@@ -11,7 +12,7 @@ import type {
 
 /** What a completed turn leaves behind. */
 export interface TurnOutcome {
-  /** Jeeves's session id — it is `conversation` itself; see `sessionIdFor`. */
+  /** Runtime conversation shared by all connected channels. */
   sessionId: string;
   reply: string;
   /** Tools actually used this turn, in call order; repeats count. */
@@ -40,15 +41,12 @@ export interface ProgressNote {
 export type Responder = (
   conversation: string,
   text: string,
-  /** Set only for a chat-group message from a dispatcher: it goes to the main conversation. */
+  /** Verified message provenance supplied by the channel adapter. */
   source?: InteractionSource,
   /** The platform's id for this message; makes a re-delivery after a restart run only once. */
   requestId?: string,
   originApprovalSource?: InteractionSource,
 ) => Promise<string>;
-
-/** The id shape the Runtime accepts for a stable message identity. */
-const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 120);
 
 /** The main conversation's session id (`jeeves-app-server` `MAIN_SESSION`). */
 export const MAIN_SESSION = "jeeves-main";
@@ -74,20 +72,6 @@ export interface JeevesBridgeOptions {
   onLog?: (text: string) => void;
   /** Progress within a turn. Dropped by default. */
   onProgress?: (note: ProgressNote) => void;
-}
-
-/**
- * Session ids derive directly from platform identities.
- *
- * A gateway would otherwise "remember who uses which session" — a table, a file, all invalid
- * after one cold start, plus a migration path nobody ever tests. No table here:
- * `lark:12345` is both this user and that session.
- *
- * The gateway is therefore **stateless**: restart costs nothing, another process doesn't split a
- * person into two talks. To really change sessions, the user taps "restart" and a suffix changes.
- */
-export function sessionIdFor(conversation: string): string {
-  return conversation;
 }
 
 /**
@@ -139,14 +123,13 @@ export function explain(error: unknown): string {
 
 interface InFlight {
   conversation: string;
-  /** The derived session id. Also the only clue `turnStarted` gives for "whose turn is this". */
-  sessionId: string;
+  messageId: string;
   tools: string[];
   /** This turn's id. Unknowable before `turnStarted`, hence nullable. */
   turnId: string | null;
   /** Set when a group message started this turn: an approval it asks for goes back there. */
   source?: InteractionSource;
-  originApproval?: { source: InteractionSource; message: string };
+  originApproval?: InteractionSource;
 }
 
 /** A completed reply, waiting to be picked up by its own `turn/start` response. */
@@ -166,30 +149,14 @@ function turnIdOf(notification: ServerNotification): string | null {
   return "turnId" in notification ? notification.turnId : null;
 }
 
-/**
- * One app-server, serving many people.
- *
- * Why not "one process per person": state.db allows a single writer; more processes fight over
- * the lock. So the gateway keeps concurrency outside — one queue per platform user, and queues
- * don't compete either, because the server's stdio loop is serial anyway (see stdio.rs).
- */
+/** Chat adapters submit to the Runtime's sole conversation. */
 export class JeevesBridge {
   readonly #client: JeevesClient;
   readonly #onProgress: (note: ProgressNote) => void;
 
-  /** One tail per conversation: the next message starts only after the previous one finishes. */
-  readonly #tails = new Map<string, Promise<void>>();
+  #tail: Promise<void> = Promise.resolve();
 
-  /**
-   * Turns in flight, indexed by `turnId`.
-   *
-   * A single "current turn" slot won't do: the server's stdio loop is serial, but **two turns of
-   * different conversations can be in flight at once** — while Alice's runs, Bob's request already
-   * went out. Notifications carry only `turnId`; one slot would let Bob's turn claim Alice's.
-   */
   readonly #inFlight = new Map<string, InFlight>();
-
-  /** Turns past `turn/start`, awaiting `turnStarted`, by session — turnId still unknown here. */
   readonly #awaitingTurnId = new Map<string, InFlight>();
 
   /** Completed replies, likewise keyed by `turnId`. */
@@ -216,12 +183,6 @@ export class JeevesBridge {
     );
   }
 
-  /**
-   * One question in, one reply out.
-   *
-   * Two calls on the same conversation **always** run back to back — two messages fired quickly,
-   * each running a full loop, would stomp context and return out of order. Queuing is the only job.
-   */
   ask(
     conversation: string,
     text: string,
@@ -229,18 +190,8 @@ export class JeevesBridge {
     requestId?: string,
     originApprovalSource?: InteractionSource,
   ): Promise<TurnOutcome> {
-    const key = source === undefined ? conversation : MAIN_SESSION;
-    const previous = this.#tails.get(key) ?? Promise.resolve();
-    const turn = previous.then(() => this.#runTurn(conversation, text, source, requestId, originApprovalSource));
-
-    const tail = turn.then(
-      () => {},
-      () => {},
-    );
-    this.#tails.set(key, tail);
-    void tail.then(() => {
-      if (this.#tails.get(key) === tail) this.#tails.delete(key);
-    });
+    const turn = this.#tail.then(() => this.#runTurn(conversation, text, source, requestId, originApprovalSource));
+    this.#tail = turn.then(() => {}, () => {});
 
     return turn;
   }
@@ -269,10 +220,10 @@ export class JeevesBridge {
     requestId: string,
   ): Promise<import("./approvals.ts").ApprovalOrigin | null> {
     const active = this.#inFlight.get(turnId);
-    if (active?.source) return { source: active.source, task: null };
     if (active?.originApproval) {
-      return { source: active.originApproval.source, task: null, bindToSender: true };
+      return { source: active.originApproval, task: null, bindToSender: true };
     }
+    if (active?.source) return { source: active.source, task: null };
     const { approvals } = await this.#client.request(METHODS.APPROVAL_PENDING, {
       sessionId: MAIN_SESSION,
     });
@@ -342,29 +293,31 @@ export class JeevesBridge {
     requestId?: string,
     originApprovalSource?: InteractionSource,
   ): Promise<TurnOutcome> {
-    const sessionId = source === undefined ? sessionIdFor(conversation) : MAIN_SESSION;
+    const sessionId = MAIN_SESSION;
+    const [channel, ...rest] = conversation.split(":");
+    const chatId = rest.join(":");
+    const origin = source ?? originApprovalSource ?? {
+      channel: channel || "channel", chatId, senderId: chatId, messageId: requestId ?? randomUUID(),
+    };
+    const messageId = createHash("sha256").update(JSON.stringify([
+      origin.channel, origin.chatId, origin.messageId || requestId || randomUUID(),
+    ])).digest("hex");
     const current: InFlight = {
       conversation,
-      sessionId,
+      messageId,
       tools: [],
       turnId: null,
-      ...(source === undefined ? {} : { source }),
+      source: origin,
       ...(originApprovalSource === undefined ? {} : {
-        originApproval: { source: originApprovalSource, message: text },
+        originApproval: originApprovalSource,
       }),
     };
-    this.#awaitingTurnId.set(sessionId, current);
+    this.#awaitingTurnId.set(messageId, current);
 
     try {
-      const { turnId } =
-        source === undefined
-          ? await this.#client.request(METHODS.TURN_START, {
-              sessionId,
-              message: text,
-              stream: false,
-              ...(requestId === undefined ? {} : { requestId: safeId(requestId) }),
-            })
-          : await this.#startInteraction(text, source);
+      const { turnId } = await this.#client.request(METHODS.INTERACTION_START, {
+        sessionId, messageId, message: text, taskId: null, cwd: null, attachments: null, source: origin,
+      });
 
       const completed = this.#completed.get(turnId);
       if (completed === undefined) {
@@ -385,28 +338,9 @@ export class JeevesBridge {
     }
   }
 
-  /** Hand a dispatcher's group message to the main conversation, which may create tasks. */
-  async #startInteraction(text: string, source: InteractionSource) {
-    if (!this.#mainOpened) {
-      await this.#client.request(METHODS.SESSION_MAIN, null);
-      this.#mainOpened = true;
-    }
-    return this.#client.request(METHODS.INTERACTION_START, {
-      sessionId: MAIN_SESSION,
-      messageId: safeId(source.messageId),
-      message: text,
-      taskId: null,
-      cwd: null,
-      attachments: null,
-      source,
-    });
-  }
-
-  #mainOpened = false;
-
   /** Turn wrap-up: erase every trace it left in the tables. */
   #forget(current: InFlight): void {
-    this.#awaitingTurnId.delete(current.sessionId);
+    this.#awaitingTurnId.delete(current.messageId);
     if (current.turnId === null) return;
     this.#inFlight.delete(current.turnId);
     this.#completed.delete(current.turnId);
@@ -414,9 +348,10 @@ export class JeevesBridge {
 
   #handleNotification(notification: ServerNotification): void {
     if (notification.type === "turnStarted") {
-      const waiting = this.#awaitingTurnId.get(notification.sessionId);
-      if (waiting === undefined) return;
-      if (waiting.originApproval && (waiting.turnId !== null || waiting.originApproval.message !== notification.userMessage)) return;
+      if (notification.sessionId !== MAIN_SESSION) return;
+      const id = /^(?:channel-turn:|interaction-)([a-f0-9]{64})$/.exec(notification.turnId)?.[1];
+      const waiting = id ? this.#awaitingTurnId.get(id) : undefined;
+      if (waiting === undefined || waiting.turnId !== null) return;
       waiting.turnId = notification.turnId;
       this.#inFlight.set(notification.turnId, waiting);
       return;

@@ -50,18 +50,17 @@ before the response). Every type is defined in
 | `task/get` | `TaskGetParams` → `TaskEnvelope` | one task: acceptance, budget, spend, run count |
 | `task/runs` | `TaskGetParams` → `TaskRunsResponse` | execution records: when each run started, ended, and why it stopped |
 | `task/artifacts` | `TaskGetParams` → `TaskArtifactsResponse` | the deliverables (files that really exist) |
+| `task/reviewCapture` | `TaskReviewCaptureParams` → `TaskReviewView` | attach two explicit Git commits to a completed older delivery |
 | `task/suspend` | `TaskActionParams` → `TaskEnvelope` | pause: keep the checkpoint, lose no finished tool |
 | `task/resume` | `TaskActionParams` → `TaskEnvelope` | continue from the checkpoint |
 | `task/cancel` | `TaskActionParams` → `TaskEnvelope` | cancel (terminal, no auto-continue) |
 | `session/permission/get` | `SessionPermissionGetParams` → `SessionPermissionResponse` | session policy, revision and capability flags; `mode:null` preserves legacy runtime rules |
 | `session/capabilities` | `SessionCapabilitiesParams` → `SessionCapabilitiesResponse` | a shell declares its platform, transport and feature names; the engine returns `accepted` / `unsupported` |
 | `session/permission/set` | `SessionPermissionSetParams` → `SessionPermissionResponse` | human-controlled policy change; requires matching `expectedRevision` and confirmation when elevating to full access |
-| `session/new` | `SessionNewParams` → `SessionNewResponse` | create a session: a real row, optionally with a name and working directory |
 | `session/main` | none → `SessionNewResponse` | idempotently open the persistent `jeeves-main` session |
-| `session/list` | `SessionListParams` → `SessionListResponse` | session list (cursor-paged) |
+| `session/list` | `SessionListParams` → `SessionListResponse` | the sole public conversation |
 | `session/get` | `SessionGetParams` → `SessionGetResponse` | one session's metadata |
 | `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | rename / change directory (`null` = leave alone, `""` = clear) |
-| `session/fork` | `SessionForkParams` → `SessionForkResponse` | copy the last exchanges of a session into a new one |
 | `session/messages` | `SessionMessagesParams` → `SessionMessagesResponse` | messages, newest first. On the newest task page, optional `activeInputs` lists the current instruction and accepted follow-ups until the turn enters history |
 | `memory/search` | `MemorySearchParams` → `MemorySearchResponse` | keyword search over facts + episodes |
 | `memory/list` | `MemoryListParams` → `MemoryListResponse` | recent facts (cursor-paged) |
@@ -125,6 +124,8 @@ metadata. `TurnMeta.routeReason` (optional) says how the model was chosen this t
 `TurnStartParams.requestId` (optional, 1-120 characters of `[A-Za-z0-9_-]`) names the message a turn answers. A second `turn/start` with the same id in the same session replays the first turn's notifications and response without calling the model again; the same id with a different message or parameters is refused. The receipt lives in `interaction_receipts` under a `turn:` key, so it survives a restart. Without `requestId` nothing changes.
 
 The optional `latestDelivery` on `task/artifacts` identifies the most recent terminal run and its recorded status, time and summary, including while a revision is running. An artifact’s optional `writtenText` is the complete text recorded at the write. A later partial edit clears it.
+
+Tasks with an isolated Git worktree record their starting commit and snapshot changes against it at each delivery. An older delivery can attach two complete commit IDs from its repository through `task/reviewCapture`. Files outside the text and snapshot budgets may provide only a path and change type.
 
 ## turn/start notification sequence
 
@@ -395,7 +396,7 @@ For an owner-chat mail amendment, the task binding limits the candidate actions.
 
 A durable `(sessionId,messageId)` receipt replays identical completed retries; changed, failed or unfinished submissions refuse redispatch. Partial create/start failures are reported individually. Ambiguous transport failure requires inspection before sending new work. `task/create` without `cwd` allocates a distinct managed root; explicit project bindings remain supported. With `repo` (an absolute path to a git repository, chosen by the human) the task instead gets its own worktree `<home>/worktrees/<task-id>` on branch `jeeves/<task-id>`, which is its only working directory; `task/view` and `task/get` report `worktreePath` and `branch`. `task/create` also takes `codeChecks: [{name, argv, after}]` for a coding task: `after: "final"` becomes a `commandSucceeds` acceptance condition, and `after: "edit"` runs in the task directory after every `edit` / `apply_patch` (through the exec gate and sandbox, 60 s each), with up to 4 KB of its output appended to that tool's result; with exec off the result says `[check <name>] not run: exec off`. The worktree is created at `task/create`, reused if it exists, never deleted automatically; a `repo` that is not a git repository, or `repo` together with `cwd`, is refused with a text error. `task/start` accepts optional images.
 
-`GET /api/notifications` carries authenticated `ServerNotification` independently of a submitted turn for worker progress/approval. `POST /api/task` with `{action:"artifacts",taskId}` adapts `task/artifacts`. `session/list` hides internal `task-work:` contexts; task inspection still reads them directly. The task tool lists the conversation's 20 newest tasks by creation time. Other sessions have their own lists. The main model sees proven read tools. Mixed tools expose their read actions (memory search/list and job output/list). An authorized interaction also exposes its own task handoff from the first request in eager and deferred mode. An earlier unresolved chat effect limits the table to unconditional reads until human review. In task sessions, read-only mode rejects memory mutations, standard mode requires approval, and full access follows the enabled tools. External memory MCP clients use the separately enabled memory service. Legacy APIs retain their behavior. Live pending questions can be recovered while the same Runtime is alive; missing/expired approval denies effects. Details: [internals/06-app-server.md](internals/06-app-server.md).
+`GET /api/notifications` carries authenticated `ServerNotification` independently of a submitted turn for worker progress/approval. `POST /api/task` with `{action:"artifacts",taskId}` adapts `task/artifacts`. `session/list` returns only `jeeves-main`. Task inspection reads internal execution history directly. The task tool lists the conversation's 20 newest tasks by creation time. Channel handoffs see only tasks from their verified chat and sender. The main model sees proven read tools. Mixed tools expose their read actions (memory search/list and job output/list). An authorized interaction also exposes its own task handoff from the first request in eager and deferred mode. An earlier unresolved chat effect limits the table to unconditional reads until human review. In task sessions, read-only mode rejects memory mutations, standard mode requires approval, and full access follows the enabled tools. External memory MCP clients use the separately enabled memory service. `turn/start` routes to the same main interaction. Live pending questions can be recovered while the same Runtime is alive; missing/expired approval denies effects. Details: [internals/06-app-server.md](internals/06-app-server.md).
 
 ### Live pending approvals
 

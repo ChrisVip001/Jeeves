@@ -163,11 +163,33 @@ async fn run(
             Ok(reply)
         }
         Call::List => {
-            let rows = server
-                .tasks
-                .list_for_session(&p.session_id, 20)
+            let rows = if let Some(source) = &p.source {
+                let ids: Vec<String> = sqlx::query_scalar(
+                    "SELECT t.id FROM agent_tasks t JOIN task_sources s ON s.task_id = t.id
+                     WHERE t.session_id = ? AND s.channel = ? AND s.chat_id = ? AND s.sender_id = ?
+                     ORDER BY t.created_at DESC, t.id DESC LIMIT 20",
+                )
+                .bind(&p.session_id)
+                .bind(&source.channel)
+                .bind(&source.chat_id)
+                .bind(&source.sender_id)
+                .fetch_all(&server.pool)
                 .await
-                .map_err(|e| e.to_string())?;
+                .map_err(|error| error.to_string())?;
+                let mut rows = Vec::new();
+                for id in ids {
+                    if let Ok(row) = owned_task(server, p, &id).await {
+                        rows.push(row);
+                    }
+                }
+                rows
+            } else {
+                server
+                    .tasks
+                    .list_for_session(&p.session_id, 20)
+                    .await
+                    .map_err(|e| e.to_string())?
+            };
             if rows.is_empty() {
                 return Ok("No tasks in this conversation yet.".into());
             }
@@ -196,7 +218,11 @@ async fn run(
                 .iter()
                 .map(Item::acceptance)
                 .collect::<Result<Vec<_>, _>>()?;
-            let context = task_context(server, &p.session_id).await?;
+            let context = if p.source.is_none() {
+                task_context(server, &p.session_id).await?
+            } else {
+                String::new()
+            };
             spans.lock().expect("span lock").extend(fresh);
             let mut lines = Vec::new();
             for (item, acceptance) in items.iter().zip(checks) {
@@ -217,7 +243,7 @@ async fn run(
             Ok(format!("Passed the follow-up to \"{}\".", task.title))
         }
         Call::Cancel { task_id } => {
-            let row = owned_task(server, &p.session_id, &task_id).await?;
+            let row = owned_task(server, p, &task_id).await?;
             crate::task::cancel(
                 server,
                 sink,
@@ -328,7 +354,7 @@ async fn start_one(
 
 async fn owned_task(
     server: &Server,
-    session: &str,
+    p: &InteractionStartParams,
     task_id: &str,
 ) -> Result<jeeves_state::TaskRow, String> {
     let task = server
@@ -337,8 +363,20 @@ async fn owned_task(
         .await
         .map_err(|e| e.to_string())?
         .ok_or("task does not exist")?;
-    if task.session_id.as_deref() != Some(session) {
+    if task.session_id.as_deref() != Some(&p.session_id) {
         return Err("task belongs to another conversation".into());
+    }
+    if let Some(source) = &p.source {
+        let origin = jeeves_state::task_sources::get(&server.pool, task_id)
+            .await
+            .map_err(|error| error.to_string())?;
+        if !origin.is_some_and(|origin| {
+            origin.channel == source.channel
+                && origin.chat_id == source.chat_id
+                && origin.sender_id == source.sender_id
+        }) {
+            return Err("this task is unavailable in this channel conversation".into());
+        }
     }
     Ok(task)
 }
@@ -353,7 +391,7 @@ pub(super) async fn continue_task(
 ) -> Result<jeeves_state::TaskRow, String> {
     let lock = server.session_write_lock(&format!("task-control:{task_id}"));
     let _guard = lock.lock().await;
-    let task = owned_task(server, &p.session_id, task_id).await?;
+    let task = owned_task(server, p, task_id).await?;
     let has_attachments = p.attachments.as_ref().is_some_and(|a| !a.is_empty());
     let queue = jeeves_state::dispatch::TaskDispatch::new(server.pool.clone());
     match task.status {

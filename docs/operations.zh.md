@@ -25,7 +25,7 @@ cd jeeves-rs && cargo build
 JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 ```
 
-流式输出；`/memory [词]` 查记忆、`/sessions` 列会话、`/new` 新会话、
+终端打开 Runtime 的主对话。`/memory [词]` 查记忆，
 `/quit` 退出。中断：`Ctrl-C` 在终端里是退出进程——网页端才用
 `turn/interrupt` 打断。
 

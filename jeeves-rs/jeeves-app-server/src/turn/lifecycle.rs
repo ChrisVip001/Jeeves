@@ -139,7 +139,22 @@ pub(super) fn spawn_queued_turn(server: Server, row: jeeves_state::QueuedMessage
             message: message.clone(),
             ..TurnStartParams::default()
         };
-        let Err(error) = run_turn(&server, params, RequestId::Number(0), &sink).await else {
+        let id = RequestId::Number(0);
+        let result = if session_id == crate::interaction::MAIN_SESSION {
+            crate::interaction::submit_main(
+                &server,
+                TurnStartParams {
+                    request_id: Some(format!("queued-{}", row.id)),
+                    ..params
+                },
+                id,
+                &sink,
+            )
+            .await
+        } else {
+            run_turn(&server, params, id, &sink).await
+        };
+        let Err(error) = result else {
             if let Err(e) = server.queue.complete(row.id).await {
                 eprintln!("(jeeves) queued instruction completion could not be recorded: {e}");
                 return;

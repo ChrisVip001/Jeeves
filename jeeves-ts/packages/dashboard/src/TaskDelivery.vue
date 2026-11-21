@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Check, Download, FileText } from "lucide-vue-next";
+import { Check, ChevronRight, FileText } from "lucide-vue-next";
 import { t } from "./i18n";
 import { renderMarkdown, stripToolFold } from "./markdown";
-import type { AgentTaskView } from "./protocol";
+import type { AgentTaskView, TaskReviewFile } from "./protocol";
 import type { TaskCenter } from "./ui/useTasks";
 
-const props = defineProps<{ task: AgentTaskView; center: TaskCenter }>();
+const props = defineProps<{ task: AgentTaskView; center: TaskCenter; selected?: string }>();
+const emit = defineEmits<{open: [TaskReviewFile, HTMLElement]}>();
 const delivery = computed(() => props.center.state.deliveries[props.task.id]);
-const files = computed(() => props.center.state.artifacts[props.task.id] ?? []);
+const review = computed(() => props.center.state.reviews[props.task.id]);
+const files = computed(() => {
+  const reviewed = review.value?.files ?? [];
+  if (review.value) return reviewed;
+  return (props.center.state.artifacts[props.task.id] ?? []).map(file => ({
+    path: file.path, change: "recorded", content: file.writtenText ?? null, patch: null,
+  }));
+});
+function statusLabel(change: string) {
+  if (change === "added") return t("新增");
+  if (change === "deleted") return t("删除");
+  if (change === "modified") return t("修改");
+  return "";
+}
 const reply = computed(() => delivery.value ? delivery.value.summary : props.center.state.results[props.task.id]);
 const live = computed(() => ["pending", "running", "suspended", "needs_attention", "needsAttention"].includes(props.task.status));
 const status = computed(() => {
@@ -33,15 +47,6 @@ const vMarkdown = {
   mounted(el: HTMLElement, binding: { value: string }) { paint(el, binding.value); },
   updated(el: HTMLElement, binding: { value: string; oldValue: string }) { if (binding.value !== binding.oldValue) paint(el, binding.value); },
 };
-const filename = (path: string) => path.split(/[\\/]/).at(-1) || path;
-function saveText(path: string, text: string) {
-  const link = document.createElement("a");
-  const url = URL.createObjectURL(new Blob([text], {type:"text/plain;charset=utf-8"}));
-  link.href = url;
-  link.download = /\.(txt|md|csv|json|log)$/i.test(path) ? filename(path) : filename(path) + ".txt";
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 </script>
 <template>
   <article class="delivery">
@@ -52,16 +57,13 @@ function saveText(path: string, text: string) {
       <div v-if="reply" v-markdown="reply" class="bubble md"></div>
       <p v-else-if="!live && task.lastStopReason">{{ task.lastStopReason }}</p>
     </div>
-    <section v-if="files.length" class="work-files">
+    <section v-if="files.length || review?.omittedFiles" class="work-files">
       <h3>{{ t("已记录的文件") }}</h3>
-      <div v-for="file in files" :key="file.path">
-        <details v-if="file.writtenText != null" class="work-file">
-          <summary><FileText :size="18" /><span>{{ filename(file.path) }}</span><small>{{ t("写入时的文本") }}</small></summary>
-          <pre>{{ file.writtenText }}</pre>
-          <button type="button" class="text-action" @click="saveText(file.path, file.writtenText)"><Download :size="15" />{{ t("保存文本副本") }}</button>
-        </details>
-        <p v-else class="file-record" :title="file.path"><FileText :size="18" /><span>{{ filename(file.path) }}</span><small>{{ t("仅有文件记录") }}</small></p>
-      </div>
+      <button v-for="file in files" :key="file.path" type="button" class="work-file"
+        :aria-expanded="selected === file.path" @click="emit('open', file, $event.currentTarget as HTMLElement)">
+        <FileText :size="17" /><span>{{ file.path }}</span><small v-if="statusLabel(file.change)">{{ statusLabel(file.change) }}</small><ChevronRight :size="16" />
+      </button>
+      <p v-if="review?.omittedFiles" class="review-empty">{{ t("另有{count}个文件超出审阅上限。", {count: review.omittedFiles}) }}</p>
     </section>
     <details v-if="task.checks.length" class="work-checks">
       <summary>{{ t("验收结果") }}</summary>

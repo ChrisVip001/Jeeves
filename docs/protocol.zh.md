@@ -48,18 +48,17 @@
 | `task/get` | `TaskGetParams` → `TaskEnvelope` | 单个任务：验收、预算、花费、执行次数 |
 | `task/runs` | `TaskGetParams` → `TaskRunsResponse` | 执行记录：每次的开始、结束与停下的原因 |
 | `task/artifacts` | `TaskGetParams` → `TaskArtifactsResponse` | 交付物清单（真实写出来的文件） |
+| `task/reviewCapture` | `TaskReviewCaptureParams` → `TaskReviewView` | 为已完成的旧交付绑定两个明确的 Git 提交 |
 | `task/suspend` | `TaskActionParams` → `TaskEnvelope` | 暂停：保留断点，不丢已完成的工具 |
 | `task/resume` | `TaskActionParams` → `TaskEnvelope` | 继续：从断点接着跑 |
 | `task/cancel` | `TaskActionParams` → `TaskEnvelope` | 取消（终态，不再自动续） |
 | `session/permission/get` | `SessionPermissionGetParams` → `SessionPermissionResponse` | 当前会话策略、版本与能力开关；`mode:null` 保留旧运行时规则 |
 | `session/capabilities` | `SessionCapabilitiesParams` → `SessionCapabilitiesResponse` | 外壳上报平台、传输方式与能力名；引擎返回 `accepted` / `unsupported` |
 | `session/permission/set` | `SessionPermissionSetParams` → `SessionPermissionResponse` | 人工修改会话策略；`expectedRevision` 必须匹配，提升完全访问须显式确认 |
-| `session/new` | `SessionNewParams` → `SessionNewResponse` | 建会话：落库里的一行，可带名字与工作目录 |
 | `session/main` | 无 → `SessionNewResponse` | 幂等打开常驻的 `jeeves-main` 会话 |
-| `session/list` | `SessionListParams` → `SessionListResponse` | 会话列表（游标分页） |
+| `session/list` | `SessionListParams` → `SessionListResponse` | 唯一公开会话 |
 | `session/get` | `SessionGetParams` → `SessionGetResponse` | 单个会话的元数据 |
 | `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | 改名 / 改工作目录（`null` = 不动，`""` = 清空） |
-| `session/fork` | `SessionForkParams` → `SessionForkResponse` | 把一个会话最近几轮复制进新会话 |
 | `session/messages` | `SessionMessagesParams` → `SessionMessagesResponse` | 会话消息按从新到旧分页。任务最新页的可选字段 `activeInputs` 列出尚未归入历史的本轮指令与已接收的补充 |
 | `memory/search` | `MemorySearchParams` → `MemorySearchResponse` | facts + episodes 关键词检索 |
 | `memory/list` | `MemoryListParams` → `MemoryListResponse` | 最近事实（游标分页） |
@@ -122,6 +121,8 @@ you>  /goal 让测试全绿
 `TurnStartParams.requestId`（可选，1-120 个 `[A-Za-z0-9_-]` 字符）标明这一轮回答的是哪条消息。同一会话里用同一个 id 再发 `turn/start`，会原样重放第一次那一轮的通知和应答，不再调用模型；同一个 id 配不同的消息或参数会被拒绝。回执存在 `interaction_receipts` 表里（键带 `turn:` 前缀），重启后依然有效。不带 `requestId` 时行为不变。
 
 `task/artifacts` 的 `latestDelivery` 返回最近一次结束的执行、结果状态、记录时间与摘要。新一轮运行中仍可查看上次回执。文件的可选 `writtenText` 是写入时记录的完整文本，局部编辑会清除旧文本。
+
+Git 隔离工作树任务在创建时记录基线提交，每次交付结束时保存相对基线的文件快照。旧交付可通过 `task/reviewCapture` 指定任务仓库中的两个完整提交 ID。受文本与快照体积上限影响的文件可能只有路径和变更类型。
 
 ## turn/start 的通知序列
 
@@ -361,7 +362,7 @@ SHA-256 一致；助手文本或不匹配的引文被拒绝。到期时间从原
 
 持久 `(sessionId,messageId)` 回执回放相同的已完成提交；修改输入、失败和未完成提交均拒绝重复派发。部分创建/启动失败逐项说明。连接中断导致结果不明时，先检查任务进展。`task/create` 未指定 `cwd` 时分配独立托管目录，主动绑定已有项目仍受支持。给了 `repo`（人选定的 git 仓库绝对路径）时，任务改为在自己的 worktree `<home>/worktrees/<task-id>`、分支 `jeeves/<task-id>` 里运行，那是它唯一的工作目录；`task/view` 和 `task/get` 报告 `worktreePath` 和 `branch`。`task/create` 还接受 `codeChecks: [{name, argv, after}]`：`after: "final"` 变成 `commandSucceeds` 验收条件；`after: "edit"` 在每次 `edit` / `apply_patch` 之后于任务目录运行（走 exec 门和沙箱，每条 60 秒），最多 4 KB 输出追加到该工具的结果；exec 关闭时结果写明 `[check <name>] not run: exec off`。worktree 在 `task/create` 时建立，已存在则复用，从不自动删除；`repo` 不是 git 仓库、或 `repo` 与 `cwd` 同时给出，都以文本错误拒绝。`task/start` 接受可选图片。
 
-`GET /api/notifications` 在单次提交之外推送鉴权的 `ServerNotification`，用于工作者进度与审批。`POST /api/task` 的 `{action:"artifacts",taskId}` 转接 `task/artifacts`。`session/list` 隐藏内部 `task-work:` 上下文，任务检查仍可直接读取。私聊改稿按用户绑定的任务限定候选动作。回指可使用紧邻的上一条已完成私聊交互中的任务绑定、主题或动作 ID；多个候选时请用户选择。任务工具按创建时间列出当前会话最近的 20 项任务。其他会话的工作各自计数。主模型可见经核验的只读工具。混合工具只展示读取动作（记忆的 search/list，后台作业的 output/list）。允许派发的交互在两种工具加载模式下都从首个请求起展示本轮专属的任务委派工具。此前聊天有待核对的操作时，工具表收窄到无条件只读工具，直至人工核对。任务会话中，只读模式拒绝记忆修改，标准模式要求审批，完全访问模式使用已启用的工具。外部记忆 MCP 客户端通过单独启用的记忆服务读写。旧接口保持原行为。同一核心仍运行时可以恢复实时待确认问题；缺失/过期确认不会放行操作。详见 [internals/06-app-server.md](internals/06-app-server.zh.md)。
+`GET /api/notifications` 在单次提交之外推送鉴权的 `ServerNotification`，用于工作者进度与审批。`POST /api/task` 的 `{action:"artifacts",taskId}` 转接 `task/artifacts`。`session/list` 只返回 `jeeves-main`，事项检查可读取内部执行记录。私聊改稿按用户绑定的任务限定候选动作。回指可使用紧邻的上一条已完成私聊交互中的任务绑定、主题或动作 ID；多个候选时请用户选择。任务工具按创建时间列出当前会话最近的 20 项任务。渠道只可查看同一聊天和发送者交办的事项。主模型可见经核验的只读工具。混合工具只展示读取动作（记忆的 search/list，后台作业的 output/list）。允许派发的交互在两种工具加载模式下都从首个请求起展示本轮专属的任务委派工具。此前聊天有待核对的操作时，工具表收窄到无条件只读工具，直至人工核对。任务会话中，只读模式拒绝记忆修改，标准模式要求审批，完全访问模式使用已启用的工具。外部记忆 MCP 客户端通过单独启用的记忆服务读写。`turn/start` 进入同一个主交互。同一核心仍运行时可以恢复实时待确认问题；缺失/过期确认不会放行操作。详见 [internals/06-app-server.md](internals/06-app-server.zh.md)。
 
 ### 实时待确认快照
 

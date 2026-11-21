@@ -472,15 +472,14 @@ async fn once(
     request: &str,
 ) -> Result<Vec<ServerNotification>, ErrorObject> {
     let (sink, mut frames) = EventSink::channel();
-    start_once(
+    submit_main(
         server,
         TurnStartParams {
-            session_id: Some("chat-1".into()),
+            session_id: Some(MAIN_SESSION.into()),
             message: message.into(),
             request_id: Some(request.into()),
             ..Default::default()
         },
-        request.to_string(),
         RequestId::Number(1),
         &sink,
     )
