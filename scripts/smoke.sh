@@ -42,7 +42,7 @@ echo "$OUTPUT" | grep -qE 'no API key'      || fail "PROVIDER_ERROR should say w
 echo "$OUTPUT" | grep -q '"id":6,"error":{"code":-32601'     || fail "an unknown method should report METHOD_NOT_FOUND"
 echo "$OUTPUT" | grep -q '"code":-32700'                     || fail "bad JSON should report PARSE_ERROR"
 
-# Memory must really be an openable file — that's the whole point of "local-first".
+# The memory bundle must be readable directly from the Runtime home.
 [[ -f "$WORK/.jeeves/state.db" ]] || fail "state.db was not created under .jeeves/"
 if command -v sqlite3 >/dev/null; then
   sqlite3 "$JEEVES_HOME/state.db" '.tables' >/dev/null || fail "sqlite3 could not read state.db"

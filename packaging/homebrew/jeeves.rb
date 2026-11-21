@@ -17,7 +17,7 @@
 #
 #   brew fetch --build-from-source ./packaging/homebrew/jeeves.rb
 class Jeeves < Formula
-  desc "Local-first personal assistant with long-term memory"
+  desc "Personal assistant for complex, long-running tasks"
   homepage "https://github.com/ChrisVip001/Jeeves"
   url "https://github.com/ChrisVip001/Jeeves/archive/refs/tags/v0.17.0.tar.gz"
   # The sha256 is rewritten by `just release-hash <tag>` from that same

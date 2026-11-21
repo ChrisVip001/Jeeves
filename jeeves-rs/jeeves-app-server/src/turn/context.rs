@@ -11,11 +11,10 @@ pub(crate) struct TurnFrame<'a> {
     pub(crate) session_id: &'a str,
     pub(crate) turn_id: &'a str,
     pub(crate) sink: &'a EventSink,
+    pub(crate) interaction_tool: Option<&'a jeeves_tools::Tool>,
     pub(crate) interrupt: Option<Arc<jeeves_loop::Interrupt>>,
     pub(crate) worktree: Option<std::path::PathBuf>,
     pub(crate) turn_cwd: Option<std::path::PathBuf>,
-    /// This turn's route decision reason (route.rs); None = no selection happened.
-    pub(crate) route_reason: Option<String>,
     /// Resume from a checkpoint instead of assembling history (crash recovery).
     pub(crate) resume: Option<jeeves_loop::Resume>,
     /// The checkpoint outlet: every tool-results boundary lands here (None = no checkpointing).

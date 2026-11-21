@@ -2,6 +2,45 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { useTasks } from "../src/ui/useTasks.ts";
 import type { AgentTaskView } from "../src/ui/types.ts";
+import { taskNoticeHeading } from "../src/render.ts";
+import type { Message } from "../src/protocol.ts";
+
+test("a main-chat receipt describes its own run even when the text claims success", () => {
+  const receipt: Message = { id: 1, source: "task_completion", role: "assistant", content: "done", at: "", meta: null };
+  for (const [receiptStatus, expected] of [
+    ["produced_unverified", "已生成，待验收"], ["failed", "执行失败"],
+    ["cancelled", "已取消"], ["done", "验收通过"], [undefined, "任务回执"],
+  ] as const) {
+    assert.equal(taskNoticeHeading({ ...receipt, receiptStatus }), expected);
+  }
+  assert.equal(taskNoticeHeading({ ...receipt, source: "task_decision" }), "审批记录");
+});
+
+test("a receipt opens the exact task in its owner chat, including before the first list refresh", async () => {
+  const own = { id: "first", title: "Weekly brief", sessionId: "main", status: "done" } as AgentTaskView;
+  const other = { ...own, id: "second", sessionId: "another-chat" };
+  const cancelled = { ...own, id: "old", status: "cancelled" };
+  const center = useTasks({
+    list: async () => ({ tasks: [other, own, cancelled] }),
+    pending: async () => ({ approvals: [] }),
+    messages: async () => ({ data: [], nextCursor: null }),
+    artifacts: async () => ({ artifacts: [] }),
+    action: async () => { throw Error("Opening a receipt must not change its task"); },
+    approve: async () => { throw Error("Opening a receipt must not approve an action"); },
+  });
+  center.state.owner = "main";
+  assert.equal(await center.openReceipt(other.id), false);
+  assert.equal(center.state.detailId, "");
+  assert.equal(await center.openReceipt(own.id), true);
+  assert.equal(center.state.detailId, own.id);
+  assert.equal(center.state.selected, "");
+  center.state.detailId = "";
+  assert.equal(await center.openReceipt(own.id, "reply"), true);
+  assert.equal(center.state.detailId, "");
+  assert.equal(await center.openReceipt(other.id, "reply"), false);
+  assert.equal(await center.openReceipt(cancelled.id, "reply"), false);
+  assert.equal(center.state.selected, own.id);
+});
 
 test("task approvals associate after a missed turn-start and policy changes clear them", async () => {
   const task = {
@@ -33,7 +72,7 @@ test("task approvals associate after a missed turn-start and policy changes clea
   } as const;
   center.onNotification(approval);
   assert.equal(center.approvalFor(task)?.requestId, "ap");
-  await center.approve("run", true);
+  await center.approve(center.state.approvals.run!, true);
   assert.equal(calls, 1);
   assert.equal(center.approvalFor(task), undefined);
   center.onNotification(approval);
@@ -157,7 +196,7 @@ test("an old snapshot cannot restore a request answered while the refresh was in
   center.state.owner = "main";
   await center.refresh();
   const stale = center.refresh();
-  await center.approve("run", true);
+  await center.approve(center.state.approvals.run!, true);
   release({ approvals: [entry] });
   await stale;
   await new Promise((resolve) => setImmediate(resolve));
@@ -248,8 +287,12 @@ test("answering echoes the approval version and a late answer names who answered
     expiresInMs: 120000,
     version: 3,
   } as const);
-  await center.approve("run", true);
-  assert.equal((sent[0] as { version?: number }).version, 3);
+  const reviewed = center.state.approvals.run!;
+  await center.approve({ ...reviewed, version: 2 }, true);
+  assert.deepEqual(sent, []);
+  center.onNotification({ ...reviewed, type: "approvalRequested" });
+  await center.approve(reviewed, true);
+  assert.deepEqual(sent, [{ turnId: "run", requestId: "ap", approved: true, remember: "once", version: 3 }]);
   assert.deepEqual(center.state.late, { answeredBy: "telegram" });
   assert.equal(center.state.error, "");
 });

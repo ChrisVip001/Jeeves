@@ -1,0 +1,18 @@
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata: { name: jeeves-strict, namespace: jeeves }
+spec:
+  mtls: { mode: STRICT }
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata: { name: runtime-gateway-only, namespace: jeeves }
+spec:
+  selector: { matchLabels: { app: jeeves } }
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/jeeves/sa/control-plane"]
+      to:
+        - operation:
+            ports: ["7777"]

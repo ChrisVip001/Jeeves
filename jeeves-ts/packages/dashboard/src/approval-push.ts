@@ -1,3 +1,4 @@
+import { accountKey } from "./hosted.ts";
 import { preferenceRequest } from "./api.ts";
 import type {
   ApprovalNoticeParams,
@@ -25,7 +26,7 @@ async function identity(create = true): Promise<CryptoKeyPair> {
   )
     throw Error("unsupported");
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open("jeeves-approval-device", 1);
+    const req = indexedDB.open(accountKey("jeeves-approval-device"), 1);
     req.onupgradeneeded = () => req.result.createObjectStore("identity");
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(Error("failed"));

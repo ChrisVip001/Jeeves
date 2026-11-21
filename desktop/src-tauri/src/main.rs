@@ -141,8 +141,15 @@ fn window_target(target: Result<String, String>) -> WebviewUrl {
     match target.and_then(|raw| {
         tauri::Url::parse(&raw)
             .ok()
-            .filter(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
-            .ok_or_else(|| "Jeeves 服务地址必须是有效的 HTTP 或 HTTPS 地址".into())
+            .filter(|url| {
+                url.username().is_empty()
+                    && url.password().is_none()
+                    && url.has_host()
+                    && (url.scheme() == "https"
+                        || (url.scheme() == "http"
+                            && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))))
+            })
+            .ok_or_else(|| "远程服务需要 HTTPS 地址，同机服务可以使用回环 HTTP".into())
     }) {
         Ok(url) => WebviewUrl::External(url),
         Err(why) => {
@@ -220,7 +227,13 @@ mod tests {
 
     #[test]
     fn invalid_runtime_addresses_open_the_local_error_page() {
-        for raw in ["invalid address", "file:///tmp/fixture", ""] {
+        for raw in [
+            "invalid address",
+            "file:///tmp/fixture",
+            "",
+            "http://runtime.example.test",
+            "https://user:pw@runtime.example.test",
+        ] {
             assert!(matches!(window_target(Ok(raw.into())), WebviewUrl::App(_)));
         }
         assert!(matches!(

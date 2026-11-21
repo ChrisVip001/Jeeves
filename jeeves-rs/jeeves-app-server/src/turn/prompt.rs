@@ -2,7 +2,7 @@ use chrono::Local;
 
 /// The thin soul: for models that already know how to be an assistant. The same text as
 /// `docs/design/voice.zh.md` §6 — change one, change both.
-pub(super) const THIN_SOUL: &str = r#"你是 Jeeves，用户自己的私人助理，运行在用户自己的机器上。
+pub(super) const THIN_SOUL: &str = r#"你是 Jeeves，负责完成复杂长任务的超级个人助理。把用户的目标、约束和交付物贯穿计划、执行和恢复；用可核验的结果说明完成情况。
 
 ## 怎么说话
 
@@ -27,7 +27,7 @@ pub(super) const THIN_SOUL: &str = r#"你是 Jeeves，用户自己的私人助�
 
 /// The full soul: the thin one plus a short addendum for local models that need things spelled
 /// out. Every line of the thin text still applies; the addendum only adds habits.
-pub(super) const DEFAULT_SOUL: &str = r#"你是 Jeeves，用户自己的私人助理，运行在用户自己的机器上。
+pub(super) const DEFAULT_SOUL: &str = r#"你是 Jeeves，负责完成复杂长任务的超级个人助理。把用户的目标、约束和交付物贯穿计划、执行和恢复；用可核验的结果说明完成情况。
 
 ## 怎么说话
 
@@ -57,28 +57,12 @@ pub(super) const DEFAULT_SOUL: &str = r#"你是 Jeeves，用户自己的私人�
 - 动手前想清楚目标和完成的标准；做完后对照标准检查，再汇报。
 - 遇到对方没说清楚、又会影响结果的地方，先问一个问题，不要猜。"#;
 
-/// What the built-in souls used to say. A `SOUL.md` that is still byte-for-byte one of these was
-/// never edited by the user, so it is upgraded to the current seed instead of being kept forever.
-pub(super) const LEGACY_SOULS: [&str; 2] = [
-    "You are Jeeves, a local personal assistant that runs on the user's own machine.
-You are concise, warm and proactive. What the user tells you, you remember.
-
-Rules:
-- Before scheduling anything or explaining \"today\" / \"tomorrow\", call current_time to see what time it actually is.
-- Long-lived facts about people, projects and preferences are distilled into the memory library in the background; use memory(action=save) only when the user explicitly says \"remember this\".
-- Questions about the past or about a person: memory(action=search). What you have recorded: memory(action=list).
-- When the user explicitly says \"forget …\", use memory(action=forget).
-- When the user teaches you a workflow worth reusing, ask first, then write it as a SKILL.md with memory(action=create_skill).
-- \"Relevant memory\" below comes from your own memory library and can be trusted.
-- Every tool's output says where the result landed — pass that on honestly, never claim it was synced somewhere else.
-- [tools used: ...] is what you actually did in earlier turns; do not redo work that is already done.",
-    " You are Jeeves, a local personal assistant that runs on the user's own machine. Concise, warm, proactive.
-
-- Need the time or a schedule? Call current_time first; do not guess.
-- Long-lived facts about people, projects and preferences are distilled into the memory library in the background; use memory(action=save) only when the user explicitly says \"remember this\".
-- Past events: memory(action=search). What you have recorded: memory(action=list). \"Forget it\": forget_note.
-- Tool output says where the result landed — pass that on honestly, never claim it was synced elsewhere.
-- [tools used: ...] is what you really did in earlier turns; do not repeat it.",
+/// SHA-256 of each retired built-in persona after trimming its outer whitespace.
+const RETIRED_SOUL_DIGESTS: [&str; 4] = [
+    "513d631ba91678cdb6a28acf48ed3f74942048c6b1c10f0c36a2092a5eb912be",
+    "d371da4f43a9e08c228afa9d646e26074ab5cccaaefb7f668828960b2857d116",
+    "ab4802fa419453377ca049c0908945fa97a13e871c101e6587560eb24ab0a352",
+    "eeb3a0b7ff659d2b31db996a529bea76289ed83c0262d0b2cd6b02c3c5e80be5",
 ];
 
 pub(super) const CONVERSATION_RULES: &str = "Conversation grounding:
@@ -120,7 +104,8 @@ pub(crate) fn load_soul(home: &std::path::Path, thin: bool) -> String {
     let untouched = [DEFAULT_SOUL, THIN_SOUL]
         .iter()
         .any(|built_in| text.trim() == built_in.trim())
-        || LEGACY_SOULS.iter().any(|old| text.trim() == old.trim());
+        || RETIRED_SOUL_DIGESTS
+            .contains(&jeeves_state::ledger::digest_of(text.trim().as_bytes()).as_str());
     if untouched {
         if text.trim() != seed.trim() {
             let _ = std::fs::write(&path, seed);
@@ -267,7 +252,7 @@ pub(crate) fn build_system(parts_in: PromptParts<'_>) -> SystemPrompt {
     } = parts_in;
     let now = Local::now();
     let stable = format!(
-"{soul}\nYour model: you are running on '{model}' via the '{provider}' provider, inside Jeeves, a local-first open-source agent harness.\n{CONVERSATION_RULES}"
+"{soul}\nYour model: you are running on '{model}' via the '{provider}' provider, inside Jeeves, an open-source personal assistant for complex, long-running tasks.\n{CONVERSATION_RULES}"
     );
 
     let mut parts = vec![format!(

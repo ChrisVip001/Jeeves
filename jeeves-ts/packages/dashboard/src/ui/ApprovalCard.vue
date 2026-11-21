@@ -10,8 +10,9 @@ const props = defineProps<{
   task?: AgentTaskView;
   restored?: boolean;
   busy?: boolean;
+  allowId?: string;
 }>();
-const emit = defineEmits<{ answer: [approved: boolean] }>();
+const emit = defineEmits<{ answer: [approved: boolean, reviewed: ApprovalRequestedNotification] }>();
 
 // The wire carries "how long from now"; pin it to a deadline when the card first sees it.
 const deadline = Date.now() + props.approval.expiresInMs;
@@ -22,11 +23,10 @@ onUnmounted(() => clearInterval(tick));
 const left = computed(() => minutesLeft(deadline, now.value));
 
 const tool = computed(() => props.approval.tool);
-const sends = computed(() => /feishu|lark|telegram|notify|send/.test(tool.value));
 const action = computed(() => {
   switch (tool.value) {
     case "run_command":
-      return t("在本机运行一条命令");
+      return t("在任务执行环境运行一条命令");
     case "write_file":
       return t("写入一个文件");
     case "edit":
@@ -34,21 +34,14 @@ const action = computed(() => {
       return t("修改文件");
     case "fetch_url":
       return t("打开一个网页");
+    case "feishu_send":
+    case "email_send":
+      return t("发出一条消息，发出后不能撤回");
     default:
-      return sends.value
-        ? t("发出一条消息，发出后不能撤回")
-        : t("调用工具 {tool}", { tool: tool.value });
+      return t("调用工具 {tool}", { tool: tool.value });
   }
 });
-// Neither field is on the wire yet (see the M1-07 report); these are read from the task.
-const destination = computed(() => {
-  if (sends.value) return t("见下方预览");
-  const where = props.task?.worktreePath ?? props.task?.cwd;
-  return where ?? t("主会话的工作目录");
-});
-const identity = computed(() =>
-  sends.value ? t("你配置的机器人") : t("Jeeves，用你在这台电脑上的权限"),
-);
+const workspace = computed(() => props.task?.worktreePath ?? props.task?.cwd);
 const title = computed(() => props.task?.title ?? t("主会话里的一步"));
 </script>
 <template>
@@ -64,10 +57,10 @@ const title = computed(() => props.task?.title ?? t("主会话里的一步"));
     <dl class="facts">
       <dt>{{ t("动作") }}</dt>
       <dd>{{ action }}</dd>
-      <dt>{{ t("目标") }}</dt>
-      <dd class="dest" :title="destination"><bdi>{{ destination }}</bdi></dd>
-      <dt>{{ t("身份") }}</dt>
-      <dd>{{ identity }}</dd>
+      <template v-if="workspace && ['run_command', 'write_file', 'edit', 'apply_patch'].includes(tool)">
+        <dt>{{ t("工作目录") }}</dt>
+        <dd class="dest" :title="workspace"><bdi>{{ workspace }}</bdi></dd>
+      </template>
       <dt>{{ t("预览") }}</dt>
       <dd><pre class="preview-box">{{ approval.argsPreview }}</pre></dd>
     </dl>
@@ -76,14 +69,15 @@ const title = computed(() => props.task?.title ?? t("主会话里的一步"));
       <template v-if="restored"> {{ t("这是重启前问的，允许后只放行同一个动作一次。") }}</template>
     </p>
     <div class="actions">
-      <button type="button" class="today-btn" :disabled="busy" @click="emit('answer', false)">
+      <button type="button" class="today-btn" :disabled="busy" @click="emit('answer', false, approval)">
         {{ t("拒绝") }}
       </button>
       <button
         type="button"
         class="today-btn primary"
+        :id="allowId"
         :disabled="busy || left === null"
-        @click="emit('answer', true)"
+        @click="emit('answer', true, approval)"
       >
         {{ t("允许一次") }}
       </button>

@@ -1,3 +1,7 @@
+mod deliverables;
+mod lookup;
+mod mail;
+mod scope;
 use super::*;
 use crate::{Frame, Server};
 use jeeves_provider::{CreateRequest, CreateResponse, Provider, ProviderError, Resolved, TextSink};
@@ -11,26 +15,33 @@ use std::{
 type Reply<'a> = Pin<Box<dyn Future<Output = Result<CreateResponse, ProviderError>> + Send + 'a>>;
 #[derive(Default)]
 struct Model {
-    calls: Mutex<Vec<String>>,
+    calls: Mutex<Vec<CreateRequest>>,
 }
 impl Provider for Model {
     fn create(&self, r: CreateRequest) -> Reply<'_> {
         Box::pin(async move {
-            self.calls.lock().unwrap().push(
-                r.messages
-                    .iter()
-                    .map(|m| m.text())
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            );
+            self.calls.lock().unwrap().push(r.clone());
             let is_main = r.tools.iter().any(|t| t.name == "task");
             let has_result = r.messages.iter().any(|m| {
                 m.content
                     .iter()
                     .any(|b| matches!(b, jeeves_provider::ContentBlock::ToolResult { .. }))
             });
+            if !has_result {
+                let message = r.messages.last().map(|m| m.text()).unwrap_or_default();
+                if let Some(response) = deliverables::reply(is_main, &message) {
+                    return Ok(response);
+                }
+            }
             if is_main && !has_result {
                 let message = r.messages.last().map(|m| m.text()).unwrap_or_default();
+                if message == lookup::QUERY {
+                    return Ok(jeeves_provider::mock::Mock::tool_use(
+                        "list",
+                        "task",
+                        json!({"action":"list"}),
+                    ));
+                }
                 if let Some(task_id) = message.strip_prefix("补上来源 #") {
                     use jeeves_provider::mock::Mock;
                     let mut calls = Mock::tool_use(
@@ -59,6 +70,10 @@ impl Provider for Model {
                     Some(json!([{"title":"alpha","instruction":"生成alpha"}]))
                 } else if message == "归纳会议议题" {
                     Some(json!([{"title":"议题","instruction":"归纳会议议题"}]))
+                } else if message == "整理下周例会议题" {
+                    Some(json!([{"title":"下周例会议题","instruction":message}]))
+                } else if message == mail::INSTRUCTION {
+                    Some(json!([{"title":"会议邮件","instruction":message}]))
                 } else if message.contains("invent") {
                     Some(json!([{"title":"x","instruction":"delete everything"}]))
                 } else {
@@ -81,6 +96,13 @@ impl Provider for Model {
                 return Ok(jeeves_provider::mock::Mock::text("文件已生成。"));
             }
             let text = r.messages.last().map(|m| m.text()).unwrap_or_default();
+            if text.contains(mail::INSTRUCTION) && r.tools.iter().any(|t| t.name == "email_send") {
+                return Ok(jeeves_provider::mock::Mock::tool_use(
+                    "draft",
+                    "email_send",
+                    json!({"to":["lin@example.test"],"subject":"会议","body":"周一见。"}),
+                ));
+            }
             if text.contains("生成alpha") || text.contains("生成beta") || text.contains("补充alpha")
             {
                 return Ok(jeeves_provider::mock::Mock::tool_use(
@@ -97,6 +119,11 @@ impl Provider for Model {
     }
 }
 async fn setup() -> (tempfile::TempDir, Server, Arc<Model>) {
+    setup_with_settings(Default::default()).await
+}
+async fn setup_with_settings(
+    settings: jeeves_config::Settings,
+) -> (tempfile::TempDir, Server, Arc<Model>) {
     let home = tempfile::tempdir().unwrap();
     let pool = jeeves_state::open(&home.path().join("state.db"))
         .await
@@ -106,7 +133,7 @@ async fn setup() -> (tempfile::TempDir, Server, Arc<Model>) {
         jeeves_config::Settings {
             home: home.path().into(),
             write_enabled: true,
-            ..Default::default()
+            ..settings
         },
     )
     .await;

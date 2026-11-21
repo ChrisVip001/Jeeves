@@ -21,7 +21,7 @@ pub async fn run_turn(
     id: RequestId,
     sink: &EventSink,
 ) -> Result<(), ErrorObject> {
-    run_turn_inner(server, params, id, sink, None).await
+    run_turn_inner(server, params, id, sink, None, None).await
 }
 
 pub(crate) async fn run_turn_inner(
@@ -30,6 +30,7 @@ pub(crate) async fn run_turn_inner(
     id: RequestId,
     sink: &EventSink,
     dispatch: Option<jeeves_state::dispatch::DispatchRow>,
+    interaction_tool: Option<&jeeves_tools::Tool>,
 ) -> Result<(), ErrorObject> {
     let started = std::time::Instant::now();
 
@@ -257,6 +258,18 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
     let retries = Arc::new(AtomicI32::new(0));
     let retry_sink = retry_outlet(sink, &turn_id, retries.clone());
 
+    let frame = TurnFrame {
+        interaction_tool,
+        session_id: &session_id,
+        turn_id: &turn_id,
+        sink,
+        interrupt: Some(interrupt),
+        worktree,
+        turn_cwd,
+        steering: Some(steering),
+        resume: None,
+        checkpoint: Some(checkpoint),
+    };
     let dispatched: Result<_, jeeves_protocol::ErrorObject> =
         jeeves_provider::retry::with_note_sink(retry_sink, async {
             full_turn(
@@ -264,18 +277,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
                 &resolved,
                 &message,
                 user_images.clone(),
-                TurnFrame {
-                    session_id: &session_id,
-                    turn_id: &turn_id,
-                    sink,
-                    interrupt: Some(interrupt.clone()),
-                    worktree: worktree.clone(),
-                    turn_cwd: turn_cwd.clone(),
-                    route_reason: turn_route.clone(),
-                    steering: Some(steering.clone()),
-                    resume: None,
-                    checkpoint: Some(checkpoint.clone()),
-                },
+                frame.clone(),
                 None,
             )
             .await
@@ -302,18 +304,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         server,
         &resolved,
         full,
-        TurnFrame {
-            session_id: &session_id,
-            turn_id: &turn_id,
-            sink,
-            interrupt: Some(interrupt.clone()),
-            worktree: worktree.clone(),
-            turn_cwd: turn_cwd.clone(),
-            route_reason: turn_route.clone(),
-            steering: Some(steering.clone()),
-            resume: None,
-            checkpoint: Some(checkpoint.clone()),
-        },
+        frame.clone(),
         run_id.as_deref(),
         task.as_ref(),
         started,
@@ -330,19 +321,9 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
             server,
             resolved: &resolved,
             task: task.clone(),
+            assignment: &params.message,
             run_id: run_id.clone(),
-            frame: TurnFrame {
-                session_id: &session_id,
-                turn_id: &turn_id,
-                sink,
-                interrupt: Some(interrupt.clone()),
-                worktree: worktree.clone(),
-                turn_cwd: turn_cwd.clone(),
-                route_reason: turn_route.clone(),
-                resume: None,
-                checkpoint: Some(checkpoint.clone()),
-                steering: Some(steering.clone()),
-            },
+            frame,
             plan,
             round_no,
             max_rounds,
@@ -366,7 +347,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
             user_message: &params.message,
             resolved: &resolved,
             result,
-            route_reason: turn_route.clone(),
+            route_reason: turn_route,
             retries: retries.load(Ordering::Relaxed),
             goal_status,
             goal_rounds: round_no,

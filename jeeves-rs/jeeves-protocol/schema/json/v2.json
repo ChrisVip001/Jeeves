@@ -100,7 +100,7 @@
       "properties": {
         "acceptance": {
           "default": [],
-          "description": "What must be measurably true. Empty = no objective conditions (single-turn task).",
+          "description": "What must be measurably true. An empty list provides no independent acceptance evidence.",
           "items": {
             "$ref": "#/definitions/AcceptanceView"
           },
@@ -168,7 +168,7 @@
           ]
         },
         "goalCondition": {
-          "description": "The goal loop's condition. Absent = a single-turn task: done when the turn is.",
+          "description": "Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.",
           "type": [
             "string",
             "null"
@@ -3914,10 +3914,24 @@
           ],
           "description": "This turn's telemetry (gate / tools / iterations / model / usage), **present only on assistant rows**."
         },
+        "receiptStatus": {
+          "description": "Outcome of the run that issued this receipt, even after the task runs again.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "role": {
           "$ref": "#/definitions/MessageRole"
         },
         "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "taskId": {
+          "description": "Original task for a decision or completion notice in its owner's chat.",
           "type": [
             "string",
             "null"
@@ -6185,7 +6199,7 @@
         },
         "goalCondition": {
           "default": null,
-          "description": "The goal condition that keeps the loop going. Absent = single-turn task.",
+          "description": "Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.",
           "type": [
             "string",
             "null"

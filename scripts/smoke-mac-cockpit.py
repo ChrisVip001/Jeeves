@@ -198,7 +198,16 @@ def exercise(home, port, env, probe, posts, bundle):
 
         first = wait_for(decision, "first publication review")
         assert app.control("input") and not app.control("cowork-input")
-        wait_for(lambda: app.see(first["requestId"]), "decision in assistant")
+
+        def open_review(request):
+            button = f"allow-{request['requestId']}-{request['version']}"
+            wait_for(lambda: app.control("chat-review-requests"), "live decision in Chat")
+            if not app.control(button):
+                app.native("press", "chat-review-requests")
+            wait_for(lambda: app.control(button), "reviewed request and version")
+            return button
+
+        open_review(first)
         evidence["assistant"] = app.capture("01-assistant")
         app.native("press", "mode-cowork")
         target = "cowork-task-" + task_id
@@ -232,17 +241,13 @@ def exercise(home, port, env, probe, posts, bundle):
             and "oc_final" in final["argsPreview"]
         )
         assert len(tasks()) == 1 and not posts
-        wait_for(
-            lambda: app.see(final["requestId"]), "final review in native main chat"
-        )
+        allow_final = open_review(final)
         final_copy = (
             "Final edition: "
             + "Synthetic open source announcement. " * 10
             + "End of revised copy."
         )
         review_fields = [
-            final["requestId"],
-            task_id,
             "Feishu",
             "cli_native_fixture",
             "oc_final",
@@ -253,7 +258,7 @@ def exercise(home, port, env, probe, posts, bundle):
             for node in app.view()
         ), "Incomplete publication review in the native main chat"
         evidence["decision"] = app.capture("03-final-review")
-        app.submit("input", "send", f"approve {final['requestId']} v{final['version']}")
+        app.native("press", allow_final)
 
         def completed():
             return next(

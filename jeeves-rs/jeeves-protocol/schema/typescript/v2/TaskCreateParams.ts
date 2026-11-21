@@ -20,7 +20,7 @@ export type TaskCreateParams = {
    */
   title: string;
   /**
-   * The goal condition that keeps the loop going. Absent = single-turn task.
+   * Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
    */
   goalCondition: string | null;
   /**

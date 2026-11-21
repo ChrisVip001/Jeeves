@@ -214,8 +214,8 @@ fn invalid(message: impl ToString) -> ErrorObject {
 impl Server {
     pub(crate) fn permission_note(&self, session: &str) -> &'static str {
         match self.permissions.snapshot(session) {
-            Ok(Some((PermissionMode::ReadOnly, _))) => "\nHuman session policy: read-only. Only proven read tools are permitted; delegation is unavailable.",
-            Ok(Some((PermissionMode::Standard, _))) => "\nHuman session policy: standard. Effects require explicit per-operation human approval. Delegation is unavailable. Approval is not task completion.",
+            Ok(Some((PermissionMode::ReadOnly, _))) => "\nHuman session policy: read-only. Work in this session or its tasks is read-only. The delegate_task subagent tool is unavailable.",
+            Ok(Some((PermissionMode::Standard, _))) => "\nHuman session policy: standard. Effects require explicit per-operation human approval. The delegate_task subagent tool is unavailable. Approval is not task completion.",
             Ok(Some((PermissionMode::FullAccess, _))) => "\nHuman session policy: full access within enabled capabilities, allowed roots and sandbox constraints. Do not infer broader authority.",
             _ => "",
         }

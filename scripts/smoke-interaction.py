@@ -5,6 +5,7 @@ Uses the shipped HTTP adapters and real runtime, with an isolated home and a loc
 scripted provider. No account or paid model is involved.
 """
 import importlib.util
+import argparse
 import json
 from pathlib import Path
 import queue
@@ -41,17 +42,17 @@ def tasks(base):
     return web.request(base, '/api/tasks')['tasks']
 
 
-def settled(base, task):
+def settled(base, task, minimum_runs=0):
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
         row = next(t for t in tasks(base) if t['id'] == task)
-        if row['status'] in ('done', 'failed', 'cancelled') and row['dispatchState'] == 'finished':
+        if row['runCount'] >= minimum_runs and row['status'] in ('done', 'failed', 'cancelled') and row['dispatchState'] == 'finished':
             return row
         time.sleep(.05)
     raise AssertionError('Task did not settle')
 
 
-def run():
+def run(browser_channel=None):
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
         port = reservation.getsockname()[1]
@@ -91,11 +92,18 @@ def run():
             sessions = web.request(base, '/api/data')['sessions']
             assert all(not s['id'].startswith('task-work:') for s in sessions)
             alpha = next(row for row in rows if row['title'] == 'task-alpha-fixture')
-            interact(base, 'task-follow-fixture', 'follow', alpha['id'])
-            fresh = settled(base, alpha['id'])
+            if browser_channel:
+                subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', base, alpha['id'], browser_channel], check=True)
+            else:
+                interact(base, 'task-follow-fixture', 'follow', alpha['id'])
+            fresh = settled(base, alpha['id'], minimum_runs=2)
             assert fresh['cwd'] == alpha['cwd'] and fresh['executionSessionId'] == alpha['executionSessionId']
             assert fresh['runCount'] == 2
             assert Path(alpha['cwd'], 'report.txt').read_text() == 'task-follow-fixture'
+            history = web.request(base, '/api/session?sessionId=jeeves-main')['data']
+            receipts = [m for m in history if m.get('source') == 'task_completion']
+            assert sorted(m['taskId'] for m in receipts) == sorted([alpha['id'], *(t['id'] for t in rows)])
+            assert all(m['receiptStatus'] == 'produced_unverified' for m in receipts)
             artifacts = web.request(base, '/api/task', {'action': 'artifacts', 'taskId': alpha['id']})
             assert artifacts['artifacts'], artifacts
 
@@ -134,7 +142,10 @@ def run():
             other = web.request(base, '/api/session/new', {})['sessionId']
             assert not web.request(base, '/api/approval/pending?sessionId=' + other)['approvals']
             params = dict(turnId=event['turnId'], requestId=event['requestId'], approved=True, remember='once')
-            assert web.request(base, '/api/approval', params)['accepted']
+            if browser_channel:
+                subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', base, alpha['id'], browser_channel, event['requestId']], check=True)
+            else:
+                assert web.request(base, '/api/approval', params)['accepted']
             assert not web.request(base, '/api/approval', params)['accepted']
             assert settled(base, alpha['id'])['runCount'] == 3
             assert not web.request(base, pending_path)['approvals']
@@ -180,4 +191,6 @@ def run():
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--browser', choices=['chrome', 'chromium'], help='submit the follow-up from the phone layout using this installed Playwright channel')
+    run(parser.parse_args().browser)

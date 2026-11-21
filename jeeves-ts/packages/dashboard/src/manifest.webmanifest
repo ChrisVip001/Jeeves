@@ -1,7 +1,7 @@
 {
   "name": "Jeeves",
   "short_name": "Jeeves",
-  "description": "说需求就行的个人 agent",
+  "description": "面向复杂长任务的超级个人助理",
   "id": "./",
   "scope": "./",
   "start_url": "./",

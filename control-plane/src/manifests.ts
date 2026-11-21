@@ -51,6 +51,7 @@ export function userManifests(u: UserPod): Obj[] {
         template: {
           metadata: { labels },
           spec: {
+            automountServiceAccountToken: false,
             terminationGracePeriodSeconds: 30,
             securityContext: { runAsNonRoot: true, fsGroup: 1000 },
             initContainers: [

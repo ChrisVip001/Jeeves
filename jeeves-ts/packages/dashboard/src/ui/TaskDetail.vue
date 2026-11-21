@@ -123,69 +123,75 @@ const busy = computed(() => !!props.center.state.busy);
       </header>
       <div v-if="!readOnly && $slots.executor" class="executor-inline"><slot name="executor" /></div>
 
-      <dl class="facts four">
-        <dt>{{ t("做到哪了") }}</dt>
-        <dd>{{ where }}</dd>
-        <dt>{{ t("凭什么这么说") }}</dt>
-        <dd>
-          {{ basis }}
-          <ul v-if="task.checks.length" class="checks">
-            <li v-for="(check, index) in task.checks" :key="index" :class="{ failed: !check.passed }">
-              <span class="check-mark" aria-hidden="true">{{ check.passed ? "✓" : "×" }}</span>
-              <span class="sr">{{ check.passed ? t("通过") : t("未通过") }}</span>
-              {{ check.label }}<span v-if="check.detail" class="meta"> · {{ check.detail }}</span>
-            </li>
-          </ul>
-        </dd>
-        <dt>{{ t("什么时候再动") }}</dt>
-        <dd>{{ next }}</dd>
-        <dt>{{ t("需要你做什么") }}</dt>
-        <dd>{{ need }}</dd>
-      </dl>
-
-      <TaskTranscript :center="center" :task="task" />
-      <div v-if="readOnly && approval" class="td-decision"><strong>{{ t("等你决定") }}</strong><pre>{{ approval.argsPreview }}</pre><button type="button" class="today-btn" @click="emit('follow', task.id)">{{ t("回主聊天答复") }}</button></div>
+      <p v-if="center.state.error" role="alert">{{ center.state.error }}</p>
+      <p v-if="center.state.late" role="status">{{ center.state.late.answeredBy
+        ? t("晚了一步：这条已由 {who} 回答。", {who: center.state.late.answeredBy}) : t("这条请求已变更或结束，请核对当前待确认事项。") }}</p>
       <ApprovalCard
-        v-if="!readOnly && approval"
+        v-if="approval"
         :key="`${approval.requestId}-${approval.version}`"
         :approval="approval"
         :task="task"
         :restored="center.state.restored[approval.turnId]"
         :busy="busy"
-        @answer="(ok) => center.approve(approval!.turnId, ok)"
+        @answer="(ok, reviewed) => center.approve(reviewed, ok)"
       />
 
-      <slot v-if="!readOnly" name="desktop" :task="task" />
+      <p v-if="task.inputCondition?.state === 'pending'" class="meta">{{ t("等{what}", {what: task.inputCondition.description}) }}</p>
+      <p v-else-if="['failed','suspended','needs_attention','needsAttention'].includes(task.status)" class="meta">{{ task.lastStopReason || task.suspendReason }}</p>
+      <TaskTranscript :center="center" :task="task" />
+      <details class="execution-details">
+        <summary>{{ t("执行记录") }}</summary>
+        <dl class="facts four">
+          <dt>{{ t("做到哪了") }}</dt>
+          <dd>{{ where }}</dd>
+          <dt>{{ t("凭什么这么说") }}</dt>
+          <dd>
+            {{ basis }}
+            <ul v-if="task.checks.length" class="checks">
+              <li v-for="(check, index) in task.checks" :key="index" :class="{ failed: !check.passed }">
+                <span class="check-mark" aria-hidden="true">{{ check.passed ? "✓" : "×" }}</span>
+                <span class="sr">{{ check.passed ? t("通过") : t("未通过") }}</span>
+                {{ check.label }}<span v-if="check.detail" class="meta"> · {{ check.detail }}</span>
+              </li>
+            </ul>
+          </dd>
+          <dt>{{ t("什么时候再动") }}</dt>
+          <dd>{{ next }}</dd>
+          <dt>{{ t("需要你做什么") }}</dt>
+          <dd>{{ need }}</dd>
+        </dl>
 
-      <section class="td-timeline" :aria-labelledby="`tl-${task.id}`">
-        <h3 :id="`tl-${task.id}`" class="block-head">
-          {{ t("经过") }}<span class="count tnum">{{ timeline.length }}</span>
-        </h3>
-        <p v-if="!timeline.length" class="meta">
-          {{ t("还没有记录。任务每推进一步，这里多一行。") }}
-        </p>
-        <ol v-else class="tl">
-          <li v-for="event in timeline" :key="event.cursor">
-            <time class="tnum" :datetime="event.at">{{ stamp(event.at) }}</time>
-            <span class="tl-kind">{{ event.label }}</span>
-            <span v-if="event.detail" class="tl-text">{{ event.detail }}</span>
-          </li>
-        </ol>
-      </section>
+        <slot v-if="!readOnly" name="desktop" :task="task" />
 
-      <GitCheckpointForm v-if="!readOnly" :task="task" :busy="busy" :submit="center.gitCheckpoint" :read-policy="center.gitCheckpointPolicy" :write-policy="center.saveGitCheckpointPolicy" />
+        <section class="td-timeline" :aria-labelledby="`tl-${task.id}`">
+          <h3 :id="`tl-${task.id}`" class="block-head">
+            {{ t("经过") }}<span class="count tnum">{{ timeline.length }}</span>
+          </h3>
+          <p v-if="!timeline.length" class="meta">
+            {{ t("还没有记录。任务每推进一步，这里多一行。") }}
+          </p>
+          <ol v-else class="tl">
+            <li v-for="event in timeline" :key="event.cursor">
+              <time class="tnum" :datetime="event.at">{{ stamp(event.at) }}</time>
+              <span class="tl-kind">{{ event.label }}</span>
+              <span v-if="event.detail" class="tl-text">{{ event.detail }}</span>
+            </li>
+          </ol>
+        </section>
 
-      <footer v-if="!readOnly" class="td-actions">
+        <GitCheckpointForm v-if="!readOnly" :task="task" :busy="busy" :submit="center.gitCheckpoint" :read-policy="center.gitCheckpointPolicy" :write-policy="center.saveGitCheckpointPolicy" />
+      </details>
+      <footer v-if="!readOnly || ['pending', 'running', 'done'].includes(task.status)" class="td-actions">
         <button
           v-if="['pending', 'running', 'done'].includes(task.status)"
           type="button"
           class="today-btn"
           @click="emit('follow', task.id)"
         >
-          {{ t("补充要求") }}
+          {{ readOnly ? t("在主聊天跟进") : t("补充要求") }}
         </button>
         <button
-          v-if="['pending', 'running'].includes(task.status)"
+          v-if="!readOnly && ['pending', 'running'].includes(task.status)"
           type="button"
           class="today-btn"
           :disabled="busy"
@@ -194,7 +200,7 @@ const busy = computed(() => !!props.center.state.busy);
           {{ t("暂停任务") }}
         </button>
         <button
-          v-if="['suspended', 'needs_attention', 'needsAttention'].includes(task.status)"
+          v-if="!readOnly && ['suspended', 'needs_attention', 'needsAttention'].includes(task.status)"
           type="button"
           class="today-btn primary"
           :disabled="busy"
@@ -203,7 +209,7 @@ const busy = computed(() => !!props.center.state.busy);
           {{ t("继续任务") }}
         </button>
         <button
-          v-if="!['done', 'failed', 'cancelled'].includes(task.status)"
+          v-if="!readOnly && !['done', 'failed', 'cancelled'].includes(task.status)"
           type="button"
           class="today-btn quiet"
           :disabled="busy"

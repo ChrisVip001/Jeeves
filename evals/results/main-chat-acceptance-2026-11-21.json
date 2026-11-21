@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-21",
+  "base": "7ce5e34e8c80cf88d4cb5e2a88ba8ba139345454",
+  "branch": "wp/main-chat-delegation",
+  "workingTreeRustSha256": "e0064a26823b3ddea2518412ed97593dbb161a9671a3aaaebf962e6689eceb0f",
+  "fingerprintDefinition": "Sorted modified and untracked paths under jeeves-rs against base. For each append UTF-8 path, NUL, and binary SHA-256 of its contents. Hash the concatenation with SHA-256.",
+  "environment": "macOS, isolated temporary homes, scripted model and local connector fixtures",
+  "externalApiCallsForModelOrDelivery": 0,
+  "scenarios": [
+    {
+      "scenario": "Chinese mail assignment through interaction/start, replay same message ID",
+      "before": "The main request advertised direct mail and file writes that its execution policy refused.",
+      "after": "One task, one run and one on-disk draft matched the specified recipient, subject and body. The main model saw the handoff and read tools.",
+      "test": "main_mail_request_reaches_one_task_and_writes_one_local_draft"
+    },
+    {
+      "scenario": "Deferred discovery and context overflow retry",
+      "before": "The first main request hid task.",
+      "after": "All three observed requests exposed task, permitted memory actions and consistent session instructions. Discovery did not offer worker-only mail or file tools.",
+      "test": "deferred_main_discovery_keeps_worker_tools_out_of_the_catalogue"
+    },
+    {
+      "scenario": "Cancelled main interaction followed by ordinary turn/start",
+      "before": "An ordinary turn could inherit the earlier scoped task tool.",
+      "after": "An ordinary turn received no task handoff from the cancelled interaction."
+    },
+    {
+      "scenario": "Find and resume an old task after another conversation adds 100 tasks",
+      "before": "The main list reported no tasks.",
+      "after": "Exactly two owned tasks appeared, newest first. Continuing the explicitly selected older task reused its ID, execution session and directory. Its run count increased to two. The newer task stayed at one run.",
+      "test": "main_task_list_finds_older_owned_work_among_newer_unrelated_tasks"
+    }
+  ],
+  "checks": {
+    "cargo test -p jeeves-app-server --lib interaction::tests": {
+      "passed": 12
+    },
+    "just bench": {
+      "met": 11,
+      "failed": 0,
+      "skipped": 0,
+      "recoveryPassed": 3,
+      "recoveryTotal": 3
+    },
+    "scripts/smoke-interaction.py": "Passed with the shipped HTTP adapter, temporary home and local provider.",
+    "scripts/smoke-promotion.py": "Passed. Stale approval refused, final approved content posted once to the simulated Feishu receiver and one completion returned to main chat.",
+    "just smoke-recovery": "Eight process fixtures passed. An effect interrupted before confirmation stopped for review. Its receiver observed one effect.",
+    "just check": {
+      "exitCode": 0,
+      "rustWorkspace": {
+        "passed": 1112,
+        "failed": 0,
+        "ignored": 4
+      },
+      "deterministic": {
+        "passed": 86,
+        "failed": 0,
+        "knownGaps": [
+          "lexical memory recall on a paraphrased query"
+        ]
+      },
+      "replayPassed": 5
+    }
+  },
+  "remainingEvidence": [
+    "Real-model routing on unseen requests, including ambiguous references.",
+    "One continuous SMTP assignment with process restart, final-response loss and original-chat reconciliation.",
+    "Physical iPhone lock-screen approval over trusted HTTPS, Mac sleep/wake and a real 08:00 briefing."
+  ]
+}

@@ -1,7 +1,6 @@
 //! Connectors — the agent acting **in the world**, one human nod at a time.
 //!
-//! The local-first rule so far has been "draft, never send" (`send_message` → outbox).
-//! A connector is the exception, and it is fenced accordingly:
+//! The `send_message` tool produces a draft. Connectors deliver through the following controls:
 //!
 //!   1. **Off until configured.** No `<home>/connectors.json` → no connector tools exist;
 //!      the model cannot even see their names.

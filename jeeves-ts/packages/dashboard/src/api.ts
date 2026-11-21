@@ -40,6 +40,7 @@ import type {
 } from "./protocol";
 import { jsonEvents } from "../../client/src/event-stream.ts";
 import { t } from "./i18n.ts";
+import { hostedBase, loginPage } from "./hosted.ts";
 import { askDeploymentToken } from "./token-dialog.ts";
 
 /** One page of the `/api/fs` directory listing (ops's local view, not in the protocol). */
@@ -70,6 +71,12 @@ async function apiFetch(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
+  const base = hostedBase();
+  if (base) {
+    const response = await fetch(base + path, { ...init, credentials: "same-origin" });
+    if (response.headers.get("x-jeeves-session") === "required") location.replace(loginPage());
+    return response;
+  }
   const headers = new Headers(init.headers);
   const token = localStorage.getItem("jeeves-ops-token");
   if (token) headers.set("authorization", `Bearer ${token}`);

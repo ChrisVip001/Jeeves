@@ -849,3 +849,113 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
   .executor-banner { align-items: start; gap: 8px; }
   .executor-banner > svg { margin-top: 2px; }
 }
+
+.primary-navigation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 24px;
+  background: var(--surface-hover);
+}
+.primary-navigation button {
+  min-height: 36px;
+  padding: 5px 17px;
+  border-radius: 20px;
+  font-weight: 550;
+  color: var(--text-2);
+}
+.primary-navigation button[aria-current="page"] {
+  background: var(--surface);
+  box-shadow: 0 1px 3px var(--line);
+  color: var(--text);
+}
+.decision-count {
+  margin-inline-start: 6px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--bg);
+}
+.chat .bar { min-height: 60px; gap: 12px; padding: 8px clamp(12px, 3vw, 36px); }
+#primary-navigation { margin-inline-start: auto; }
+.chat .bar-actions { margin-left: 0; }
+.chat .bar-actions:not(:has(button:not([hidden]))) { display: none; }
+#executor-entry:empty, #chat-decisions:empty, #activity-view:empty { display: none; }
+#chat-decisions {
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto 8px;
+  max-height: 36dvh;
+  overflow: auto;
+  flex: none;
+}
+.chat-decisions { padding: 8px 12px; border-inline-start: 3px solid var(--accent); }
+.chat-decisions summary, .compose-options summary, .task-notice summary { cursor: pointer; }
+.chat-decisions .today-card { margin-top: 8px; }
+.task-notice .today-btn { margin: 7px 7px 0 0; }
+.compose-options { position: relative; }
+.compose-options > summary {
+  min-height: 32px;
+  padding: 5px 8px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+.compose-settings {
+  position: absolute;
+  z-index: 6;
+  inset: auto auto calc(100% + 8px) -35px;
+  width: max-content;
+  max-width: calc(100vw - 36px);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+}
+.compose-settings #composer-context { flex-wrap: wrap; }
+.compose-settings #composer-model { margin: 0; }
+#activity-view { flex: 1; min-height: 0; overflow-y: auto; }
+body.view-activity main.chat > :is(#messages, #status, .composer-wrap),
+body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; }
+.activity-page { max-width: 720px; margin: 0 auto; padding: clamp(28px, 6vw, 68px) 20px 40px; }
+.activity-page h1 { margin: 0 0 30px; font-size: clamp(27px, 4vw, 36px); line-height: 1.25; }
+.activity-group + .activity-group { margin-top: 32px; }
+.activity-group h2 { font-size: 14px; margin: 0 0 8px; }
+.activity-group h2 span { margin-left: 4px; font-size: 12px; color: var(--text-3); }
+.activity-task {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto 16px;
+  width: 100%;
+  align-items: center;
+  gap: 14px;
+  text-align: start;
+  padding: 14px 4px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+.activity-task:hover { background: var(--surface-hover); }
+.activity-task strong { overflow-wrap: anywhere; font-weight: 550; }
+.activity-task small { color: var(--text-2); max-width: 13em; overflow-wrap: anywhere; }
+.activity-task svg, .activity-back, .activity-empty { color: var(--text-2); }
+.activity-back { padding: 0 0 4px; }
+.chat:has(.welcome) .messages { flex: 0 1 auto; margin-top: auto; }
+.chat:has(.welcome) .composer-wrap { margin-bottom: auto; }
+@media (max-width: 640px) {
+  .primary-navigation button { padding-inline: 13px; min-height: 40px; }
+  .chat .bar { gap: 6px; flex-wrap: wrap; }
+  .chat .chat-heading { flex: 1; }
+  .chat .chat-heading h2 { max-width: 25vw; }
+  .chat .bar #executor-entry button { font-size: 0; gap: 0; min-width: 44px; min-height: 44px; }
+  .activity-task { gap: 8px; }
+  .activity-task small { max-width: 8em; }
+  .compose-options > summary { min-height: 44px; display: flex; align-items: center; }
+}
+.execution-details { margin: 24px 0; }
+.execution-details > summary { cursor: pointer; color: var(--text-2); padding: 8px 0; }
+.cowork-thread > .confirm { max-width: 760px; margin: 0 auto 16px; }
+@media (max-width: 640px) {
+  .sidebar .workspace-nav { display: grid; }
+  #sidebar #progress { display: flex; }
+}

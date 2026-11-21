@@ -16,6 +16,6 @@
   "engines": {
     "node": ">=20"
   },
-  "keywords": ["agent", "assistant", "local-first", "jeeves"],
+  "keywords": ["agent", "assistant", "long-running-tasks", "jeeves"],
   "files": ["install.js", "bin/jeeves.js", "README.md"]
 }

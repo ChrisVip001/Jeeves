@@ -73,7 +73,7 @@ export JEEVES_HOME=/srv/jeeves/.jeeves
 jeeves dashboard                          # → http://<server>:7777 (/api/* needs the Bearer token)
 ```
 
-- The page asks for the token once on the first 401 and keeps it in
+- The standalone dashboard asks for the token once on the first 401 and keeps it in
   localStorage; the static page itself needs no token (it must load before it
   can ask).
 - **No key files to copy**: put `"key_source": "env:DEEPSEEK_API_KEY"` in
@@ -82,9 +82,7 @@ jeeves dashboard                          # → http://<server>:7777 (/api/* nee
   disk, never in an `/api/*` response.
 - TLS belongs to a reverse proxy (Caddy / nginx terminate HTTPS); Jeeves speaks
   plain HTTP.
-- Product boundary: the server runs **orchestration**; connectors and MCP
-  servers stay on the user's own device (local-first / no sandbox, no
-  execution) — never put user-configured extensions on a shared server.
+- Stdio MCP servers execute on the Runtime host. HTTP MCP servers execute at their configured endpoints. On shared infrastructure, isolate each user’s Runtime and tools. [Hosted deployment](../control-plane/README.md)
 
 ## MCP servers
 
@@ -208,11 +206,13 @@ installs the front-end dependencies, `just desktop-build` bundles the release `j
 into the app, `just desktop-dev` runs it in development, and `just desktop-build-browser`
 adds the optional task-browser runtime prepared by `just browser-runtime`.
 
+For everyday use and joint testing, run `just desktop-open` or double-click the checkout’s `desktop/src-tauri/target/release/bundle/macos/Jeeves.app` in Finder. Both open the same application bundle. If it is already running, macOS brings its window forward with the current Runtime, login and conversation. The command builds the bundle if it is missing. Use `just desktop-build` when you need to rebuild it after a code change.
+
 Double-clicking the Mac app starts its bundled Runtime. With Finder’s root working directory and no explicit `JEEVES_HOME`, the app in the repository build output reuses the checkout’s existing `.jeeves` directory. An installed copy defaults to `~/.jeeves`. Set `JEEVES_HOME` explicitly when launching from a terminal to select a different profile.
 
 The Mac app and desktop and mobile web views share the [Teal palette](design/today-preview.html#p=teal&f=sans) and follow the device’s light or dark appearance.
 
-The top-left Assistant and Cowork switch stays under your control. Assign work in the main chat and keep talking there. Recent activity opens the original task. In Cowork, select its conversation to read the full history or send a follow-up. Pending questions and completion summaries return to the main chat.
+The app opens in Chat. Activity opens the task conversations for this account. [Chat and Activity](design/main-entry.md)
 
 To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `jeeves-rs/target/acceptance/mac-cockpit/<run>/`.
 
@@ -396,6 +396,8 @@ For a paused task or one needing attention, choose **Review operations**. Check 
 SDK hosts can inspect and reconcile through the [operation protocol](protocol.md#operation-journal-and-human-reconciliation). Re-read the checkpoint digest after another operation is reconciled. Do not use reconciliation to manufacture a successful `toolsOk` measurement or provider idempotency guarantee.
 
 ## Running Jeeves for many users
+
+Use the account gateway as the public entry for phone and Mac clients. The [gateway guide](../control-plane/README.md) covers login, private Runtime routing, TLS and the existing single-Runtime deployment option.
 
 Jeeves itself is single-tenant: one `JEEVES_HOME` is one tenant. For a hosted service, run one Pod
 and one volume per user and put the [control plane](../control-plane/README.md) in front:

@@ -615,13 +615,13 @@ pub(crate) async fn resume_turn(
         .and_then(|task| task.cwd.as_deref())
         .map(std::path::PathBuf::from);
     let frame = TurnFrame {
+        interaction_tool: None,
         session_id: &session_id,
         turn_id: &turn_id,
         sink,
         interrupt: Some(interrupt.clone()),
         worktree: crate::task::worktree::owned(&server.settings().home, task.as_ref()),
         turn_cwd: cwd.clone(),
-        route_reason: None,
         resume: Some(jeeves_loop::Resume {
             round_id: round_id.clone(),
             messages,
@@ -657,8 +657,10 @@ pub(crate) async fn resume_turn(
                     server,
                     resolved: &resolved,
                     task: task.clone(),
+                    assignment: &row.user_message,
                     run_id: run_id.clone(),
                     frame: TurnFrame {
+                        interaction_tool: None,
                         session_id: &session_id,
                         turn_id: &turn_id,
                         sink,
@@ -668,7 +670,6 @@ pub(crate) async fn resume_turn(
                             task.as_ref(),
                         ),
                         turn_cwd: cwd.clone(),
-                        route_reason: None,
                         resume: None,
                         checkpoint: Some(crate::turn::checkpoint_outlet(
                             server,

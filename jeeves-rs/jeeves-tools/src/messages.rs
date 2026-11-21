@@ -1,8 +1,6 @@
 //! send_message — drafts only, never actually sends.
 //!
-//! The local-first hard rule: every "message" becomes a file in outbox/, which the user
-//! reads, edits, and sends themselves. Wiring up real channels (email, Slack) is a good
-//! community contribution — until then, an assistant that sends for you is a hazard.
+//! The outbox holds message drafts for review. Configured connectors handle delivery.
 
 use std::sync::Arc;
 

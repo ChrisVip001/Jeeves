@@ -2,7 +2,7 @@
 
 English | [简体中文](guide.zh.md)
 
-Jeeves is a personal assistant that remembers you, works on your machine and reaches you where you already are. This page goes from nothing to a useful setup: models, permissions, chat channels, memory, skills, schedules, credentials, the inbox, and moving your data between machines. Everything below is a screen in the dashboard unless a command is shown.
+Jeeves carries assignments across conversations and work sessions. Choose where to run the Runtime, then connect the model and tools your tasks need. This page goes from nothing to a useful setup: models, permissions, chat channels, memory, skills, schedules, credentials, the inbox, and moving your data between machines. Everything below is a screen in the dashboard unless a command is shown.
 
 ## 1. Install
 

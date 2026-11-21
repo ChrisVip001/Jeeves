@@ -1,32 +1,48 @@
-# Jeeves control plane
+# Jeeves account gateway
 
-The cloud shell around the unchanged Jeeves engine: **one Pod and one volume per user** (silo
-multi-tenancy). No dependencies; Node ≥ 22.18 runs the TypeScript directly.
+English | [简体中文](README.zh.md)
 
-| Piece | File | Does |
-|---|---|---|
-| Accounts | `src/accounts.ts` | email + scrypt password, signed session cookie, per-user ops and model tokens, monthly usage ledger |
-| Manifests | `src/manifests.ts` | Secret + PVC + Deployment (`Recreate`, replicas 1 awake / 0 asleep) + Service per user |
-| Cluster | `src/cluster.ts` | `kubectl apply/scale/delete`; an in-memory twin for tests |
-| Model proxy | `src/proxy.ts` | `/v1/*`: checks the per-user token and monthly quota, adds the platform key, counts tokens |
-| Server | `src/server.ts` | register/login, `/app/*` routed to the user's own Pod, wake on demand, idle sleep |
+Open `/account/` on the gateway's HTTPS origin to sign in. The account center shows the email address, creation date, included model usage where applicable, and signed-in sessions. Open **My assistant** to enter the workspace. Signing out a session closes its active Runtime streams. Changing the password requires the current password and signs out every session. A session label describes the browser's reported platform. Signed device grants and approvals are checked separately by the Runtime.
 
-Rules that hold the design together:
+## Connect a phone or Mac
 
-- **The platform model key never enters a user Pod.** The Pod gets its own ops token and a
-  per-user model token; `models.json` points at this proxy and names the token by `env:` pointer.
-  A test fails if a key-shaped field appears in the rendered manifests.
-- **Sleep keeps the volume.** Accounts with no active app writes and only terminal tasks across all task-list pages can scale to zero. A failed task check keeps the Pod awake. Idle accounts scale to zero (`CP_IDLE_MINUTES`, default 20) after
-  Jeeves's own 25 s drain; the next request wakes the Pod. `alwaysOn` accounts are skipped, which is
-  how schedules and chat channels stay up 24 h.
-- **Over quota, say so.** The proxy answers 429 with "add your own model key in Settings → Models";
-  a user who adds their own key bypasses the platform quota entirely.
-- **Moving house**: `jeeves home export <dir>` locally, `jeeves home import <dir>` in the Pod (and the
-  reverse). Keys and sign-ins are given again; they are never exported.
+On iOS, open the address in Safari, sign in and open the assistant. Add the **workspace** to the Home Screen to install its PWA. The installed app may ask for its own login. On Mac, use **Settings → General → Account server address** in the dashboard, or launch the desktop shell with `JEEVES_RUNTIME_URL=https://jeeves.example.com` to open the gateway at startup. Each client gets its own revocable session. Logging in with the same account opens the same tasks.
 
-Configuration (environment): `CP_SESSION_SECRET`, `CP_IMAGE`, `CP_MODEL_URL`, `CP_MODEL_UPSTREAM`,
-`CP_MODEL_KEY`, optional `CP_STATE`, `CP_NAMESPACE`, `CP_IDLE_MINUTES`, `CP_MONTHLY_TOKENS`, `CP_PORT`.
-Deploy with `deploy/k8s/control-plane.yaml`. Test: `npm test` in this directory.
+## Route an authenticated request
 
-Not here yet: payment, email verification, a UI (the endpoints are the contract), TLS (terminate at
-your ingress), per-user network policy (add one denying Pod-to-Pod traffic in your cluster).
+The Node control plane serves the trusted dashboard build. It validates an opaque session cookie, compares the account in `/app/<account-id>/api/*` with the session owner, then injects that owner's Runtime bearer on the private hop. The browser receives a Secure, HttpOnly, SameSite=Lax, host-only cookie with a 14-day absolute expiration. Its value stays out of browser storage and the Runtime. Unsafe browser requests are checked against `CP_PUBLIC_ORIGIN`. The gateway keeps the password verifier, session digests and ops/model tokens out of account API responses. Login remains separate from approval for actions and device pairing.
+
+| Entry | Access and result |
+|---|---|
+| `POST /api/register`, `/api/send-verification`, `/api/forgot` | Submit an email address. Eligible recipients receive a link. Public registration is available in per-user Pod mode. |
+| `POST /api/verify`, `/api/reset` | Submit email, link token and password. Verification creates an account or checks the existing password. Reset revokes every session and preserves the second factor. |
+| `POST /api/login` | Submit email and password. If the response requests a factor, repeat with an authenticator or recovery code. The final response sets the session cookie. |
+| `POST /api/account/factor/{start,confirm,disable}` | A verified session and current password are required. Confirm with a time-based code. Disable with a current code or a recovery code. |
+| `GET /api/account` | Account, workspace path, current session and the owner's other sessions. |
+| `POST /api/logout`, `DELETE /api/account/sessions/<id>` | Revoke the current session or one of the owner's sessions. |
+| `POST /api/account/password` | JSON `current` and `replacement`. Update the password and revoke sessions in one write. |
+| `/app/<account-id>/` | The dashboard and its streaming API. The gateway serves application code from its own bundle. |
+| `/v1/*` | In Pod mode the model proxy checks the Pod's model token and monthly quota and adds the platform's provider credential. |
+
+## Deploy the gateway
+
+Use Node 22.18 or later. Run `just dashboard-build` from the repository root, or build the gateway image with `docker build -f control-plane/Dockerfile -t jeeves-control-plane .` from that root. Set `CP_PUBLIC_ORIGIN` to the external HTTPS origin. Set independent, cryptographically random `CP_SESSION_SECRET` and `CP_STATE_KEY` values of at least 32 bytes through your secret manager. Mount a writable persistent directory for `CP_STATE` and run one gateway writer. `CP_PORT`, `CP_BIND` and `CP_DASHBOARD_DIR` override the listener and frontend bundle location. The TLS ingress must preserve the public Host and **overwrite** X-Forwarded-Proto with the actual scheme. Keep the gateway listener and Runtime endpoints off the public network. Redirect or reject HTTP at the ingress before displaying the login page.
+
+**One existing Runtime.** Configure `CP_SINGLE_RUNTIME_URL`, `CP_SINGLE_RUNTIME_TOKEN` matching the Runtime's `JEEVES_OPS_TOKEN`, and `CP_OWNER_EMAIL`. With an empty account store, only the designated `CP_OWNER_EMAIL` can register through email verification. Alternatively, bootstrap the owner with `CP_OWNER_PASSWORD` and remove it after initialization. Set both `CP_TLS_CERT` and `CP_TLS_KEY` to terminate HTTPS at the gateway. Bind to `127.0.0.1` for a single-machine deployment. The waiting screen accepts the received email link for verification or recovery in the same Mac window. Start with `node control-plane/src/server.ts`. This mode uses one owner, disables public registration and leaves the existing Runtime running. The backend URL accepts an HTTPS origin or HTTP on loopback. A standalone dashboard opened directly still uses its original access policy. Publish only the account gateway when login is required.
+
+**A Runtime per account.** Set `CP_IMAGE`, `CP_MODEL_URL` (Pod-to-model proxy), `CP_MODEL_UPSTREAM` (provider HTTPS endpoint) and `CP_MODEL_KEY`. Configure `CP_NAMESPACE`, `CP_IDLE_MINUTES` and `CP_MONTHLY_TOKENS` as needed. Replace the example domain, images and TLS secret in the [Kubernetes manifest](../deploy/k8s/control-plane.yaml). Select your ingress controller and enable HTTP-to-HTTPS handling. Each owner gets a Pod, a Service, a Secret and a persistent volume. The included ingress NetworkPolicy requires a CNI that enforces policies. Idle scale-down keeps the volume, checks every task-list page and skips active work and always-on accounts. A failed initial provisioning can be retried on workspace access. Migration of task data is covered in the [operations guide](../docs/operations.md).
+
+## Encryption and upgrades
+
+- **Transport.** Use a publicly trusted certificate, prefer TLS 1.3 and support TLS 1.2 for compatible clients. Configure upstream certificate verification and streaming timeouts at the ingress. The gateway sends HSTS. Kubernetes service DNS and NetworkPolicy do not encrypt traffic. In an Istio-enabled cluster enroll the ingress, control plane and tenants in the mesh, configure the ingress to use mesh mTLS to the control plane, and apply the [strict mTLS overlay](../deploy/k8s/runtime-mtls.yaml). Adjust the service identity for a custom trust domain. Verify mesh certificates, an authorized connection and denial of plaintext before publishing. [TLS guidance](https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html) · [Istio peer authentication](https://istio.io/latest/docs/reference/config/security/peer_authentication/)
+- **Storage.** Passwords use salted scrypt. Account state uses AES-256-GCM with a fresh nonce per save and a key derived from `CP_STATE_KEY`. Session tokens use 32 random bytes and the store holds keyed digests. Back up the encrypted account file and protect the encryption key separately. Rotating the session secret invalidates existing cookies. Changing the state key requires re-encryption or recovery with the original key. Logs, Runtime SQLite, attachments, volume snapshots and backups need their own storage encryption and access policy. Enable KMS-backed volume encryption and encryption of Kubernetes Secrets at rest. [Kubernetes storage encryption](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/)
+- **Trust.** The cloud Runtime and configured model providers process the task content they receive in plaintext. TLS and storage encryption protect different hops and media. A future native iOS or Mac OAuth client should use system-browser authorization code with PKCE and Keychain for refresh credentials. The current clients use first-party web sessions. [Native-app OAuth](https://datatracker.ietf.org/doc/html/rfc8252)
+- **Legacy account store.** Stop the old gateway, make a protected backup, configure both secrets and the existing `CP_STATE` path, then run `node control-plane/src/server.ts --migrate-accounts`. The migration atomically replaces the legacy plaintext file and preserves passwords, usage and tenant identifiers. Users sign in again. Retire old plaintext backups according to your retention policy.
+
+## Verify email, recover access and use two factors
+
+Configure `CP_MAIL_FROM` with the authentication sender. For an existing mailbox, set `CP_SMTP_URL` (for example `smtps://smtp.qq.com:465`), `CP_SMTP_USER` and `CP_SMTP_PASSWORD` using the mailbox provider’s app password. With QQ Mail, set `CP_SMTP_AUTH=LOGIN`. The SMTP transport requires curl 8.3 or later, verifies the TLS certificate and submits one message per request. Keep these credentials in the gateway secret manager. For Resend, leave `CP_SMTP_URL` unset, verify the sending domain and provide a send-only `CP_RESEND_API_KEY`. Disable click tracking on authentication messages to preserve private URL fragments. The first link lets the mailbox owner choose the password before Jeeves creates a workspace. Existing and bootstrapped single-owner accounts verify their mailbox using the current password before workspace access. Verify existing addresses before relying on self-service password recovery. Email links expire after 15 minutes. Consuming one invalidates links for the previous account state. An expired link can be requested again. [Resend email API](https://resend.com/docs/api-reference/emails/send-email)
+
+From the account center, enter the current password, add the setup key to a time-based authenticator, confirm a six-digit code and save the eight single-use recovery codes separately. Enabling or disabling the factor signs out other sessions. If the authenticator is lost, sign in with the password and a recovery code, then replace the factor. Resetting a password by email keeps the factor enabled. Without the authenticator or a recovery code there is no self-service factor override. [Time-based one-time passwords](https://www.rfc-editor.org/rfc/rfc6238)
+
+Run `npm test` here for identity and proxy tests. From the repository root, `just smoke-account` exercises fixture HTTPS, a test inbox, authenticator and recovery codes, desktop and phone-sized browsers, and a real Runtime.

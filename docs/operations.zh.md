@@ -65,14 +65,13 @@ export JEEVES_HOME=/srv/jeeves/.jeeves
 jeeves dashboard                          # → http://<服务器>:7777（/api/* 需要 Bearer token）
 ```
 
-- 页面首次 401 时会问一次 token，之后存在浏览器 localStorage；静态页本身
+- 直接访问独立工作台时，首次 401 会问一次 token，之后存在浏览器 localStorage；静态页本身
   不需要 token（先能加载，才能问）。
 - **key 不用拷文件**：`models.json` 里写 `"key_source": "env:DEEPSEEK_API_KEY"`，
   在服务器的环境里 export 这个变量即可。key 只在跑那一轮的进程内存里被读到，
   永不落盘，也永远不会出现在 `/api/*` 的应答里。
 - TLS 交给反向代理（Caddy / nginx 终结 HTTPS），Jeeves 自己只说 HTTP。
-- 产品边界：服务器跑的是**编排**；连接器与 MCP 服务器留在用户自己的设备上
-  （本地优先 / 无沙箱不执行），不要把用户自配的外挂放上共享服务器。
+- stdio MCP 服务在 Runtime 宿主执行，HTTP MCP 服务在配置的端点执行。使用共享基础设施时，按用户隔离 Runtime 与工具。[托管部署](../control-plane/README.zh.md)
 
 ## MCP 外挂
 
@@ -184,11 +183,13 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 桌面壳（`desktop/`，Tauri）启动 `jeeves dashboard` 并加载它的地址；设 `JEEVES_RUNTIME_URL` 则改为接入已在运行的 Runtime。`just desktop-install` 装前端依赖，`just desktop-build` 把 release 版 `jeeves` 打进应用，`just desktop-dev` 用于开发，`just desktop-build-browser` 再加上 `just browser-runtime` 准备好的可选任务浏览器运行时。
 
+日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
+
 双击 Mac 应用会自动启动内置后台。Finder 从根目录启动且未指定 `JEEVES_HOME` 时，仓库构建目录中的应用会沿用仓库已有的 `.jeeves`。安装到「应用程序」的副本默认使用 `~/.jeeves`。从终端启动时也可以用 `JEEVES_HOME` 明确指定其他数据目录。
 
 Mac 应用、桌面网页和手机网页共用[黛青色板](design/today-preview.html#p=teal&f=sans)，随各自设备切换亮色和暗色。
 
-用左上角的「助理 / Cowork」手动切换。主聊天交办任务后可继续聊天，近期活动指向原任务。在 Cowork 中选择任务可阅读完整会话并补充要求。等待决定的问题和完成摘要会回到主聊天。
+应用打开后进入「对话」。在「动态」里可以打开当前账号的任务。[对话与动态](design/main-entry.zh.md)
 
 在 Mac 的仓库目录运行 `just smoke-mac-cockpit` 可复验桌面端。命令会构建 Jeeves.app，在自己的前台窗口中操作主聊天和 Cowork；运行时使用临时目录，模型和发布服务均由本机模拟。测试随后退出并重新打开应用，用同一份临时数据核对任务 ID、完整会话和唯一的完成摘要。运行终端需已有辅助功能权限。若已有屏幕录制权限，测试会将 Jeeves 单窗口截图和 JSON 报告一起保存在 `jeeves-rs/target/acceptance/mac-cockpit/<运行时间>/`。
 
@@ -354,5 +355,7 @@ SDK 宿主使用鉴权的 `task/wait` 和 `task/signal` 方法，详见[协议](
 SDK 宿主通过[操作协议](protocol.zh.md#操作日志与人工核对)检查和结算。每结算一个操作后重新读取检查点摘要。核对不可伪造 `toolsOk` 成功测量，也不构成服务端幂等保证。
 
 ## 给多个用户运行 Jeeves
+
+手机和 Mac 使用账号网关作为公网入口。[账号网关手册](../control-plane/README.zh.md)包含登录、私网 Runtime 路由、TLS，以及给已有单个 Runtime 加登录的方法。
 
 Jeeves 本身是单租户：一个 `JEEVES_HOME` 就是一个租户。做托管服务时，每个用户一个 Pod 加一块卷，前面放[控制面](../control-plane/README.zh.md)：它负责注册、唤醒与休眠 Pod，并通过代理计量模型用量，平台密钥因此不会进用户 Pod。每租户上限用 `JEEVES_MAX_TURNS`（并发回合数，最大 64）与 `JEEVES_HOME_MAX_MB`，默认都是 `0`（不设上限），超限的新回合会报错拒绝；`/healthz` 做探针，SIGTERM 会用 25 秒排空回合。

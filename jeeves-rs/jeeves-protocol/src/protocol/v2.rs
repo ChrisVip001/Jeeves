@@ -593,7 +593,7 @@ pub struct AgentTaskView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     pub title: String,
-    /// The goal loop's condition. Absent = a single-turn task: done when the turn is.
+    /// Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub goal_condition: Option<String>,
     pub status: String,
@@ -610,7 +610,7 @@ pub struct AgentTaskView {
     /// Why it stopped last time — the card's footnote, never guessed from the status.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_stop_reason: Option<String>,
-    /// What must be measurably true. Empty = no objective conditions (single-turn task).
+    /// What must be measurably true. An empty list provides no independent acceptance evidence.
     #[serde(default)]
     pub acceptance: Vec<AcceptanceView>,
     /// The latest verdict per condition, same order as `acceptance`.
@@ -655,7 +655,7 @@ pub struct TaskCreateParams {
     pub session_id: Option<String>,
     /// What this task is, in the human's words — the card's first line.
     pub title: String,
-    /// The goal condition that keeps the loop going. Absent = single-turn task.
+    /// Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
     #[serde(default)]
     pub goal_condition: Option<String>,
     /// Per-task round cap; absent = `JEEVES_GOAL_MAX_ROUNDS`.
@@ -1219,6 +1219,14 @@ pub struct Message {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub source: Option<String>,
+    /// Original task for a decision or completion notice in its owner's chat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub task_id: Option<String>,
+    /// Outcome of the run that issued this receipt, even after the task runs again.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub receipt_status: Option<String>,
     pub role: MessageRole,
     pub content: String,
     /// ISO 8601 (UTC). When it was written.

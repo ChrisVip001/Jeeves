@@ -142,7 +142,7 @@ pub(crate) async fn start_once(
         eprintln!("(jeeves) turn/start {request} was already received; replaying its result");
         return receipt::replay(server, (&session, &key), &input, id, sink).await;
     }
-    let result = receipt::recorded(server, (&session, &key), params, id, sink).await;
+    let result = receipt::recorded(server, (&session, &key), params, id, sink, None).await;
     if let Err(error) = &result {
         if let Err(failure) =
             jeeves_state::interactions::fail(&server.pool, &session, &key, &error.message).await
@@ -217,17 +217,8 @@ async fn execute(
     if !may_dispatch {
         eprintln!("(jeeves) a message from outside the dispatchers gets a conversation without the task tool");
     }
-    *server
-        .interaction_tool
-        .lock()
-        .expect("interaction tool lock") =
-        may_dispatch.then(|| task_tool::build(server.clone(), p.clone(), sink.clone()));
-    let result = receipt::conversation(server, p, id, sink).await;
-    *server
-        .interaction_tool
-        .lock()
-        .expect("interaction tool lock") = None;
-    result
+    let tool = may_dispatch.then(|| task_tool::build(server.clone(), p.clone(), sink.clone()));
+    receipt::conversation(server, p, id, sink, tool.as_ref()).await
 }
 
 /// Local views (no source) are the owner; a chat sender must be on the dispatcher list.

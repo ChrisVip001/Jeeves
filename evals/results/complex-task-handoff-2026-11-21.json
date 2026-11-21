@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-21",
+  "scope": "Working tree, scripted provider, real Jeeves task execution, workspace files and SQLite receipts. Recovery smoke uses separate processes and controlled external effects.",
+  "entryPoint": "interaction/start",
+  "cases": [
+    {
+      "input": "请把复盘写进 review.md，报告必须包含「12 次事件」。",
+      "test": "a_main_chat_deliverable_is_checked_and_repaired_in_the_same_task",
+      "before": "The checked handoff was rejected and no task was created.",
+      "after": {
+        "tasksCreated": 1,
+        "unrequestedPathRejected": true,
+        "workerFirstReply": "报告已完成。",
+        "firstFileCheck": "failed, file absent",
+        "humanApprovalsForCorrection": 1,
+        "secondFileCheck": "passed",
+        "deliveredFile": "review.md",
+        "observedFileContent": "本期共有 12 次事件。",
+        "followUp": "The conversational follow-up reused the task. Its new run was recorded as produced_unverified. The first run kept its original verification receipt."
+      }
+    },
+    {
+      "test": "long-assignment-survives-correction-and-restart",
+      "reproduce": "jeeves eval evals/deterministic/task-assignment.jsonl",
+      "before": "The recovered request omitted the original anonymization constraint.",
+      "after": "The recovered request contained ORCHID-47. The /count value in metrics.json equalled 12 and review.md contained the required text."
+    },
+    {
+      "test": "a_chat_follow_up_cannot_clear_an_explicit_task_api_contract",
+      "after": "Main chat could not reopen a completed checked task created through the explicit task API. Its contract and one run were preserved."
+    }
+  ],
+  "validation": {
+    "justCheckExitCode": 0,
+    "rustWorkspace": {"passed": 1114, "failed": 0, "ignored": 4},
+    "deterministicEval": {"passed": 87, "failed": 0, "knownGaps": 1},
+    "replayEval": {"passed": 5, "failed": 0},
+    "longTaskBench": {"met": 11, "total": 11, "resumed": 3, "resumeAttempts": 3},
+    "processRecoverySmoke": {"passed": 8, "total": 8},
+    "mainInteractionSmoke": "passed",
+    "webSmoke": "passed"
+  },
+  "notMeasured": [
+    "Real-model selection of all necessary checks from an unseen assignment",
+    "Semantic accuracy of a research report",
+    "Actual overnight execution or equivalence of hosted deployments"
+  ]
+}

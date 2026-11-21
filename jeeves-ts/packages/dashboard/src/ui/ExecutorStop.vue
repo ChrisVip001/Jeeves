@@ -21,7 +21,7 @@ const t = useUiText();
       type="button"
       class="executor-stop ghost"
       :disabled="busy"
-      :title="t('立即停止本机 Jeeves 的所有浏览器和桌面操作')"
+      :title="t('立即停止此 Runtime 的所有浏览器和桌面操作')"
       @click="$emit('stop')"
     >
       <OctagonPause :size="16" aria-hidden="true" />{{ t("全局急停") }}
@@ -39,7 +39,7 @@ const t = useUiText();
           view?.stopped ? t("全局急停已开启") : t("无法读取急停状态")
         }}</strong>
         <p v-if="view?.stopped">
-          {{ t("本机 Jeeves 的浏览器和桌面操作已停止。解除后需要重新观察。") }}
+          {{ t("此 Runtime 的浏览器和桌面操作已停止。解除后需要重新观察。") }}
         </p>
       </div>
       <button

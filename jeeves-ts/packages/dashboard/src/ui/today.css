@@ -675,8 +675,7 @@ body:is(.view-assistant,.view-cowork) .sidebar .conversations { display: none; }
 .mode-task-list button[aria-current="page"] { background: var(--surface); }
 .mode-task-list button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .mode-task-list small,.cw-meta,.cw-feedback,.cw-empty p { font-size: 12px; color: var(--text-2); }
-.view-cowork :is(#today-entry,#new-session,#task-progress-entry,.workspace-nav,.capabilities),
-.view-cowork main.chat > :is(#today-view,#messages,#status,.composer-wrap) { display: none; }
+.view-cowork main.chat > :is(#activity-view,#messages,#status,.composer-wrap) { display: none; }
 .view-cowork .bar :is(.chat-heading,.bar-actions) { display: none; }
 .view-cowork #executor-entry { margin-inline-start: auto; }
 #cowork-view { display: none; }

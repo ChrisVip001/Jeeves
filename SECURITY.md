@@ -2,9 +2,7 @@
 
 English | [简体中文](SECURITY.zh.md)
 
-Jeeves runs on the user's own machine, with the user's own API keys, touching the
-user's own data. The following is the complete security model — every item is
-a structural guarantee, not a convention.
+Each Runtime controls its task store, workspace and configured credentials. The host can be a personal computer, a self-hosted server or an isolated per-user workload. Model requests and approved connector operations can cross the host boundary.
 
 ## Credential handling
 
@@ -84,6 +82,8 @@ The full list, with the file to open for each, is
   explicitly runs `jeeves mcp login`.
 
 ## Gateways
+
+The account gateway binds a first-party login to one Runtime. Its owner session, the Runtime bearer and device approval grants have different lifetimes. Deployment, encryption keys and session revocation are documented in the [account gateway guide](control-plane/README.md).
 
 * Lark and WeChat: without the `LARK_ALLOW` / `WECHAT_ALLOW` allowlist anyone can talk —
   startup behavior and docs both say so explicitly.

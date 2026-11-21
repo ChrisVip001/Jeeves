@@ -6,3 +6,11 @@ jeeves-ts/**/dist/
 .git/
 **/*.db
 **/__pycache__/
+**/.env
+**/.env.local
+**/control-plane.json
+**/control-plane.json.tmp
+desktop/src-tauri/target/
+desktop/src-tauri/browser-runtime/
+.claude/
+.codegraph/

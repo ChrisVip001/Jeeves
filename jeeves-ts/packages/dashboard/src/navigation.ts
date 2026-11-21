@@ -15,7 +15,9 @@ export function setupNavigation(
   document.querySelectorAll("[data-sidebar-toggle]").forEach((button) =>
     button.addEventListener("click", () => {
       if (!narrow.matches) {
-        document.body.classList.toggle("sidebar-closed");
+        const closed = document.body.classList.toggle("sidebar-closed");
+        document.querySelectorAll("[data-sidebar-toggle]").forEach(toggle => toggle.setAttribute("aria-expanded", String(!closed)));
+        document.querySelector<HTMLButtonElement>(closed ? ".mobile-menu" : ".rail-toggle")?.focus();
         return;
       }
       if (document.body.classList.contains("mobile-sidebar")) {
@@ -52,7 +54,7 @@ export function setupNavigation(
     ) {
       const buttons = [
         ...document.querySelectorAll<HTMLButtonElement>(
-          ".sidebar button:not(:disabled)",
+          ".sidebar button:not(:disabled), .sidebar a[href]",
         ),
       ].filter((item) => item.getClientRects().length > 0);
       const first = buttons[0],

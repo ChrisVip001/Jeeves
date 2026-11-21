@@ -222,9 +222,6 @@ pub struct Server {
     /// Turns a human just asked to suspend (`task/suspend`): at finalize time the checkpoint is
     /// kept as `suspended` instead of `abandoned` — pausing is not stopping.
     pub(crate) suspending: Arc<Mutex<HashSet<String>>>,
-    /// The `task` tool of the interaction now running on the main session (see `interaction/task_tool.rs`).
-    /// Present only while a human message is being handled, so no other turn can hand off work.
-    pub(crate) interaction_tool: Arc<Mutex<Option<jeeves_tools::Tool>>>,
     /// Multiple model profiles (`<home>/models.json`) and the credentials backend (see models.rs).
     /// Switching models = edit here + re-resolve the provider, no restart.
     pub(crate) models: models::Models,

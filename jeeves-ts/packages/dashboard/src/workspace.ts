@@ -1,3 +1,4 @@
+import { accountStorage } from "./hosted.ts";
 import { phoneLayout } from "./phone";
 import {
   closeMobileNavigation,
@@ -15,7 +16,7 @@ import {
 import { preferenceRequest } from "./api";
 import { webTasks } from "./tasks";
 import { submissionTracker } from "./ui/submission.ts";
-const submissions = submissionTracker(localStorage);
+const submissions = submissionTracker(accountStorage);
 
 import type {
   AgentTaskView,
@@ -120,7 +121,7 @@ import {
  * a fresh browser and a fresh terminal meet in the same conversation.
  */
 const SESSION_KEY = "jeeves.session";
-let current = localStorage.getItem(SESSION_KEY) ?? "default";
+let current = accountStorage.getItem(SESSION_KEY) ?? "default";
 
 /** Ids the last `refresh()` saw, newest first. Boot uses this to tell "the remembered
  *  session still exists" from "it was deleted since" — opening a session the list no longer
@@ -130,7 +131,7 @@ let knownSessions: string[] = [];
 /** Switch the label *and* remember it. Every path that changes `current` goes through here. */
 function rememberSession(id: string): void {
   current = id;
-  localStorage.setItem(SESSION_KEY, id);
+  accountStorage.setItem(SESSION_KEY, id);
 }
 
 /**
@@ -215,7 +216,7 @@ const dom = {
  * by hand.
  */
 const WORKSPACE_KEY = "jeeves.workspace";
-let workspace: string | null = localStorage.getItem(WORKSPACE_KEY);
+let workspace: string | null = accountStorage.getItem(WORKSPACE_KEY);
 /** Where uploads land. Kept off-screen (config is not the point of this page), but needed to
  *  tell the model where to find a non-image attachment. */
 let jeevesHome = "";
@@ -223,8 +224,8 @@ let jeevesHome = "";
 function setWorkspace(path: string | null): void {
   workspace = path;
   webState.cwd = path ?? undefined;
-  if (path === null) localStorage.removeItem(WORKSPACE_KEY);
-  else localStorage.setItem(WORKSPACE_KEY, path);
+  if (path === null) accountStorage.removeItem(WORKSPACE_KEY);
+  else accountStorage.setItem(WORKSPACE_KEY, path);
 }
 
 let busy = false;
@@ -1009,7 +1010,7 @@ async function refresh(): Promise<void> {
     const selected = data.sessions.find((session) => session.id === current);
     dom.session.textContent =
       current === webState.mainSessionId
-        ? t("主会话")
+        ? "Jeeves"
         : selected?.messages
           ? selected.title
           : t("新会话");
@@ -2078,7 +2079,7 @@ async function open(sessionId: string): Promise<void> {
   webState.sessionId = sessionId;
   closeMobileNavigation();
   queuedMode = false;
-  dom.session.textContent = sessionId;
+  dom.session.textContent = sessionId === webState.mainSessionId ? "Jeeves" : sessionId;
   dom.older.hidden = true;
 
   void fetchSessionMeta(sessionId)
@@ -2115,7 +2116,7 @@ async function loadHistory(
 ): Promise<void> {
   const page = await fetchMessages(sessionId, cursor);
   if (sessionId !== current) return;
-  const nodes = [...page.data].reverse().map(messageRow);
+  const nodes = [...page.data].reverse().map(row => messageRow(row, webTasks.openReceipt));
   if (cursor === null) {
     historySession = sessionId;
     newestHistoryId = page.data[0]?.id ?? 0;
@@ -2158,7 +2159,7 @@ async function appendTaskNotices(): Promise<void> {
     for (const row of notices.reverse()) {
       if (dom.messages.querySelector(`[data-notice-id="${row.id}"]`)) continue;
       dom.messages.querySelector(".welcome")?.remove();
-      dom.messages.append(messageRow(row));
+      dom.messages.append(messageRow(row, webTasks.openReceipt));
     }
     newestHistoryId = latest;
     if (notices.length && followingLatest) pinToEnd();

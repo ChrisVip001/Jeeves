@@ -760,28 +760,7 @@ export function welcome(): HTMLElement {
       "aria-hidden": "true",
     }),
     el("h1", { class: "welcome-title", text: t("你好，今天想做点什么？") }),
-    el("p", {
-      class: "welcome-sub",
-      text: t("把想法、问题或手头的工作交给 Jeeves，我们从一段简单的对话开始。"),
-    }),
-    el(
-      "div",
-      { class: "welcome-suggestions" },
-      ...[t("整理工作思路"), t("分析一个问题")].map((label) =>
-        el("button", {
-          type: "button",
-          text: label,
-          onclick: () => {
-            const input = document.querySelector<HTMLTextAreaElement>("#input");
-            if (input) {
-              input.value = label;
-              input.dispatchEvent(new Event("input"));
-              input.focus();
-            }
-          },
-        }),
-      ),
-    ),
+
   );
 }
 
@@ -821,19 +800,48 @@ export function attachmentStrip(
  * refresh a message shouldn't look like a different client — they're two sources of one talk.
  */
 export function taskNotice(message: Message): "task_decision" | "task_completion" | undefined {
-  const source = (message as Message & { source?: string }).source;
+  const source = message.source;
   return source === "task_decision" || source === "task_completion" ? source : undefined;
 }
 
-export function messageRow(message: Message): HTMLElement {
+export function taskNoticeHeading(message: Message): string {
+  if (message.source === "task_decision") return t("审批记录");
+  switch (message.receiptStatus) {
+    case "done": return t("验收通过");
+    case "produced_unverified": return t("已生成，待验收");
+    case "failed": return t("执行失败");
+    case "cancelled": return t("已取消");
+    default: return t("任务回执");
+  }
+}
+
+export function messageRow(message: Message, openTask: (id: string, destination?: "detail" | "reply") => Promise<boolean>): HTMLElement {
   const notice = taskNotice(message);
   if (notice) {
     const decision = notice === "task_decision";
     const row = el("div", { class: `msg jeeves task-notice ${notice}` },
-      el("strong", { text: decision ? t("等你决定") : t("已完成") }),
-      el("div", { class: "bubble", text: message.content }));
+      el("strong", { text: taskNoticeHeading(message) }),
+      decision
+        ? el("details", {}, el("summary", { text: t("查看原始请求") }), el("div", { class: "bubble", text: message.content }))
+        : el("div", { class: "bubble", text: message.content }));
+    const taskId = message.taskId;
+    if (taskId) {
+      const status = el("span", { role: "status" });
+      const button = el("button", { type: "button", class: "today-btn", text: t("查看任务对话") });
+      button.addEventListener("click", async () => {
+        status.textContent = await openTask(taskId) ? "" : t("暂时无法打开原任务，请重试。");
+      });
+      row.append(button);
+      if (message.receiptStatus === "done" || message.receiptStatus === "produced_unverified") {
+        row.append(el("button", { type: "button", class: "today-btn", text: t("继续这件事"), onclick: async () => {
+          if (await openTask(taskId, "reply")) document.querySelector<HTMLTextAreaElement>("#input")?.focus();
+          else status.textContent = t("暂时无法跟进，请查看任务对话。");
+        } }));
+      }
+      row.append(status);
+    }
     row.dataset.noticeId = String(message.id);
-    row.setAttribute("role", decision ? "alert" : "status");
+    row.setAttribute("role", "status");
     return row;
   }
   if (message.role === "user") {

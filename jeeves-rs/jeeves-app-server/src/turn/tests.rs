@@ -1492,10 +1492,10 @@ fn the_thin_soul_trades_scaffolding_for_tokens_and_a_user_edit_wins() {
         "the full seed should carry the complete rules: {full}"
     );
 
-    std::fs::write(home.join("SOUL.md"), super::prompt::LEGACY_SOULS[0])
-        .expect("write the previous default");
+    assert!(full.contains("复杂长任务"));
+    assert!(thin.contains("复杂长任务"));
     assert_eq!(crate::turn::load_soul(&home, true), thin);
-    assert!(thin.starts_with("你是 Jeeves"));
+    assert_eq!(std::fs::read_to_string(home.join("SOUL.md")).unwrap(), thin);
 
     std::fs::write(home.join("SOUL.md"), "Call me captain and nothing else.")
         .expect("write SOUL.md");

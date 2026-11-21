@@ -42,6 +42,7 @@ pub(super) async fn conversation(
     p: &InteractionStartParams,
     id: RequestId,
     sink: &EventSink,
+    interaction_tool: Option<&jeeves_tools::Tool>,
 ) -> Result<(), ErrorObject> {
     let params = TurnStartParams {
         session_id: Some(p.session_id.clone()),
@@ -50,7 +51,15 @@ pub(super) async fn conversation(
         attachments: p.attachments.clone(),
         ..Default::default()
     };
-    recorded(server, (&p.session_id, &p.message_id), params, id, sink).await
+    recorded(
+        server,
+        (&p.session_id, &p.message_id),
+        params,
+        id,
+        sink,
+        interaction_tool,
+    )
+    .await
 }
 
 /// Run one turn and keep its result and start/finish notifications under `(session, key)`,
@@ -61,6 +70,7 @@ pub(crate) async fn recorded(
     params: TurnStartParams,
     id: RequestId,
     sink: &EventSink,
+    interaction_tool: Option<&jeeves_tools::Tool>,
 ) -> Result<(), ErrorObject> {
     let (outlet, mut frames) = EventSink::channel();
     let (sender, receiver) = tokio::sync::oneshot::channel();
@@ -88,7 +98,8 @@ pub(crate) async fn recorded(
             }
         }
     });
-    crate::turn::run_turn(server, params, id.clone(), &outlet).await?;
+    crate::turn::run_turn_inner(server, params, id.clone(), &outlet, None, interaction_tool)
+        .await?;
     drop(outlet);
     let (result, events) = receiver.await.map_err(internal)?;
     finish(server, (session, key), &result, &events).await?;

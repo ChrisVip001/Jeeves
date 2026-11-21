@@ -2,8 +2,7 @@
 
 English | [简体中文](architecture.zh.md)
 
-Jeeves is a local-first personal assistant: state, reasoning, and tool execution
-happen on the machine that holds its `JEEVES_HOME`. This document describes the
+Jeeves runs complex, long-lived assignments on one Runtime per task store. Its `JEEVES_HOME` holds persistent task state on the chosen host. The Runtime calls configured model providers and routes tool operations to their executors. This document describes the
 software structure; running and configuring it live in
 [operations.md](operations.md) and [configuration.md](configuration.md). The
 per-layer implementation tutorial is under `docs/internals/`.
@@ -107,6 +106,8 @@ user message
 ```
 
 The full notification set is in [protocol.md](protocol.md#turnstart-notification-sequence).
+
+Consecutive acceptance and goal rounds carry the original human assignment alongside the latest feedback. The checkpoint stores the assignment separately from the current model transcript so recovery can continue the correct round and preserve the user’s request in history.
 
 ## Key mechanisms
 

@@ -41,7 +41,7 @@ export const webState = reactive<{
   policyError: string;
   message: string;
   /** The selected shell view is presentation state, independent of running tasks. */
-  view: "today" | "chat" | "cowork";
+  view: "activity" | "chat" | "cowork";
 }>({
   sessionId: "",
   mainSessionId: "",

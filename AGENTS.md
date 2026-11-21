@@ -2,11 +2,15 @@
 
 English | [简体中文](AGENTS.zh.md)
 
-Jeeves is a local-first personal assistant: Rust owns logic and state,
+Jeeves is a personal assistant built to complete complex, long-running tasks across deployments. Rust owns logic and state;
 TypeScript covers the browser and the chat gateways.
 Read [docs/architecture.md](docs/architecture.md) before changing `jeeves-rs/`;
 this file is the working standard for AI coding assistants and human
 contributors alike.
+
+## Choosing the next agent improvement
+
+Choose work from the [long-task roadmap](docs/planning/long-task-roadmap.md). Start with an assignment, its constraints and the evidence the user will accept. Follow it across planning, execution, interruption, recovery and delivery. Preserve the same engine contract on personal machines, servers and hosted installations. Record scripted regressions, real-model performance and deployment tests separately.
 
 ## Repository layout
 
@@ -42,6 +46,8 @@ scripts/                schema generation, docs drift checks, end-to-end smokes 
 ```
 
 ## Commands
+
+For interactive Mac testing with the user, use their running Jeeves window and Runtime. Record the app PID before the first interaction so subsequent actions target the same instance. For the checkout’s bundled app, use [the shared Mac launch command](docs/operations.md#mac-desktop-app). Keep the window open for the user after testing. The isolated smoke recipe exercises restart and fixture scenarios separately.
 
 Use the repository's existing commands and tools. When introducing a tool,
 explain which requirement the existing workflow cannot meet.

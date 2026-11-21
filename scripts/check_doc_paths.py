@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Every repo path a doc names in backticks must exist (docs rot by pointing at deleted code)."""
+"""Check documented source paths and the producers of optional build outputs."""
 import pathlib
 import re
 import sys
@@ -7,6 +7,10 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PATH_RE = re.compile(r"`((?:jeeves-rs|jeeves-ts|desktop|docs|scripts|evals)/[A-Za-z0-9_./-]+)`")
 SKIP = ("planning", "node_modules")  # planning notes are dated records, not live docs
+GENERATED_BY = {
+    "jeeves-rs/target/debug/jeeves": "jeeves-rs/jeeves-cli/Cargo.toml",
+    "desktop/src-tauri/browser-runtime": "scripts/prepare-browser-runtime.py",
+}
 
 
 def main() -> int:
@@ -17,7 +21,8 @@ def main() -> int:
             continue
         for n, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
             for path in PATH_RE.findall(line):
-                if not (ROOT / path.rstrip("/")).exists():
+                target = path.rstrip("/")
+                if not (ROOT / GENERATED_BY.get(target, target)).exists():
                     bad.append(f"{doc.relative_to(ROOT)}:{n}: {path}")
     if bad:
         print("docs name paths that do not exist:\n  " + "\n  ".join(bad))

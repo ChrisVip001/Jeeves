@@ -107,13 +107,13 @@ function label(status: string, verified: boolean) {
                 type="button"
                 class="quiet-button"
                 :disabled="!!center.state.busy"
-                @click="center.approve(approval.turnId, false)"
+                @click="center.approve(approval, false)"
               >
                 {{ t("拒绝") }}</button><button
                 type="button"
                 class="primary-button"
                 :disabled="!!center.state.busy"
-                @click="center.approve(approval.turnId, true)"
+                @click="center.approve(approval, true)"
               >
                 {{ t("允许一次") }}
               </button>

@@ -2,7 +2,7 @@
 
 [English](architecture.md) | 简体中文
 
-Jeeves 是本地优先的个人助理：状态、推理和工具执行都发生在持有 `JEEVES_HOME` 的那台机器上。
+Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状态持久保存在所选宿主的 `JEEVES_HOME` 中；Runtime 调用已配置的模型服务，并把工具操作交给对应的执行器。
 本文描述软件结构；运行与配置见 [operations.md](operations.zh.md) 和
 [configuration.md](configuration.zh.md)。逐层的实现教程在 `docs/internals/` 下。
 
@@ -92,6 +92,8 @@ jeeves-cli               `jeeves` 二进制                                   �
 ```
 
 完整通知集见 [protocol.md](protocol.zh.md#turnstart-的通知序列)。
+
+验收补做与目标续跑会把用户原始委托和本轮反馈一起交给模型。检查点分别保存原始委托和当前轮的模型对话，恢复时可以接续对应轮次，历史中保留用户实际交办的内容。
 
 ## 关键机制
 

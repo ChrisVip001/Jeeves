@@ -14,6 +14,7 @@ pub(crate) struct DriveTask<'a> {
     pub server: &'a Server,
     pub resolved: &'a Resolved,
     pub task: Option<TaskRow>,
+    pub assignment: &'a str,
     pub run_id: Option<String>,
     pub frame: TurnFrame<'a>,
     pub plan: Option<jeeves_agent::plan::Plan>,
@@ -38,6 +39,7 @@ pub(crate) async fn drive_task(
         server,
         resolved,
         task,
+        assignment,
         run_id,
         frame,
         mut plan,
@@ -281,13 +283,11 @@ pub(crate) async fn drive_task(
             round_started = std::time::Instant::now();
             wall_offset_ms = 0;
             plan = revise_plan(server, resolved, task.as_ref(), &acceptance, plan, &reason).await;
-            let mut correction = format!(
-"Acceptance did not pass: {reason}\nKeep working until it is true (the file really written, the change really in place); do not merely claim it is done."
+            let correction = next_round_message(
+                assignment,
+                &format!("Acceptance did not pass: {reason}"),
+                plan.as_ref(),
             );
-            if let Some(current) = &plan {
-                correction.push_str("\n\n");
-                correction.push_str(&current.brief());
-            }
             let next = full_turn(
                 server,
                 resolved,
@@ -300,7 +300,7 @@ pub(crate) async fn drive_task(
                         sink,
                         &turn_id,
                         &session_id,
-                        &correction,
+                        assignment,
                         run_id.as_deref(),
                         round_no,
                     )),
@@ -424,11 +424,7 @@ pub(crate) async fn drive_task(
         round_no += 1;
         round_started = std::time::Instant::now();
         wall_offset_ms = 0;
-        let mut continuation = judgement.reason.clone();
-        if let Some(current) = &plan {
-            continuation.push_str("\n\n");
-            continuation.push_str(&current.brief());
-        }
+        let continuation = next_round_message(assignment, &judgement.reason, plan.as_ref());
         let next = full_turn(
             server,
             resolved,
@@ -441,7 +437,7 @@ pub(crate) async fn drive_task(
                     sink,
                     &turn_id,
                     &session_id,
-                    &continuation,
+                    assignment,
                     run_id.as_deref(),
                     round_no,
                 )),
@@ -476,4 +472,19 @@ pub(crate) async fn drive_task(
         goal_status,
         round_no,
     })
+}
+
+fn next_round_message(
+    assignment: &str,
+    feedback: &str,
+    plan: Option<&jeeves_agent::plan::Plan>,
+) -> String {
+    let mut message = format!(
+        "Original assignment:\n{assignment}\n\nContinue from recorded progress, respecting subsequent human decisions. Verify the remaining work before reporting completion.\nRound feedback: {feedback}"
+    );
+    if let Some(plan) = plan {
+        message.push_str("\n\n");
+        message.push_str(&plan.brief());
+    }
+    message
 }

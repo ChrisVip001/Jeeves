@@ -1,14 +1,14 @@
 [English](README.md) | 简体中文
 
-# Jeeves — 记忆能翻开的本地 Agent
+# Jeeves — 面向复杂长任务的超级个人助理
 
 [![CI](https://github.com/ChrisVip001/Jeeves/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisVip001/Jeeves/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/ChrisVip001/Jeeves)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/ChrisVip001/Jeeves)](https://github.com/ChrisVip001/Jeeves/releases/latest)
 
-**一个跑在自己机器上的个人助手，记忆是能打开看的。**
-在主聊天里可以日常交流、交办新任务，也可以继续跟进原来的任务。[主聊天与任务会话设计](docs/design/main-entry.zh.md)
-Rust 独占 agent 循环、记忆和工具；TypeScript 承载共用客户端、聊天网关和独立浏览器适配。对话、`state.db` 和密钥都留在本机。驾驶舱支持中英文。
+把要交付的结果告诉 Jeeves。例如，交办一次事故复盘，可以要求整理证据、核对数字并写出可供复核的报告。在主聊天里可以指定报告文件名、写明正文必须包含的原文。执行任务可以据此检查文件、补交缺少的内容，再把结果带回主聊天。从回执可以打开原任务继续跟进。[主聊天与任务会话](docs/design/main-entry.zh.md) · [复杂长任务路线图](docs/planning/long-task-roadmap.zh.md)
+
+同一个 Rust Runtime 可以运行在个人电脑、自托管服务器，或云控制面管理的每用户隔离环境中。任务状态与工具的位置取决于部署；模型和连接器按该 Runtime 的配置访问服务。[架构](docs/architecture.zh.md) · [邮箱验证、密码找回、双因素登录与托管部署](control-plane/README.zh.md)
 
 可以按公钥配对设备、撤销设备授权，见[设备协议](docs/protocol.zh.md#设备配对与撤销)。驾驶舱的[全局急停](docs/protocol.zh.md#全局急停)可冻结受管任务浏览器，重启后仍然生效。可从手机或桌面接管任务浏览器，并[将下载保存为该任务的产物](docs/protocol.zh.md#远程浏览器操作与下载)。
 
@@ -31,10 +31,10 @@ Jeeves 支持 macOS 和 Linux（Windows 通过 WSL2）。无论哪种安装，�
 ```bash
 just desktop-install   # 一次性准备
 just desktop-build     # 把 Runtime 打包进 Mac 应用
-just desktop-dev       # 开发：启动 `jeeves dashboard`；设置 JEEVES_RUNTIME_URL 则连到已运行的 Runtime
+just desktop-open      # 打开项目 App，已运行时回到原窗口
 ```
 
-Mac 左上角可切换「助理」与「Cowork」。助理显示主聊天和近期活动，在 Cowork 里打开任务即可查看完整会话、补充要求。[Mac 桌面应用](docs/operations.zh.md#mac-桌面应用) · [黛青外观预览](docs/design/today-preview.html#p=teal&f=sans)
+Mac 和 iPhone 都从「对话」交办，在「动态」找回任务。[对话与动态](docs/design/main-entry.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
 
 **Docker**——模型、权限和聊天渠道都在驾驶舱里一步步设置：
 

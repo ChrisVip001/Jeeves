@@ -1,6 +1,6 @@
 # The control plane itself. Per-user Pods are created by it at runtime (see control-plane/README.md).
 # Fill the Secret first:  kubectl -n jeeves create secret generic cp-env \
-#   --from-literal=CP_SESSION_SECRET=$(openssl rand -hex 32) --from-literal=CP_MODEL_KEY=<platform key>
+#   --from-literal=CP_SESSION_SECRET=$(openssl rand -hex 32) --from-literal=CP_STATE_KEY=$(openssl rand -hex 32) --from-literal=CP_MODEL_KEY=<platform key> --from-literal=CP_MAIL_FROM=<verified sender> --from-literal=CP_RESEND_API_KEY=<send-only key>
 apiVersion: v1
 kind: Namespace
 metadata: { name: jeeves }
@@ -41,12 +41,14 @@ spec:
     metadata: { labels: { app: control-plane } }
     spec:
       serviceAccountName: control-plane
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000 }
       containers:
         - name: control-plane
           image: registry.example.com/jeeves-control-plane:latest
           ports: [{ containerPort: 8080 }]
           env:
             - { name: CP_STATE, value: /state/control-plane.json }
+            - { name: CP_PUBLIC_ORIGIN, value: "https://jeeves.example.com" }
             - { name: CP_IMAGE, value: "registry.example.com/jeeves:latest" }
             - { name: CP_MODEL_URL, value: "http://control-plane.jeeves.svc:8080" }
             - { name: CP_MODEL_UPSTREAM, value: "https://api.anthropic.com" }
@@ -61,3 +63,31 @@ metadata: { name: control-plane, namespace: jeeves }
 spec:
   selector: { app: control-plane }
   ports: [{ port: 8080, targetPort: 8080 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: runtime-ingress, namespace: jeeves }
+spec:
+  podSelector: { matchLabels: { app: jeeves } }
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app: control-plane } } }]
+      ports: [{ protocol: TCP, port: 7777 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: { name: jeeves-public, namespace: jeeves }
+spec:
+  tls:
+    - hosts: [jeeves.example.com]
+      secretName: jeeves-public-tls
+  rules:
+    - host: jeeves.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: control-plane
+                port: { number: 8080 }

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { accountStorage } from "./hosted.ts";
+import { computed, ref } from "vue";
+import ApprovalCard from "./ui/ApprovalCard.vue";
 import { ArrowUp } from "lucide-vue-next";
 import { interact } from "./api";
 import { t } from "./i18n";
@@ -8,8 +10,9 @@ import { submissionTracker } from "./ui/submission";
 import TaskTranscript from "./ui/TaskTranscript.vue";
 import type { AgentTaskView } from "./ui/types";
 const props=defineProps<{task:AgentTaskView}>();
-const emit=defineEmits<{details:[]}>();
-const tracker=submissionTracker(localStorage);
+const emit=defineEmits<{details:[]; back:[]}>();
+const approval = computed(() => webTasks.approvalFor(props.task));
+const tracker=submissionTracker(accountStorage);
 const text=ref("");
 const sending=ref(false);
 const feedback=ref("");
@@ -42,10 +45,14 @@ async function send() {
 <template>
   <section class="cowork-detail" :aria-label="task.title" :data-task-id="task.id">
     <header class="cowork-head">
-      <div><p class="cw-meta">Cowork</p><h2>{{ task.title }}</h2></div>
+      <div><button type="button" class="activity-back" @click="emit('back')">‹ {{ t("动态") }}</button><h2>{{ task.title }}</h2></div>
       <button id="cowork-details" type="button" class="today-btn" @click="emit('details')">{{ t("任务详情") }}</button>
     </header>
     <div class="cowork-thread">
+      <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
+        :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
+        :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
+      <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
       <TaskTranscript :task="task" :center="webTasks" :revision="revision" />
     </div>
     <form class="cowork-compose" v-if="['pending','running','done'].includes(task.status)" @submit.prevent="send">

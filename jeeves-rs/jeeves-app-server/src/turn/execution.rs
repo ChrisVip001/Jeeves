@@ -79,24 +79,22 @@ pub(crate) async fn full_turn(
         crate::connector_settings::apply(&settings.home, &server.mcp.apply(&server.tools));
     let mut turn_tools = crate::enabled_tools(&current_tools, &settings)
         .session_view_with(server.activation_set(session_id));
-    if session_id == crate::interaction::MAIN_SESSION {
-        let tool = server
-            .interaction_tool
-            .lock()
-            .expect("interaction tool lock")
-            .clone();
-        if let Some(tool) = tool {
-            turn_tools.register_exclusive(tool);
-        }
+    let main_chat = session_id == crate::interaction::MAIN_SESSION;
+    if chat_operations.unresolved || main_chat {
+        turn_tools.restrict_to_reads(!chat_operations.unresolved);
     }
     if chat_operations.unresolved {
-        crate::turn::operations::restrict(&mut turn_tools);
         eprintln!(
             "(jeeves) earlier chat operations need review; this loop permits only proven read tools"
         );
     }
     if settings.tool_policy == "deferred" {
         turn_tools.defer_all_but_always();
+    }
+    if main_chat && !chat_operations.unresolved {
+        if let Some(tool) = frame.interaction_tool.cloned() {
+            turn_tools.register_exclusive(tool);
+        }
     }
     let reserve = jeeves_provider::tokens::estimate_text(&soul)
         + jeeves_provider::tokens::estimate_text(&memory_context)
@@ -157,22 +155,39 @@ pub(crate) async fn full_turn(
     });
 
     let instructions = turn_cwd.as_deref().and_then(crate::agents_md::discover);
-    let mut prompt = build_system(PromptParts {
-        soul: &soul,
-        model: &resolved.model,
-        provider: &resolved.provider_id,
-        memory: &memory_context,
-        memory_index: Some(memory_index.as_str()),
-        skill_index: Some(skill_index.as_str()),
-        skills: &skills,
-        todo: server.todo.render(session_id).as_deref(),
-        summary: summary.as_deref(),
-        instructions: instructions.as_deref(),
-        capabilities: capability_note(&settings, !turn_tools.schemas().is_empty()).as_deref(),
-    });
-
-    prompt.tail.push_str(&chat_operations.prompt);
-    prompt.tail.push_str(server.permission_note(session_id));
+    let tools_available = !turn_tools.schemas().is_empty();
+    let capabilities = if main_chat && tools_available {
+        let note = if turn_tools
+            .get(crate::interaction::task_tool::NAME)
+            .is_some()
+        {
+            "Answer conversation and progress questions here. When the human explicitly assigns work, including drafting or sending an email, use task with the human's exact words. Follow up in the existing task when identified. The task inherits the session's permissions. A handoff queues work. Report a send only on its receipt."
+        } else {
+            "This main chat turn can use its read tools. Task handoff is unavailable for this turn."
+        };
+        Some(note.to_string())
+    } else {
+        capability_note(&settings, tools_available)
+    };
+    let prompt_for = |summary: Option<&str>| {
+        let mut prompt = build_system(PromptParts {
+            soul: &soul,
+            model: &resolved.model,
+            provider: &resolved.provider_id,
+            memory: &memory_context,
+            memory_index: Some(memory_index.as_str()),
+            skill_index: Some(skill_index.as_str()),
+            skills: &skills,
+            todo: server.todo.render(session_id).as_deref(),
+            summary,
+            instructions: instructions.as_deref(),
+            capabilities: capabilities.as_deref(),
+        });
+        prompt.tail.push_str(&chat_operations.prompt);
+        prompt.tail.push_str(server.permission_note(session_id));
+        prompt
+    };
+    let mut prompt = prompt_for(summary.as_deref());
 
     let usage = crate::memory_center::usage_of(
         vec![
@@ -330,20 +345,7 @@ pub(crate) async fn full_turn(
                 history = forced.messages;
                 summary = forced.summary;
                 history_stats = forced.stats;
-                prompt = build_system(PromptParts {
-                    soul: &soul,
-                    model: &resolved.model,
-                    provider: &resolved.provider_id,
-                    memory: &memory_context,
-                    memory_index: Some(memory_index.as_str()),
-                    skill_index: Some(skill_index.as_str()),
-                    skills: &skills,
-                    todo: server.todo.render(session_id).as_deref(),
-                    summary: summary.as_deref(),
-                    instructions: instructions.as_deref(),
-                    capabilities: capability_note(&settings, !turn_tools.schemas().is_empty())
-                        .as_deref(),
-                });
+                prompt = prompt_for(summary.as_deref());
             }
             Err(e) => {
                 return Err(ErrorObject {

@@ -106,7 +106,7 @@ const busy = computed(() => !!props.center.state.busy);
         {{
           center.state.late.answeredBy
             ? t("晚了一步：这条已由 {who} 回答。", { who: center.state.late.answeredBy })
-            : t("这条确认已过期，没有执行。")
+            : t("这条请求已变更或结束，请核对当前待确认事项。")
         }}
       </p>
       <p v-if="center.state.error" class="today-note bad" role="status">
@@ -127,7 +127,7 @@ const busy = computed(() => !!props.center.state.busy);
             :task="item.task"
             :restored="center.state.restored[item.approval.turnId]"
             :busy="busy"
-            @answer="(ok) => center.approve(item.approval!.turnId, ok)"
+            @answer="(ok, reviewed) => center.approve(reviewed, ok)"
           />
           <TaskRow
             v-else-if="item.task"

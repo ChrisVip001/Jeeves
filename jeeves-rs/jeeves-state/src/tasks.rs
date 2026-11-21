@@ -112,7 +112,7 @@ pub struct TaskRow {
     /// `None` = a task that belongs to no conversation.
     pub session_id: Option<String>,
     pub title: String,
-    /// The goal loop's condition; `None` = single-turn task.
+    /// The optional judge condition. File and tool acceptance checks can also require more rounds.
     pub goal_condition: Option<String>,
     /// Acceptance conditions as JSON (`[{"kind":"fileExists","path":"report.md"}]`).
     pub acceptance_json: String,
@@ -271,6 +271,18 @@ impl Tasks {
         Ok(sqlx::query_as::<_, TaskRow>(&format!(
             "SELECT {COLS} FROM agent_tasks ORDER BY created_at DESC, rowid DESC LIMIT ?"
         ))
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    /// The newest tasks owned by one conversation, even when other sessions are busy.
+    pub async fn list_for_session(&self, session_id: &str, limit: i64) -> Result<Vec<TaskRow>> {
+        Ok(sqlx::query_as::<_, TaskRow>(&format!(
+            "SELECT {COLS} FROM agent_tasks WHERE session_id = ?
+             ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        ))
+        .bind(session_id)
         .bind(limit)
         .fetch_all(&self.pool)
         .await?)

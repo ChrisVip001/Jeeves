@@ -14,7 +14,7 @@
       type="image/svg+xml"
     />
   </head>
-  <body>
+  <body class="sidebar-closed">
     <div id="web-controls"></div>
     <div class="app">
       <aside class="sidebar" id="sidebar">
@@ -36,8 +36,6 @@
             ☰
           </button>
         </div>
-        <div id="mac-mode-switch"></div>
-        <div id="today-entry"></div>
         <button class="new-chat" id="new-session" type="button">
           <span aria-hidden="true">＋</span
           ><span data-i18n="主会话">主会话</span><kbd>⌘ N</kbd>
@@ -47,11 +45,9 @@
           <button class="nav-entry" id="nav-memory" type="button">
             <span aria-hidden="true">▤</span><span data-i18n="记忆">记忆</span>
           </button>
-          <button class="nav-entry" id="nav-progress" type="button">
-            <span aria-hidden="true">☷</span><span data-i18n="进度">进度</span>
-          </button>
+          <button class="nav-entry" id="progress" type="button" data-i18n="概览">概览</button>
+          <button class="nav-entry" id="chat-operations" type="button" data-i18n="核对聊天操作">核对聊天操作</button>
         </nav>
-        <div id="mode-task-rail"></div>
         <div class="rail-block conversations">
           <p class="rail-label" data-i18n="最近对话">最近对话</p>
           <ul class="session-list" id="sessions"></ul>
@@ -109,19 +105,11 @@
           </button>
           <div class="chat-heading">
             <h2 id="session">Jeeves</h2>
-            <p data-i18n="你的个人工作空间">你的个人工作空间</p>
+
           </div>
+          <div id="primary-navigation"></div>
           <div class="bar-actions">
-            <button class="ghost" id="progress" type="button" data-i18n="进度">
-              进度</button
-            ><button
-              class="ghost"
-              id="chat-operations"
-              type="button"
-              data-i18n="核对聊天操作"
-            >
-              核对聊天操作</button
-            ><button
+            <button
               class="ghost"
               id="older"
               type="button"
@@ -131,11 +119,10 @@
               更早的 ↑
             </button>
           </div>
-          <div id="phone-tasks"></div>
           <div id="executor-entry"></div>
         </header>
         <div id="executor-notice"></div>
-        <div id="today-view"></div>
+        <div id="activity-view"></div>
         <div id="cowork-view"></div>
         <div
           class="messages"
@@ -144,6 +131,7 @@
           data-i18n-aria="对话"
         ></div>
         <div class="statusline" id="status" hidden aria-live="polite"></div>
+        <div id="chat-decisions"></div>
         <div class="composer-wrap">
           <div class="staged" id="staged" hidden></div>
           <form class="composer" id="composer" autocomplete="off">
@@ -157,9 +145,15 @@
             ></textarea>
             <div class="composer-toolbar">
               <div id="composer-attachments"></div>
-              <div id="composer-context"></div>
+              <details class="compose-options">
+                <summary data-i18n="对话选项">对话选项</summary>
+                <div class="compose-settings">
+                  <div id="composer-model"></div>
+                  <div id="composer-context"></div>
+                  <button type="button" id="save-skill" class="ghost" data-i18n="存为技能" data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿">存为技能</button>
+                </div>
+              </details>
               <div class="toolbar-spacer"></div>
-              <div id="composer-model"></div>
               <button
                 class="ghost queue-toggle"
                 id="queue-toggle"
@@ -169,20 +163,10 @@
                 data-i18n-title="这一轮跑完，再把这句话当成新的一轮发出去"
               >
                 <span data-i18n="跑完再说">跑完再说</span></button
-              ><button
-                class="ghost save-skill"
-                id="save-skill"
-                type="button"
-                data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿"
-                data-i18n="存为技能"
-              >
-                存为技能</button
               ><button id="send" type="submit" data-i18n="发送">发送</button>
             </div>
           </form>
-          <p class="composer-note" data-i18n="内容由 AI 生成，请核实重要信息">
-            内容由 AI 生成，请核实重要信息
-          </p>
+
         </div>
       </main>
       <aside class="panels" id="drawer" hidden>

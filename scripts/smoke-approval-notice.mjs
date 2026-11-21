@@ -240,7 +240,7 @@ async function captureViews(browser, origin) {
       await page.keyboard.press("Escape");
       await sheet.waitFor({state: "detached"});
       await page.waitForURL(url => !url.searchParams.has("approvalRequestId"));
-      if (width === 390) await page.locator(".mobile-menu").click();
+      if (!await page.locator("#settings-entry button").isVisible()) await page.locator(".mobile-menu").click();
       await page.locator("#settings-entry button").click();
       await page.getByRole("button", {name:label("权限与安全", "Permissions and security")}).click();
       const push = page.getByRole("region", {name:label("审批通知", "Approval notifications")});

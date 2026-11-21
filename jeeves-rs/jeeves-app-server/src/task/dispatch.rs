@@ -152,6 +152,7 @@ fn spawn_worker(server: Server, sink: EventSink, slot: usize, workers: usize) {
                 RequestId::String(format!("dispatch:{}", row.task_id)),
                 &sink,
                 Some(row.clone()),
+                None,
             )
             .await;
             if let Err(error) = result {

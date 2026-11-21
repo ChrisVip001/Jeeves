@@ -29,6 +29,8 @@ jeeves-ts/packages/dashboard/dist/
 # read .env, but people source it, so the leak risk is real.
 .env
 .env.local
+control-plane.json
+control-plane.json.tmp
 !.env.example
 .commitmsg
 desktop/src-tauri/target/
@@ -50,7 +52,7 @@ desktop/src-tauri/gen/
 .cursor/
 .claude/
 
-# Local planning notes: kept on disk, never in the repository.
+# Working notes stay local only — never in the repository.
 docs/planning/
 
 # AOCI local cognition index and runtime (rebuilt via aoci init/scan + MCP).

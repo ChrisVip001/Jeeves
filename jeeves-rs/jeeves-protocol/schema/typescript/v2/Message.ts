@@ -16,6 +16,14 @@ export type Message = {
    */
   id: number;
   source?: string | null;
+  /**
+   * Original task for a decision or completion notice in its owner's chat.
+   */
+  taskId?: string | null;
+  /**
+   * Outcome of the run that issued this receipt, even after the task runs again.
+   */
+  receiptStatus?: string | null;
   role: MessageRole;
   content: string;
   /**

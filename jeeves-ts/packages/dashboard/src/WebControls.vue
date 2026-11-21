@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { hostedBase, accountKey } from "./hosted.ts";
 import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
-import { MessageCircle, PanelsTopLeft } from "lucide-vue-next";
+import ActivityPage from "./ActivityPage.vue";
+import ChatDecisions from "./ChatDecisions.vue";
 import ApprovalNotice from "./ApprovalNotice.vue";
 import DesktopPanel from "./ui/DesktopPanel.vue";
 import ExecutorStop from "./ui/ExecutorStop.vue";
 import { executor, refreshExecutor, changeExecutor } from "./executor-control.ts";
-import { computed, provide, ref, watch, onMounted, onUnmounted } from "vue";
+import { computed, provide, ref, toRef, watch, onMounted, onUnmounted } from "vue";
 import { Settings, CircleAlert } from "lucide-vue-next";
 import {
   AttachmentPicker,
@@ -16,7 +18,6 @@ import {
   ModelPicker,
   PermissionPicker,
   WorkspacePicker,
-  TodayPage,
   TaskDetail,
 } from "./ui/index.ts";
 import { uiTranslatorKey } from "./ui/index.ts";
@@ -37,6 +38,7 @@ import {
 } from "./controls";
 import { webTasks, connectTasks, taskTimelines } from "./tasks";
 provide(uiTranslatorKey, t);
+const hosted = hostedBase();
 const executorProps = computed(() => ({
   view: executor.view,
   busy: executor.busy,
@@ -64,7 +66,7 @@ const phone = ref(media.matches);
 function layout() {
   phone.value = media.matches;
   if (phone.value) {
-    state.view = "chat";
+    if (state.view === "cowork") state.view = "activity";
     webTasks.state.autoOpen = false;
     if (state.mainSessionId && state.sessionId !== state.mainSessionId) void workspaceActions.main();
   }
@@ -90,63 +92,45 @@ async function followTask(id: string) {
 }
 const coworkId=ref("");
 const coworkTask=computed(()=>webTasks.state.tasks.find(task=>task.id===coworkId.value));
-const recent=computed(()=>[...webTasks.state.tasks].sort((a,b)=>{
-  const last=(task:AgentTaskView)=>taskTimelines[task.id]?.at(-1)?.at || task.finishedAt || task.createdAt || "";
-  return last(b).localeCompare(last(a));
-}).slice(0,5));
-function showCowork(id?:string) {
-  if (id) coworkId.value=id;
-  state.view="cowork";
-  webTasks.state.open=false;
-  closeMobileNavigation();
-}
-async function showAssistant(){
-  state.view="chat";
-  webTasks.state.open=false;
-  if (state.mainSessionId && !state.busy) await workspaceActions.main();
-}
-function taskStatus(task:AgentTaskView) {
-  if (webTasks.approvalFor(task) || ["needsAttention","needs_attention"].includes(task.status)) return t("等你决定");
-  switch(task.status) {
-    case "pending":return t("等待执行");
-    case "running":return t("正在执行");
-    case "suspended":return t("已暂停");
-    case "done":return task.acceptance.length?t("已完成"):t("已生成，待验收");
-    case "cancelled":return t("已取消");
-    case "failed":return t("执行失败");
-    default:return task.status;
+function inspectActivity(id: string) {
+  if (phone.value) openDetail(id);
+  else {
+    coworkId.value = id;
+    state.view = "cowork";
   }
 }
-const detailId = ref("");
+async function showAssistant() {
+  state.view = "chat";
+  webTasks.state.open = false;
+  closeMobileNavigation();
+  if (state.mainSessionId && state.sessionId !== state.mainSessionId && !state.busy) await workspaceActions.main();
+}
+const detailId = toRef(webTasks.state, "detailId");
 const detailTask = computed(() =>
   webTasks.state.tasks.find((task) => task.id === detailId.value),
 );
 let opener: HTMLElement | null = null;
+watch(detailId, (next) => {
+  if (next) opener = document.activeElement as HTMLElement | null;
+}, { flush: "sync" });
 function openDetail(id: string) {
-  opener = document.activeElement as HTMLElement | null;
   detailId.value = id;
 }
 function closeDetail() {
   detailId.value = "";
   opener?.focus();
 }
-function showToday() {
+function showActivity() {
   closeMobileNavigation();
-  state.view = "today";
+  webTasks.state.open = false;
+  state.view = "activity";
 }
 const needsYou = computed(() => Object.keys(webTasks.state.approvals).length);
-watch(
-  () => [state.view,phone.value] as const,
-  ([view,isPhone]) => {
-    document.body.classList.toggle("view-today", view === "today");
-    // On Today approvals sit in the page, so the side drawer must not pop over them.
-    webTasks.state.autoOpen = false;
-    document.body.classList.toggle("view-cowork", !isPhone && view === "cowork");
-    document.body.classList.toggle("view-assistant", !isPhone && view === "chat");
-    if (view === "today") webTasks.state.open = false;
-  },
-  { immediate: true },
-);
+watch(() => state.view, view => {
+  document.body.classList.toggle("view-activity", view === "activity");
+  document.body.classList.toggle("view-cowork", view === "cowork");
+  webTasks.state.autoOpen = false;
+}, { immediate: true });
 watch(
   () => webTasks.state.open,
   (value) => document.body.classList.toggle("jeeves-with-task-center", value),
@@ -181,13 +165,13 @@ function manageMcp() {
   trigger?.focus();
 }
 const SETUP_KEY = "jeeves.setup.dismissed";
-const setupDismissed = ref(localStorage.getItem(SETUP_KEY) === "1");
+const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
 const needsSetup = computed(
   () => state.connected && !state.profiles.length && !setupDismissed.value,
 );
 function endSetup() {
   setupDismissed.value = true;
-  localStorage.setItem(SETUP_KEY, "1");
+  localStorage.setItem(accountKey(SETUP_KEY), "1");
   void changed();
 }
 function chooseMode(mode: PermissionMode) {
@@ -218,53 +202,20 @@ async function changed() {
 }
 </script>
 <template>
-  <Teleport to="#mac-mode-switch">
-    <nav v-if="!phone" class="mode-switch" :aria-label="t('工作模式')">
-      <button id="mode-assistant" type="button" :aria-pressed="state.view !== 'cowork'" @click="showAssistant"><MessageCircle :size="15" />{{ t("助理") }}</button>
-      <button id="mode-cowork" type="button" :aria-pressed="state.view === 'cowork'" @click="showCowork()"><PanelsTopLeft :size="15" />Cowork</button>
+  <Teleport to="#primary-navigation">
+    <nav class="primary-navigation" :aria-label="t('主导航')">
+      <button id="mode-assistant" type="button" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant">{{ t("对话") }}</button>
+      <button id="mode-cowork" type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity">{{ t("动态") }}<span v-if="needsYou" class="decision-count" :aria-label="t('待确认（{count}）', {count: needsYou})">{{ needsYou }}</span></button>
     </nav>
   </Teleport>
-  <Teleport to="#mode-task-rail">
-    <section v-if="!phone && state.view !== 'today'" class="mode-task-list">
-      <h2 class="rail-label">{{ state.view === 'cowork' ? t("任务会话") : t("近期活动") }}</h2>
-      <p v-if="webTasks.state.error" class="cw-meta" role="status">{{ webTasks.state.error }}</p>
-      <p v-else-if="!webTasks.state.tasks.length" class="cw-meta">{{ t("把要做的事告诉 Jeeves，任务会出现在这里。") }}</p>
-      <button type="button" v-for="task in state.view === 'cowork' ? webTasks.state.tasks : recent" :key="task.id"
-        :id="state.view==='cowork'?'cowork-task-'+task.id:undefined" :data-cowork-task="state.view==='cowork'?task.id:undefined" :aria-current="state.view==='cowork' && coworkId===task.id?'page':undefined"
-        @click="showCowork(task.id)">
-        <span>{{ task.title }}</span><small>{{ taskStatus(task) }}</small>
-      </button>
-    </section>
+  <Teleport to="#activity-view">
+    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant" />
+  </Teleport>
+  <Teleport to="#chat-decisions">
+    <ChatDecisions v-if="state.view === 'chat' && state.sessionId === state.mainSessionId" :center="webTasks" :main-busy="state.busy" />
   </Teleport>
   <Teleport to="#cowork-view">
-    <template v-if="!phone && state.view==='cowork'">
-      <CoworkConversation v-if="coworkTask" :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" />
-      <div v-else class="cw-empty"><PanelsTopLeft :size="28"/><h2>Cowork</h2><p>{{ webTasks.state.tasks.length?t("选择任务会话，查看进展或继续交流。"):t("在助理中交办的任务会显示在这里。") }}</p></div>
-    </template>
-  </Teleport>
-  <Teleport to="#today-entry"
-    ><button
-      type="button"
-      class="settings-entry today-entry"
-      :aria-current="state.view === 'today' ? 'page' : undefined"
-      @click="showToday"
-    >
-      {{ t("今天")
-      }}<span v-if="needsYou" class="today-entry-count tnum">{{
-        needsYou
-      }}</span>
-    </button></Teleport
-  >
-  <Teleport to="#phone-tasks">
-    <button v-if="phone" type="button" class="ghost" @click="webTasks.state.open = true">{{ t("任务") }}</button>
-  </Teleport>
-  <Teleport to="#today-view">
-    <TodayPage
-      v-if="!phone && state.view === 'today'"
-      :center="webTasks"
-      :timelines="taskTimelines"
-      @open="openDetail"
-    />
+    <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity" />
   </Teleport>
   <Teleport to="#task-progress-entry"
     ><button
@@ -284,6 +235,7 @@ async function changed() {
     <AttachmentPicker @files="workspaceActions.upload()" />
   </Teleport>
   <Teleport to="#connections-entry">
+    <a v-if="hosted" href="/account/" class="cap-entry">{{ t("个人中心") }}</a>
     <button class="cap-entry" type="button" @click="settings('connections')"><span class="cap-entry-name">{{ t('连接管理') }}</span></button>
   </Teleport>
   <Teleport to="#settings-entry"

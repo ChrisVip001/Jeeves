@@ -241,7 +241,6 @@ impl Server {
             events: jeeves_state::Events::new(pool.clone()),
             artifacts: jeeves_state::Artifacts::new(pool.clone()),
             suspending: Arc::new(Mutex::new(HashSet::new())),
-            interaction_tool: Arc::new(Mutex::new(None)),
             models,
             route_cache,
             catalog,

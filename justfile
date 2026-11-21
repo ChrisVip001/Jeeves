@@ -194,6 +194,10 @@ smoke-web: dashboard-build
     cd {{ rust_dir }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-web.py
 
+smoke-account: dashboard-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
+    node {{ justfile_directory() }}/scripts/smoke-account.mjs
+
 # Apple PWA approval fixtures in the bundled Chromium, including an offline cold launch.
 smoke-approval-notice: dashboard-build
     cd {{ rust_dir }} && cargo build --bin jeeves
@@ -230,6 +234,17 @@ smoke-desktop:
 # Opt-in acceptance using the packaged app's foreground window and synthetic loopback services.
 smoke-mac-cockpit: desktop-build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-mac-cockpit.py
+
+# Open the checkout's Mac app or bring its running window to the front.
+[macos]
+desktop-open:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    app="{{justfile_directory()}}/desktop/src-tauri/target/release/bundle/macos/Jeeves.app"
+    if [[ ! -d "$app" ]]; then
+        just desktop-build
+    fi
+    /usr/bin/open "$app"
 
 # The shell starts `jeeves dashboard` itself; JEEVES_RUNTIME_URL attaches to a running Runtime instead.
 desktop-dev:

@@ -1,0 +1,48 @@
+{
+  "finishedAt": "2026-11-21T17:36:49+08:00",
+  "client": "Packaged Jeeves.app on macOS, native foreground WebKit window",
+  "gateway": "Isolated loopback HTTPS; private test account store; genuine Rust Runtime with a scripted model. No public deployment.",
+  "mail": {
+    "provider": "QQ Mail",
+    "transport": "Implicit TLS, SMTP AUTH LOGIN, same sender and recipient",
+    "acceptedBySmtp": {
+      "verify": 1,
+      "reset": 1
+    },
+    "observedInInboxViaReadOnlyImap": {
+      "verify": true,
+      "reset": true
+    },
+    "correlation": "Sender, recipient, subject, per-run HTTPS origin, action and successful link consumption; provider-visible Message-IDs differed."
+  },
+  "nativeFlow": [
+    "register",
+    "open received verification link in app and set password",
+    "open assistant and delegate task",
+    "enroll time-based authenticator",
+    "sign out and request password reset",
+    "open received reset link in app and set new password",
+    "submit new password and current authenticator code",
+    "open the existing Cowork task and append a revised instruction"
+  ],
+  "task": {
+    "id": "task1795253601102957-0",
+    "executionSessionBefore": "task-work:94281dce18aa2f0a00e8c0d7c28c4b25",
+    "executionSessionAfter": "task-work:94281dce18aa2f0a00e8c0d7c28c4b25",
+    "countBefore": 1,
+    "countAfter": 1,
+    "firstApproval": "ap-69896-1795253601176725-1",
+    "revisedApproval": "ap-69896-1795253729424218-2",
+    "firstApprovalExpiredDuringAcceptance": true,
+    "revisedPreviewContainedFinalEdition": true,
+    "revisedActionApproved": false
+  },
+  "checks": {
+    "justCheck": "passed",
+    "controlPlaneTestsPassed": 18
+  },
+  "cleanup": {
+    "testListenersClosed": true,
+    "temporaryLocalhostCertificateRemovedAndTrustRejected": true
+  }
+}

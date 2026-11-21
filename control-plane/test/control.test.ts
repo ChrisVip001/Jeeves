@@ -55,14 +55,19 @@ test("register provisions a sleeping Pod; the app route wakes it; idle sweep sle
   const podPort = (pod.address() as AddressInfo).port;
   const accounts = fresh();
   const cluster = new MemoryCluster();
+  let token = "";
   const { server, sweep } = createControlPlane(accounts, cluster, {
+    mail: async (_, action, linkToken) => { assert.equal(action, "verify"); token = linkToken; },
     image: "jeeves", namespace: "jeeves", publicModelUrl: "http://cp", idleMinutes: 1,
     proxy: { upstream: "http://x", key: "platform-key", monthlyTokens: 10 },
     podAddress: () => `http://127.0.0.1:${podPort}`,
   });
   await new Promise<void>((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const reg = await fetch(`${base}/api/register`, { method: "POST", body: JSON.stringify({ email: "b@x.io", password: "long-enough-pw" }) });
+  const begin = await fetch(`${base}/api/register`, { method: "POST", headers: {"content-type":"application/json"}, body: JSON.stringify({ email: "b@x.io", password: "long-enough-pw" }) });
+  assert.equal(begin.status, 202);
+  assert.equal(cluster.pods.size, 0);
+  const reg = await fetch(`${base}/api/verify`, {method:"POST", headers: {"content-type":"application/json"}, body: JSON.stringify({email:"b@x.io", password:"long-enough-pw", token})});
   assert.equal(reg.status, 200);
   const cookie = reg.headers.get("set-cookie")!.split(";")[0]!;
   const [{ pod: spec, replicas }] = [...cluster.pods.values()];

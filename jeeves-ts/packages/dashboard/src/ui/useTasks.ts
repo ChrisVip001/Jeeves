@@ -36,9 +36,11 @@ export function useTasks(actions: TaskActions) {
   const browser = actions.browser ? useBrowsers(actions.browser) : undefined;
   const state = reactive({
     owner: "",
+    loadedOwner: "",
     open: false,
     tasks: [] as AgentTaskView[],
     selected: "",
+    detailId: "",
     busy: "",
     error: "",
     results: {} as Record<string, string>,
@@ -66,6 +68,10 @@ export function useTasks(actions: TaskActions) {
   const ownTurn = (id: string) => !!taskForTurn(id);
   function reveal() {
     if (state.autoOpen) state.open = true;
+  }
+  function retry() {
+    state.error = "";
+    return refresh();
   }
   async function refresh() {
     if (!state.owner) return;
@@ -109,6 +115,7 @@ export function useTasks(actions: TaskActions) {
           state.approvals = approvals;
         } else refreshAgain = true;
         state.tasks = tasks;
+        state.loadedOwner = owner;
       } catch (error) {
         state.error = String(error);
       } finally {
@@ -120,6 +127,19 @@ export function useTasks(actions: TaskActions) {
       }
     })();
     return refreshing;
+  }
+  async function openReceipt(taskId: string, destination: "detail" | "reply" = "detail"): Promise<boolean> {
+    const owner = state.owner;
+    if (!owner) return false;
+    const findTask = () => state.tasks.find(task => task.id === taskId && task.sessionId === owner);
+    if (!findTask()) await refresh();
+    const task = findTask();
+    if (state.owner !== owner || !task) return false;
+    if (destination === "reply") {
+      if (!["pending", "running", "done"].includes(task.status)) return false;
+      state.selected = taskId;
+    } else state.detailId = taskId;
+    return true;
   }
   async function inspect(task: AgentTaskView) {
     try {
@@ -173,9 +193,15 @@ export function useTasks(actions: TaskActions) {
     try { return await sendPolicy(params); }
     finally { state.busy = ""; }
   });
-  async function approve(turnId: string, approved: boolean) {
-    const approval = state.approvals[turnId];
-    if (!approval || state.busy) return;
+  async function approve(approval: ApprovalRequestedNotification, approved: boolean) {
+    const { turnId, requestId, version } = approval;
+    const matches = () => state.approvals[turnId]?.requestId === requestId && state.approvals[turnId]?.version === version;
+    if (state.busy) return;
+    if (!matches()) {
+      state.late = { answeredBy: "" };
+      await refresh();
+      return;
+    }
     state.busy = turnId;
     state.error = "";
     approvalVersion++;
@@ -188,8 +214,7 @@ export function useTasks(actions: TaskActions) {
         version: approval.version,
       });
       approvalVersion++;
-      if (state.approvals[turnId]?.requestId === approval.requestId)
-        delete state.approvals[turnId];
+      if (matches()) delete state.approvals[turnId];
       state.late = result.accepted
         ? null
         : { answeredBy: result.answeredBy ?? "" };
@@ -256,6 +281,8 @@ export function useTasks(actions: TaskActions) {
     browser,
     state,
     refresh,
+    retry,
+    openReceipt,
     inspect,
     action,
     gitCheckpoint,

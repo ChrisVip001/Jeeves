@@ -12,7 +12,7 @@ async fn receipts_bind_versions_roll_back_with_checks_and_follow_reverted_conten
     tasks
         .create(NewTask {
             id: "task",
-            session_id: None,
+            session_id: Some("jeeves-main"),
             title: "report",
             goal_condition: None,
             acceptance_json: acceptance,
@@ -133,6 +133,20 @@ async fn receipts_bind_versions_roll_back_with_checks_and_follow_reverted_conten
     .await
     .unwrap();
     assert_eq!(attached, Some(reverted));
+    tasks.set_running("task", "next-turn").await.unwrap();
+    tasks
+        .finish("task", crate::TaskStatus::Failed)
+        .await
+        .unwrap();
+    let history = crate::Chat::new(pool)
+        .messages("jeeves-main", None, 10)
+        .await
+        .unwrap();
+    let outcomes: Vec<_> = history
+        .iter()
+        .map(|row| row.receipt_status.as_deref())
+        .collect();
+    assert_eq!(outcomes, [Some("failed"), Some("done")]);
 }
 
 #[test]

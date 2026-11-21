@@ -1,4 +1,5 @@
 {
+  "editorialNote": "2026-11-21: Only the retired deployment qualifier in cases[0].draft.decision was removed from this display copy. The original repository record is Git blob c87fbbfefb0450ed3439c2fbc7380c6e5784571f.",
   "budgetCny": 0.9,
   "cases": [
     {
@@ -54,7 +55,7 @@
             "url": "https://www.rfc-editor.org/rfc/rfc9110.html"
           }
         ],
-        "decision": "How should a local-first assistant combine persistence, retries, human authorization and remote reconciliation for safe next-day work?",
+        "decision": "How should an assistant combine persistence, retries, human authorization and remote reconciliation for safe next-day work?",
         "decisionMatrix": {
           "columns": [
             "mechanism",

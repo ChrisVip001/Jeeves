@@ -132,6 +132,15 @@ async fn task_and_exact_run_completion_commit_or_rollback_together() {
             .unwrap();
     assert_eq!(rows.len(), 1);
     assert!(rows[0].ends_with("Fixture result"));
+    let history = crate::Chat::new(pool.clone())
+        .messages("jeeves-main", None, 10)
+        .await
+        .unwrap();
+    assert_eq!(history[0].task_id.as_deref(), Some("task"));
+    assert_eq!(
+        history[0].receipt_status.as_deref(),
+        Some("produced_unverified")
+    );
     let reason: String =
         sqlx::query_scalar("SELECT reason FROM task_completions WHERE run_id='run'")
             .fetch_one(&pool)

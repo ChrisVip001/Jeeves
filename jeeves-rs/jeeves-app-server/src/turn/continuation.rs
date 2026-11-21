@@ -112,16 +112,8 @@ pub(super) async fn continue_turn(
             &nudge,
             Vec::new(),
             TurnFrame {
-                session_id: frame.session_id,
-                turn_id: frame.turn_id,
-                sink: frame.sink,
-                interrupt: frame.interrupt.clone(),
-                worktree: frame.worktree.clone(),
-                turn_cwd: frame.turn_cwd.clone(),
-                route_reason: frame.route_reason.clone(),
-                steering: frame.steering.clone(),
                 resume: Some(resume),
-                checkpoint: frame.checkpoint.clone(),
+                ..frame.clone()
             },
             None,
         )

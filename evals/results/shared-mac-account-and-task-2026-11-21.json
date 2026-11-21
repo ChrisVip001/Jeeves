@@ -1,0 +1,47 @@
+{
+  "finishedAt": "2026-11-21T18:12:04+08:00",
+  "nativeAppPid": 84006,
+  "runtimePid": 84055,
+  "accountGateway": "https://localhost:8743",
+  "accountFlow": [
+    "registered sole owner",
+    "confirmed actual registration email in the same window",
+    "enrolled TOTP",
+    "confirmed actual reset email in the same window",
+    "signed in with new password and current TOTP"
+  ],
+  "taskTitle": "原窗两阶段续办验收 A17",
+  "beforePasswordReset": {
+    "id": "task1795255770667803-2",
+    "execution": "task-work:caadab39205a25ce68c594b5efc223ef",
+    "status": "done",
+    "runCount": 1,
+    "sameTitleCount": 1,
+    "firstInstruction": true,
+    "secondInstruction": false,
+    "firstReply": true,
+    "secondReply": false
+  },
+  "afterNewLogin": {
+    "id": "task1795255770667803-2",
+    "execution": "task-work:caadab39205a25ce68c594b5efc223ef",
+    "status": "done",
+    "runCount": 2,
+    "sameTitleCount": 1,
+    "firstInstruction": true,
+    "secondInstruction": true,
+    "firstReply": true,
+    "secondReply": true
+  },
+  "sameWindowHandoff": {
+    "taskHeadingVisible": true,
+    "bothStageMarkersVisible": true,
+    "originalProcessesStillRunning": true
+  },
+  "diagnosticDraftsCancelledWithoutExecution": 2,
+  "verification": {
+    "controlPlaneTestsPassed": 19,
+    "dashboardBuild": "passed",
+    "docLinksAndI18n": "passed"
+  }
+}

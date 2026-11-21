@@ -67,6 +67,53 @@ pub fn proven_read_call(name: &str, args: &serde_json::Value) -> bool {
     proven_read(name)
 }
 
+impl crate::ToolRegistry {
+    /// Ordinary chat with an unresolved effect accepts only unconditional reads.
+    /// Main chat can also use the read actions of mixed tools under its execution policy.
+    pub fn restrict_to_reads(&mut self, include_read_actions: bool) {
+        let mut mixed = Vec::new();
+        if include_read_actions {
+            for (name, description, fields) in [
+                (
+                    crate::memory_tool::MEMORY,
+                    "Search or list stored memories.",
+                    &["action", "query", "top_k", "limit"][..],
+                ),
+                (
+                    "job",
+                    "List background jobs or read their output.",
+                    &["action", "id", "cursor", "wait"][..],
+                ),
+            ] {
+                let Some(mut tool) = self.get(name).cloned() else {
+                    continue;
+                };
+                let properties = tool.input_schema["properties"]
+                    .as_object_mut()
+                    .expect("built-in tool properties");
+                properties.retain(|key, _| fields.contains(&key.as_str()));
+                properties["action"]["enum"]
+                    .as_array_mut()
+                    .expect("built-in action enum")
+                    .retain(|action| {
+                        proven_read_call(name, &serde_json::json!({"action": action}))
+                    });
+                tool.description = description.into();
+                mixed.push(tool);
+            }
+        }
+        self.tools.retain(|name, _| proven_read(name));
+        self.validators
+            .retain(|name, _| self.tools.contains_key(name));
+        self.effects.retain(|name, _| self.tools.contains_key(name));
+        self.exclusive.retain(|name| self.tools.contains_key(name));
+        self.deferred.retain(|name| self.tools.contains_key(name));
+        for tool in mixed {
+            self.register_exclusive_with_effect(tool, crate::ToolEffect::Read);
+        }
+    }
+}
+
 pub fn redact(mut value: serde_json::Value) -> serde_json::Value {
     match &mut value {
         serde_json::Value::Object(map) => {

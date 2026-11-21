@@ -43,15 +43,25 @@ impl TaskDispatch {
         message: &str,
         attachments: &str,
     ) -> Result<DispatchRow> {
+        self.enqueue_with_origin(task_id, message, attachments, None)
+            .await
+    }
+    pub async fn enqueue_with_origin(
+        &self,
+        task_id: &str,
+        message: &str,
+        attachments: &str,
+        origin_message_id: Option<&str>,
+    ) -> Result<DispatchRow> {
         ensure!(
             !message.trim().is_empty() && message.len() <= 64_000,
             "task message must contain 1 to 64000 bytes"
         );
-        let row=sqlx::query_as::<_,DispatchRow>("INSERT INTO task_dispatch(task_id,session_id,turn_id,message,attachments_json)
-            SELECT id, 'task-work:' || lower(hex(randomblob(16))), 'task-turn:' || lower(hex(randomblob(16))), ?, ?
+        let row=sqlx::query_as::<_,DispatchRow>("INSERT INTO task_dispatch(task_id,session_id,turn_id,message,attachments_json,origin_message_id)
+            SELECT id, 'task-work:' || lower(hex(randomblob(16))), 'task-turn:' || lower(hex(randomblob(16))), ?, ?, ?
             FROM agent_tasks WHERE id=? AND status='pending' AND current_turn_id IS NULL
             RETURNING task_id,session_id,turn_id,message,state,attachments_json")
-            .bind(message).bind(attachments).bind(task_id).fetch_optional(&self.pool).await?;
+            .bind(message).bind(attachments).bind(origin_message_id).bind(task_id).fetch_optional(&self.pool).await?;
         row.ok_or_else(|| {
             anyhow::anyhow!("only a pending task without an execution can be started")
         })
@@ -140,8 +150,18 @@ impl TaskDispatch {
             "Invalid task follow-up"
         );
         let mut tx = self.pool.begin().await?;
-        let changed=sqlx::query("UPDATE agent_tasks SET status='pending',finished_at=NULL,current_turn_id=NULL,last_stop_reason=NULL WHERE id=? AND status='done' AND goal_condition IS NULL AND acceptance_json='[]' AND EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=agent_tasks.id AND d.state='finished')")
-            .bind(task_id).execute(&mut *tx).await?.rows_affected();
+        let changed = sqlx::query(
+            "UPDATE agent_tasks SET status='pending',finished_at=NULL,current_turn_id=NULL,
+                last_stop_reason=NULL,acceptance_json='[]',checks_json='[]',rounds_used=0
+             WHERE id=? AND status='done' AND goal_condition IS NULL AND EXISTS(
+                 SELECT 1 FROM task_dispatch d WHERE d.task_id=agent_tasks.id AND d.state='finished'
+                 AND (agent_tasks.acceptance_json='[]' OR d.origin_message_id IS NOT NULL)
+             )",
+        )
+        .bind(task_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
         ensure!(changed==1,"Only a completed conversational task can accept a new follow-up; inspect other task states first");
         sqlx::query("UPDATE task_dispatch SET message=?,attachments_json=?,turn_id='task-turn:'||lower(hex(randomblob(16))),state='pending' WHERE task_id=? AND state='finished'")
             .bind(message).bind(attachments).bind(task_id).execute(&mut *tx).await?;

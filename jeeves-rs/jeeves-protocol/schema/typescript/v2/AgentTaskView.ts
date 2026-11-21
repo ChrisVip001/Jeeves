@@ -34,7 +34,7 @@ export type AgentTaskView = {
   sessionId: string | null;
   title: string;
   /**
-   * The goal loop's condition. Absent = a single-turn task: done when the turn is.
+   * Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
    */
   goalCondition: string | null;
   status: string;
@@ -54,7 +54,7 @@ export type AgentTaskView = {
    */
   lastStopReason: string | null;
   /**
-   * What must be measurably true. Empty = no objective conditions (single-turn task).
+   * What must be measurably true. An empty list provides no independent acceptance evidence.
    */
   acceptance: Array<AcceptanceView>;
   /**

@@ -1137,6 +1137,8 @@ fn to_message(row: jeeves_state::MessageRow) -> Option<jeeves_protocol::Message>
         id: narrow(row.id),
         source: matches!(row.source.as_str(), "task_decision" | "task_completion")
             .then_some(row.source),
+        task_id: row.task_id,
+        receipt_status: row.receipt_status,
         role,
         content: row.content,
         at: iso(row.at),

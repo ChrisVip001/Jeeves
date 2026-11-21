@@ -2,11 +2,11 @@
 //!
 //! There is no separate router model any more. The main conversation is one ordinary turn; when
 //! the human's message asks for real work, that turn calls this tool. The tool exists only for
-//! the interaction that is running (see `Server::interaction_tool`), and it cannot invent work:
+//! the human interaction that owns it, and it cannot invent work:
 //! every instruction must be a verbatim span of the human's current message.
 use crate::{EventSink, Server};
 use jeeves_protocol::{
-    InteractionStartParams, TaskActionParams, TaskCreateParams, TaskStartParams,
+    AcceptanceView, InteractionStartParams, TaskActionParams, TaskCreateParams, TaskStartParams,
 };
 use jeeves_tools::Tool;
 use serde::Deserialize;
@@ -17,19 +17,56 @@ pub(crate) const NAME: &str = "task";
 const MAX_ITEMS: usize = 4;
 
 const DESCRIPTION: &str = "Hand real work to a task thread that runs on its own while the conversation stays free. \
-Use it when the human explicitly asks you to do work: change files, build something, run a multi-step job. \
+Use it when the human explicitly asks you to do work: draft or send email, change files, build something, run a multi-step job. \
 Do not use it for chat, questions, advice or progress inquiries; answer those yourself. \
 create: one item per independent request (at most 4). `instruction` must be copied word for word from the human's current message, never reworded or invented. \
+Include file_checks for explicitly named output files. Copy each path from the instruction. Add contains only for literal text the human requires in that file. \
 continue: pass a follow-up to the existing task (task_id from list). Use its words once. If the target is unclear, ask which task the human means. \
 draft_email: when the human asks to change a previously requested send to a draft, use this instead of continue or create. The runtime resolves the target from the human message. \
 cancel: stop a task the human asked to stop. \
-list: show this conversation's tasks.";
+list: show the 20 newest tasks in this conversation.";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Item {
     title: String,
     instruction: String,
+    #[serde(default)]
+    file_checks: Vec<FileCheck>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileCheck {
+    path: String,
+    contains: Option<String>,
+}
+
+impl Item {
+    fn acceptance(&self) -> Result<Vec<AcceptanceView>, String> {
+        let quoted = |text: &str| !text.trim().is_empty() && self.instruction.contains(text);
+        let mut acceptance = Vec::with_capacity(self.file_checks.len());
+        for check in &self.file_checks {
+            if !quoted(&check.path) || check.contains.as_deref().is_some_and(|text| !quoted(text)) {
+                return Err(
+                    "file check paths and required text must be copied from the task instruction"
+                        .into(),
+                );
+            }
+            acceptance.push(AcceptanceView {
+                kind: if check.contains.is_some() {
+                    "fileContains"
+                } else {
+                    "fileExists"
+                }
+                .into(),
+                path: Some(check.path.clone()),
+                pattern: check.contains.clone(),
+                ..Default::default()
+            });
+        }
+        Ok(acceptance)
+    }
 }
 
 #[derive(Deserialize)]
@@ -65,7 +102,16 @@ pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) 
                         "type": "object",
                         "properties": {
                             "title": {"type": "string", "description": "Short title in the human's language"},
-                            "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"}
+                            "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"},
+                            "file_checks": {
+                                "type": "array", "description": "Explicit output files named in this instruction",
+                                "items": {
+                                    "type": "object", "properties": {
+                                        "path": {"type": "string", "description": "Output path as written by the human"},
+                                        "contains": {"type": "string", "description": "Exact text the human requires in this file"}
+                                    }, "required": ["path"], "additionalProperties": false
+                                }
+                            }
                         },
                         "required": ["title", "instruction"]
                     }
@@ -116,7 +162,11 @@ async fn run(
             Ok(reply)
         }
         Call::List => {
-            let rows = owned(server, &p.session_id).await?;
+            let rows = server
+                .tasks
+                .list_for_session(&p.session_id, 20)
+                .await
+                .map_err(|e| e.to_string())?;
             if rows.is_empty() {
                 return Ok("No tasks in this conversation yet.".into());
             }
@@ -141,11 +191,15 @@ async fn run(
                 items.iter().map(|item| item.instruction.as_str()),
                 spans,
             )?;
+            let checks = items
+                .iter()
+                .map(Item::acceptance)
+                .collect::<Result<Vec<_>, _>>()?;
             let context = task_context(server, &p.session_id).await?;
             spans.lock().expect("span lock").extend(fresh);
             let mut lines = Vec::new();
-            for item in &items {
-                lines.push(start_one(server, p, sink, &context, item).await);
+            for (item, acceptance) in items.iter().zip(checks) {
+                lines.push(start_one(server, p, sink, &context, item, acceptance).await);
             }
             Ok(lines.join("\n"))
         }
@@ -212,6 +266,7 @@ async fn start_one(
     sink: &EventSink,
     context: &str,
     item: &Item,
+    acceptance: Vec<AcceptanceView>,
 ) -> String {
     let envelope = match crate::task::create(
         server,
@@ -221,7 +276,7 @@ async fn start_one(
             goal_condition: None,
             max_rounds: None,
             tier: None,
-            acceptance: vec![],
+            acceptance,
             budget: None,
             cwd: p.cwd.clone(),
             repo: None,
@@ -250,7 +305,7 @@ async fn start_one(
             );
         }
     }
-    match crate::task::start(
+    match crate::task::start_with_origin(
         server,
         sink,
         TaskStartParams {
@@ -258,6 +313,7 @@ async fn start_one(
             message: task_input(context, &p.message, &item.instruction),
             attachments: p.attachments.clone(),
         },
+        Some(&p.message_id),
     )
     .await
     {
@@ -267,15 +323,6 @@ async fn start_one(
             item.title, envelope.task.id, e.message
         ),
     }
-}
-
-async fn owned(server: &Server, session: &str) -> Result<Vec<jeeves_state::TaskRow>, String> {
-    let rows = server.tasks.list(100).await.map_err(|e| e.to_string())?;
-    Ok(rows
-        .into_iter()
-        .filter(|t| t.session_id.as_deref() == Some(session))
-        .take(20)
-        .collect())
 }
 
 async fn owned_task(

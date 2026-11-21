@@ -334,6 +334,15 @@ pub(crate) async fn start(
     sink: &EventSink,
     params: jeeves_protocol::TaskStartParams,
 ) -> Result<TaskEnvelope, ErrorObject> {
+    start_with_origin(server, sink, params, None).await
+}
+
+pub(crate) async fn start_with_origin(
+    server: &Server,
+    sink: &EventSink,
+    params: jeeves_protocol::TaskStartParams,
+    origin_message_id: Option<&str>,
+) -> Result<TaskEnvelope, ErrorObject> {
     if server.resolved().is_none() {
         return Err(invalid("Configure a model before starting a task"));
     }
@@ -342,11 +351,12 @@ pub(crate) async fn start(
     let row = reload(server, &params.task_id).await?;
     integration::require_integrated(server, &row.id).await?;
     jeeves_state::dispatch::TaskDispatch::new(server.pool.clone())
-        .enqueue_with_attachments(
+        .enqueue_with_origin(
             &row.id,
             &params.message,
             &serde_json::to_string(&params.attachments.unwrap_or_default())
                 .map_err(|e| invalid(e.to_string()))?,
+            origin_message_id,
         )
         .await
         .map_err(|e| invalid(format!("Task was not queued: {e}")))?;

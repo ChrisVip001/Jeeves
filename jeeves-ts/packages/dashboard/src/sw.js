@@ -35,6 +35,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || !url.href.startsWith(scope)) return;
   const file = url.pathname.slice(new URL(scope).pathname.length);
+  if (/^\/app\/u-[a-f0-9]{12}\/$/.test(new URL(scope).pathname) && event.request.mode === "navigate") return;
   if (!["", "index.html", "style.css", "main.js", "icon.svg", "icon-maskable.svg", "manifest.webmanifest"].includes(file)
       && !file.startsWith("assets/") && !file.startsWith("chunks/")) return;
 
@@ -47,7 +48,7 @@ self.addEventListener("fetch", (event) => {
     const cacheKey = file === "" && url.searchParams.has("approvalRequestId") ? scope : event.request;
     const cached = await cache.match(cacheKey).catch(() => undefined);
     const fresh = fetch(event.request).then(async (response) => {
-      if (response.ok && new URL(response.url).origin === self.location.origin) {
+      if (response.ok && !response.redirected && new URL(response.url).origin === self.location.origin) {
         await cache.put(cacheKey, response.clone()).catch(() => {});
       }
       return response;

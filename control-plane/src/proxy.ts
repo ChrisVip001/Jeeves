@@ -74,11 +74,12 @@ export async function handleModel(
   try {
     upstream = await fetch(cfg.upstream + (req.url ?? ""), {
       method: req.method,
+      redirect: "error",
       headers,
       body: ["GET", "HEAD"].includes(req.method ?? "") ? undefined : Buffer.concat(chunks),
     });
-  } catch (e) {
-    return end(res, 502, `model upstream unreachable: ${(e as Error).message}`);
+  } catch {
+    return end(res, 502, "model upstream unreachable");
   }
   res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json" });
   const tally = new Tally((upstream.headers.get("content-type") ?? "").includes("text/event-stream"));

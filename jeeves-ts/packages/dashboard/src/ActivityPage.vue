@@ -1,0 +1,66 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { ChevronRight } from "lucide-vue-next";
+import { t } from "./i18n";
+import ApprovalCard from "./ui/ApprovalCard.vue";
+import type { TaskCenter } from "./ui/useTasks";
+import type { AgentTaskView } from "./protocol";
+const props = defineProps<{ center: TaskCenter }>();
+defineEmits<{ inspect: [id: string]; chat: [] }>();
+const chatRequests = computed(() => Object.values(props.center.state.approvals).filter(request => !props.center.taskOf(request)));
+
+function status(task: AgentTaskView) {
+  if (props.center.approvalFor(task)) return t("需要你确认");
+  if (task.inputCondition?.state === "pending") return t("等{what}", { what: task.inputCondition.description });
+  switch (task.status) {
+    case "running": return t("正在执行");
+    case "pending": return t("等待执行");
+    case "suspended": return t("已暂停");
+    case "needsAttention": case "needs_attention": return t("需要你处理");
+    case "failed": return t("执行失败");
+    case "cancelled": return t("已取消");
+    case "done": return task.acceptance.length && task.checks.length === task.acceptance.length && task.checks.every(c => c.passed)
+      ? t("验收通过") : t("已生成，待验收");
+    default: return task.status;
+  }
+}
+
+const sections = computed(() => {
+  const waiting: AgentTaskView[] = [], working: AgentTaskView[] = [], past: AgentTaskView[] = [];
+  for (const task of props.center.state.tasks) {
+    if (["done", "failed", "cancelled"].includes(task.status)) past.push(task);
+    else if (props.center.approvalFor(task) || ["needs_attention", "needsAttention"].includes(task.status)
+      || (task.inputCondition?.state === "pending" && task.inputCondition.source === "manual")) waiting.push(task);
+    else working.push(task);
+  }
+  return [
+    { label: t("等你决定"), rows: waiting, requests: chatRequests.value },
+    { label: t("进行中"), rows: working, requests: [] },
+    { label: t("已结束"), rows: past, requests: [] },
+  ];
+});
+</script>
+
+<template>
+  <section class="activity-page" aria-labelledby="activity-title">
+    <h1 id="activity-title">{{ t("动态") }}</h1>
+    <p v-if="center.state.error" role="alert">{{ center.state.error }} <button type="button" class="today-btn" @click="center.retry">{{ t("重试") }}</button></p>
+    <p v-else-if="!center.state.loadedOwner || center.state.loadedOwner !== center.state.owner" role="status">{{ t("正在读取任务…") }}</p>
+    <div v-else-if="!center.state.tasks.length && !chatRequests.length" class="activity-empty">
+      <p>{{ t("交办的事会出现在这里。") }}</p>
+      <button type="button" class="today-btn" @click="$emit('chat')">{{ t("回到对话") }}</button>
+    </div>
+    <template v-for="section in sections" :key="section.label">
+      <section v-if="center.state.loadedOwner === center.state.owner && (section.rows.length || section.requests.length)" class="activity-group">
+        <h2>{{ section.label }} <span>{{ section.rows.length + section.requests.length }}</span></h2>
+        <ApprovalCard v-for="request in section.requests" :key="request.requestId + ':' + request.version"
+          :approval="request" :restored="center.state.restored[request.turnId]" :busy="!!center.state.busy"
+          @answer="(ok, reviewed) => center.approve(reviewed, ok)" />
+        <button v-for="task in section.rows" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
+          class="activity-task" type="button" @click="$emit('inspect', task.id)">
+          <strong>{{ task.title }}</strong><small>{{ status(task) }}</small><ChevronRight :size="16" aria-hidden="true" />
+        </button>
+      </section>
+    </template>
+  </section>
+</template>

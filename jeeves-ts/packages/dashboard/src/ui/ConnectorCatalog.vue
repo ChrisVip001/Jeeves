@@ -130,7 +130,7 @@ onMounted(load);
       <h4 ref="heading" tabindex="-1">{{ entry ? t('配置 {name}', { name: entry.title }) : t('自定义连接') }}</h4>
       <p v-if="entry" class="connection-message">{{ setupLabel(entry) }}</p>
       <label>{{ t('连接名称') }}<input v-model.trim="name" name="name" required pattern="[a-zA-Z0-9_\-]{1,64}" autocomplete="off" spellcheck="false" :disabled="saving" placeholder="my-service" /><small>{{ t('名称限 1–64 个英文字母、数字、下划线或连字符。') }}</small><small v-if="duplicate" role="status">{{ t('此名称已存在，请使用其他名称。') }}</small></label>
-      <label>{{ t('连接方式') }}<select v-model="transport" name="transport" :disabled="!!entry || saving"><option value="http">{{ t('远程 HTTP / HTTPS') }}</option><option value="stdio">{{ t('本机命令（stdio）') }}</option></select></label>
+      <label>{{ t('连接方式') }}<select v-model="transport" name="transport" :disabled="!!entry || saving"><option value="http">{{ t('远程 HTTP / HTTPS') }}</option><option value="stdio">{{ t('服务端命令（stdio）') }}</option></select></label>
       <template v-if="transport === 'http'">
         <label>{{ t('MCP 服务网址') }}<input v-model.trim="url" name="url" type="url" required :readonly="!!entry" :disabled="saving" placeholder="https://mcp.example.com/mcp" autocomplete="off" spellcheck="false" /><small>{{ t('网址不可包含凭据、查询参数或片段；认证需要 HTTPS。') }}</small></label>
         <label>{{ t('认证方式') }}<select name="auth" v-model="auth" :disabled="!!entry || saving"><option value="none">{{ t('无认证') }}</option><option value="bearer">{{ t('Bearer（环境变量）') }}</option><option value="oauth">OAuth</option></select></label>
@@ -139,7 +139,7 @@ onMounted(load);
       </template>
       <template v-else>
         <label>{{ t('启动命令') }}<input v-model.trim="command" name="command" required autocomplete="off" spellcheck="false" :disabled="saving" /></label>
-        <label>{{ t('命令参数（每行一个）') }}<textarea name="args" v-model="args" rows="3" autocomplete="off" spellcheck="false" :disabled="saving" /><small>{{ t('Jeeves 会在本机启动该命令。仅使用你信任的程序，不在命令和参数中填写密钥。') }}</small></label>
+        <label>{{ t('命令参数（每行一个）') }}<textarea name="args" v-model="args" rows="3" autocomplete="off" spellcheck="false" :disabled="saving" /><small>{{ t('Jeeves 会在 Runtime 宿主上启动该命令。仅使用你信任的程序，不在命令和参数中填写密钥。') }}</small></label>
       </template>
       <p v-if="!entry" class="connection-message">{{ t('自定义工具没有声明 effect 时，运行时按写入权限处理。') }}</p>
       <p v-if="saveFailed" role="alert" class="connection-message">{{ t('配置未保存，请检查字段和服务后重试。') }}</p>

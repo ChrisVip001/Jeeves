@@ -1,6 +1,6 @@
 //! The model catalog: the built-in table, extended at boot by `<home>/models-catalog.json`.
 //!
-//! Local-first means a user can add a provider (or retune a default) **without forking the
+//! Runtime operators can add a provider (or retune a default) **without forking the
 //! code**: the built-in `PROVIDERS` table stays the compile-time base, and one local JSON file
 //! patches existing rows by id or appends new ones. No network, no new dependencies.
 //!

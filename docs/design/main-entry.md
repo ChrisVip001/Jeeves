@@ -1,34 +1,28 @@
-# Main entry: one conversation and independent task threads
+# Chat and Activity in Jeeves
 
 English | [简体中文](main-entry.zh.md)
 
-The Runtime already provides the main conversation and independent task sessions. The iPhone task list and the Mac mode switch below share the dashboard frontend.
+## 1. Two destinations
 
-The phone task list and Mac Cowork read the same execution conversation and artifacts. The main chat keeps the complete approval preview, including the publishing account, channel, destination and final text. Reply with `approve <requestId> v<version>` or `deny <requestId> v<version>`. A task revision retires its outstanding send approval. The completion receipt creates one original-chat result for that execution.
+Jeeves opens in Chat. Ask a question, delegate an assignment or change direction there. Activity keeps delegated work under Needs your decision, Running and Finished. Jeeves answers ordinary questions directly and creates a task for sustained work. The person can move on to another subject as soon as they delegate.
 
-## 1. Purpose
+## 2. Design references
 
-People can chat, ask questions, delegate research or coding, plan a purchase or work on a creative project in the same place. Jeeves opens a task thread when the person delegates work.
+Grok lets people describe a recurring job in chat and reopen an individual run to continue the conversation. In Jeeves each receipt leads back to the work it reports on. [Automations in Grok](https://x.ai/news/grok-automations)
 
-## 2. Why tasks have their own threads
+Grok Bot presents the recipients and draft of an outgoing message for review in chat. A new message can redirect work in progress. In Jeeves the conversation therefore carries the current decision and its preview. [Messaging and collaborating with Grok Bot](https://docs.x.ai/grok-bot/chat-and-collaboration)
 
-An extended collaboration can span dozens of exchanges. Keeping its transcript together makes earlier decisions easier to find, keeps confirmations visible in the main conversation and gives each task its own model context.
+A dot accepts a goal in conversation, continues between conversations and reports scheduled updates in chat. Tasks retain their own context. Jeeves gives talking to the assistant and finding work across assignments separate destinations. [Getting started with your dot](https://help.openai.com/en/articles/20001530-getting-started-with-your-dot)
 
-## 3. Structure
+## 3. From assignment to delivery
 
-On iPhone, the main chat is the only place to assign work, send follow-ups or answer a task’s question. Jeeves routes a follow-up or answer to the existing task. The main chat also receives progress, requests for confirmation and results.
-
-From the main chat, the person can browse all task conversations under **In progress**, **Needs your decision** and **Completed**. The list and its detail view are read-only. Opening a task shows the same full conversation, details and result visible to the user in Mac Cowork, as they become available. The message composer stays in the main chat. A signed push opens a separate review of the same approval request and version. From that review the owner may decide once or follow up in the main chat with the reviewed task selected.
-
-On Mac, a switch at the top left lets the person choose **Assistant** or **Cowork**. Assistant shows the same main chat, relevant information and recent activity. Cowork is the workbench. Each task has its own conversation, and opening it on either device reads the same persisted task and conversation. Delegating work keeps the current view open.
-
-| Part | Contents |
+| Intent | Interaction |
 |---|---|
-| Main conversation (`jeeves-main`) | Everyday chat, questions, assignments, progress, requests for confirmation and results |
-| Task thread | The working conversation for one task, with its own context. On Mac the person can continue it in Cowork. |
-| History | Search and a timeline by day, including archived tasks |
-
-The main model uses the `task` tool when the person gives an explicit assignment. Discussion and progress questions stay in chat. A follow-up goes to the original task. If its reference is ambiguous, Jeeves asks which task the person means. Progress, requests for confirmation and results return to the main chat. Each external action still requires its applicable authorization.
+| Delegate | In Chat, ask for a one-page summary of open issues for Monday’s client meeting. Attach a file beside the composer. Chat options hold the model, workspace and permissions. |
+| Change direction | Send an amendment. If the reference is ambiguous, Jeeves asks which assignment you mean. Selecting Follow up on a receipt puts the original task’s name in the composer. |
+| Decide | Expand Pending decisions in Chat, review the exact action and choose Allow once or Deny. Older requests are available as expandable history. |
+| Review results | Each receipt shows its run’s outcome. Activity lists other assignments. On Mac, selecting one opens its working conversation. On a phone, inspect it and return to Chat with that task selected. |
+| Manage Jeeves | The menu holds settings, connections, schedules and advanced tools. A signed notification still opens its corresponding approval request. |
 
 ### Main-chat model and task references
 
@@ -38,7 +32,7 @@ To repeat the opt-in Flash intent check, run `cargo run -p jeeves-provider --exa
 
 When the person says “Hold off on sending that one. Make it a draft,” the Runtime resolves the draft request against the selected task or an explicit human reference. A backward reference may use the immediately preceding completed private interaction. If several actions fit, the user chooses an action ID. The task ID stays fixed across iPhone and Mac. The send action has its own record. If two targets fit, the main chat asks the person to choose using distinguishable subjects or task names. Recency alone cannot resolve that choice. Both targets stay untouched until the person answers.
 
-The Runtime verifies task ownership, the action’s association with that task, current action state and permissions. It applies the change only to a unique, still-valid target. Task progress cannot establish whether mail was sent or cancelled. Whether the send can be stopped depends on which commits first, the draft change or the sender’s claim. The reply reflects the durable action record and any acceptance receipt. See the [first architecture acceptance scenario](../planning/execution-plan.md#first-architecture-acceptance-scenario-turn-a-queued-send-into-a-draft-pending).
+The Runtime verifies task ownership, the action’s association with that task, current action state and permissions. It applies the change only to a unique, still-valid target. Task progress cannot establish whether mail was sent or cancelled. Whether the send can be stopped depends on which commits first, the draft change or the sender’s claim. The reply reflects the durable action record and any acceptance receipt. See the [task mail contract](../configuration.md#calendar-and-email).
 
 ### Task notifications
 
@@ -57,6 +51,10 @@ The Runtime verifies task ownership, the action’s association with that task, 
 | Video and creative work | Task thread with materials and previews | The person decides on the subject and publication |
 
 ### Working on a long task
+
+When an assignment explicitly names an output file, main chat can hand off a file check. If the person also specifies literal text that must appear, the check measures that text in the file. The Runtime records each result against the task's workspace and sends a failed check back for correction within the task's round limit. The task detail shows the recorded criteria and verdicts. Source accuracy, code behavior and other semantic requirements need their own evidence.
+
+A follow-up after delivery opens a new run in the same task and workspace. The earlier receipt stays attached to its run. The follow-up starts without file checks, so its output is marked unverified.
 
 At kickoff, Jeeves briefly explains how it intends to approach the assignment and when the person can expect an update. It adjusts routine steps as it learns. Before a decision materially changes the agreed goal, cost, permissions or commitments, it asks the person to decide. As soon as the promised result looks at risk, it reports what is at risk and what can still be delivered.
 

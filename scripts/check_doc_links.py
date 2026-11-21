@@ -5,7 +5,7 @@ import re, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SKIP = ("node_modules", "/target/", "/output/", "docs/planning/", ".git/")
+SKIP = ("node_modules", "/target/", "/output/", ".git/")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 HEAD = re.compile(r"^(#{1,6}) ", re.M)
 

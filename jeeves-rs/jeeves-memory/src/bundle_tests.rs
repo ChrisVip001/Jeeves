@@ -54,7 +54,7 @@ fn the_catalog_is_regenerated_from_the_pages() {
             "project",
             "Jeeves",
             "jeeves",
-            "a local-first assistant",
+            "a long-task assistant",
             "the body",
         ))
         .expect("write");
@@ -69,7 +69,7 @@ fn the_catalog_is_regenerated_from_the_pages() {
         "{index}"
     );
     assert!(
-        index.contains("[Jeeves](jeeves.md) · project — a local-first assistant"),
+        index.contains("[Jeeves](jeeves.md) · project — a long-task assistant"),
         "{index}"
     );
 }
