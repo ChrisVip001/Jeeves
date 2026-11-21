@@ -34,7 +34,7 @@ just desktop-build     # bundles the Runtime into the Mac app
 just desktop-open      # open the project app or bring its existing window forward
 ```
 
-Delegate in Chat by describing the outcome. Open **My work** on Mac or phone to resume an interrupted task, read its files or request a revision. [Chat, work and delivery](docs/design/main-entry.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
+Delegate in Chat by describing the outcome. Open **My work** on Mac or phone to see the task's results, resume interrupted work or request a revision. [Chat, work and delivery](docs/design/main-entry.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
 
 **Docker** — the dashboard walks you through the model, permissions and chat connections:
 

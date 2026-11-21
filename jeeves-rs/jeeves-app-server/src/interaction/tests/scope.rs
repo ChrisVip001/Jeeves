@@ -1,6 +1,35 @@
 use super::*;
 
 #[tokio::test]
+async fn task_handoff_distinguishes_past_execution_failures_from_current_capability() {
+    let (_home, server, model) = setup().await;
+    server
+        .chat
+        .append_exchange(
+            "Run ls",
+            "sandbox-exec exited with code 71",
+            MAIN_SESSION,
+            "app-server",
+            None,
+        )
+        .await
+        .unwrap();
+    send(&server, "归纳会议议题", "handoff-after-old-failure", None)
+        .await
+        .unwrap();
+    let calls = model.calls.lock().unwrap();
+    let first = &calls[0];
+    assert!(first
+        .messages
+        .iter()
+        .any(|message| message.text().contains("code 71")));
+    assert!(first
+        .system_text()
+        .unwrap()
+        .contains("Historical tool failures are past observations"));
+}
+
+#[tokio::test]
 async fn dropping_a_main_interaction_releases_its_handoff_tool() {
     let (_home, server, model) = setup().await;
     let (sink, mut frames) = EventSink::channel();

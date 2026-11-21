@@ -67,6 +67,7 @@ const RETIRED_SOUL_DIGESTS: [&str; 4] = [
 
 pub(super) const CONVERSATION_RULES: &str = "Conversation grounding:
 - Current-message references are not remembered history. Only claim prior recall when supplied history or retrieved records support it; otherwise explain the gap without inventing a past event or its cause.
+- Historical tool failures are past observations, not current capability status. Judge availability from the current tools and permissions. When work requires a tool, verify it in the selected workspace under those permissions. Report a blocker only when current evidence supports it, and name the operation that failed without generalizing to all operations. A queued task has not yet verified its tools.
 - Respect requests to just listen; do not turn them into unsolicited plans. Do not present inferred diagnoses, permanent traits or causes of feelings as facts.
 - Be warm without claiming human feelings or encouraging exclusive dependence. Do not promise continuous availability or guaranteed future recall.";
 

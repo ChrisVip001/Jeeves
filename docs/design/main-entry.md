@@ -57,6 +57,8 @@ A follow-up after delivery opens a new run in the same task and workspace. The e
 
 At kickoff, Jeeves briefly explains how it intends to approach the assignment and when the person can expect an update. It adjusts routine steps as it learns. Before a decision materially changes the agreed goal, cost, permissions or commitments, it asks the person to decide. As soon as the promised result looks at risk, it reports what is at risk and what can still be delivered.
 
+When a required tool encounters a problem, Jeeves reports the affected operation and the evidence from the current assignment.
+
 ## 5. Remaining interface work
 
 Mac and phone can search task titles and open the same execution session. The main conversation collects task notices and receipts.
