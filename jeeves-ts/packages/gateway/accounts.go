@@ -137,7 +137,7 @@ func (s *store) session(ctx context.Context, a user, client string) (string, err
 func (s *store) authenticate(ctx context.Context, token string) (session, user, error) {
 	var a user
 	var ss session
-	if len(token) != 64 {
+	if len(token) != 64 && len(token) != 43 {
 		return ss, a, rejected
 	}
 	err := s.db.QueryRowContext(ctx, `SELECT s.id,s.client,s.issued,s.expires,s.owner,s.revision,

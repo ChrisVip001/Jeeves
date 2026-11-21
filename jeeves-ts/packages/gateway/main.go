@@ -21,6 +21,7 @@ type gateway struct {
 	origin                   *url.URL
 	bundle                   string
 	local, trustProxy        bool
+	loopbackOnly             bool
 	setup                    string
 	fixed                    cloudkit.RuntimeEndpoint
 	fixedOwner               string
@@ -41,8 +42,11 @@ func configuration(ctx context.Context) (*gateway, error) {
 	if (!local && origin.Scheme != "https") || (local && !loopback(origin.Hostname())) {
 		return nil, errors.New("use an HTTPS public origin or a loopback origin for personal mode")
 	}
+	fixed := os.Getenv("GW_RUNTIME_URL")
+	owner := normalizeEmail(os.Getenv("GW_FIXED_OWNER_EMAIL"))
+	secureFixed := !local && loopback(origin.Hostname()) && fixed != "" && emailPattern.MatchString(owner)
 	dsn := os.Getenv("GW_DATABASE_URL")
-	if dsn == "" || (!local && strings.HasPrefix(dsn, "sqlite:") && os.Getenv("GW_DEVELOPMENT") != "1") {
+	if dsn == "" || (!local && !secureFixed && strings.HasPrefix(dsn, "sqlite:") && os.Getenv("GW_DEVELOPMENT") != "1") {
 		return nil, errors.New("set GW_DATABASE_URL to PostgreSQL, or use SQLite in personal mode")
 	}
 	db, err := cloudkit.Open(ctx, dsn)
@@ -54,7 +58,7 @@ func configuration(ctx context.Context) (*gateway, error) {
 		db.Close()
 		return nil, err
 	}
-	g := &gateway{store: accounts, origin: origin, local: local, trustProxy: os.Getenv("GW_TRUST_PROXY") == "1", setup: os.Getenv("GW_SETUP_TOKEN"),
+	g := &gateway{store: accounts, origin: origin, local: local, loopbackOnly: local || secureFixed, trustProxy: os.Getenv("GW_TRUST_PROXY") == "1", setup: os.Getenv("GW_SETUP_TOKEN"),
 		bundle:   cloudkit.Env("GW_DASHBOARD_DIR", "jeeves-ts/packages/dashboard/dist"),
 		http:     &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 		mailJobs: make(chan mailJob, 32),
@@ -62,13 +66,13 @@ func configuration(ctx context.Context) (*gateway, error) {
 	if _, err := os.Stat(g.bundle + "/account/account.html"); err != nil {
 		return nil, fmt.Errorf("dashboard is missing; run just dashboard-build: %w", err)
 	}
-	if fixed := os.Getenv("GW_RUNTIME_URL"); fixed != "" {
+	if fixed != "" {
 		u, err := cloudkit.Origin(fixed)
 		if err != nil || u.Scheme != "https" && !loopback(u.Hostname()) || len(os.Getenv("GW_RUNTIME_TOKEN")) < 16 {
 			return nil, errors.New("fixed Runtime requires a server-set HTTPS or loopback origin and token")
 		}
 		g.fixed = cloudkit.RuntimeEndpoint{URL: u.String(), Token: os.Getenv("GW_RUNTIME_TOKEN"), Ready: true}
-		g.fixedOwner = normalizeEmail(os.Getenv("GW_FIXED_OWNER_EMAIL"))
+		g.fixedOwner = owner
 		if !local && !emailPattern.MatchString(g.fixedOwner) {
 			return nil, errors.New("a fixed cloud Runtime needs GW_FIXED_OWNER_EMAIL")
 		}
@@ -126,7 +130,7 @@ func main() {
 		return
 	}
 	addr := cloudkit.Env("GW_ADDR", ":8080")
-	if g.local {
+	if g.loopbackOnly {
 		host, _, e := net.SplitHostPort(addr)
 		if e != nil || !loopback(host) {
 			log.Fatal("personal gateway must listen on loopback")

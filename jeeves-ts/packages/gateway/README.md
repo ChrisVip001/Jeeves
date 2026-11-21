@@ -29,6 +29,8 @@ Channel adapters run within an authorized tenant deployment. Their configuration
 
 Run `just local-up` at the repository root with Go, Rust and Node installed. It opens a one-time owner setup in the browser and binds both processes to loopback. Return to the printed address after setup. The launcher stores Runtime data and the account database in `~/.local/share/jeeves-personal` by default. Personal mode uses a locally configured model and is accessible only on the host computer. Its account is separate from a hosted account.
 
+To replace an existing loopback HTTPS account gateway for a fixed owner, keep its public origin and trusted certificate and point `GW_RUNTIME_URL` and `GW_RUNTIME_TOKEN` at the current Runtime. Set `GW_FIXED_OWNER_EMAIL` and use a private SQLite file for `GW_DATABASE_URL`. This configuration listens only on loopback and keeps secure browser cookies. During the [legacy account import](../../../control-plane/README.md#account-and-task-migration), supply the previous session key as `GW_SESSION_KEY` and set `GW_IMPORT_SESSIONS=1` to preserve unexpired sessions for a newly imported owner. Keep the original encrypted account file as a rollback copy and remove the import options before starting the listener.
+
 ## Verification
 
 Run `just go-check` for the Go packages. Run `just smoke-account` on a machine with Chrome for browser registration, recovery and task continuity across independent desktop and phone-sized sessions. The smoke uses its own data, a simulated model and a test mail inbox. To exercise PostgreSQL, set `JEEVES_TEST_GATEWAY_DATABASE` and `JEEVES_TEST_CONTROL_DATABASE` to fresh local `jeeves_test_gateway` and `jeeves_test_control` databases. The control-plane Go tests also accept the latter variable.

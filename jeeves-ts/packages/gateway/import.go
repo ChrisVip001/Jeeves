@@ -8,11 +8,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"crypto/hkdf"
 	"jeeves/internal/cloudkit"
@@ -22,12 +24,29 @@ type legacyAccount struct {
 	ID, Email, Salt, Hash, OpsToken, ModelToken string
 	Verified                                    bool
 	AlwaysOn                                    bool
-	CreatedAt                                   int64
+	CreatedAt                                   json.RawMessage
 	Factor                                      *struct {
 		Secret  string
 		Last    int64
 		Backups []string
 	}
+}
+
+type legacySession struct {
+	ID, AccountID, Digest, Client string
+	Issued, Expires               int64
+}
+
+func (a legacyAccount) createdMillis() (int64, error) {
+	var stamp time.Time
+	if json.Unmarshal(a.CreatedAt, &stamp) == nil && !stamp.IsZero() {
+		return stamp.UnixMilli(), nil
+	}
+	var millis int64
+	if json.Unmarshal(a.CreatedAt, &millis) == nil && millis > 0 {
+		return millis, nil
+	}
+	return 0, errors.New("invalid legacy registration time")
 }
 
 func (g *gateway) importLegacy(ctx context.Context, path string) error {
@@ -67,12 +86,20 @@ func (g *gateway) importLegacy(ctx context.Context, path string) error {
 	var previous struct {
 		Accounts []legacyAccount
 		Usage    map[string]map[string]int64
+		Sessions []legacySession
 	}
 	if err := json.Unmarshal(clear, &previous); err != nil {
 		return err
 	}
 	if g.fixed.URL != "" && len(previous.Accounts) > 1 {
 		return errors.New("personal mode accepts a single owner")
+	}
+	keepSessions := os.Getenv("GW_IMPORT_SESSIONS") == "1"
+	if keepSessions && (!g.loopbackOnly || g.local || g.fixed.URL == "" || g.fixedOwner == "") {
+		return errors.New("session import requires a fixed owner's loopback HTTPS gateway")
+	}
+	if !keepSessions {
+		previous.Sessions = nil
 	}
 	for _, a := range previous.Accounts {
 		if g.fixedOwner != "" && a.Email != g.fixedOwner {
@@ -86,13 +113,17 @@ func (g *gateway) importLegacy(ctx context.Context, path string) error {
 				return err
 			}
 		}
-		if err := g.importUser(ctx, a); err != nil {
+		if err := g.importUser(ctx, a, previous.Sessions); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (g *gateway) importUser(ctx context.Context, a legacyAccount) error {
+func (g *gateway) importUser(ctx context.Context, a legacyAccount, sessions []legacySession) error {
+	created, err := a.createdMillis()
+	if err != nil {
+		return err
+	}
 	factor, backups, last := "", "[]", int64(-1)
 	if a.Factor != nil {
 		factor = g.store.box.Seal(a.Factor.Secret, a.ID)
@@ -112,8 +143,27 @@ func (g *gateway) importUser(ctx context.Context, a legacyAccount) error {
 				return errors.New("this Runtime already has another owner")
 			}
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO gw_users(id,email,salt,hash,verified,created,factor,factor_last,backups)
-		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING`, a.ID, a.Email, a.Salt, a.Hash, a.Verified, a.CreatedAt, factor, last, backups)
+		result, err := tx.ExecContext(ctx, `INSERT INTO gw_users(id,email,salt,hash,verified,created,factor,factor_last,backups)
+		 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(id) DO NOTHING`, a.ID, a.Email, a.Salt, a.Hash, a.Verified, created, factor, last, backups)
+		if err != nil {
+			return err
+		}
+		added, err := result.RowsAffected()
+		if err != nil || added != 1 || !a.Verified {
+			return err
+		}
+		now := time.Now().UnixMilli()
+		for _, ss := range sessions {
+			digest, err := hex.DecodeString(ss.Digest)
+			if ss.AccountID != a.ID || ss.Expires <= now || ss.Expires <= ss.Issued || ss.Issued <= 0 || ss.Issued > now ||
+				!sessionID.MatchString(ss.ID) || err != nil || len(digest) != sha256.Size {
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO gw_sessions(digest,id,owner,revision,issued,expires,client)
+			 VALUES($1,$2,$3,0,$4,$5,$6)`, ss.Digest, ss.ID, a.ID, ss.Issued, ss.Expires, ss.Client); err != nil {
+				return err
+			}
+		}
 		return err
 	})
 }

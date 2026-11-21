@@ -29,6 +29,8 @@ SMTP 支持强制 STARTTLS 的 `smtp://`，以及连接即启用 TLS 的 `smtps:
 
 在安装 Go、Rust 和 Node 后，从仓库根目录运行 `just local-up`。浏览器会打开一次性的所有者设置页面，两个服务均只监听回环接口。设置完成后可通过命令打印的地址返回。Runtime 数据和账号数据库默认存放在 `~/.local/share/jeeves-personal`。个人部署使用自己配置的模型，只能在宿主电脑访问，账号独立于托管版。
 
+替换已有单一所有者的回环 HTTPS 账号网关时，沿用原 HTTPS 源和受信任证书，把 `GW_RUNTIME_URL` 和 `GW_RUNTIME_TOKEN` 指向当前 Runtime。设置 `GW_FIXED_OWNER_EMAIL`，并将私有 SQLite 文件用作 `GW_DATABASE_URL`。该配置只监听回环接口，并保留安全 Cookie。[导入旧账号](../../../control-plane/README.zh.md#账号与任务迁移)时，可用原来的会话密钥作为 `GW_SESSION_KEY`，设置 `GW_IMPORT_SESSIONS=1`，以保留新导入所有者尚未过期的会话。保留原加密账号文件供回滚，启动网关监听前移除导入选项。
+
 ## 验证
 
 运行 `just go-check` 检查 Go 包。在安装 Chrome 的机器上运行 `just smoke-account`，可以复验浏览器注册、找回密码，以及在独立的桌面和手机尺寸会话之间续办同一任务。测试使用隔离数据、模拟模型和测试收件箱。要使用 PostgreSQL 测试，将 `JEEVES_TEST_GATEWAY_DATABASE` 和 `JEEVES_TEST_CONTROL_DATABASE` 分别指向全新创建的本机 `jeeves_test_gateway` 和 `jeeves_test_control` 数据库。控制面的 Go 测试也可使用后一个变量。
