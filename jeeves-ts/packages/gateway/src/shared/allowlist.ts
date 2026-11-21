@@ -19,6 +19,10 @@ export class Allowlist {
     return this.#ids.size > 0;
   }
 
+  isSoleMember(id: string): boolean {
+    return this.#ids.size === 1 && this.#ids.has(id);
+  }
+
   allows(id: string): boolean {
     return this.#ids.size === 0 || this.#ids.has(id);
   }

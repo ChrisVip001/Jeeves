@@ -66,10 +66,10 @@ const adapter = new LarkAdapter(
     onLog: (text) => console.error(`[lark] ${text}`),
     onWake: (params) => bridge.wake(params as Parameters<typeof bridge.wake>[0]),
     onApproval: (action, actor) =>
-      bridge.answerApprovalDetailed(action.turnId, action.requestId, action.approved, actor),
+      bridge.answerApprovalDetailed(action.turnId, action.requestId, action.approved, actor, action.version),
   },
-  async (conversation, text, source, requestId) =>
-    (await bridge.ask(conversation, text, source, requestId)).reply,
+  async (conversation, text, source, requestId, textApprovalSource) =>
+    (await bridge.ask(conversation, text, source, requestId, textApprovalSource)).reply,
 );
 
 bridge.onTaskUpdated(
@@ -84,6 +84,7 @@ bridge.onApprovalRequested(
   approvalRelay({
     locate: (turnId, requestId) => bridge.locateApproval(turnId, requestId),
     sendCard: (chatId, messageId, card) => adapter.sendCard(chatId, messageId, card),
+    sendTextApproval: (source, request) => adapter.requestTextApproval(source, request),
     onLog: (text) => console.error(`[lark] ${text}`),
   }),
 );
@@ -99,4 +100,5 @@ console.error(
   "The Jeeves gateway is up. Say something in a direct chat, or @ it in a group — it will not answer "
   + "in a group without an @.",
 );
+console.error("Text approvals are available to the sole allowlisted owner in the originating conversation.");
 await adapter.run();

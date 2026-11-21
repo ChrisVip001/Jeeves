@@ -13,6 +13,7 @@ export interface ApprovalAction {
   turnId: string;
   requestId: string;
   approved: boolean;
+  version?: number;
 }
 
 /** Read a card button's `value` back; anything else is not ours and returns `null`. */
@@ -72,6 +73,7 @@ export function approvalCard(
 export interface ApprovalOrigin {
   source: InteractionSource | null;
   task: AgentTaskView | null;
+  replyWithText?: boolean;
 }
 
 export interface RelayDeps {
@@ -79,6 +81,7 @@ export interface RelayDeps {
   locate(turnId: string, requestId: string): Promise<ApprovalOrigin | null>;
   /** Post a card into a chat as a reply to the dispatching message. */
   sendCard(chatId: string, messageId: string, card: Record<string, unknown>): Promise<void>;
+  sendTextApproval?(source: InteractionSource, request: ApprovalRequestedNotification): Promise<void>;
   onLog?: (text: string) => void;
 }
 
@@ -92,17 +95,23 @@ export function approvalRelay(
 ): (request: ApprovalRequestedNotification) => void {
   const asked = new Set<string>();
   return (request) => {
-    if (asked.has(request.requestId)) return;
-    asked.add(request.requestId);
+    const key = `${request.requestId}:${request.version}`;
+    if (asked.has(key)) return;
+    asked.add(key);
+    setTimeout(() => asked.delete(key), Math.max(0, request.expiresInMs)).unref();
     void (async () => {
       try {
         const origin = await deps.locate(request.turnId, request.requestId);
         const source = origin?.source ?? null;
         if (source === null || source.channel !== "lark") return;
+        if (origin?.replyWithText) {
+          await deps.sendTextApproval?.(source, request);
+          return;
+        }
         await deps.sendCard(source.chatId, source.messageId, approvalCard(request, origin?.task ?? null));
       } catch (error) {
         deps.onLog?.(
-          `could not ask for approval ${request.requestId} in the group: ${error instanceof Error ? error.message : String(error)}`,
+          `could not deliver approval request ${request.requestId}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     })();

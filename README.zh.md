@@ -56,7 +56,7 @@ JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves dashboard  #
 
 ## Jeeves 能做什么
 
-- **对话**：终端、网页驾驶舱，或聊天网关（微信公众号、飞书、Telegram；见 [docs/guide.zh.md](docs/guide.zh.md)）
+- **对话**：可通过终端、网页驾驶舱或聊天网关使用。[飞书对话和审批](docs/guide.zh.md#飞书--lark)
 - **使用飞书业务能力**：官方 CLI 配合 `feishu-cli` 技能（`just install-feishu-cli`），复用现有命令执行权限和审批
 - **记忆**：语义事实（FTS5、支持中文）、带日期的情景、过程 Skills，完整回合按用户消息在本地检索（[docs/architecture.zh.md](docs/architecture.zh.md)）
 - **把记忆摊开给你看**：驾驶舱的记忆中心能翻账本、记忆库和上下文占用；`/compact [重点]` 可随时压缩（[docs/operations.zh.md](docs/operations.zh.md)）

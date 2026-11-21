@@ -1,7 +1,7 @@
 import { LarkInbox } from "./lark-inbox.ts";
 import { explain } from "./bridge.ts";
 import type { Responder } from "./bridge.ts";
-import { Allowlist, splitMessage } from "./shared/index.ts";
+import { Allowlist, parseApprovalReply, splitMessage } from "./shared/index.ts";
 import type { ChannelAdapter, ChannelCapabilities, ChannelProbe, ChannelTarget, OutboundMessage, SendReceipt } from "./channel.ts";
 import {
   METHOD_CONTROL,
@@ -17,6 +17,7 @@ export type { Responder } from "./bridge.ts";
 import { NOT_ALLOWED, answerLine, approvalActionOf } from "./approvals.ts";
 import type { ApprovalAnswer } from "./approvals.ts";
 import type { ApprovalAction } from "./approvals.ts";
+import type { ApprovalRequestedNotification, InteractionSource } from "@jeeves/client";
 
 /**
  * The Lark (Feishu) adapter — **long connection**, no public address needed.
@@ -307,6 +308,11 @@ export class LarkAdapter implements ChannelAdapter {
 
   readonly #inbox: LarkInbox;
   readonly #processing = new Set<string>();
+  readonly #textApprovals = new Map<string, {
+    source: InteractionSource;
+    request: ApprovalRequestedNotification;
+    expiresAt: number;
+  }>();
 
   /** `tenant_access_token` lasts 2 hours; cache it instead of asking per message. */
   #token: { value: string; until: number } | undefined;
@@ -644,6 +650,8 @@ export class LarkAdapter implements ChannelAdapter {
       return;
     }
 
+    if (await this.#answerTextApproval(chatId, openId, text)) return;
+
     if (this.#onWake !== undefined && message.message_id) {
       try {
         const result = await this.#onWake({
@@ -669,13 +677,64 @@ export class LarkAdapter implements ChannelAdapter {
     const conversation = `lark:${chatId}`;
     this.#log("Text message accepted; forwarding to Jeeves");
 
-    const source =
-      inGroup && this.#dispatchers.has(openId)
-        ? { channel: "lark", chatId, messageId: message.message_id ?? "", senderId: openId }
-        : undefined;
+    const origin = { channel: "lark", chatId, messageId: message.message_id ?? "", senderId: openId };
+    const source = inGroup && this.#dispatchers.has(openId) ? origin : undefined;
+    const textApprovalSource = !source && this.#canApproveOwnTurn(openId) && this.#onApproval
+      ? origin
+      : undefined;
     const requestId = message.message_id ? `lark_${message.message_id}` : undefined;
-    const reply = await this.#respond(conversation, text, source, requestId);
+    const reply = await this.#respond(conversation, text, source, requestId, textApprovalSource);
     if (await this.#say(chatId, reply)) this.#log("Reply delivered to Feishu");
+  }
+
+  async requestTextApproval(source: InteractionSource, request: ApprovalRequestedNotification): Promise<void> {
+    if (!this.#canApproveOwnTurn(source.senderId) || !this.#onApproval || request.expiresInMs <= 0) return;
+    const key = `${request.requestId} v${request.version}`;
+    const pending = { source, request, expiresAt: Date.now() + request.expiresInMs };
+    this.#textApprovals.set(key, pending);
+    setTimeout(() => {
+      if (this.#textApprovals.get(key) === pending) this.#textApprovals.delete(key);
+    }, request.expiresInMs).unref();
+    const message = [
+      `Jeeves 请求确认一次操作（${Math.ceil(request.expiresInMs / 1000)} 秒内有效）`,
+      `工具 ${request.tool}`,
+      request.argsPreview,
+      request.reason,
+      `回复「批准 ${key}」或「拒绝 ${key}」。群聊请同时 @机器人。`,
+    ].join("\n");
+    if (await this.#say(source.chatId, message, source.messageId || undefined)) {
+      this.#log(`Text approval request ${request.requestId} delivered to Feishu`);
+    }
+  }
+
+  #canApproveOwnTurn(senderId: string): boolean {
+    return this.#allow.isSoleMember(senderId) ||
+      (this.#allow.restricted && this.#allow.allows(senderId) && this.#dispatchers.has(senderId));
+  }
+
+  async #answerTextApproval(chatId: string, senderId: string, text: string): Promise<boolean> {
+    const reply = parseApprovalReply(text.replace(/^批准\s+/, "1 ").replace(/^拒绝\s+/, "2 "));
+    if (!reply?.requestId.startsWith("ap-")) return false;
+    const key = `${reply.requestId} v${reply.version}`;
+    const pending = this.#textApprovals.get(key);
+    if (!pending || pending.expiresAt <= Date.now() || pending.source.chatId !== chatId ||
+        pending.source.senderId !== senderId || !this.#canApproveOwnTurn(senderId) || !this.#onApproval) {
+      await this.#say(chatId, "当前对话中没有可由你确认的这条请求，可能已处理或过期。");
+      return true;
+    }
+    const { turnId, requestId, version } = pending.request;
+    const { approved } = reply;
+    try {
+      const answer = await this.#onApproval({ jeeves: "approval", turnId, requestId, version, approved }, `lark:${senderId}`);
+      this.#textApprovals.delete(key);
+      const accepted = typeof answer === "boolean" ? answer : answer.accepted;
+      const message = approved ? "已批准本次操作。" : "已拒绝本次操作。";
+      await this.#say(chatId, accepted ? message : "这条请求已处理或过期。");
+    } catch (error) {
+      this.#log(`text approval answer failed: ${explain(error)}`);
+      await this.#say(chatId, "审批未确认送达，请检查请求状态后再试。");
+    }
+    return true;
   }
 
   /**

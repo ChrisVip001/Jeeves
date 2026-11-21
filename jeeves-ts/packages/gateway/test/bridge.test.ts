@@ -120,6 +120,26 @@ test("the session id is derived from the platform identity, so the gateway keeps
   assert.equal(sessionIdFor("telegram:42"), "telegram:42");
 });
 
+test("a private Feishu turn keeps its own session and can route an approval", async () => {
+  const { bridge, server } = setup();
+  const origin = { channel: "lark", chatId: "oc_private", messageId: "om_1", senderId: "ou_owner" };
+  const outcome = bridge.ask("lark:oc_private", "ls", undefined, "om_1", origin);
+  await tick();
+  assert.equal(server.written[0]?.method, "turn/start");
+  assert.equal(server.written[0]?.params["sessionId"], "lark:oc_private");
+  server.notify(started("another-turn", "lark:oc_private"));
+  const unrelated = bridge.locateApproval("another-turn", "ap-unrelated");
+  server.reply(1, { approvals: [] });
+  assert.equal(await unrelated, null);
+  server.notify({ ...started("t-private", "lark:oc_private"), userMessage: "ls" } as ServerNotification);
+  assert.deepEqual(await bridge.locateApproval("t-private", "ap-1"), {
+    source: origin, task: null, replyWithText: true,
+  });
+  server.notify(completed("t-private", "finished"));
+  server.reply(0, { turnId: "t-private" });
+  await outcome;
+});
+
 test("a request id rides on turn/start in the shape the Runtime accepts", async () => {
   const { bridge, server } = setup();
 

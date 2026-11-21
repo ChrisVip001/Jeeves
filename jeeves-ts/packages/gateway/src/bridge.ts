@@ -44,6 +44,7 @@ export type Responder = (
   source?: InteractionSource,
   /** The platform's id for this message; makes a re-delivery after a restart run only once. */
   requestId?: string,
+  textApprovalSource?: InteractionSource,
 ) => Promise<string>;
 
 /** The id shape the Runtime accepts for a stable message identity. */
@@ -145,6 +146,7 @@ interface InFlight {
   turnId: string | null;
   /** Set when a group message started this turn: an approval it asks for goes back there. */
   source?: InteractionSource;
+  textApproval?: { source: InteractionSource; message: string };
 }
 
 /** A completed reply, waiting to be picked up by its own `turn/start` response. */
@@ -225,10 +227,11 @@ export class JeevesBridge {
     text: string,
     source?: InteractionSource,
     requestId?: string,
+    textApprovalSource?: InteractionSource,
   ): Promise<TurnOutcome> {
     const key = source === undefined ? conversation : MAIN_SESSION;
     const previous = this.#tails.get(key) ?? Promise.resolve();
-    const turn = previous.then(() => this.#runTurn(conversation, text, source, requestId));
+    const turn = previous.then(() => this.#runTurn(conversation, text, source, requestId, textApprovalSource));
 
     const tail = turn.then(
       () => {},
@@ -264,9 +267,12 @@ export class JeevesBridge {
   async locateApproval(
     turnId: string,
     requestId: string,
-  ): Promise<{ source: InteractionSource | null; task: AgentTaskView | null } | null> {
-    const own = this.#inFlight.get(turnId)?.source;
-    if (own !== undefined) return { source: own, task: null };
+  ): Promise<import("./approvals.ts").ApprovalOrigin | null> {
+    const active = this.#inFlight.get(turnId);
+    if (active?.source) return { source: active.source, task: null };
+    if (active?.textApproval) {
+      return { source: active.textApproval.source, task: null, replyWithText: true };
+    }
     const { approvals } = await this.#client.request(METHODS.APPROVAL_PENDING, {
       sessionId: MAIN_SESSION,
     });
@@ -334,6 +340,7 @@ export class JeevesBridge {
     text: string,
     source?: InteractionSource,
     requestId?: string,
+    textApprovalSource?: InteractionSource,
   ): Promise<TurnOutcome> {
     const sessionId = source === undefined ? sessionIdFor(conversation) : MAIN_SESSION;
     const current: InFlight = {
@@ -342,6 +349,9 @@ export class JeevesBridge {
       tools: [],
       turnId: null,
       ...(source === undefined ? {} : { source }),
+      ...(textApprovalSource === undefined ? {} : {
+        textApproval: { source: textApprovalSource, message: text },
+      }),
     };
     this.#awaitingTurnId.set(sessionId, current);
 
@@ -406,6 +416,7 @@ export class JeevesBridge {
     if (notification.type === "turnStarted") {
       const waiting = this.#awaitingTurnId.get(notification.sessionId);
       if (waiting === undefined) return;
+      if (waiting.textApproval && (waiting.turnId !== null || waiting.textApproval.message !== notification.userMessage)) return;
       waiting.turnId = notification.turnId;
       this.#inFlight.set(notification.turnId, waiting);
       return;

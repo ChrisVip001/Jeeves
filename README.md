@@ -56,7 +56,7 @@ To update a running development dashboard, press Ctrl-C, wait for it to exit, th
 
 ## What Jeeves can do
 
-- **Converse** on the terminal, in the dashboard, or through chat gateways (WeChat Official Account, Lark, Telegram; see [docs/guide.md](docs/guide.md))
+- **Converse** in the terminal, the dashboard, or a connected chat. See [Feishu chat and approvals](docs/guide.md#lark--feishu).
 - **Use Feishu business capabilities** through the official CLI and the `feishu-cli` skill (`just install-feishu-cli`); existing exec permissions and approvals apply
 - **Remember**: semantic facts (FTS5, CJK-capable), dated episodes and procedural Skills, with local keyword retrieval on each full turn ([docs/architecture.md](docs/architecture.md))
 - **Show its memory**: the dashboard's memory center opens the ledger, the memory library and the context meter; `/compact [focus]` compacts on demand ([docs/operations.md](docs/operations.md))

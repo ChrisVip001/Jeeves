@@ -64,6 +64,23 @@ test("local requests and requests no longer waiting are left alone", async () =>
   assert.equal(sent, 0);
 });
 
+test("a private origin uses the text approval sender once per revision", async () => {
+  const deliveries: number[] = [];
+  const relay = approvalRelay({
+    locate: async () => ({ source: lark, task: null, replyWithText: true }),
+    sendCard: async () => assert.fail("private approval used the group card sender"),
+    sendTextApproval: async (source, approval) => {
+      assert.deepEqual(source, lark);
+      deliveries.push(approval.version);
+    },
+  });
+  relay(request);
+  relay(request);
+  relay({ ...request, version: 2 });
+  await tick();
+  assert.deepEqual(deliveries, [1, 2]);
+});
+
 test("a failed lookup is logged, not thrown", async () => {
   const logs: string[] = [];
   const relay = approvalRelay({

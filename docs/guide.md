@@ -72,6 +72,8 @@ Missing any of the first three produces "connected, forever silent" with no erro
 
 Allowlist entries are **open_ids** (`ou_…`), not App IDs. If logs say `outside the allowlist`, the sender's open_id did not match; open_ids differ between applications. In groups the bot only answers when mentioned.
 
+In a bot direct message or an ordinary group turn from the sole allowlisted owner, Jeeves replies to a pending approval with the operation, time limit and exact text to send back. The original sender can approve once or deny in the same chat. In a group, mention the bot in the reply. An allowlisted dispatcher can also use text approvals in direct messages. The reply works through the message subscription. If the request expires or the gateway restarts, check the operation's status before sending it again.
+
 Without the dashboard, run `just gateway-lark` with `LARK_APP_ID`, `LARK_APP_SECRET` and `LARK_ALLOW` set; `JEEVES_GATEWAY_URL` (plus the same `JEEVES_OPS_TOKEN`) attaches it to a running Runtime instead of starting its own engine. The variables are in the [configuration reference](configuration.md#chat-gateways-jeeves-ts).
 
 #### Dispatching tasks from a group

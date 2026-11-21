@@ -72,6 +72,8 @@ Jeeves 运行在 macOS 与 Linux 上（Windows 经 WSL2），见[运行手册](o
 
 白名单里填的是 **open_id**（`ou_…`），不是 App ID。日志出现 `outside the allowlist` 说明发送者的 open_id 没匹配上；同一个人在不同应用里的 open_id 不同。群里机器人只在被 @ 时回答。
 
+白名单只有一人时，这位所有者在私聊或普通群聊中发起的操作若需审批，Jeeves 会回复操作内容、有效时间和可直接发送的确认文字。原发起人可在同一对话批准一次或拒绝，群聊回复时需同时 @机器人。白名单内的派发者也可在私聊中使用文字审批。回复通过消息订阅送达。请求过期或网关重启后，先核对操作状态，再按需重新发送命令。
+
 不用驾驶舱时，设好 `LARK_APP_ID`、`LARK_APP_SECRET`、`LARK_ALLOW` 后运行 `just gateway-lark`；设 `JEEVES_GATEWAY_URL`（再加相同的 `JEEVES_OPS_TOKEN`）则接到已运行的 Runtime，而不是另起引擎。变量见[配置参考](configuration.zh.md#聊天网关jeeves-ts)。
 
 #### 从群里派任务

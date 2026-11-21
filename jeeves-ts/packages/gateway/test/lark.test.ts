@@ -765,6 +765,99 @@ test("a report goes out as a reply to the dispatching message", async () => {
   await world.stop();
 });
 
+test("private Feishu approval reaches the sender and is answered while the turn waits", async () => {
+  const decisions: unknown[] = [];
+  const wake: unknown[] = [];
+  const request = {
+    turnId: "t-private", requestId: "ap-private", tool: "run_command",
+    argsPreview: "ls", reason: "confirm this command", expiresInMs: 120_000, version: 2,
+  };
+  let finish!: (reply: string) => void;
+  const result = new Promise<string>(resolve => { finish = resolve; });
+  const world = harness({
+    allow: ["ou_owner", "ou_other"],
+    dispatchers: ["ou_owner", "ou_other"],
+    onWake: async (params) => {
+      wake.push(params);
+      return { woken: false, duplicate: false };
+    },
+    onApproval: async (action, actor) => {
+      decisions.push({ action, actor });
+      finish("ls output: fixture.txt");
+      return true;
+    },
+  }, async (_chat, _text, dispatch, _id, origin) => {
+    assert.equal(dispatch, undefined);
+    assert.ok(origin);
+    await world.adapter.requestTextApproval(origin, request);
+    return result;
+  });
+  try {
+    const socket = await world.connect();
+    const send = (id: string, text: string, openId = "ou_owner", chatId = "oc_private") =>
+      socket.push(dataFrame(eventBody({ openId, chatId, text }), { messageId: id }));
+    send("command", "执行ls命令");
+    await waitFor(() => world.lark.said.length === 1, "approval delivered while the command waits");
+    assert.match(world.lark.said[0]!, /ls[\s\S]*批准 ap-private v2/);
+    assert.match(world.lark.posts[0]!.url, /\/messages\/om_1\/reply$/);
+    send("wrong-person", "批准 ap-private v2", "ou_other");
+    send("wrong-chat", "批准 ap-private v2", "ou_owner", "oc_other");
+    send("stale-version", "批准 ap-private v1");
+    await waitFor(() => world.lark.said.length === 4, "ineligible replies");
+    assert.equal(decisions.length, 0);
+    send("approve", "批准 ap-private v2");
+    await waitFor(() => world.lark.said.length === 6, "approval and command result");
+    assert.deepEqual(decisions, [{
+      action: { jeeves: "approval", turnId: "t-private", requestId: "ap-private", version: 2, approved: true },
+      actor: "lark:ou_owner",
+    }]);
+    assert.ok(world.lark.said.includes("ls output: fixture.txt"));
+    send("duplicate-answer", "拒绝 ap-private v2");
+    await waitFor(() => world.lark.said.length === 7, "expired receipt");
+    assert.equal(decisions.length, 1);
+    assert.equal(wake.length, 1, "approval replies never enter the task input or conversation queue");
+  } finally {
+    finish("test finished");
+    await world.stop();
+  }
+});
+
+test("the sole Feishu owner can approve their ordinary group turn without dispatch permissions", async () => {
+  let finish!: (reply: string) => void;
+  const result = new Promise<string>(resolve => { finish = resolve; });
+  const world = harness({
+    allow: ["ou_owner"],
+    onApproval: async (action) => {
+      assert.equal(action.approved, true);
+      finish("ls executed");
+      return true;
+    },
+  }, async (_chat, _text, dispatch, _id, origin) => {
+    assert.equal(dispatch, undefined);
+    assert.ok(origin);
+    await world.adapter.requestTextApproval(origin, {
+      turnId: "t1", requestId: "ap-1", tool: "run_command",
+      version: 1, argsPreview: "ls", reason: "confirm", expiresInMs: 120_000,
+    });
+    return result;
+  });
+  try {
+    const socket = await world.connect();
+    const send = (id: string, text: string) => socket.push(dataFrame(eventBody({
+      openId: "ou_owner", chatType: "group", text: "@_user_1 " + text,
+      mentions: [{ open_id: "ou_jeeves" }],
+    }), { messageId: id }));
+    send("group-command", "执行ls命令");
+    await waitFor(() => world.lark.said.length === 1, "the group approval");
+    assert.match(world.lark.said[0]!, /批准 ap-1 v1.*@机器人/);
+    send("group-approval", "批准 ap-1 v1");
+    await waitFor(() => world.lark.said.includes("ls executed"), "the command result");
+  } finally {
+    finish("test finished");
+    await world.stop();
+  }
+});
+
 
 function cardClick(options: { openId: string; approved?: boolean; value?: unknown }): string {
   return JSON.stringify({
