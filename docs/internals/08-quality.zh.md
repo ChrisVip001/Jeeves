@@ -44,6 +44,8 @@
 
 一个响应是 `{"text":"…"}` 或 `{"tool_use":{"name":"…","args":{…}}}`。`files`、`cwd` 与工具 `args` 中的 `{{home}}` 展开为用例临时 home，使用正斜杠，因此在 Windows 上仍是合法 JSON。
 
+任务用例在主会话下创建任务，通过 `task/start` 排队独立执行。用每轮的 `approval` 脚本填写该用例预期的人类审批决定。
+
 Mock 队列是各轮 `responses` 按执行顺序展平，`plan` 排最前。额外的模型调用（摘要、沉淀）按其实际发生的位置入队，所以用例本身记录了真实调用顺序。队列耗尽是错误，而不是重复上一条回复。
 
 `restart` 在同一 home 上进程内重开 runtime，并不杀 OS 进程。`resume_task` 以 `message` 作为控制原因调用仅限人类的 `task/resume` 路径。两者都是仅评测器使用的字段，不是协议或模型工具。

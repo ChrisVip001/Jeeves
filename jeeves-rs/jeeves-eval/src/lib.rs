@@ -33,7 +33,9 @@ fn expand_home(text: &str, home: &Path) -> String {
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use jeeves_app_server::{handle, open as open_server, run_turn, EventSink, Frame, Server};
+use jeeves_app_server::{
+    handle, open as open_server, run_turn, EventSink, Frame, Server, MAIN_SESSION,
+};
 use jeeves_protocol::{JsonRpcRequest, RequestId, ServerNotification, TurnStartParams};
 use jeeves_provider::{CreateRequest, CreateResponse, Resolved};
 
@@ -382,7 +384,7 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
     }
 
     let mut output = TurnOutput::default();
-    for turn in scenario.effective_turns() {
+    for (turn_index, turn) in scenario.effective_turns().into_iter().enumerate() {
         if turn.restart {
             drop(server);
             let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
@@ -412,16 +414,25 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
         }
         let session_id = turn.session_id.unwrap_or_else(|| "eval".to_string());
         let (sink, mut rx) = EventSink::channel();
-        let resume_id = if turn.resume_task {
-            Some(
-                task_id
-                    .clone()
-                    .ok_or_else(|| anyhow::anyhow!("resume_task requires a declared task"))?,
-            )
+        let message = expand_home(&turn.message, home);
+        let task_request = if turn.resume_task {
+            let id = task_id
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("resume_task requires a declared task"))?;
+            Some((
+                jeeves_protocol::methods::TASK_RESUME,
+                serde_json::json!({"taskId": id, "reason": message}),
+            ))
+        } else if turn_index == 0 {
+            task_id.as_ref().map(|id| {
+                (
+                    jeeves_protocol::methods::TASK_START,
+                    serde_json::json!({"taskId": id, "message": message}),
+                )
+            })
         } else {
             None
         };
-        let message = expand_home(&turn.message, home);
         let params = TurnStartParams {
             request_id: None,
             session_id: Some(session_id),
@@ -433,14 +444,14 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
         };
         let task_server = server.clone();
         let task = tokio::spawn(async move {
-            if let Some(id) = resume_id {
+            if let Some((method, params)) = task_request {
                 handle(
                     &task_server,
                     JsonRpcRequest {
                         jsonrpc: jeeves_protocol::JSONRPC_VERSION.into(),
                         id: RequestId::Number(0),
-                        method: jeeves_protocol::methods::TASK_RESUME.into(),
-                        params: Some(serde_json::json!({"taskId":id,"reason":params.message})),
+                        method: method.into(),
+                        params: Some(params),
                     },
                     sink,
                 )
@@ -623,7 +634,7 @@ async fn create_case_task(
 ) -> Result<String> {
     let mut params = serde_json::json!({
         "title": spec.title,
-        "sessionId": spec.session_id.clone().unwrap_or_else(|| "eval".to_string()),
+        "sessionId": spec.session_id.as_deref().unwrap_or(MAIN_SESSION),
     });
     if let Some(goal) = &spec.goal_condition {
         params["goalCondition"] = serde_json::json!(goal);

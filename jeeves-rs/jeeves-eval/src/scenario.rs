@@ -69,7 +69,7 @@ pub struct ScenarioTask {
     pub title: String,
     #[serde(default)]
     pub goal_condition: Option<String>,
-    /// Which session carries it; unset = "eval" (the default session of a case's turns).
+    /// Which session carries it; unset uses the main session.
     #[serde(default)]
     pub session_id: Option<String>,
     /// Each condition is `{"kind":"fileExists","path":"report.md"}` etc. — the wire shape.
@@ -114,7 +114,7 @@ pub struct ApprovalScript {
 #[derive(Debug, Clone, Deserialize)]
 pub struct TurnScript {
     pub message: String,
-    /// Session label. Unset = "eval".
+    /// Session label for standalone turns. Unset uses the isolated "eval" session.
     #[serde(default)]
     pub session_id: Option<String>,
     #[serde(default)]

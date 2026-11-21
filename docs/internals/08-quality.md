@@ -51,6 +51,9 @@ A response is `{"text":"…"}` or `{"tool_use":{"name":"…","args":{…}}}`. `{
 and tool `args` expands to the case's temporary home with forward slashes, so it stays valid JSON on
 Windows.
 
+Task cases create the task under the main conversation and queue its independent execution through
+`task/start`. Use a turn's `approval` script for the human decisions expected by that case.
+
 The mock queue is the turns' `responses` flattened in execution order, with `plan` first. Extra model
 calls (summaries, consolidation) are queued where they happen, so a case documents the
 real call order. An empty queue is an error, not a repeat of the last reply.
