@@ -252,9 +252,6 @@ L1 分类器只看消息文本。
   所以从不重放，并阻塞同一任务的后续触发（不影响其他任务），直到复核后用 `jeeves schedule acknowledge <name>` 释放
   （[恢复](operations.zh.md#定时任务恢复与投递)）。
   → `jeeves-rs/jeeves-app-server/src/scheduler/`
-* **未做** — Homebrew 公式在仓库里，不在 tap 里，所以 `brew install ./packaging/homebrew/jeeves.rb` 需要一份检出，
-  每次发布都要刷新它的源码哈希。
-  → `packaging/homebrew/jeeves.rb`
 
 ## 业务形态（任务 API、webhook）
 

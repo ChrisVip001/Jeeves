@@ -122,6 +122,10 @@ Build the private Rust Runtime image from the checkout with `docker build -t jee
 
 Ctrl-C and SIGTERM close SSE and let active turns drain for up to 25 seconds. Unfinished work remains recoverable. An engine subprocess crash stops the Runtime. `just smoke-lifecycle` exercises both signals, duplicate data directory rejection and engine crashes.
 
+### CLI releases
+
+Set the Rust workspace version in `jeeves-rs/Cargo.toml`, update both changelogs, and run `just check` on the release commit. Pushing the matching `v<version>` tag runs the [release workflow](../.github/workflows/release.yml). It attaches CLI archives for macOS and Linux on arm64 and x86-64 to the GitHub release. Use the hosted deployment and Mac build instructions for their respective artifacts.
+
 ## Keeping it running
 
 `jeeves service` writes a supervisor unit so the Runtime (`jeeves runtime`) survives closing every client and a reboot. The supervisor is the operating system's own; Jeeves adds none.

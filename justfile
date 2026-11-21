@@ -158,7 +158,6 @@ ts-install:
 ts-check: ts-install
     cd {{ ts_dir }} && npm run typecheck
     cd {{ ts_dir }} && npm test
-    node --test {{ justfile_directory() }}/packaging/npm/install.test.cjs
 
 # End to end: really start app-server, have the TS gateway ask it one thing.
 smoke-gateway: build
@@ -366,11 +365,6 @@ smoke-dashboard: build
 # End to end: the business form — task API (/api/run), inbound webhooks, tier routing.
 smoke-business: build
     {{ justfile_directory() }}/scripts/smoke-business.sh
-
-# Refresh the Homebrew formula's url/sha256 for a tag (after `git tag v0.8.0 && git push --tags`).
-# Computes the checksum from the same archive URL Homebrew fetches. See packaging/RELEASING.md.
-release-hash *args:
-    {{ justfile_directory() }}/packaging/release-hash.sh {{args}}
 
 # Fake-clock, sourced-output and one-shot delivery fixtures for the resident morning duty.
 eval-morning-briefing:

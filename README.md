@@ -102,7 +102,7 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 | Purpose | Name |
 |---|---|
 | GitHub repository | `ChrisVip001/Jeeves` |
-| Package name | `jeeves` |
+| Rust CLI crate | `jeeves-cli` |
 | Rust crate prefix | `jeeves-` |
 | CLI binary | `jeeves` |
 | Persona | Jeeves |

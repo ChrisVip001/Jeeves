@@ -115,6 +115,10 @@ for line in proc.stdout:               # 通知与响应共用同一个流
 
 Ctrl-C 和 SIGTERM 会结束 SSE 并让正在执行的回合收尾。超过 25 秒仍未完成的工作可恢复。引擎子进程异常退出时 Runtime 也退出。`just smoke-lifecycle` 验证两个停止信号、重复数据目录和引擎崩溃边界。
 
+### CLI 发布
+
+在 `jeeves-rs/Cargo.toml` 更新 Rust workspace 版本，同步中英文更新日志，并在发布提交上运行 `just check`。推送对应的 `v<版本>` 标签后，[发布流水线](../.github/workflows/release.yml)将 macOS 和 Linux 的 arm64、x86-64 CLI 压缩包上传至 GitHub Release。云端镜像和 Mac 应用分别按各自的构建说明打包。
+
 ## 保持常驻
 
 `jeeves service` 会写一份守护单元，让 Runtime（`jeeves runtime`）在关掉所有客户端、重启电脑后仍然在跑。守护者是操作系统自己的，Jeeves 不再另造一个。

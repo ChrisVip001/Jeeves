@@ -102,7 +102,7 @@ just desktop-open      # 已运行时回到原窗口
 | 用途 | 名字 |
 |---|---|
 | GitHub 仓库 | `ChrisVip001/Jeeves` |
-| 包名 | `jeeves` |
+| Rust CLI crate | `jeeves-cli` |
 | Rust crate 前缀 | `jeeves-` |
 | CLI 二进制 | `jeeves` |
 | 助手人格 | Jeeves |

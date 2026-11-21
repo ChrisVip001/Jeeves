@@ -358,10 +358,6 @@ straight from the file header.
   `jeeves schedule acknowledge <name>` releases it after review
   ([recovery](operations.md#schedule-recovery-and-delivery)).
   → `jeeves-rs/jeeves-app-server/src/scheduler/`
-* **Gap** — The Homebrew formula lives in the repo, not in a tap, so
-  `brew install ./packaging/homebrew/jeeves.rb` needs a checkout, and its source hash must be
-  refreshed on every release.
-  → `packaging/homebrew/jeeves.rb`
 
 ## Business form (task API, webhooks)
 

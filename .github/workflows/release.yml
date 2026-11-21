@@ -1,5 +1,5 @@
 # Publish Jeeves's binary artefacts: `jeeves` for four platforms, attached to a GitHub Release.
-# Triggered by a tag (v*). npm publish is still done by a human on a machine with credentials (see packaging/RELEASING.md — credentials do not belong in CI).
+# A version tag triggers the build and publication of the CLI archives.
 name: release
 
 on:
