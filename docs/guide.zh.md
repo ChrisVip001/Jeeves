@@ -2,22 +2,19 @@
 
 [English](guide.md) | 简体中文
 
-Jeeves 可以跨会话执行委托。先选 Runtime 的部署位置，再连接任务需要的模型与工具。这一页从零走到一套可用的配置：模型、权限、聊天渠道、记忆、技能、定时、凭据、收件箱，以及在机器之间搬家。除非给出命令，下面的一切都是驾驶舱里的一个界面。
+Jeeves 能跨设备执行长任务。使用部署提供的链接注册或登录后，就能交办工作。以下设置都在同一账号的工作台中完成。
 
 ## 1. 安装
 
-| 你想要 | 做法 |
+| 用法 | 开始使用 |
 |---|---|
-| 本机驾驶舱 | 从 [Releases](https://github.com/ChrisVip001/Jeeves/releases/latest) 下载对应平台的 `jeeves` 二进制（macOS 与 Linux），运行 `./jeeves dashboard`，打开 `http://localhost:7777` |
-| 一台常开的服务器 | `JEEVES_OPS_TOKEN=$(openssl rand -hex 24) docker compose up -d`，然后打开 `http://<主机>:7777` 并粘贴令牌 |
-| Mac 应用 | 从源码构建：`just desktop-install`，再 `just desktop-build`（见[运行手册](operations.zh.md#mac-桌面应用)） |
-| 想改代码 | [CONTRIBUTING](../CONTRIBUTING.zh.md) |
-
-Jeeves 运行在 macOS 与 Linux 上（Windows 经 WSL2），见[运行手册](operations.zh.md#支持的平台)。
+| 托管 Web 和 iOS | 打开部署的 HTTPS 地址，注册或登录。首次开通时等待工作区启动。 |
+| 单机源码部署 | 在仓库根目录运行 `just local-up`，随后在打开的页面创建所有者账号。 |
+| Mac 应用 | 托管版在浏览器确认设备配对。开发版接入同一个 Go 网关。见 [Mac 桌面应用](operations.zh.md#mac-桌面应用)。 |
 
 ## 2. 首次启动向导
 
-没有连接任何模型时，驾驶舱会打开三步向导：
+单机部署登录后，尚未配置模型时会打开向导：
 
 1. **连接一个模型。** 选服务商、粘贴密钥。密钥进系统钥匙串；Ollama 不需要密钥。
 2. **选择权限。** *只读*只看，不改文件、不执行命令。*标准*在你的工作目录内读写，其余先问你。

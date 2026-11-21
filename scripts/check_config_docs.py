@@ -59,7 +59,7 @@ WORD_RE = re.compile(r"\bJEEVES_[A-Z0-9_]+\b")
 INTERNAL = {
     "JEEVES_UI_CHROMIUM": "selects a local Chromium executable for the connection-card fixture test",
     "JEEVES_UI_SCREENSHOT_DIR": "writes fixture screenshots for connection-card visual review",
-    "JEEVES_EVIDENCE_DIR": "smoke scripts copy served HTML, bundle, CSS and logs here before cleanup; CI uploads it as an artifact",
+    "JEEVES_EVIDENCE_DIR": "smoke scripts copy private Runtime logs and deliberate errors here before cleanup; CI uploads this evidence",
     "JEEVES_BROWSER_REQUIRED": "smoke-browser requires the optional Chromium fixture instead of skipping it",
     "JEEVES_CONFIG_TEST_BOOL_XYZ": "a fake variable in the config tests, only there to prove bool parsing",
     "JEEVES_MODEL": "the tests clear it to exercise the \"no model configured\" branch",
@@ -97,7 +97,7 @@ def code_vars() -> set[str]:
             for reader in READER_RES:
                 found |= set(reader.findall(line))
 
-    # The Mac shell reads `JEEVES_RUNTIME_URL` in its own Rust source (outside the crate workspace).
+    # The Mac shell reads `JEEVES_WEB_GATEWAY_URL` in its own Rust source (outside the crate workspace).
     for path in (ROOT / "desktop" / "src-tauri" / "src").rglob("*.rs"):
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip().startswith("//"):

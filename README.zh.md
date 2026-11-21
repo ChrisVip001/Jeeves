@@ -24,35 +24,17 @@
 
 ## 安装
 
-Jeeves 支持 macOS 和 Linux（Windows 通过 WSL2）。无论哪种安装，驾驶舱都会打开三步向导，连好模型并设好权限，见[上手指南](docs/guide.zh.md)。
+**托管版**使用服务公开的 HTTPS 地址注册或登录。浏览器和 iOS 共用一个账号与任务工作台。Mac 客户端用同一账号配对，在任务需要时授权操作所选窗口。[云端部署](control-plane/README.zh.md)
 
-**Mac 开发验收**可从源码构建带 Runtime 的测试应用。
-
-```bash
-just desktop-install   # 一次性准备
-just desktop-build     # 把 Runtime 打包进 Mac 应用
-just desktop-open      # 打开项目 App，已运行时回到原窗口
-```
-
-在对话里说明要交付什么即可交办。Mac 和手机都能在「我的事项」查看执行结果、预览文件和逐行差异、继续中断的工作并就地补充要求。[对话、事项与交付](docs/design/main-entry.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
-
-**Docker**——模型、权限和聊天渠道都在驾驶舱里一步步设置：
+**单机自托管**可在仓库根目录运行 `just local-up`。首次在浏览器创建所有者账号，再连接模型。开发版 Mac App 接入同一个 Go 网关。
 
 ```bash
-JEEVES_OPS_TOKEN=$(openssl rand -hex 24) docker compose up -d   # -> http://<主机>:7777
+just local-up          # 启动 Go 网关和私网 Runtime，并打开浏览器
+just desktop-build     # 可选，打包 Mac 开发版
+just desktop-open      # 已运行时回到原窗口
 ```
 
-**源码构建：**
-
-```bash
-cd jeeves-rs && cargo build
-JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves            # 终端对话
-JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves dashboard  # -> http://localhost:7777
-```
-
-每个[发布版本](https://github.com/ChrisVip001/Jeeves/releases/latest)附带 macOS 与 Linux（x86_64 和 aarch64）的预编译 `jeeves` 二进制。没有 API key 也能用 Ollama 离线跑（`JEEVES_PROVIDER=ollama`）。从源码运行时驾驶舱需要先构建（`just dashboard-build`）。
-
-更新正在运行的开发驾驶舱时，按 Ctrl-C 等进程退出，然后在仓库根目录用同一个 `JEEVES_HOME` 执行 `just dashboard-build && just dashboard`。浏览器事件长连接不会阻塞退出；Runtime 就绪后才会显示访问地址。
+在主对话交办任务。从「我的事项」查看执行结果、逐行审阅文件，或继续任务。[上手指南](docs/guide.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
 
 ## Jeeves 能做什么
 

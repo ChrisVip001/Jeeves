@@ -92,7 +92,7 @@ def check_desktop_imports() -> None:
             if re.search(r"from\s+['\"]@jeeves/", line):
                 errors.append(
                     f"{rel(src)}:{lineno}: desktop imports a TS package. The native "
-                    "shell starts `jeeves dashboard` and loads its address; it does "
+                    "shell starts `jeeves runtime` and loads its address; it does "
                     "not link the browser front end."
                 )
 

@@ -95,12 +95,13 @@ func titleOf(_ node: AXUIElement) -> String {
     let result: AXError
     switch args[3] {
     case "press": result = AXUIElementPerformAction(control, kAXPressAction as CFString)
-    case "fill" where args.count == 6:
-      guard string(control, kAXRoleAttribute) == kAXTextAreaRole,
+    case "fill" where args.count == 6, "fixture-password" where args.count == 6:
+      let secure = args[3] == "fixture-password"
+      guard [kAXTextAreaRole, kAXTextFieldRole].contains(string(control, kAXRoleAttribute)),
         AXUIElementSetAttributeValue(control, kAXFocusedAttribute as CFString, kCFBooleanTrue)
           == .success,
         let focused = elementAttribute(ax, kAXFocusedUIElementAttribute), CFEqual(focused, control),
-        string(control, kAXValueAttribute).isEmpty
+        secure || string(control, kAXValueAttribute).isEmpty
       else {
         throw ProbeError("Fixture composer must be empty and focused")
       }
@@ -117,6 +118,7 @@ func titleOf(_ node: AXUIElement) -> String {
         down.postToPid(pid)
         usleep(12000)
         up.postToPid(pid)
+        if secure { continue }
         expected.append(character)
         let deadline = Date().addingTimeInterval(1.5)
         while string(control, kAXValueAttribute) != expected && Date() < deadline {

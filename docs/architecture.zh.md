@@ -12,8 +12,8 @@ Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状�
    crate 按职责拆分（目标：每个模块 <500 行）。
 2. **协议只有一份定义。** `jeeves-protocol` 是跨语言契约的唯一来源：`ts-rs` 生成
    TypeScript，`schemars` 生成 JSON Schema，生成物入库。
-3. **一个引擎，多个外壳。** `jeeves-app-server` 持有整个 turn，并且是每个 `state.db` 的唯一执行 Runtime。记忆 MCP 可独立开库读写记忆，home 导出命令可开库制作一致快照。驾驶舱后端（`jeeves-ops`）把它作为子进程拉起，经 stdio 说换行分隔的 JSON-RPC；
-   聊天网关通过驾驶舱的 HTTP 端点（`/api/gateway/rpc`）接入；原生 CLI 命令在进程内嵌入
+3. **一个引擎，多个外壳。** `jeeves-app-server` 持有整个 turn，并且是每个 `state.db` 的唯一执行 Runtime。记忆 MCP 可独立开库读写记忆，home 导出命令可开库制作一致快照。私网 HTTP API（`jeeves-ops`）把它作为子进程拉起，经 stdio 说换行分隔的 JSON-RPC；
+   聊天网关通过 Runtime 的私网 HTTP 端点（`/api/gateway/rpc`）接入；原生 CLI 命令在进程内嵌入
    同一个运行时。运行时在恢复前先对规范化的数据库路径加 OS 建议锁，所以同一数据库上的
    第二个执行运行时会明确失败。
 

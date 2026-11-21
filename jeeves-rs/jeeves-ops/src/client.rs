@@ -66,7 +66,7 @@ pub struct AppServer {
     /// Child process. `None` in tests — the pipes then connect to an in-memory fake server.
     ///
     /// The field stays not only to kill the process on drop: `kill_on_drop` is so that
-    /// Ctrl-C on `jeeves dashboard` leaves no orphan processes behind.
+    /// Ctrl-C on `jeeves runtime` leaves no orphan processes behind.
     process: AsyncMutex<Option<Child>>,
     stdin: AsyncMutex<Option<Box<dyn AsyncWrite + Unpin + Send>>>,
     shared: Arc<Shared>,
@@ -76,7 +76,7 @@ pub struct AppServer {
 impl AppServer {
     /// Spawn an app-server subprocess.
     ///
-    /// The binary is `jeeves` itself (`current_exe()`): `jeeves dashboard` and `jeeves app-server`
+    /// The binary is `jeeves` itself (`current_exe()`): `jeeves runtime` and `jeeves app-server`
     /// are subcommands of the same executable; forking yourself is more reliable than
     /// searching PATH for a same-named binary — that one may be another version, or absent.
     ///

@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
-# End-to-end smoke test for the dashboard: really start `jeeves dashboard`, curl as the browser.
-#
-# The frontend's own unit tests can't prove this chain — what it really proves is the translation
-# layer: four read methods → one JSON screen, turn/start → SSE, spoken messages read back. So
-# instead of stubs, start a real app-server (forked by `jeeves dashboard`) and use
-# scripts/fake_sse_server.py as provider: "model stream → notifications → SSE" runs end to end.
-#
-#   ./scripts/smoke-dashboard.sh
-#
-# Requires: a cargo build, a built frontend (just dashboard-build), python3.
+# Exercise the private Runtime API against a real engine and a scripted model.
+# The Go account smoke exercises the browser and the static bundle.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ASSETS="$REPO/jeeves-ts/packages/dashboard/dist"
 
 fail() { echo "✗ $1" >&2; exit 1; }
 
 need_bin
-[[ -f "$ASSETS/index.html" ]] || fail "the front end has not been built; run: just dashboard-build"
+
+TOKEN=runtime-smoke-token
+curl() { command curl -H "Authorization: Bearer $TOKEN" "$@"; }
 
 # Fake SSE endpoint: completes the "SSE → full reply" chain without a real key.
 # The main conversation makes one streaming model request.
@@ -74,12 +67,12 @@ cat > "$WORK/.jeeves/models.json" <<EOF
 {"active":"smoke","profiles":[{"id":"smoke","provider":"anthropic","base_url":"http://127.0.0.1:$MODEL_PORT","key_source":"env:JEEVES_API_KEY"}]}
 EOF
 
-JEEVES_PORT="$PORT" \
+JEEVES_OPS_TOKEN="$TOKEN" JEEVES_PORT="$PORT" \
 JEEVES_HOME="$WORK/.jeeves" \
 JEEVES_SKILL_DIRS="$WORK/pack/skills" \
 JEEVES_MCP_CONFIG="$WORK/pack/mcp.json" \
 JEEVES_PROVIDER=anthropic JEEVES_API_KEY=test JEEVES_BASE_URL="http://127.0.0.1:$MODEL_PORT" \
-  "$BIN" dashboard >"$WORK/dash.log" 2>&1 &
+  "$BIN" runtime >"$WORK/dash.log" 2>&1 &
 DASH_PID=$!
 track_pid "$DASH_PID"
 
@@ -94,96 +87,10 @@ done
 [[ -n "$BASE" ]] || { cat "$WORK/dash.log"; fail "no startup line ever appeared"; }
 BASE="http://$BASE"
 
-# ---- Static files ---------------------------------------------------------------
-HEAD="$(curl -sS -D - -o "$WORK/index.html" "$BASE/")"
-grep -qi '^HTTP/1.1 200' <<<"$HEAD"   || fail "the front page is not 200"
-grep -qi 'content-type: text/html' <<<"$HEAD" || fail "the front page is not HTML"
-grep -qi 'cache-control: no-store' <<<"$HEAD" || fail "no no-cache — a changed page would not show up"
-grep -q 'main.js' "$WORK/index.html"  || fail "the front page does not pull in main.js"
-
-# The frontend was really built: that bundle comes from Vite — all three endpoints must be in
-# it (they live in api.ts, proving the module was actually bundled, not an empty shell).
-curl -sS -o "$WORK/main.js" -w '%{http_code}' "$BASE/main.js" | grep -q '^200$' \
-  || fail "main.js cannot be fetched"
-
-# The stylesheet must keep the **global** `[hidden]` rule. `display: flex` beats the UA's
-# `[hidden] { display: none }`, and two components in this file set `display: flex` on elements
-# that are toggled with `hidden`. When the rule went missing, the memory center's three views all
-# rendered at once and every segment appeared to show the ledger — the data was fine, the picture
-# was not. A CSS assertion is a blunt instrument, but this failure mode is invisible to every
-# other check here.
-curl -sS -o "$WORK/style.css" -w '%{http_code}' "$BASE/style.css" | grep -q '^200$' \
-  || fail "style.css cannot be fetched"
-grep -qEz '\[hidden\][[:space:]]*\{[[:space:]]*display:[[:space:]]*none[[:space:]]*!important' "$WORK/style.css" \
-  || fail "style.css has no global [hidden] rule — views toggled with hidden would all show at once"
-
-# The page names its bundle with a build stamp. index.html is network-first and main.js is
-# cache-first, so without the stamp a service-worker cache pairs a new page with an old bundle —
-# the page then misses ids the bundle grabs and goes blank (it happened: the whole screen, session
-# list included, disappeared). The stamp changes the cache key every build, so the pair can only
-# come from the same one.
-BUNDLE="$(grep -oE 'main\.js\?v=[a-z0-9]+' "$WORK/index.html" | head -1)"
-[[ -n "$BUNDLE" ]] || fail "the front page gives main.js no build stamp — an old cache would pair the old bundle with the new page"
-curl -sS -o /dev/null -w '%{http_code}' "$BASE/$BUNDLE" | grep -q '^200$' \
-  || fail "the stamped $BUNDLE cannot be fetched (the build did not stamp it, or static serving ignores the query)"
-grep -q '/api/data' "$WORK/main.js" || fail "main.js has no /api/data"
-# This one matches by path only: a template string with interpolation — backticks after bundling.
-grep -q '/api/session' "$WORK/main.js" || fail "main.js has no /api/session"
-grep -q '/api/session/main' "$WORK/main.js" || fail "main.js has no main conversation endpoint"
-grep -q '/api/session/meta' "$WORK/main.js" || fail "main.js has no /api/session/meta"
-grep -q '/api/turn/steer' "$WORK/main.js" || fail "main.js has no /api/turn/steer"
-grep -q '/api/turn/follow-up' "$WORK/main.js" || fail "main.js has no /api/turn/follow-up"
-grep -q '/api/turn' "$WORK/main.js" || fail "main.js has no /api/turn"
-# The capability center's six endpoints have to be in the bundle too (one missing = that
-grep -q '/api/skills' "$WORK/main.js" || fail "main.js has no /api/skills"
-grep -q '/api/skills/install' "$WORK/main.js" || fail "main.js has no /api/skills/install"
-grep -q '/api/skills/remove' "$WORK/main.js" || fail "main.js has no /api/skills/remove"
-grep -q '/api/mcp' "$WORK/main.js" || fail "main.js has no /api/mcp"
-grep -q '/api/mcp/save' "$WORK/main.js" || fail "main.js has no /api/mcp/save"
-grep -q '/api/mcp/remove' "$WORK/main.js" || fail "main.js has no /api/mcp/remove"
-# The memory center's six read-only endpoints plus one manual compaction: one missing = that
-grep -q '/api/ledger/turns' "$WORK/main.js" || fail "main.js has no /api/ledger/turns"
-grep -q '/api/ledger/turn' "$WORK/main.js" || fail "main.js has no /api/ledger/turn"
-grep -q '/api/memory/index' "$WORK/main.js" || fail "main.js has no /api/memory/index"
-grep -q '/api/memory/page' "$WORK/main.js" || fail "main.js has no /api/memory/page"
-grep -q '/api/context' "$WORK/main.js" || fail "main.js has no /api/context"
-grep -q '/api/skills/stats' "$WORK/main.js" || fail "main.js has no /api/skills/stats"
-grep -q '/api/compact' "$WORK/main.js" || fail "main.js has no /api/compact"
-# A refresh has to land back in the same session: if this string disappears, someone deleted
-# "remember the current session" in passing, and no Rust test would go red — every refresh
-grep -q 'jeeves.session' "$WORK/main.js" || fail "main.js has no jeeves.session (a refresh would lose the current session)"
-grep -q '/api/schedules/jobs' "$WORK/main.js" || fail "main.js has no /api/schedules/jobs"
-grep -q '/api/schedules/save' "$WORK/main.js" || fail "main.js has no /api/schedules/save"
-grep -q '/api/schedules/remove' "$WORK/main.js" || fail "main.js has no /api/schedules/remove"
-# Minification changes function names, but all three legacy scopes still need visible labels.
-grep -q '只允许这次' "$WORK/main.js" || fail "main.js has no allow-once label"
-grep -q '本会话总是允许' "$WORK/main.js" || fail "main.js has no session approval label"
-grep -q '记住这条' "$WORK/main.js" || fail "main.js has no remembered approval label"
-# The output of a long command has to be **visible while it runs**: a toolDelta notification
-# has to reach the timeline row (P0-3). Without it the tool row only appears once the whole
-grep -q 'toolDelta' "$WORK/main.js" || fail "main.js does not handle toolDelta (long output would not appear piece by piece)"
-
-# Every id the JS grabs must exist in the page — one missing means a blank screen. That error only
-# shows in the browser console, invisible to curl, so pin it here. (`must("x")` is the helper in
-# main.ts that "blows up on the spot"; both files are freshly built artifacts.)
-# Read source bindings, not minified local variable names.
-python3 - "$REPO/jeeves-ts/packages/dashboard/src/workspace.ts" "$WORK/want" <<'PY_IDS'
-from pathlib import Path
-import re, sys
-wanted = sorted(set(re.findall(r'must(?:<[^>]+>)?\("([a-z-]+)"\)', Path(sys.argv[1]).read_text())))
-assert wanted, "No workspace DOM bindings found"
-Path(sys.argv[2]).write_text("\n".join(wanted) + "\n")
-PY_IDS
-grep -oE 'id="[a-z-]+"' "$WORK/index.html" | grep -oE '"[a-z-]+"' | tr -d '"' | sort -u >"$WORK/have"
-[[ -s "$WORK/want" ]] || fail "could not work out which ids to grab from main.js — this assertion has stopped working; do not let it pass silently"
-MISSING="$(comm -23 "$WORK/want" "$WORK/have")"
-[[ -z "$MISSING" ]] || fail "the page is missing these ids: $(tr '\n' ' ' <<<"$MISSING") (the browser would show a blank screen)"
-
-# Path traversal must be blocked (ServeDir is used, not hand-built paths — but this assertion is
-# worth keeping: if anyone hand-writes a static file server someday, it goes red immediately).
-curl -sS -o /dev/null -w '%{http_code}' --path-as-is "$BASE/../Cargo.toml" | grep -q '^404$' \
-  || fail "path traversal was not blocked"
-echo "  ✓ static files + no-cache + traversal blocked"
+[[ "$(command curl -sS -o /dev/null -w '%{http_code}' "$BASE/")" == 404 ]] \
+  || fail "Runtime must not serve the web workbench"
+[[ "$(command curl -sS -o /dev/null -w '%{http_code}' "$BASE/api/data")" == 401 ]] \
+  || fail "Runtime API must require its service credential"
 
 # ---- First-screen data ---------------------------------------------------------------
 curl -sS "$BASE/api/data" >"$WORK/data1.json"
@@ -483,14 +390,14 @@ curl -sS -X POST -H 'content-type: application/json' --data '{"name":"smoke-dige
 echo "  ✓ schedules: create → visible in the list → bad cron refused → deleted"
 
 # Two simultaneous uploads with the same client name retain both bodies in this home.
-python3 - "$BASE" "$WORK/.jeeves" <<'PY_UPLOAD'
+python3 - "$BASE" "$WORK/.jeeves" "$TOKEN" <<'PY_UPLOAD'
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.request import Request, urlopen
 import json, sys
-base, home = sys.argv[1:]
+base, home, token = sys.argv[1:]
 def upload(body):
-    req = Request(base + "/api/upload?name=same.txt", data=body)
+    req = Request(base + "/api/upload?name=same.txt", data=body, headers={"Authorization": "Bearer " + token})
     with urlopen(req, timeout=10) as resp:
         return json.load(resp)["path"]
 bodies = [b"first upload", b"second upload"]

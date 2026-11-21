@@ -134,7 +134,6 @@ func (p *plane) handler() http.Handler {
 	router.HandleFunc("POST /internal/runtime", p.runtime)
 	router.HandleFunc("POST /internal/runtime/authorize", p.authorizeRuntime)
 	router.HandleFunc("POST /internal/usage", p.usage)
-	router.HandleFunc("POST /internal/import", p.importTenant)
 	router.HandleFunc("POST /v1/messages", p.model)
 	return router
 }

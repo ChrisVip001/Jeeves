@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { hostedBase, accountKey } from "./hosted.ts";
+import { accountKey } from "./hosted.ts";
 import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
 import ActivityPage from "./ActivityPage.vue";
@@ -38,7 +38,6 @@ import {
 } from "./controls";
 import { webTasks, connectTasks, taskTimelines } from "./tasks";
 provide(uiTranslatorKey, t);
-const hosted = hostedBase();
 const executorProps = computed(() => ({
   view: executor.view,
   busy: executor.busy,
@@ -260,7 +259,7 @@ async function changed() {
     <AttachmentPicker @files="workspaceActions.upload()" />
   </Teleport>
   <Teleport to="#connections-entry">
-    <a v-if="hosted" href="/account/" class="cap-entry">{{ t("个人中心") }}</a>
+    <a href="/account/" class="cap-entry">{{ t("个人中心") }}</a>
     <button class="cap-entry" type="button" @click="settings('connections')"><span class="cap-entry-name">{{ t('连接管理') }}</span></button>
   </Teleport>
   <Teleport to="#settings-entry"

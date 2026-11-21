@@ -87,6 +87,8 @@ try {
     "-subj", "/CN=localhost", "-keyout", key, "-out", cert], { stdio: "ignore" });
   const controlPort = await freePort();
   const gatewayPort = await freePort();
+  assert.equal((await fetch(runtimeURL + "/")).status, 404, "Runtime must not serve a Web entry");
+  assert.equal((await fetch(runtimeURL + "/api/tasks")).status, 401, "Runtime must require a service credential");
   const controlOrigin = "http://127.0.0.1:" + controlPort;
   const origin = "https://127.0.0.1:" + gatewayPort;
   const serviceKey = "local-fixture-private-service-key-123";
@@ -101,7 +103,7 @@ try {
   run(control, [], {
     CP_DEVELOPMENT: "1", CP_ADDR: "127.0.0.1:" + controlPort,
     CP_DATABASE_URL: database("control"), CP_STATE_KEY: "control-plane-fixture-storage-12345",
-    CP_GATEWAY_TOKEN: serviceKey, CP_TEST_RUNTIME_URL: runtimeURL, CP_TEST_RUNTIME_TOKEN: "web-fixture-token",
+    CP_GATEWAY_TOKEN: serviceKey, CP_TEST_RUNTIME_URL: runtimeURL, CP_TEST_RUNTIME_TOKEN: "web-fixture-token-private",
   });
   await poll(async () => (await fetch(controlOrigin + "/healthz")).ok, "Go control plane");
   run(gateway, [], {
@@ -143,6 +145,11 @@ try {
   await page.waitForURL(/\/app\/u-[a-f0-9]{12}\//);
   const workspace = new URL(page.url()).pathname;
   const api = origin + workspace + "api/";
+  const landing = await desktop.request.get(origin, { maxRedirects: 0 });
+  assert.equal(landing.status(), 303);
+  assert.equal(landing.headers().location, workspace, "signed-in home must lead straight to the workbench");
+  assert.equal((await desktop.request.get(origin + "/main.js")).status(), 404);
+  assert.equal((await desktop.request.get(origin + workspace + "main.js")).status(), 200);
   await page.locator("#input").waitFor();
   await poll(() => page.locator("#input").isEnabled(), "workspace composer");
   await page.locator("#input").fill("task-alpha-fixture");

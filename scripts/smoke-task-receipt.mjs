@@ -3,23 +3,23 @@ import { join } from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "../jeeves-ts/node_modules/playwright/index.mjs";
 
-const [origin, taskId, channel, decisionId] = process.argv.slice(2);
-const headers = { Authorization: "Bearer web-fixture-token" };
+const [workspace, cookie, taskId, channel, decisionId] = process.argv.slice(2);
+const [name, value] = cookie.split("=");
 const browser = await chromium.launch({ channel });
 try {
   for (const width of [1280, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 850 }, serviceWorkers: "block" });
     try {
-      const history = await context.request.get(origin + "/api/session?sessionId=jeeves-main", { headers });
+      await context.addCookies([{ name, value, url: new URL(workspace).origin }]);
+      const history = await context.request.get(workspace + "api/session?sessionId=jeeves-main");
       const receipt = (await history.json()).data.find(m => m.source === "task_completion" && m.taskId === taskId);
       assert.equal(receipt?.receiptStatus, "produced_unverified");
       await context.addInitScript(() => {
-        localStorage.setItem("jeeves-ops-token", "web-fixture-token");
         localStorage.setItem("jeeves.setup.dismissed", "1");
         localStorage.setItem("jeeves.lang", "zh");
       });
       const page = await context.newPage();
-      await page.goto(origin);
+      await page.goto(workspace);
       const nav = page.getByRole("navigation", { name: "主导航" });
       const composer = page.locator("#input");
       await composer.fill("unsent fixture draft");
@@ -88,7 +88,7 @@ try {
         if (!await decision.locator("pre").first().isVisible()) await decision.locator("summary").click();
         await decision.locator("pre").filter({ hasText: "report.txt" }).waitFor();
         if (width === 390) {
-          const sent = page.waitForResponse(r => new URL(r.url()).pathname === "/api/approval" && r.request().method() === "POST");
+          const sent = page.waitForResponse(r => r.url() === workspace + "api/approval" && r.request().method() === "POST");
           await decision.getByRole("button", { name: "允许一次" }).click();
           const response = await sent;
           const payload = response.request().postDataJSON();
@@ -122,7 +122,7 @@ try {
       }
       if (width === 390) {
         await taskComposer.fill("task-follow-fixture");
-        const sent = page.waitForResponse(r => new URL(r.url()).pathname === "/api/interaction" && r.request().method() === "POST");
+        const sent = page.waitForResponse(r => r.url() === workspace + "api/interaction" && r.request().method() === "POST");
         await work.locator("#cowork-send").click();
         const response = await sent;
         assert.equal(response.request().postDataJSON().taskId, taskId);

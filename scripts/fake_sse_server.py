@@ -13,6 +13,7 @@ Every extra chain the smoke test asks about adds one to that number: those chain
 one fake endpoint. This is how the SSE → textDelta chain runs through with no real key.
 """
 
+import json
 import socket
 import sys
 
@@ -66,7 +67,7 @@ def send(conn, status, content_type, payload):
     conn.sendall(header + payload)
 
 
-def main(turns):
+def main(turns, models=None):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(("127.0.0.1", 0))
@@ -82,6 +83,8 @@ def main(turns):
             if b'"stream"' in body:
                 send(conn, "200 OK", "text/event-stream", SSE_BODY)
                 served_stream = True
+                if models is not None:
+                    print(json.loads(body)["model"], file=models, flush=True)
             else:
                 send(
                     conn,
@@ -97,6 +100,11 @@ def main(turns):
 
 if __name__ == "__main__":
     try:
-        main(int(sys.argv[1]) if len(sys.argv) > 1 else 1)
+        turns = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+        if len(sys.argv) > 2:
+            with open(sys.argv[2], "w") as models:
+                main(turns, models)
+        else:
+            main(turns)
     except KeyboardInterrupt:
         sys.exit(0)

@@ -8,7 +8,7 @@ exposes native capabilities; it never re-implements agent behavior
 ([architecture](../architecture.md)).
 
 Directories: `jeeves-rs/jeeves-cli/`, `jeeves-rs/jeeves-ops/`, `jeeves-ts/packages/{client,dashboard,gateway,browser-worker}`,
-`desktop/src-tauri/`, plus `Dockerfile` and `compose.yaml`.
+`desktop/src-tauri/`, plus `Dockerfile`.
 
 ## 7.1 The `jeeves` binary
 
@@ -18,7 +18,7 @@ Directories: `jeeves-rs/jeeves-cli/`, `jeeves-rs/jeeves-ops/`, `jeeves-ts/packag
 |---|---|
 | `jeeves` | Terminal chat: opens the Server in-process, attaches the memory worker, runs `repl::run` |
 | `jeeves app-server` | JSON-RPC over stdio; attaches the memory worker and the scheduler |
-| `jeeves dashboard` | `jeeves_ops::serve` (HTTP + SSE) |
+| `jeeves runtime` | `jeeves_ops::serve` (HTTP + SSE) |
 | `jeeves schedule acknowledge <name>` | Releases an interrupted scheduled slot; any other `schedule` form is refused (jobs fire inside the Runtime) |
 | `jeeves home export <dir>` / `import <dir>` | Moves one home (7.3) |
 | `jeeves memory [rebuild\|backfill]` | Memory maintenance (7.3) |
@@ -33,8 +33,8 @@ sandbox has only macOS and Linux backends, hooks run through `sh`, and the Windo
 cannot be read back.
 
 `home()` is `JEEVES_HOME`, otherwise `./.jeeves` in the current working directory. The `app-server`, `memory`,
-`dashboard` and REPL paths write that value into `settings.home`, so an explicit `JEEVES_HOME` always wins.
-`dashboard` does not create the directory itself; the spawned app-server does.
+`runtime` and REPL paths write that value into `settings.home`, so an explicit `JEEVES_HOME` always wins.
+`runtime` does not create the directory itself; the spawned app-server does.
 
 ## 7.2 Terminal chat
 
@@ -74,21 +74,14 @@ after an import, keys and sign-ins are given again.
 
 ## 7.4 `jeeves-ops`: the HTTP face
 
-`jeeves dashboard` runs `jeeves_ops::serve`. The crate is a client of its own `jeeves app-server` child:
+`jeeves runtime` runs `jeeves_ops::serve`. The crate is a client of its own `jeeves app-server` child:
 `AppServer::spawn` starts `current_exe() app-server` with the same `JEEVES_HOME` (and defaults `JEEVES_WRITE=1` and
 `JEEVES_APPROVAL=on-request` when unset), correlates requests by id, and broadcasts notifications to subscribers. Errors from the
 app-server are passed back verbatim as the protocol's `ErrorObject`.
 
-**Startup.** Binding validation, then the dashboard freshness check (`freshness.rs`: `dist/main.js` must exist and not be
-older than `src/`; skipped when no `src/` exists), then the first free port among `JEEVES_PORT` (default 7777) plus the next nine.
-It prints `Jeeves cockpit → http://<host>:<port> …`, which the desktop shell waits for. The hosted gateway starts after the port is known.
-Ctrl-C or SIGTERM stops accepting, stops the gateway, and drains turns in flight for up to 25 s.
+**Startup.** The private Rust Runtime validates its service credential and waits for the engine before binding. It prints `Jeeves Runtime → http://<host>:<port>` and starts the configured Feishu channel. On shutdown it closes SSE and drains active work.
 
-**Auth.** `JEEVES_OPS_HOST` (default `127.0.0.1`) must be loopback unless `JEEVES_OPS_TOKEN` is set, otherwise startup fails.
-With a token, every `/api/*` route needs `Authorization: Bearer <token>` (constant-time comparison; no local bypass).
-Outside that layer: static files, `GET /healthz` (a bounded `session/capabilities` probe returning version and
-protocol version, or 503), and `POST /api/hook/{name}`, which proves itself with the hook's own secret. All responses carry
-`Cache-Control: no-store`; there is no CORS layer because every view loads from this server; the body limit is 25 MB.
+**Auth.** The Go gateway adds the bearer credential server-side. The private health probe and signed webhooks use their own protocols. Rust serves HTTP API and SSE. Go serves the workbench assets.
 
 **Routes** (`router` in `lib.rs`; handlers under `api/`). Each is a translation of one or a few protocol methods:
 
@@ -141,8 +134,7 @@ The TypeScript client of the protocol. Types come from the generated artifacts t
 
 ## 7.6 `@jeeves/dashboard`
 
-A Vue 3 + Vite front end; the backend is `jeeves-ops` (7.4). `npm run build` type-checks (`vue-tsc`), runs Vite and
-`copy-assets.mjs` into `dist/`, which `jeeves dashboard` serves (`just dashboard-build`; `JEEVES_DASHBOARD_DIR` overrides the location).
+Vue and Vite build the workbench and account pages into `dist/`. The Go gateway serves the workbench under the authenticated workspace path and forwards same-origin API requests to the tenant Runtime. Build the assets with `just dashboard-build`.
 
 | Piece | Role |
 |---|---|
@@ -238,26 +230,8 @@ The policy (approvals, scope, uncertain effects) is documented with the loop and
 
 ## 7.10 Desktop shell
 
-`desktop/src-tauri` is a separate Cargo workspace (package `jeeves-desktop`, Tauri 2) with a single `src/main.rs`. It holds no
-agent logic and no protocol: it opens one window (1180×800, minimum 900×640) on the Runtime's own front end.
-
-- With `JEEVES_RUNTIME_URL` set it attaches to that Runtime. Otherwise it starts `jeeves dashboard`, waits up to 30 s for the
-  `Jeeves cockpit → ` line on stdout, and loads the announced URL; on failure it shows `shell/index.html` with the error. On exit it kills
-  the child it started.
-- The binary is `jeeves` beside the app executable in release builds (bundled as the `binaries/jeeves` sidecar through
-  `sidecar.conf.json`); in debug builds `JEEVES_DESKTOP_BINARY` (an absolute path) or `jeeves-rs/target/debug/jeeves`.
-- It sets `JEEVES_DASHBOARD_DIR` to the bundled `dashboard` resource and `JEEVES_BROWSER_RUNTIME` to the bundled `browser-runtime` when
-  `runtime.json` exists there (`browser.conf.json` adds it to the bundle), unless the variables are already set.
-
-Commands: `just desktop-dev`, `just desktop-build`, `just desktop-build-browser`, `just desktop-check`, `just smoke-desktop`.
+The Tauri development shell opens the Go gateway and can start the private Runtime for a configured workspace. The hosted Mac device app pairs with the account and grants access to selected windows. See [Mac desktop app](../operations.md#mac-desktop-app) for build and test commands.
 
 ## 7.11 Container image
 
-`Dockerfile` has three stages: the Rust build of `jeeves-cli`, the Node 22 build of `@jeeves/dashboard`, and a Node 22 runtime image with
-`bubblewrap` (the Linux exec sandbox) and CA certificates. The image runs as a non-root `jeeves` user with `JEEVES_OPS_HOST=0.0.0.0`,
-`JEEVES_HOME=/home/jeeves/.jeeves` (a volume), `JEEVES_DASHBOARD_DIR` and `JEEVES_GATEWAY_BIN` set, port 7777, and `ENTRYPOINT ["jeeves"]` with `CMD ["dashboard"]`.
-Because the host is not loopback, `JEEVES_OPS_TOKEN` is mandatory.
-
-`compose.yaml` requires `JEEVES_OPS_TOKEN`, mounts the `jeeves-state` volume, uses `stop_grace_period: 30s` (the Runtime drains for up to 25 s), and
-health-checks `/healthz`. Deployment steps are in [operations](../operations.md); settings are in [configuration](../configuration.md);
-known gaps are in [limitations](../limitations.md).
+The root `Dockerfile` builds the private Rust Runtime with optional channel adapters. The Go gateway image contains the browser assets. See the [cloud deployment guide](../../control-plane/README.md).

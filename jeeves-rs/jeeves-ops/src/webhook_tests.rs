@@ -20,7 +20,7 @@ fn hooks_file(home: &Path, json: &str) {
 
 fn gate(home: &Path) -> (Gate, Fake) {
     let (app, fake) = fake_at(home.to_path_buf());
-    (Gate::single(Arc::new(app), None), fake)
+    (Gate::single(Arc::new(app), "fixture".into()), fake)
 }
 
 fn post(name: &str, secret: Option<&str>, body: &str) -> Request<Body> {
@@ -43,7 +43,7 @@ fn post_with(name: &str, headers: &[(&str, &str)], body: &str) -> Request<Body> 
 }
 
 async fn status_only(gate: Gate, request: Request<Body>) -> StatusCode {
-    router(gate, std::env::temp_dir())
+    router(gate)
         .oneshot(request)
         .await
         .expect("the response")
@@ -133,7 +133,7 @@ async fn a_good_secret_hands_over_exactly_one_turn() {
     );
 
     let (gate, mut fake) = gate(home.path());
-    let router = router(gate, std::env::temp_dir());
+    let router = router(gate);
     let call = tokio::spawn(async move {
         router
             .oneshot(post("deploy", Some("s3cret"), "status=failed"))
@@ -143,7 +143,7 @@ async fn a_good_secret_hands_over_exactly_one_turn() {
 
     let request = fake.next_request().await;
     assert_eq!(request["method"], "turn/start");
-    assert_eq!(request["params"]["sessionId"], "hook:deploy");
+    assert!(request["params"]["sessionId"].is_null());
     assert_eq!(
         request["params"]["tier"], "fast",
         "the tier goes to the server as it came"
@@ -217,7 +217,7 @@ async fn a_signed_hook_refuses_stale_and_replayed_requests() {
     let (gate, mut fake) = gate(home.path());
     let fresh = now.to_string();
     let signature = sign(now);
-    let router = router(gate.clone(), std::env::temp_dir());
+    let router = router(gate.clone());
     let (sent_at, sent_signature) = (fresh.clone(), signature.clone());
     let call = tokio::spawn(async move {
         router
@@ -279,7 +279,7 @@ async fn a_hook_can_cap_itself_per_minute() {
     );
 
     let (gate, mut fake) = gate(home.path());
-    let first_router = router(gate.clone(), std::env::temp_dir());
+    let first_router = router(gate.clone());
     let call = tokio::spawn(async move {
         first_router
             .oneshot(post("capped", Some("cap-secret"), "{}"))
@@ -298,7 +298,7 @@ async fn a_hook_can_cap_itself_per_minute() {
         StatusCode::OK
     );
 
-    let response = router(gate, std::env::temp_dir())
+    let response = router(gate)
         .oneshot(post("capped", Some("cap-secret"), "{}"))
         .await
         .expect("the response");
@@ -346,14 +346,13 @@ async fn an_async_hook_answers_202_and_pushes_the_result_to_its_callback() {
                 "name": "async-hook",
                 "secret": "async-secret",
                 "prompt": "look at {{{{payload}}}}",
-                "session": "hook:async-test",
                 "callback": "http://{address}/result"
             }}]}}"#
         ),
     );
 
     let (gate, mut fake) = gate(home.path());
-    let response = router(gate, std::env::temp_dir())
+    let response = router(gate)
         .oneshot(post("async-hook", Some("async-secret"), "boom"))
         .await
         .expect("the response");
@@ -367,7 +366,7 @@ async fn an_async_hook_answers_202_and_pushes_the_result_to_its_callback() {
         .expect("read the body");
     let body = String::from_utf8_lossy(&body);
     assert!(body.contains("\"accepted\":true"), "{body}");
-    assert!(body.contains("hook:async-test"), "{body}");
+    assert!(body.contains("async-hook"), "{body}");
 
     let request = fake.next_request().await;
     assert_eq!(request["method"], "turn/start");
@@ -385,7 +384,6 @@ async fn an_async_hook_answers_202_and_pushes_the_result_to_its_callback() {
     let pushed: serde_json::Value = serde_json::from_str(&pushed).expect("the callback is JSON");
     assert_eq!(pushed["ok"], serde_json::json!(false));
     assert_eq!(pushed["hook"], serde_json::json!("async-hook"));
-    assert_eq!(pushed["session"], serde_json::json!("hook:async-test"));
     assert!(
         pushed["error"]["message"]
             .as_str()

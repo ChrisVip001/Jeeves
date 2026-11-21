@@ -33,55 +33,13 @@ Explicit memory and session reads report storage errors. If one memory index is 
 
 ## Web dashboard
 
-```bash
-cd jeeves-ts && npm run build --workspace @jeeves/dashboard   # build the frontend once
-JEEVES_HOME=$HOME/.jeeves ./target/debug/jeeves dashboard        # → http://localhost:7777
-```
-
-The first screen shows config / sessions / memory; the chat area shows the
-tool calls and streaming replies live. If port
-7777 is taken it scans upward (10 tries).
-
-- **The page remembers where you were.** Which conversation is open is kept in
-  `localStorage` (`jeeves.session`, next to the working directory), so a reload lands back in
-  that session instead of the oldest one; if that session was deleted meanwhile, the newest
-  one opens instead — never an empty shell the list cannot show.
-- **Switching back returns to where you were reading.** Each session keeps its own distance
-  from the bottom (in memory, per page load): leave in the middle of a long conversation,
-  come back, and you are at that same line — no dragging. A session opened for the first
-  time in this sitting goes to the newest message, as does a reload; the position is placed
-  instantly, not animated from the top.
-- A cross-device ping (another device finished a turn) re-reads the history **without**
-  moving the scroll position: if you are reading further up, you stay there.
-- **The agent's own wording is English.** `SOUL.md`, the prompt sections, the tool-result
-  messages and the planner prompt are English, whatever language you write in — the model
-  answers in yours. `<home>/SOUL.md` is yours to edit: it is used verbatim, and only a file
-  identical to the built-in seed is ever replaced.
-- **Two languages.** The button at the top right of the sidebar switches between Chinese and
-  English and remembers the choice; a fresh browser follows `navigator.language` (Chinese for
-  `zh-*`, English otherwise). Switching reloads the page — strings are baked into the DOM as
-  they are painted. Model output, session titles and task text stay in whatever language they
-  were written in: those are data, not labels.
+Sign in or register at the deployment's HTTPS address. The home page takes an existing session straight to its workbench. Use the main chat, follow assignments in **My work** and review delivered files under the same account. You can draft a message while the workspace starts.
 
 ### Putting it on a server (self-hosting)
 
-```bash
-export JEEVES_OPS_HOST=0.0.0.0            # a non-loopback bind requires a token, or startup is refused
-export JEEVES_OPS_TOKEN=$(openssl rand -hex 16)
-export JEEVES_HOME=/srv/jeeves/.jeeves
-jeeves dashboard                          # → http://<server>:7777 (/api/* needs the Bearer token)
-```
+Follow the [cloud deployment guide](../control-plane/README.md) to install the Go gateway, Go control plane and Rust Runtime. Publish the gateway alone through HTTPS.
 
-- The standalone dashboard asks for the token once on the first 401 and keeps it in
-  localStorage; the static page itself needs no token (it must load before it
-  can ask).
-- **No key files to copy**: put `"key_source": "env:DEEPSEEK_API_KEY"` in
-  `models.json` and export that variable in the server's environment. The key
-  is only read into the memory of the process running the turn — never on
-  disk, never in an `/api/*` response.
-- TLS belongs to a reverse proxy (Caddy / nginx terminate HTTPS); Jeeves speaks
-  plain HTTP.
-- Stdio MCP servers execute on the Runtime host. HTTP MCP servers execute at their configured endpoints. On shared infrastructure, isolate each user’s Runtime and tools. [Hosted deployment](../control-plane/README.md)
+For a single computer, run `just local-up` from the checkout. It starts a loopback gateway with its own account database and Runtime directory and opens the owner setup page. Keep the same data directory when restarting and return to the address printed by the command. [Personal deployment settings](../jeeves-ts/packages/gateway/README.md#personal-deployment)
 
 ## MCP servers
 
@@ -160,27 +118,13 @@ inherits them); `JEEVES_BIN` can point at the binary.
 
 ## Packaging
 
-```bash
-JEEVES_OPS_TOKEN=$(openssl rand -hex 24) docker compose up -d   # dashboard, see compose.yaml
-docker build -t jeeves .
-docker run --rm -p 7777:7777 -v jeeves-state:/home/jeeves/.jeeves \
-  -e JEEVES_OPS_TOKEN=… jeeves                     # the same, without compose
-docker run --rm -it -v jeeves-state:/home/jeeves/.jeeves \
-  -e ANTHROPIC_API_KEY=… jeeves app-server      # protocol on stdio
-```
+Build the private Rust Runtime image from the checkout with `docker build -t jeeves .`. Mount tenant state at `/home/jeeves/.jeeves` and keep the health endpoint and authenticated API on the private network. The image includes `bubblewrap`, CA certificates and the optional Feishu channel adapter. Build the gateway and control plane images as described in the [deployment guide](../control-plane/README.md#build-and-install).
 
-All state lives under `JEEVES_HOME` (`/home/jeeves/.jeeves` in the image), so one volume
-carries it. The image binds the cockpit to all interfaces, so `JEEVES_OPS_TOKEN` is mandatory (startup refuses without it), and it carries the built front end and Node.js for the hosted chat gateway. It installs `bubblewrap`, which is what the Linux sandbox
-backend needs — without it `run_command` refuses to execute anything, by
-design. A Homebrew formula template lives in `packaging/homebrew/jeeves.rb`
-(source build via `cargo install`; fill in the release tarball's sha256).
-
-`compose.yaml` sets `stop_grace_period: 30s` and a healthcheck that polls `/healthz`
-(200 with versions, or 503). The dashboard first checks a real typed Runtime capability response (up to 60 s); only then does it bind a port, announce its address and start the Lark gateway. A conflicting home refuses startup instead of leaving a broken listener. Ctrl-C or SIGTERM closes persistent SSE streams and starts the HTTP, gateway and Runtime drains concurrently. Running turns have up to 25 s to settle, with a short forced-stop/reap fallback; unfinished turns remain recoverable. An engine subprocess exit also stops the cockpit. `just smoke-lifecycle` exercises both stop signals, duplicate-home rejection and engine crash recovery with temporary homes and ports.
+Ctrl-C and SIGTERM close SSE and let active turns drain for up to 25 seconds. Unfinished work remains recoverable. An engine subprocess crash stops the Runtime. `just smoke-lifecycle` exercises both signals, duplicate data directory rejection and engine crashes.
 
 ## Keeping it running
 
-`jeeves service` writes a supervisor unit so the Runtime (`jeeves dashboard`) survives closing every client and a reboot. The supervisor is the operating system's own; Jeeves adds none.
+`jeeves service` writes a supervisor unit so the Runtime (`jeeves runtime`) survives closing every client and a reboot. The supervisor is the operating system's own; Jeeves adds none.
 
 ```bash
 jeeves service print            # show the unit that would be written
@@ -190,12 +134,12 @@ jeeves service status           # unit installed? is the port answering?
 jeeves service uninstall        # unload and remove the unit; state in JEEVES_HOME is untouched
 ```
 
-* macOS: `~/Library/LaunchAgents/ai.jeeves.dashboard.plist`, restarted after a failure with a 10 s back-off.
+* macOS: `~/Library/LaunchAgents/ai.jeeves.runtime.plist`, restarted after a failure with a 10 s back-off.
 * Linux: `~/.config/systemd/user/jeeves.service` (`Restart=on-failure`, 5 s). To start at boot without a login, run `loginctl enable-linger $USER` once.
-* Containers: `restart: unless-stopped` in `compose.yaml`.
 * Windows has no template (the Runtime does not boot there).
 
-The unit pins `JEEVES_HOME` and `JEEVES_PORT` to the values of the shell that ran `install` and logs to `<home>/jeeves.log` (no rotation). It never contains a token or key: keep `JEEVES_OPS_TOKEN` and provider keys in the keychain or the settings file, because a supervisor does not read your shell profile.
+
+The unit pins `JEEVES_HOME` and `JEEVES_PORT` and logs to `<home>/jeeves.log`. Before starting it, create an owner-only `runtime-token` file in that directory using the same private credential as the Go gateway's `GW_RUNTIME_TOKEN`. Kubernetes supervises the hosted containers.
 
 ## Mac desktop app
 
@@ -203,23 +147,15 @@ The hosted Mac app connects a device to the cloud account. Build it with `just d
 
 The following commands apply to the source checkout's Runtime development app.
 
-The desktop shell (`desktop/`, Tauri) starts `jeeves dashboard` and loads its address; setting
-`JEEVES_RUNTIME_URL` attaches it to an already-running Runtime instead. `just desktop-install`
-installs the front-end dependencies, `just desktop-build` bundles the release `jeeves` binary
-into the app, `just desktop-dev` runs it in development, and `just desktop-build-browser`
-adds the optional task-browser runtime prepared by `just browser-runtime`.
+The Mac development app opens the Go gateway. The default for `just local-up` is `http://127.0.0.1:7788`. Developers can set `JEEVES_WEB_GATEWAY_URL`. `just desktop-build` bundles the Runtime and `just desktop-build-browser` adds the optional task browser.
 
 For everyday use and joint testing, run `just desktop-open` or double-click the checkout’s `desktop/src-tauri/target/release/bundle/macos/Jeeves.app` in Finder. Both open the same application bundle. If it is already running, macOS brings its window forward with the current Runtime, login and conversation. The command builds the bundle if it is missing. Use `just desktop-build` when you need to rebuild it after a code change.
 
-Before a joint test, run `just desktop-status` to record the existing app and Runtime PIDs, listener, and state and trace paths. The checkout revision describes the source tree. The running app may come from an earlier build. Use the same window and account, then leave the tested task or error open for handoff. For a reproduction, record the steps, local time and, when available, task ID or turn ID. Look up that turn under the reported trace directory. If the Runtime's stderr goes to `/dev/null`, record the visible error as well. Automated smoke runs use fixtures and report their results separately.
+Before a joint test, run `just desktop-status` to record the existing app and Runtime PIDs, listener, and state and trace paths. The checkout revision describes the source tree. The running app may come from an earlier build. Use the same window and account, then leave the tested task or error open for handoff. For a reproduction, record the steps, local time and, when available, task ID or turn ID. Look up that turn under the reported trace directory. The app records Runtime diagnostics in `<home>/jeeves.log`. Automated smoke runs use fixtures and report their results separately.
 
-Double-clicking the Mac app starts its bundled Runtime. With Finder’s root working directory and no explicit `JEEVES_HOME`, the app in the repository build output reuses the checkout’s existing `.jeeves` directory. An installed copy defaults to `~/.jeeves`. Set `JEEVES_HOME` explicitly when launching from a terminal to select a different profile.
+To have the development app start and stop the same local Runtime, put a `desktop-gateway` file in `JEEVES_HOME`. Put the loopback Go gateway origin on line one and the private Runtime origin on line two, such as `http://127.0.0.1:7777`. Use the owner-only `runtime-token` file with the gateway's credential. Start the gateway before opening the app. A Finder launch of the checkout bundle can reuse its `.jeeves` directory. Installed copies default to `~/.jeeves`.
 
-The Mac app and mobile web view share one interface and follow the device’s light or dark appearance.
-
-For the running development bundle in this checkout, run `just desktop-refresh-ui` and reload its window to pick up interface changes. A replaced Runtime binary takes effect on its next launch.
-
-To open an existing Go account gateway in this app, put a `desktop-gateway` file in the Runtime's `JEEVES_HOME`. Put the loopback HTTPS gateway origin on the first line and its loopback HTTP Runtime origin on the second, for example `https://localhost:8743` followed by `http://127.0.0.1:7777`. Start the gateway before opening the app. The app starts its usual Runtime, checks the reported Runtime address against the second line, and opens the gateway directly. This setting belongs to the data directory and survives app builds.
+Run `just dashboard-build` and reload the gateway page to see frontend changes. Runtime changes take effect after replacing the binary and restarting it.
 
 The app opens in Chat. Open a receipt or My work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
 
@@ -227,7 +163,7 @@ To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the 
 
 ## Scheduled jobs
 
-The resident Runtime (`jeeves app-server`, `jeeves dashboard`) fires scheduled jobs on a five-field
+The resident Runtime (`jeeves app-server`, `jeeves runtime`) fires scheduled jobs on a five-field
 cron (`*`, `*/step`, `a-b`, `a,b`); there is no separate scheduler process. Two ways to declare one:
 
 * a skill whose frontmatter carries a schedule:

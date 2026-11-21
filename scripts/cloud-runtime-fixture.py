@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start the real Rust dashboard with a deterministic provider for cloud smoke tests."""
+"""Start the private Rust Runtime with a deterministic provider for cloud smoke tests."""
 import importlib.util
 import signal
 import socket

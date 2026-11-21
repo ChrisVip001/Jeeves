@@ -1,4 +1,4 @@
-//! `jeeves-ops` — the HTTP face of the dashboard: axum + SSE.
+//! `jeeves-ops` — the private Runtime HTTP API used by the Go gateway and channel adapters.
 //!
 //! It is a **client** of `jeeves app-server`, like the CLI, the TS gateway and the Python SDK.
 //! The only special thing: it translates the protocol into what a browser understands:
@@ -7,7 +7,6 @@
 //!   GET  /api/data     the four read methods → one screen of data (DashboardData)
 //!   GET  /api/session  session/messages → what one session said (one page)
 //!   POST /api/turn     turn/start → one SSE stream (JSON of ServerNotification)
-//!   GET  /*            static files from jeeves-ts/packages/dashboard/dist
 //! ```
 //!
 //! The dashboard reads runtime-owned state through the protocol. It must not create a
@@ -16,7 +15,6 @@
 mod api;
 mod capabilities;
 mod client;
-mod freshness;
 mod gateways;
 mod lifecycle;
 mod memory_api;
@@ -39,10 +37,9 @@ mod router_tests;
 mod webhook_tests;
 
 use std::future::IntoFuture;
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use axum::http::{header, HeaderValue};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -50,12 +47,11 @@ use axum::Router;
 use jeeves_config::Settings;
 use jeeves_protocol::{ErrorNotification, ErrorObject, ServerNotification};
 use tokio::net::TcpListener;
-use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 
 pub use client::AppServer;
 
-/// Default port of the dashboard (the one hardcoded in `plan.md`).
+/// Default private Runtime port.
 pub const DEFAULT_PORT: u16 = 7777;
 /// How many ports to scan forward when the default port is taken.
 const PORT_SCAN: u16 = 10;
@@ -85,9 +81,22 @@ async fn stop_signal() {
     }
 }
 
-/// Start the dashboard, until Ctrl-C or SIGTERM; then drain.
+/// Start the private HTTP API, until Ctrl-C or SIGTERM; then drain.
 pub async fn serve(settings: Settings) -> Result<()> {
-    validate_binding(&settings.ops_host, settings.ops_token.as_deref())?;
+    let token = match settings.ops_token {
+        Some(token) => Some(token),
+        None => match std::fs::read_to_string(settings.home.join("runtime-token")) {
+            Ok(token) => Some(token.trim().to_owned()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error).context("reading the private Runtime credential"),
+        },
+    }
+    .filter(|value| !value.trim().is_empty())
+    .ok_or_else(|| {
+        anyhow::anyhow!(
+            "set JEEVES_OPS_TOKEN or create a private runtime-token file in JEEVES_HOME"
+        )
+    })?;
 
     if !settings.home.exists() {
         eprintln!(
@@ -96,10 +105,6 @@ pub async fn serve(settings: Settings) -> Result<()> {
         );
     }
 
-    let assets = assets_dir();
-    if let Err(why) = freshness::check_dashboard_freshness(&assets) {
-        anyhow::bail!("{why}");
-    }
     let app = Arc::new(AppServer::spawn(&settings.home, true)?);
     let signal = stop_signal();
     tokio::pin!(signal);
@@ -130,9 +135,9 @@ pub async fn serve(settings: Settings) -> Result<()> {
             );
         }
     }
-    let gate = Gate::single(Arc::clone(&app), settings.ops_token.clone());
+    let gate = Gate::single(Arc::clone(&app), token);
     let gateways = Arc::clone(&gate.gateways);
-    let router = router(gate, assets.clone());
+    let router = router(gate);
     let first = port();
     let bind_host = bind_addr(&settings.ops_host);
 
@@ -143,20 +148,7 @@ pub async fn serve(settings: Settings) -> Result<()> {
                     app.shutdown(EARLY_EXIT_GRACE).await;
                     anyhow::bail!("Jeeves Runtime exited during cockpit startup");
                 }
-                match settings.ops_token.as_deref() {
-                    Some(_) => println!(
-                        "Jeeves cockpit → http://{bind_host}:{candidate} (/api/* needs a Bearer token)"
-                    ),
-                    None => println!(
-                        "Jeeves cockpit → http://{bind_host}:{candidate} (no auth on this machine)"
-                    ),
-                }
-                if !assets.join("index.html").exists() {
-                    eprintln!(
-                        "(jeeves) the front end has not been built ({}). Run: just dashboard-build",
-                        assets.display()
-                    );
-                }
+                println!("Jeeves Runtime → http://{bind_host}:{candidate}");
                 gateways.set_url(format!("http://127.0.0.1:{candidate}"));
                 gateways.autostart().await;
                 let served = axum::serve(listener, router)
@@ -186,10 +178,10 @@ pub async fn serve(settings: Settings) -> Result<()> {
     )
 }
 
-/// Request gate: the optional static token (`JEEVES_OPS_TOKEN`) plus the one app-server.
+/// Request gate: the service token and the one app-server.
 #[derive(Clone)]
 pub struct Gate {
-    token: Option<String>,
+    token: String,
     app: Arc<AppServer>,
     /// Inbound-hook replay and rate state, scoped to this Runtime.
     admissions: Arc<std::sync::Mutex<webhooks::Admissions>>,
@@ -198,10 +190,10 @@ pub struct Gate {
 }
 
 impl Gate {
-    /// One app-server + optional static token.
-    pub fn single(app: Arc<AppServer>, token: Option<String>) -> Self {
+    /// One app-server and its service token.
+    pub fn single(app: Arc<AppServer>, token: String) -> Self {
         Self {
-            gateways: gateways::Gateways::new(app.home(), token.clone()),
+            gateways: gateways::Gateways::new(app.home(), Some(token.clone())),
             token,
             app,
             admissions: Arc::default(),
@@ -224,38 +216,17 @@ async fn authorize(
     mut req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    if let Some(expected) = &gate.token {
-        let provided = req
-            .headers()
-            .get(header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.strip_prefix("Bearer "));
-        if !provided.is_some_and(|t| constant_time_eq(t.as_bytes(), expected.as_bytes())) {
-            return axum::http::StatusCode::UNAUTHORIZED.into_response();
-        }
+    let provided = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "));
+    if !provided.is_some_and(|t| constant_time_eq(t.as_bytes(), gate.token.as_bytes())) {
+        return axum::http::StatusCode::UNAUTHORIZED.into_response();
     }
     req.extensions_mut().insert(gate.app());
     req.extensions_mut().insert(Arc::clone(&gate.gateways));
     next.run(req).await
-}
-
-/// Binding validation: non-loopback addresses require a token (nanobot's "0.0.0.0 must set
-/// api_key" rule). Loopback + token = authenticated even locally; allowed.
-pub fn validate_binding(host: &str, token: Option<&str>) -> Result<()> {
-    let loopback = match host {
-        "localhost" => true,
-        other => other
-            .parse::<std::net::IpAddr>()
-            .map(|ip| ip.is_loopback())
-            .unwrap_or(false),
-    };
-    if !loopback && token.is_none() {
-        anyhow::bail!(
-            "the cockpit would bind to {host} (not a loopback address) with no JEEVES_OPS_TOKEN — refusing to start.\
-             Set a token, or leave JEEVES_OPS_HOST at 127.0.0.1."
-        );
-    }
-    Ok(())
 }
 
 /// IP to bind: `localhost` resolves to 127.0.0.1 (TcpListener does not accept hostnames).
@@ -281,7 +252,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// Route table. Pulled out so tests can hit it directly without starting a listener.
-pub fn router(gate: Gate, assets: PathBuf) -> Router {
+pub fn router(gate: Gate) -> Router {
     Router::new()
         .route("/api/data", get(api::data))
         .route("/api/capability", get(api::connections::capability_list))
@@ -430,7 +401,6 @@ pub fn router(gate: Gate, assets: PathBuf) -> Router {
             post(api::devices::report).layer(axum::extract::DefaultBodyLimit::max(2048)),
         )
         .route("/healthz", get(api::healthz))
-        .fallback_service(ServeDir::new(assets).append_index_html_on_directories(true))
         .layer(SetResponseHeaderLayer::overriding(
             header::CACHE_CONTROL,
             HeaderValue::from_static("no-store"),
@@ -458,30 +428,4 @@ fn port() -> u16 {
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(DEFAULT_PORT)
-}
-
-/// Where the frontend build output lives.
-///
-/// The default is derived at **compile time** from `CARGO_MANIFEST_DIR`, pointing at
-/// `jeeves-ts/packages/dashboard/dist` in the source tree. Deliberate: `jeeves dashboard` is a
-/// dev-time command, the frontend changes daily — rerun `just dashboard-build` (tens of
-/// ms) and a refresh shows it, **no Rust rebuild, no server restart**. Embedding in the
-/// binary would lose that; distribution day would mean rust-embed, changing only this fn.
-///
-/// `JEEVES_DASHBOARD_DIR` takes precedence, for "I want it to point elsewhere".
-pub fn assets_dir() -> PathBuf {
-    match std::env::var_os("JEEVES_DASHBOARD_DIR") {
-        Some(dir) => PathBuf::from(dir),
-        None => workspace_assets(),
-    }
-}
-
-fn workspace_assets() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("jeeves-ts")
-        .join("packages")
-        .join("dashboard")
-        .join("dist")
 }

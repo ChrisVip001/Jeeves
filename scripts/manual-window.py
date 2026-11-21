@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from gateway_fixture import EMAIL, PASSWORD, RUNTIME_TOKEN, gateway
 import subprocess
 import tempfile
 import threading
@@ -45,9 +46,8 @@ class ScreenModel(BaseHTTPRequestHandler):
 
 def prepare(home, port, binary=BIN / 'jeeves'):
     env = {k: os.environ[k] for k in ('HOME', 'PATH', 'LANG', 'TMPDIR') if k in os.environ}
-    env.update(JEEVES_HOME=str(home), JEEVES_PORT='17884',
-               JEEVES_DESKTOP_HELPER=str(BIN / 'jeeves-window'),
-               JEEVES_DASHBOARD_DIR=str(ROOT / 'jeeves-ts/packages/dashboard/dist'))
+    env.update(JEEVES_HOME=str(home), JEEVES_PORT='17884', JEEVES_OPS_TOKEN=RUNTIME_TOKEN,
+               JEEVES_DESKTOP_HELPER=str(BIN / 'jeeves-window'))
     profile = 'window-fixture'
     (home / 'models.json').write_text(json.dumps({'active': profile, 'profiles': [
         {'id': profile, 'provider': 'ollama', 'model': 'fixture', 'vision': True,
@@ -82,8 +82,10 @@ def main():
         env = prepare(home, model.server_port)
         with subprocess.Popen([BIN / 'JeevesWindowFixture'], cwd=home) as windows:
             try:
-                print('两个 Mac 窗口供测试操作。请在浏览器打开下方驾驶舱地址，点击「主会话 → 任务进展」，保留任务的待开始状态，在「Mac 单窗口验收 / Window acceptance」任务卡展开「任务窗口」，点击「在 Mac 上选择窗口」。按 Ctrl-C 结束测试。', flush=True)
-                with subprocess.Popen([BIN / 'jeeves', 'dashboard'], cwd=home, env=env) as cockpit:
+                with gateway('http://127.0.0.1:17884', home) as (origin, _, _), \
+                        subprocess.Popen([BIN / 'jeeves', 'runtime'], cwd=home, env=env) as cockpit:
+                    print(f'打开 {origin}，用 {EMAIL} / {PASSWORD} 登录。', flush=True)
+                    print('两个 Mac 窗口供测试操作。点击「主会话 → 任务进展」，保留任务的待开始状态，在「Mac 单窗口验收 / Window acceptance」任务卡展开「任务窗口」，点击「在 Mac 上选择窗口」。按 Ctrl-C 结束测试。', flush=True)
                     try:
                         if cockpit.wait() != 0:
                             raise RuntimeError('The test cockpit exited before acceptance finished')

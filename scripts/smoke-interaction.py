@@ -9,6 +9,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
+from gateway_fixture import RUNTIME_TOKEN, gateway
 import queue
 import socket
 import subprocess
@@ -28,7 +29,7 @@ def interact(base, message, message_id, task=None):
     params = dict(sessionId='jeeves-main', message=message, messageId=message_id,
                   taskId=task, cwd=None, attachments=None)
     request = urllib.request.Request(base + '/api/interaction', data=json.dumps(params).encode(),
-                                     headers={'Authorization': 'Bearer web-fixture-token', 'Content-Type': 'application/json'})
+                                     headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN, 'Content-Type': 'application/json'})
     events = []
     with urllib.request.urlopen(request, timeout=30) as response:
         for line in response:
@@ -79,8 +80,8 @@ def run(browser_channel=None):
             with ThreadPoolExecutor(max_workers=2) as clients:
                 messages = ['simultaneous-a', 'simultaneous-b']
                 responses = [clients.submit(interact, base, 'same message text', key) for key in messages]
-                for key, response in zip(messages, responses):
-                    completion = next(event for event in response.result() if event['type'] == 'turnCompleted')
+                for key, future in zip(messages, responses):
+                    completion = next(event for event in future.result() if event['type'] == 'turnCompleted')
                     assert completion['turnId'] == 'interaction-' + key, completion
             assert not Path(home, 'workspaces').exists(), 'chat should allocate no task folder'
             web.request(base, '/api/session/permission', dict(sessionId='jeeves-main', mode='fullAccess', expectedRevision=1, confirmFullAccess=True))
@@ -100,7 +101,8 @@ def run(browser_channel=None):
             assert all(not s['id'].startswith('task-work:') for s in sessions)
             alpha = next(row for row in rows if row['title'] == 'task-alpha-fixture')
             if browser_channel:
-                subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', base, alpha['id'], browser_channel], check=True)
+                with gateway(base, home) as (_, workspace, cookie):
+                    subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', workspace, cookie, alpha['id'], browser_channel], check=True)
             else:
                 interact(base, 'task-follow-fixture', 'follow', alpha['id'])
             fresh = settled(base, alpha['id'], minimum_runs=2)
@@ -131,7 +133,7 @@ def run(browser_channel=None):
             assert restored == artifacts, (restored, artifacts)
 
             # Independent GET subscription must carry worker approvals after the POST closes.
-            request = urllib.request.Request(base + '/api/notifications', headers={'Authorization': 'Bearer web-fixture-token'})
+            request = urllib.request.Request(base + '/api/notifications', headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN})
             response = urllib.request.urlopen(request, timeout=15)
             def receive():
                 try:
@@ -175,7 +177,8 @@ def run(browser_channel=None):
                 assert error.code == 400
             params = dict(turnId=event['turnId'], requestId=event['requestId'], approved=True, remember='once')
             if browser_channel:
-                subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', base, alpha['id'], browser_channel, event['requestId']], check=True)
+                with gateway(base, home) as (_, workspace, cookie):
+                    subprocess.run(['node', ROOT / 'scripts/smoke-task-receipt.mjs', workspace, cookie, alpha['id'], browser_channel, event['requestId']], check=True)
             else:
                 assert web.request(base, '/api/approval', params)['accepted']
             assert not web.request(base, '/api/approval', params)['accepted']

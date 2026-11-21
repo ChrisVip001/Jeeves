@@ -56,11 +56,10 @@ pub async fn hook(
         return refusal_response(refusal);
     }
 
-    let session = hook.session_id();
     let hook_name = hook.name.clone();
     let params = TurnStartParams {
         request_id: None,
-        session_id: Some(session.clone()),
+        session_id: None,
         message: hook.render(&body),
         stream: Some(false),
         cwd: None,
@@ -69,29 +68,22 @@ pub async fn hook(
     };
 
     if let Some(callback) = hook.callback_url().map(str::to_string) {
-        let pushed_session = session.clone();
         tokio::spawn(async move {
             let payload = match run_headless(&app, params).await {
                 Ok(run) => json!({
                     "hook": hook_name,
-                    "session": pushed_session,
                     "ok": true,
                     "result": run,
                 }),
                 Err(error) => json!({
                     "hook": hook_name,
-                    "session": pushed_session,
                     "ok": false,
                     "error": error,
                 }),
             };
             webhooks::deliver(&callback, payload).await;
         });
-        return (
-            StatusCode::ACCEPTED,
-            Json(webhooks::accepted(&hook.name, &session)),
-        )
-            .into_response();
+        return (StatusCode::ACCEPTED, Json(webhooks::accepted(&hook.name))).into_response();
     }
 
     match run_headless(&app, params).await {

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useUiText } from "./translate";
-import { hostedBase } from "../hosted";
 const t = useUiText();
 import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import JeevesLogo from "./JeevesLogo.vue";
@@ -38,19 +37,6 @@ const advanced = ref(false);
 const saving = ref(false);
 const notice = ref("");
 const error = ref(false);
-const accountServer = ref("");
-const accountError = ref(false);
-const hosted = hostedBase();
-function connectAccount() {
-  try {
-    const url = new URL(accountServer.value);
-    if (url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash) {
-      location.assign(url.origin + "/account/");
-      return;
-    }
-  } catch {}
-  accountError.value = true;
-}
 const form = reactive({
   id: "",
   provider: props.models[0]?.provider || "",
@@ -353,14 +339,7 @@ onMounted(() => {
       </header>
       <div v-if="tab === 'general'" class="preferences-content">
         <h3>{{ t("个人中心") }}</h3>
-        <a v-if="hosted" href="/account/">{{ t("个人中心") }}</a>
-        <form v-else class="setting-row" @submit.prevent="connectAccount">
-          <label>{{ t("账号服务地址") }}
-            <input v-model.trim="accountServer" type="url" placeholder="https://" required @input="accountError = false" />
-          </label>
-          <button class="quiet-button" type="submit">{{ t("连接账号服务") }}</button>
-          <span v-if="accountError" role="alert">{{ t("请输入 HTTPS 服务地址。") }}</span>
-        </form>
+        <a href="/account/">{{ t("个人中心") }}</a>
         <h3>{{ t("默认模型") }}</h3>
         <div class="setting-row">
           <div>

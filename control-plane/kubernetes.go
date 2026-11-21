@@ -102,7 +102,7 @@ func (k kubernetes) objects(t tenant) ([]resource, error) {
 				"initContainers": []object{{"name": "seed-models", "image": k.image,
 					"command":      []string{"sh", "-c", `test -f "$1/models.json" || printf '%s' "$2" > "$1/models.json"`, "seed", home, string(seed)},
 					"volumeMounts": mount}},
-				"containers": []object{{"name": "jeeves", "image": k.image, "args": []string{"dashboard"},
+				"containers": []object{{"name": "jeeves", "image": k.image, "args": []string{"runtime"},
 					"ports": []object{{"containerPort": 7777}},
 					"env": []object{{"name": "JEEVES_HOME", "value": home}, {"name": "JEEVES_OPS_HOST", "value": "0.0.0.0"},
 						{"name": "JEEVES_DESKTOP_HELPER", "value": "/usr/local/bin/jeeves-desktop-relay"}, {"name": "JEEVES_MAX_TURNS", "value": "2"}, {"name": "JEEVES_HOME_MAX_MB", "value": "4096"}, secret("JEEVES_OPS_TOKEN"), secret("JEEVES_MODEL_TOKEN")},
@@ -149,7 +149,7 @@ func (p *plane) reconcile(ctx context.Context, t tenant) {
 		}
 		return
 	}
-	if t.alwaysOn || time.Now().UnixMilli()-t.last < p.idle.Milliseconds() || !p.settled(ctx, t) {
+	if time.Now().UnixMilli()-t.last < p.idle.Milliseconds() || !p.settled(ctx, t) {
 		return
 	}
 	res, err := p.db.ExecContext(ctx, `UPDATE cp_tenants SET wanted=FALSE,ready=FALSE WHERE id=$1 AND last_active=$2 AND lease_until=$3`, t.id, t.last, t.lease)

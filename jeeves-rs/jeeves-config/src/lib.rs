@@ -327,12 +327,9 @@ pub struct Settings {
     /// context-pressure notice (default 85). A notice, not a dialog: it never interrupts.
     pub context_warn_ratio: i32,
 
-    /// `JEEVES_OPS_HOST`: address the cockpit binds to. Default 127.0.0.1 — a personal assistant
-    /// isn't exposed by default; viewing remotely is **another decision**: set `JEEVES_OPS_TOKEN` too.
+    /// `JEEVES_OPS_HOST`: private Runtime bind address, default 127.0.0.1.
     pub ops_host: String,
-    /// `JEEVES_OPS_TOKEN`: Bearer token for the cockpit's `/api/*` (constant-time compare).
-    /// Binding a non-loopback address without it = rejected at startup, not a warning. It is
-    /// **deliberately not in `view()`**: a deployment param the model must not see in payloads.
+    /// `JEEVES_OPS_TOKEN`: private Runtime API bearer credential, hidden from the settings view.
     pub ops_token: Option<String>,
     /// `JEEVES_DISPATCHERS`: sender ids (Feishu `open_id`s) allowed to hand out tasks from a chat
     /// group. Empty = nobody outside the local views. Like `ops_token`, not shown to the model.

@@ -4,7 +4,6 @@ import {
   setupNavigation,
   setupSidebarResize,
 } from "./navigation";
-import { retryDeploymentToken } from "./token-dialog";
 import {
   webState,
   workspaceActions,
@@ -777,16 +776,12 @@ function addStopButton(): void {
   dom.status.append(stop);
 }
 
-/**
- * The sidebar's edge is draggable: grab the border, pull left/right, the width
- * sticks (localStorage). Double-click resets; ←/→ nudge by 24px when the handle
- * is focused. Pointer events cover mouse and touch alike; `setPointerCapture`
- * keeps the drag alive when the cursor outruns the 7px handle.
- */
-
 async function waitForHostedWorkspace(): Promise<boolean> {
   const base = hostedBase();
-  if (!base) return true;
+  if (!base) {
+    location.replace("/");
+    return false;
+  }
   preparing = true;
   dom.send.disabled = true;
   dom.input.disabled = false;
@@ -2449,10 +2444,7 @@ function stalePage(id: string): void {
   );
 }
 
-workspaceActions.refresh = () => {
-  retryDeploymentToken();
-  return refresh();
-};
+workspaceActions.refresh = refresh;
 workspaceActions.browse = () => void cwdPicker();
 workspaceActions.reviewOperations = (task) => void switchTask(task, "operations");
 workspaceActions.upload = () => dom.file.click();

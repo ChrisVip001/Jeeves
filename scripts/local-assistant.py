@@ -31,11 +31,11 @@ origin = f"http://127.0.0.1:{gateway_port}"
 runtime_origin = f"http://127.0.0.1:{runtime_port}"
 asset = root / "jeeves-ts/packages/dashboard/dist"
 runtime = subprocess.Popen(
-    [root / "jeeves-rs/target/debug/jeeves", "dashboard"],
+    [root / "jeeves-rs/target/debug/jeeves", "runtime"],
     cwd=root,
     env={
         **os.environ, "JEEVES_HOME": str(home / "runtime"), "JEEVES_OPS_HOST": "127.0.0.1",
-        "JEEVES_PORT": str(runtime_port), "JEEVES_DASHBOARD_DIR": str(asset),
+        "JEEVES_PORT": str(runtime_port),
         "JEEVES_OPS_TOKEN": keys["JEEVES_OPS_TOKEN"],
     },
 )

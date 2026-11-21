@@ -7,7 +7,7 @@
 不重新实现智能体行为（[architecture](../architecture.zh.md)）。
 
 目录：`jeeves-rs/jeeves-cli/`、`jeeves-rs/jeeves-ops/`、`jeeves-ts/packages/{client,dashboard,gateway,browser-worker}`、
-`desktop/src-tauri/`，以及 `Dockerfile` 和 `compose.yaml`。
+`desktop/src-tauri/`，以及 `Dockerfile`。
 
 ## 7.1 `jeeves` 二进制
 
@@ -17,7 +17,7 @@
 |---|---|
 | `jeeves` | 终端对话：进程内打开 Server，挂上记忆 worker，运行 `repl::run` |
 | `jeeves app-server` | stdio 上的 JSON-RPC；挂上记忆 worker 和调度器 |
-| `jeeves dashboard` | `jeeves_ops::serve`（HTTP + SSE） |
+| `jeeves runtime` | `jeeves_ops::serve`（HTTP + SSE） |
 | `jeeves schedule acknowledge <name>` | 释放被中断的定时槽位；`schedule` 的其他形式一律拒绝（任务在 Runtime 内触发） |
 | `jeeves home export <dir>` / `import <dir>` | 搬运一个 home（7.3） |
 | `jeeves memory [rebuild\|backfill]` | 记忆维护（7.3） |
@@ -30,7 +30,7 @@
 其他参数输出用法并失败。在 Windows 上二进制拒绝启动（退出码 2）：执行沙箱只有 macOS 和 Linux 后端，
 hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 
-`home()` 取 `JEEVES_HOME`，否则取当前工作目录下的 `./.jeeves`。`app-server`、`memory`、`dashboard` 和 REPL 路径都把该值写入
+`home()` 取 `JEEVES_HOME`，否则取当前工作目录下的 `./.jeeves`。`app-server`、`memory`、`runtime` 和 REPL 路径都把该值写入
 `settings.home`，所以显式的 `JEEVES_HOME` 总是优先。`dashboard` 自己不创建该目录，由它拉起的 app-server 创建。
 
 ## 7.2 终端对话
@@ -69,20 +69,13 @@ hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 
 ## 7.4 `jeeves-ops`：HTTP 门面
 
-`jeeves dashboard` 运行 `jeeves_ops::serve`。该 crate 是它自己拉起的 `jeeves app-server` 子进程的客户端：
+`jeeves runtime` 运行 `jeeves_ops::serve`。该 crate 是它自己拉起的 `jeeves app-server` 子进程的客户端：
 `AppServer::spawn` 用相同的 `JEEVES_HOME` 启动 `current_exe() app-server`（未设置时默认 `JEEVES_WRITE=1` 和
 `JEEVES_APPROVAL=on-request`），按 id 关联请求，并向订阅者广播通知。app-server 的错误原样作为协议的 `ErrorObject` 返回。
 
-**启动。** 先做绑定校验，再做仪表盘新鲜度检查（`freshness.rs`：`dist/main.js` 必须存在且不早于 `src/`；
-没有 `src/` 时跳过），然后在 `JEEVES_PORT`（默认 7777）及其后九个端口中取第一个空闲端口。
-它打印 `Jeeves cockpit → http://<host>:<port> …`，桌面外壳等待的就是这一行。托管网关在端口确定后启动。
-Ctrl-C 或 SIGTERM 会停止接受请求、停止网关，并最多 25 秒等待进行中的回合收尾。
+**启动。** Rust Runtime 先核验服务凭据并等待引擎就绪，然后监听私网端口并打印 `Jeeves Runtime → http://<host>:<port>`，之后启动已配置的飞书渠道。停止信号会结束 SSE，再让回合收尾。
 
-**认证。** `JEEVES_OPS_HOST`（默认 `127.0.0.1`）除非设置了 `JEEVES_OPS_TOKEN`，否则必须是回环地址，否则启动失败。
-设置令牌后，每个 `/api/*` 路由都需要 `Authorization: Bearer <token>`（常数时间比较；没有本地绕过）。
-在该层之外的有：静态文件、`GET /healthz`（带超时的 `session/capabilities` 探测，返回版本和协议版本，失败返回 503），
-以及 `POST /api/hook/{name}`，后者凭 hook 自己的密钥证明身份。所有响应带 `Cache-Control: no-store`；
-没有 CORS 层，因为所有视图都从本服务加载；请求体上限 25 MB。
+**认证。** Go 网关在服务端附加 Bearer 凭据。服务间的 `GET /healthz` 和有独立签名的 webhook 采用各自的协议。Runtime 提供 HTTP API 和 SSE，工作台静态文件由 Go 网关提供。
 
 **路由**（`lib.rs` 的 `router`；处理器在 `api/` 下）。每条是对一个或几个协议方法的翻译：
 
@@ -128,8 +121,7 @@ Ctrl-C 或 SIGTERM 会停止接受请求、停止网关，并最多 25 秒等待
 
 ## 7.6 `@jeeves/dashboard`
 
-Vue 3 + Vite 前端；后端是 `jeeves-ops`（7.4）。`npm run build` 先类型检查（`vue-tsc`），再运行 Vite 和
-`copy-assets.mjs` 输出到 `dist/`，由 `jeeves dashboard` 提供服务（`just dashboard-build`；`JEEVES_DASHBOARD_DIR` 可改位置）。
+Vue 和 Vite 将工作台及账号页面构建到 `dist/`。Go 网关在通过鉴权的工作区路径下提供工作台，浏览器使用同源会话 Cookie 调用对应的 Runtime API。运行 `just dashboard-build` 生成资源。
 
 | 部分 | 作用 |
 |---|---|
@@ -212,25 +204,8 @@ Vue 3 + Vite 前端；后端是 `jeeves-ops`（7.4）。`npm run build` 先类�
 
 ## 7.10 桌面外壳
 
-`desktop/src-tauri` 是独立的 Cargo 工作区（包名 `jeeves-desktop`，Tauri 2），只有一个 `src/main.rs`。它不含智能体逻辑也不含协议：
-只开一个窗口（1180×800，最小 900×640），加载 Runtime 自己的前端。
-
-- 设置了 `JEEVES_RUNTIME_URL` 就附着到该 Runtime；否则启动 `jeeves dashboard`，最多等 30 秒，等 stdout 出现 `Jeeves cockpit → ` 行，
-  然后加载公布的 URL；失败时显示带错误信息的 `shell/index.html`。退出时杀掉自己启动的子进程。
-- 发布构建中二进制是应用可执行文件旁的 `jeeves`（通过 `sidecar.conf.json` 作为 `binaries/jeeves` sidecar 打包）；调试构建中是
-  `JEEVES_DESKTOP_BINARY`（绝对路径）或 `jeeves-rs/target/debug/jeeves`。
-- 它把 `JEEVES_DASHBOARD_DIR` 设为打包的 `dashboard` 资源，当 `runtime.json` 存在时把 `JEEVES_BROWSER_RUNTIME` 设为打包的
-  `browser-runtime`（`browser.conf.json` 把它加入包内），除非这些变量已被设置。
-
-命令：`just desktop-dev`、`just desktop-build`、`just desktop-build-browser`、`just desktop-check`、`just smoke-desktop`。
+Tauri 开发壳打开 Go 网关，并可按工作区配置启停私网 Runtime。托管版 Mac 设备应用用于配对和授权所选窗口。构建与测试命令见 [Mac 桌面应用](../operations.zh.md#mac-桌面应用)。
 
 ## 7.11 容器镜像
 
-`Dockerfile` 分三个阶段：`jeeves-cli` 的 Rust 构建、`@jeeves/dashboard` 的 Node 22 构建，以及带 `bubblewrap`（Linux 执行沙箱）和
-CA 证书的 Node 22 运行镜像。镜像以非 root 的 `jeeves` 用户运行，设置 `JEEVES_OPS_HOST=0.0.0.0`、`JEEVES_HOME=/home/jeeves/.jeeves`（卷）、
-`JEEVES_DASHBOARD_DIR` 和 `JEEVES_GATEWAY_BIN`，端口 7777，`ENTRYPOINT ["jeeves"]` 加 `CMD ["dashboard"]`。
-由于主机不是回环地址，`JEEVES_OPS_TOKEN` 是必需的。
-
-`compose.yaml` 要求提供 `JEEVES_OPS_TOKEN`，挂载 `jeeves-state` 卷，使用 `stop_grace_period: 30s`（Runtime 最多 25 秒收尾），并对 `/healthz`
-做健康检查。部署步骤见 [operations](../operations.zh.md)；设置见 [configuration](../configuration.zh.md)；
-已知缺口见 [limitations](../limitations.zh.md)。
+根目录的 `Dockerfile` 构建私网 Rust Runtime 和可选渠道适配器。Go 网关镜像携带浏览器资源。部署见[云端部署手册](../../control-plane/README.zh.md)。

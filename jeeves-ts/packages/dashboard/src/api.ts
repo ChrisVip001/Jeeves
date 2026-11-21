@@ -38,7 +38,6 @@ import type {
 import { jsonEvents } from "../../client/src/event-stream.ts";
 import { t } from "./i18n.ts";
 import { hostedBase, loginPage } from "./hosted.ts";
-import { askDeploymentToken } from "./token-dialog.ts";
 
 /** One page of the `/api/fs` directory listing (ops's local view, not in the protocol). */
 export interface FsListing {
@@ -60,34 +59,10 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * The unified entry for `/api/*`: attaches the Bearer token. The page is always served by
- * the Runtime it talks to (same origin), so paths stay relative. A 401 asks once for `JEEVES_OPS_TOKEN` (ask, save, never seen again).
- */
-async function apiFetch(
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  const base = hostedBase();
-  if (base) {
-    const response = await fetch(base + path, { ...init, credentials: "same-origin" });
-    if (response.headers.get("x-jeeves-session") === "required") location.replace(loginPage());
-    return response;
-  }
-  const headers = new Headers(init.headers);
-  const token = localStorage.getItem("jeeves-ops-token");
-  if (token) headers.set("authorization", `Bearer ${token}`);
-
-  const response = await fetch(path, { ...init, headers });
-  if (response.status === 401) {
-    const entered = await askDeploymentToken();
-    if (entered) {
-      localStorage.setItem("jeeves-ops-token", entered);
-      const retryHeaders = new Headers(init.headers);
-      retryHeaders.set("authorization", `Bearer ${entered}`);
-      return fetch(path, { ...init, headers: retryHeaders });
-    }
-  }
+/** Workspace requests use the Go gateway's account session. */
+async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const response = await fetch(hostedBase() + path, { ...init, credentials: "same-origin" });
+  if (response.headers.get("x-jeeves-session") === "required") location.replace(loginPage());
   return response;
 }
 

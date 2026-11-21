@@ -24,35 +24,17 @@ Coding tasks can run an approved CLI in a private Git worktree. A parent can int
 
 ## Install
 
-Jeeves runs on macOS and Linux (Windows through WSL2). After any install, the dashboard opens a three-step wizard that connects a model and sets permissions; see the [getting started guide](docs/guide.md).
+**Hosted** users register or sign in at the service's public HTTPS origin. Web and iOS share the same account and workspace. Pair the Mac app with that account to authorize work in selected windows. [Cloud deployment](control-plane/README.md)
 
-**Mac development** can build the Runtime and its cockpit into a test app.
-
-```bash
-just desktop-install   # one-time setup
-just desktop-build     # bundles the Runtime into the Mac app
-just desktop-open      # open the project app or bring its existing window forward
-```
-
-Delegate in Chat by describing the outcome. Open **My work** on Mac or phone to see the task's results, review files and line changes, resume interrupted work or request a revision. [Chat, work and delivery](docs/design/main-entry.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
-
-**Docker** — the dashboard walks you through the model, permissions and chat connections:
+**Personal self-hosting** starts with `just local-up` from the checkout. Create the owner account in the browser and connect a model. The Mac development app opens the same Go gateway.
 
 ```bash
-JEEVES_OPS_TOKEN=$(openssl rand -hex 24) docker compose up -d   # -> http://<host>:7777
+just local-up          # start the Go gateway and private Runtime, then open the browser
+just desktop-build     # optional Mac development bundle
+just desktop-open      # return to the original window if already running
 ```
 
-**From source:**
-
-```bash
-cd jeeves-rs && cargo build
-JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves            # terminal REPL
-JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves dashboard  # -> http://localhost:7777
-```
-
-Prebuilt `jeeves` binaries for macOS and Linux (x86_64 and aarch64) are attached to each [release](https://github.com/ChrisVip001/Jeeves/releases/latest). Without an API key, Ollama works offline (`JEEVES_PROVIDER=ollama`). The dashboard needs a build (`just dashboard-build`) when run from source.
-
-To update a running development dashboard, press Ctrl-C, wait for it to exit, then run `just dashboard-build && just dashboard` from the repository root with the same `JEEVES_HOME`. Open browser event streams cannot hold shutdown open; the listening address appears only after the Runtime is ready.
+Delegate in Chat. Open **My work** to see results, review changed lines and continue the task. [Getting started](docs/guide.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
 
 ## What Jeeves can do
 

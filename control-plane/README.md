@@ -23,8 +23,6 @@ The first workspace visit requests a tenant Runtime. The control plane reconcile
 
 The proxy reserves a conservative allowance before forwarding a model request. It reconciles reservations once to the provider's reported usage and retains uncertain outcomes for operator review. The included quota is inferred from the configured policy and belongs to each tenant. Limits on SaaS plan purchases, invoices, and provider charges require a separate billing integration.
 
-## Account and task migration
+## Data and backups
 
-Take protected PostgreSQL and Runtime backups before cutover. Stop legacy account writes and export the encrypted account file using the previous release with its original state key. With the Go control plane running and the gateway configured for the target database, set `GW_IMPORT_LEGACY` to the encrypted file and `GW_LEGACY_STATE_KEY` to that original key, then run the Go gateway once. Remove both migration variables before starting the gateway listener. The importer preserves user and tenant IDs, password hashes, factors, tenant credentials and recorded quota usage. Users sign in again.
-
-Reuse the existing Kubernetes namespace and tenant PVCs during a cutover, or follow the [Runtime backup and restore instructions](../docs/operations.md#data-and-backups). Verify representative accounts, their existing task IDs, and resumable work before directing traffic to the new deployment. Keep the encrypted export and the previous release available until the migration is verified.
+PostgreSQL stores accounts, tenants and usage. Each tenant's persistent volume holds tasks and memory. Back up both stores and protect their credentials. After restoring, sign in with the same account and confirm the existing task IDs and deliveries. See [Runtime data and backups](../docs/operations.md#data-and-backups).

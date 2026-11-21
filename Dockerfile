@@ -2,8 +2,7 @@
 # sandbox and CA certificates.
 #
 #   docker build -t jeeves .
-#   docker run --rm -p 7777:7777 -v jeeves-state:/home/jeeves/.jeeves -e JEEVES_OPS_TOKEN=… jeeves
-#   (or: docker compose up — see compose.yaml)
+#   Deploy on the private Runtime network. The Go gateway owns the public listener.
 #   docker run --rm -it -v jeeves-state:/home/jeeves/.jeeves -e ANTHROPIC_API_KEY=… jeeves app-server
 #
 # All state (state.db, SOUL.md, skills, outbox, traces) lives in JEEVES_HOME, so one volume
@@ -46,14 +45,10 @@ COPY jeeves-rs ./jeeves-rs
 RUN find jeeves-rs -path '*/src/*.rs' -exec touch {} + \
     && cargo build --release --manifest-path jeeves-rs/Cargo.toml -p jeeves-cli
 
-# ---- Front end ---------------------------------------------------------------
-# The cockpit is a build artifact; `jeeves dashboard` refuses to start without it. The generated
-# protocol types live in jeeves-rs, so that schema directory rides along.
-FROM node:22-trixie-slim AS web
+FROM node:22-trixie-slim AS channels
 WORKDIR /src
 COPY jeeves-ts ./jeeves-ts
-COPY jeeves-rs/jeeves-protocol/schema ./jeeves-rs/jeeves-protocol/schema
-RUN cd jeeves-ts && npm ci && npm run build --workspace @jeeves/dashboard
+RUN cd jeeves-ts && npm ci --omit=dev --workspace @jeeves/channels
 
 FROM golang:1.26-bookworm AS relay
 WORKDIR /src
@@ -75,18 +70,17 @@ RUN apt-get update \
 
 COPY --from=builder /src/jeeves-rs/target/release/jeeves /usr/local/bin/jeeves
 COPY --from=relay /out/jeeves-desktop-relay /usr/local/bin/jeeves-desktop-relay
-COPY --from=web /src/jeeves-ts /opt/jeeves/jeeves-ts
-ENV JEEVES_DASHBOARD_DIR=/opt/jeeves/jeeves-ts/packages/dashboard/dist \
-    JEEVES_GATEWAY_BIN=/opt/jeeves/jeeves-ts/packages/channels/src/bin-lark.ts
+COPY --from=channels /src/jeeves-ts /opt/jeeves/jeeves-ts
+ENV JEEVES_GATEWAY_BIN=/opt/jeeves/jeeves-ts/packages/channels/src/bin-lark.ts
 
 # Run as non-root: nothing in the container needs privilege.
 RUN useradd --create-home --shell /bin/bash jeeves
 USER jeeves
-# Reachable from outside the container; JEEVES_OPS_TOKEN is then mandatory (startup refuses without it).
+# The private gateway and control plane reach this listener over the cluster network.
 ENV JEEVES_OPS_HOST=0.0.0.0
 ENV JEEVES_HOME=/home/jeeves/.jeeves
 VOLUME /home/jeeves/.jeeves
 EXPOSE 7777
 
 ENTRYPOINT ["jeeves"]
-CMD ["dashboard"]
+CMD ["runtime"]

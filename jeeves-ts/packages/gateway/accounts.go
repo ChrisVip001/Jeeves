@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha1"
 	"database/sql"
 	"encoding/base32"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -127,7 +129,9 @@ func (s *store) create(ctx context.Context, tx *sql.Tx, email, salt, hash string
 }
 
 func (s *store) session(ctx context.Context, a user, client string) (string, error) {
-	token := cloudkit.Token(32)
+	var secret [32]byte
+	rand.Read(secret[:])
+	token := base64.RawURLEncoding.EncodeToString(secret[:])
 	now := time.Now()
 	_, err := s.db.ExecContext(ctx, `INSERT INTO gw_sessions(digest,id,owner,revision,issued,expires,client) VALUES($1,$2,$3,$4,$5,$6,$7)`,
 		s.digest(token), cloudkit.Token(16), a.id, a.revision, now.UnixMilli(), now.Add(14*24*time.Hour).UnixMilli(), client)
@@ -137,7 +141,7 @@ func (s *store) session(ctx context.Context, a user, client string) (string, err
 func (s *store) authenticate(ctx context.Context, token string) (session, user, error) {
 	var a user
 	var ss session
-	if len(token) != 64 && len(token) != 43 {
+	if len(token) != base64.RawURLEncoding.EncodedLen(32) {
 		return ss, a, rejected
 	}
 	err := s.db.QueryRowContext(ctx, `SELECT s.id,s.client,s.issued,s.expires,s.owner,s.revision,

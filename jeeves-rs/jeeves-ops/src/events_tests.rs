@@ -17,10 +17,7 @@ use tower::ServiceExt;
 fn router_with_token() -> Router {
     let (app, fake) = fake();
     auto_respond(fake);
-    super::router(
-        super::Gate::single(Arc::new(app), Some("s3cret".to_string())),
-        std::env::temp_dir(),
-    )
+    super::router(super::Gate::single(Arc::new(app), "s3cret".to_string()))
 }
 
 #[test]
@@ -82,12 +79,18 @@ async fn the_events_channel_is_guarded_and_sse() {
 async fn persistent_sse_bodies_end_on_shutdown_even_if_the_client_keeps_them_open() {
     let (app, _fake) = fake();
     let app = Arc::new(app);
-    let router = super::router(super::Gate::single(app.clone(), None), std::env::temp_dir());
+    let router = super::router(super::Gate::single(app.clone(), "fixture".into()));
     let mut bodies = Vec::new();
     for path in ["/api/events", "/api/notifications"] {
         let response = router
             .clone()
-            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .header("authorization", "Bearer fixture")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);

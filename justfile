@@ -121,9 +121,8 @@ test-research-publication:
 smoke-recovery: build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-recovery.py
 
-# Dashboard process lifecycle: SSE, startup ownership, and child exit (POSIX).
-smoke-lifecycle: dashboard-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+# Runtime process lifecycle: SSE, startup ownership, and child exit (POSIX).
+smoke-lifecycle: build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-lifecycle.py
 
 # ---- Evals: the diamond before a release --------------------------------------------------
@@ -183,13 +182,13 @@ gateway-telegram *args:
 
 # ---- Dashboard -----------------------------------------------------------------
 # Build the Web workbench: Vue typecheck + Vite + static/PWA assets; output lands in
-# jeeves-ts/packages/dashboard/dist, read directly by `jeeves dashboard`.
+# jeeves-ts/packages/dashboard/dist, served by the Go gateway.
 # Browsers can't read .ts, so this is the only TS package that needs building.
 dashboard-build: ts-install
     cd {{ ts_dir }} && npm run build --workspace @jeeves/dashboard
 
 # Offline authenticated Web workflow: typed settings, policies, stream and approval.
-smoke-web: dashboard-build
+smoke-web: gateway-build
     cd {{ rust_dir }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-web.py
 
@@ -198,9 +197,11 @@ go-check:
     go vet ./...
     go test -race ./...
 
-local-up: dashboard-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+gateway-build: dashboard-build
     go build -o {{ rust_dir }}/target/jeeves-gateway ./jeeves-ts/packages/gateway
+
+local-up: gateway-build
+    cd {{ rust_dir }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/local-assistant.py
 
 smoke-account: dashboard-build
@@ -208,12 +209,12 @@ smoke-account: dashboard-build
     node {{ justfile_directory() }}/scripts/smoke-account.mjs
 
 # Apple PWA approval fixtures in the bundled Chromium, including an offline cold launch.
-smoke-approval-notice: dashboard-build
+smoke-approval-notice: gateway-build
     cd {{ rust_dir }} && cargo build --bin jeeves
     node {{ justfile_directory() }}/scripts/smoke-approval-notice.mjs
 
 # Offline main conversation → task workspaces → follow-up and worker approval.
-smoke-interaction: dashboard-build
+smoke-interaction: gateway-build
     cd {{ rust_dir }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-interaction.py
 
@@ -241,7 +242,7 @@ smoke-desktop:
     {{ python }} {{ justfile_directory() }}/scripts/smoke-desktop.py
 
 # Opt-in acceptance using the packaged app's foreground window and synthetic loopback services.
-smoke-mac-cockpit: desktop-build
+smoke-mac-cockpit: gateway-build desktop-build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-mac-cockpit.py
 
 # Open the checkout's Mac app or bring its running window to the front.
@@ -295,19 +296,7 @@ desktop-status:
         fi
     fi
 
-# Refresh the web resources of the checkout's running development bundle.
-desktop-refresh-ui: dashboard-build
-    #!/usr/bin/env bash
-    set -euo pipefail
-    app="{{justfile_directory()}}/desktop/src-tauri/target/release/bundle/macos/Jeeves.app"
-    signature="$(codesign --display --verbose=2 "$app" 2>&1)"
-    if [[ "$signature" != *"Signature=adhoc"* || "$signature" != *"Sealed Resources=none"* ]]; then
-        echo "This app seals its resources. Use the regular desktop build." >&2
-        exit 1
-    fi
-    rsync -rlt --delay-updates "{{ts_dir}}/packages/dashboard/dist/" "$app/Contents/Resources/dashboard/"
-
-# The shell starts `jeeves dashboard` itself; JEEVES_RUNTIME_URL attaches to a running Runtime instead.
+# The development shell opens the Go gateway.
 desktop-dev:
     cd {{ rust_dir }} && cargo build --bin jeeves
     cd desktop/src-tauri && cargo tauri dev
@@ -319,7 +308,7 @@ desktop-window-helper:
     @echo "{{justfile_directory()}}/jeeves-rs/target/debug/jeeves-window"
 
 # Open two disposable native windows for operator acceptance on a Mac.
-desktop-window-fixture: desktop-window-helper build dashboard-build
+desktop-window-fixture: desktop-window-helper build gateway-build
     mkdir -p jeeves-rs/target/debug
     xcrun swiftc desktop/tests/WindowFixture.swift -o jeeves-rs/target/debug/JeevesWindowFixture
     {{ python }} scripts/manual-window.py
@@ -346,7 +335,6 @@ desktop-build *configs:
     test -n "$target"
     mkdir -p desktop/src-tauri/binaries
     cp jeeves-rs/target/release/jeeves "desktop/src-tauri/binaries/jeeves-$target"
-    cd jeeves-ts && npm run build --workspace @jeeves/dashboard && cd ..
     flags=(--config sidecar.conf.json)
     if [[ "$(uname -s)" == Darwin ]]; then
         just desktop-window-helper
@@ -367,20 +355,16 @@ desktop-device-build origin: desktop-window-helper
     cd desktop/src-tauri
     JEEVES_PUBLIC_ORIGIN="{{origin}}" cargo tauri build --bundles app --features cloud-device --config cloud-device.conf.json
 
-# Start the dashboard → http://localhost:7777 (JEEVES_PORT changes the port).
-dashboard *args:
-    cd {{ rust_dir }} && cargo run --bin jeeves -- dashboard {{args}}
-
 # End to end: the Feishu connector against a scripted Feishu server, through the shipped binary.
 smoke-connector: build
     {{ justfile_directory() }}/scripts/smoke-connector.sh
 
-# End to end: start a real dashboard, use curl as a browser against both endpoints.
-smoke-dashboard: build dashboard-build
+# End to end: the authenticated private Runtime API and SSE.
+smoke-dashboard: build
     {{ justfile_directory() }}/scripts/smoke-dashboard.sh
 
 # End to end: the business form — task API (/api/run), inbound webhooks, tier routing.
-smoke-business: build dashboard-build
+smoke-business: build
     {{ justfile_directory() }}/scripts/smoke-business.sh
 
 # Refresh the Homebrew formula's url/sha256 for a tag (after `git tag v0.8.0 && git push --tags`).

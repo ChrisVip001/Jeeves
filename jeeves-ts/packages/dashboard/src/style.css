@@ -731,45 +731,6 @@ body.sidebar-closed .mobile-menu {
   font-size: 18px;
 }
 
-.connect-dialog {
-  border: 1px solid var(--line);
-  border-radius: 15px;
-  width: min(440px, 92vw);
-  padding: 30px;
-  background: var(--jeeves-surface);
-  color: var(--text);
-  box-shadow: var(--shadow-float);
-}
-.connect-dialog::backdrop {
-  background: var(--scrim);
-  backdrop-filter: blur(3px);
-}
-.connect-dialog h2 {
-  font-size: 21px;
-  margin-bottom: 10px;
-}
-.connect-dialog p,
-.connect-dialog small {
-  color: var(--text-2);
-  font-size: 12px;
-}
-.connect-dialog label {
-  display: grid;
-  gap: 7px;
-  margin-top: 22px;
-  font-size: 13px;
-}
-.connect-dialog small {
-  display: block;
-  margin-top: 9px;
-  line-height: 1.7;
-}
-.connect-dialog footer {
-  display: flex;
-  gap: 9px;
-  justify-content: flex-end;
-  margin-top: 25px;
-}
 @media (max-width: 640px) {
   #composer-context {
     flex: 1 1 calc(100% - 36px);

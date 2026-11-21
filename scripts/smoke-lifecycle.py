@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real process lifecycle regression: open SSE, stop, and reject a duplicate home.
 
-Requires the built binary and dashboard assets. Uses only ephemeral homes and ports;
+Requires the built Runtime binary. Uses only ephemeral homes and ports;
 no real provider, credentials, gateway, or user runtime is touched.
 """
 import os
@@ -29,7 +29,6 @@ def start(args, home, http_port):
     env = {k: v for k, v in os.environ.items() if not k.startswith("JEEVES_")}
     env.update(JEEVES_HOME=home, JEEVES_PORT=str(http_port), JEEVES_PROVIDER="ollama",
                JEEVES_OPS_TOKEN=TOKEN, JEEVES_OPS_HOST="127.0.0.1",
-               JEEVES_DASHBOARD_DIR=str(ROOT / "jeeves-ts/packages/dashboard/dist"),
                JEEVES_SEARCH_MCP="0", JEEVES_MCP_CONFIG="")
     return subprocess.Popen([str(BIN), *args], env=env, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
@@ -77,7 +76,7 @@ def open_sse(http_port, path):
 def stops_with_streams_open(signal_kind=signal.SIGTERM):
     with tempfile.TemporaryDirectory(prefix="jeeves-lifecycle-stop-") as home:
         http_port = port()
-        dashboard = start(["dashboard"], home, http_port)
+        dashboard = start(["runtime"], home, http_port)
         streams = []
         try:
             wait_healthy(http_port)
@@ -107,11 +106,11 @@ def refuses_duplicate_home():
         first_port, second_port = port(), port()
         while second_port == first_port:
             second_port = port()
-        first = start(["dashboard"], home, first_port)
+        first = start(["runtime"], home, first_port)
         second = None
         try:
             wait_healthy(first_port)
-            second = start(["dashboard"], home, second_port)
+            second = start(["runtime"], home, second_port)
             # Observe the port during startup, not just after exit: the conflicting shell
             # must never publish a healthy-looking listener while the engine is refusing it.
             deadline = time.monotonic() + 12
@@ -120,7 +119,7 @@ def refuses_duplicate_home():
                 time.sleep(.1)
             assert second.wait(timeout=1) != 0, "duplicate runtime did not fail"
             output = second.stdout.read()
-            assert b"Jeeves cockpit" not in output, "duplicate advertised a cockpit URL"
+            assert "Jeeves Runtime →".encode() not in output, "duplicate advertised a Runtime URL"
             assert b"Lark gateway started" not in output, "duplicate started a gateway"
             assert health(first_port) == 200, "existing runtime was affected"
             assert health(second_port) is None, "duplicate listener remains"
@@ -134,7 +133,7 @@ def refuses_duplicate_home():
 def exits_when_engine_crashes():
     with tempfile.TemporaryDirectory(prefix="jeeves-lifecycle-child-") as home:
         http_port = port()
-        dashboard = start(["dashboard"], home, http_port)
+        dashboard = start(["runtime"], home, http_port)
         stream = None
         restarted = None
         try:
@@ -145,7 +144,7 @@ def exits_when_engine_crashes():
             os.kill(child_pid, signal.SIGKILL)
             assert dashboard.wait(timeout=12) != 0, "cockpit survived an engine crash"
             assert health(http_port) is None, "failed cockpit still listens"
-            restarted = start(["dashboard"], home, http_port)
+            restarted = start(["runtime"], home, http_port)
             wait_healthy(http_port)
             print("PASS engine crash closes cockpit; stale lock recovers on the next start", flush=True)
         finally:

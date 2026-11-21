@@ -18,36 +18,41 @@ const done = once(system, "exit");
 const pictures = [];
 const ratios = new Map();
 let browser;
-let origin;
+let fixture;
 let mailTasks;
+let succeeded = false;
 try {
   for await (const line of createInterface({ input: system.stdout })) {
     if (line.startsWith("Mail fixture tasks ")) mailTasks = JSON.parse(line.slice("Mail fixture tasks ".length));
-    const ready = line.match(/^Web smoke passed; (http:\/\/127\.0\.0\.1:\d+) /);
-    if (ready) { origin = ready[1]; break; }
+    if (line.startsWith("Web smoke passed; ")) {
+      fixture = JSON.parse(line.slice("Web smoke passed; ".length));
+      break;
+    }
   }
-  assert.ok(origin, "Isolated cockpit failed to start");
+  assert.ok(fixture, "Isolated cockpit failed to start");
   browser = await chromium.launch({channel: process.env.JEEVES_TEST_BROWSER_CHANNEL});
-  await coldOfflineNotice(browser, origin);
-  if (!process.argv.includes("--offline-only")) await captureViews(browser, origin);
+  await coldOfflineNotice(browser, fixture);
+  if (!process.argv.includes("--offline-only")) await captureViews(browser, fixture);
+  succeeded = true;
 } finally {
   await browser?.close();
-  if (origin) system.stdin.end("\n");
+  if (fixture) system.stdin.end(succeeded ? "verify\n" : "close\n");
   const [exit] = await done;
-  assert.equal(exit, 0, "isolated Runtime fixture failed");
+  if (succeeded) assert.equal(exit, 0, "isolated Runtime fixture failed");
 }
 
 
-async function coldOfflineNotice(browser, origin) {
+async function coldOfflineNotice(browser, { origin, workspace, cookie }) {
+  const [name, value] = cookie.split("=");
   const context = await browser.newContext({ serviceWorkers: "allow", locale: "en-US" });
   try {
+    await context.addCookies([{ name, value, url: origin }]);
     const first = await context.newPage();
     await first.addInitScript(() => {
       localStorage.setItem("jeeves.lang", "en");
-      localStorage.setItem("jeeves-ops-token", "web-fixture-token");
       localStorage.setItem("jeeves.setup.dismissed", "1");
     });
-    await first.goto(origin, { waitUntil: "domcontentloaded" });
+    await first.goto(workspace, { waitUntil: "domcontentloaded" });
     await first.waitForFunction(() => navigator.serviceWorker.controller?.state === "activated");
     await first.close();
     await context.setOffline(true);
@@ -63,7 +68,7 @@ async function coldOfflineNotice(browser, origin) {
       deviceId:"offline-fixture", grantId:"fixture-grant", generation:"1",
       taskId:"cold-task", turnId:"cold-turn", approvalRequestId:"cold-request", approvalVersion:"1",
     });
-    const response = await cold.goto(origin + "/?" + locator, { waitUntil:"domcontentloaded" });
+    const response = await cold.goto(workspace + "?" + locator, { waitUntil:"domcontentloaded" });
     assert.ok(response?.fromServiceWorker(), "The cold launch must receive its shell from the installed worker");
     assert.equal(await cold.evaluate(() => navigator.onLine), false);
     const sheet = cold.getByRole("dialog", {name: "Task approval"});
@@ -73,7 +78,8 @@ async function coldOfflineNotice(browser, origin) {
   } finally { await context.close(); }
 }
 
-async function captureViews(browser, origin) {
+async function captureViews(browser, { origin, workspace, cookie }) {
+  const [name, value] = cookie.split("=");
   for (const width of [1280, 390]) for (const colorScheme of ["light", "dark"]) {
     const zh = (width === 1280) === (colorScheme === "light");
     const label = (chinese, english) => zh ? chinese : english;
@@ -82,12 +88,12 @@ async function captureViews(browser, origin) {
       colorScheme, reducedMotion: "reduce", serviceWorkers: "block",
     });
     try {
+      await ctx.addCookies([{ name, value, url: origin }]);
       const page = await ctx.newPage();
       page.setDefaultTimeout(8000);
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       await page.addInitScript(zh => {
-        localStorage.setItem("jeeves-ops-token", "web-fixture-token");
         localStorage.setItem("jeeves.lang", zh ? "zh" : "en");
         localStorage.setItem("jeeves.setup.dismissed", "1");
         // Substitute only the external push transport. Pairing uses this context's disposable key.
@@ -102,11 +108,11 @@ async function captureViews(browser, origin) {
         Object.defineProperty(Notification, "requestPermission", { value() { throw Error("Unexpected permission request"); } });
       }, zh);
       // Seed only this disposable browser context. The dashboard must prove possession on reads and decisions.
-      await page.goto(origin + "/icon.svg");
-      const id = await page.evaluate(async () => {
+      await page.goto(workspace + "icon.svg");
+      const id = await page.evaluate(async accountDB => {
         const pair = await crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"]);
         const db = await new Promise((resolve, reject) => {
-          const req = indexedDB.open("jeeves-approval-device", 1);
+          const req = indexedDB.open(accountDB, 1);
           req.onupgradeneeded = () => req.result.createObjectStore("identity");
           req.onsuccess = () => resolve(req.result);
           req.onerror = () => reject(req.error);
@@ -120,7 +126,7 @@ async function captureViews(browser, origin) {
           });
           return btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey))));
         } finally { db.close(); }
-      });
+      }, new URL(workspace).pathname + "jeeves-approval-device");
       const verifyKey = await webcrypto.subtle.importKey("raw", Buffer.from(id,"base64"),"Ed25519",false,["verify"]);
       const locator = {
         deviceId: id,
@@ -131,7 +137,7 @@ async function captureViews(browser, origin) {
         const payload = ["jeeves.approval.notice.v1", id, locator.grantId,1,locator.taskId,locator.turnId,locator.approvalRequestId,1,decision];
         assert.equal(await webcrypto.subtle.verify("Ed25519",verifyKey,Buffer.from(signature,"base64"),new TextEncoder().encode(JSON.stringify(payload))), true);
       }
-      const review = origin + "/?" + new URLSearchParams(locator);
+      const review = workspace + "?" + new URLSearchParams(locator);
       const request = {
         turnId: locator.turnId, requestId: locator.approvalRequestId, version: 1, expiresInMs: 120000,
         tool: "write_file", reason: label("任务要在工作目录创建文件。", "The task needs to create a file in its workspace."),
@@ -147,33 +153,34 @@ async function captureViews(browser, origin) {
       await page.route("**/*", async route => {
         const url = new URL(route.request().url());
         assert.equal(url.origin, origin);
-        if (url.pathname === "/api/device") {
+        const apiPath = "/" + url.pathname.slice(new URL(workspace).pathname.length);
+        if (apiPath === "/api/device") {
           const devices = [mixed];
           if (paired) devices.push({deviceId:publicKey,grantId:"fixture",generation:1,lastSequence:0,revoked:false,capabilities:["approvalReview"]});
           if (extra) devices.push(extra);
           return route.fulfill({json:{devices}});
         }
-        if (url.pathname === "/api/device/pair") {
+        if (apiPath === "/api/device/pair") {
           assert.deepEqual(route.request().postDataJSON(), {deviceId:extraKey,expectedGeneration:0,capabilities:["approvalReview"]});
           pairs++;
           extra = {deviceId:extraKey,grantId:"extra",generation:1,lastSequence:0,revoked:false,capabilities:["approvalReview"]};
           return route.fulfill({json:extra});
         }
-        if (url.pathname === "/api/device/revoke") {
+        if (apiPath === "/api/device/revoke") {
           assert.deepEqual(route.request().postDataJSON(), {deviceId:extraKey,expectedGeneration:1});
           revokes++; extra.revoked = true; extra.generation++;
           return route.fulfill({json:extra});
         }
-        if (url.pathname === "/api/approval/push-key") return route.fulfill({json:{publicKey:configured ? "BAAA" : null}});
-        if (url.pathname === "/api/approval/push-subscribe") {
+        if (apiPath === "/api/approval/push-key") return route.fulfill({json:{publicKey:configured ? "BAAA" : null}});
+        if (apiPath === "/api/approval/push-subscribe") {
           const body = route.request().postDataJSON();
           assert.equal(body.deviceId, publicKey);
           assert.equal(body.endpoint, "https://fixture.invalid/disposable");
           subscriptions++;
           return route.fulfill({json:{}});
         }
-        if (url.pathname !== "/api/approval/notice") {
-          assert.ok(!(url.pathname === "/api/approval" && route.request().method() === "POST"));
+        if (apiPath !== "/api/approval/notice") {
+          assert.ok(!(apiPath === "/api/approval" && route.request().method() === "POST"));
           return route.continue();
         }
         if (route.request().method() === "GET") {
@@ -288,7 +295,7 @@ async function captureViews(browser, origin) {
         locator.approvalRequestId = request.requestId = "fixture-mail";
         request.tool = "email_send";
         request.argsPreview = "To: fixture@example.invalid, Subject: travel";
-        await page.goto(origin + "/?" + new URLSearchParams(locator), {waitUntil:"domcontentloaded"});
+        await page.goto(workspace + "?" + new URLSearchParams(locator), {waitUntil:"domcontentloaded"});
         await sheet.getByRole("button", { name: "在主聊天跟进" }).click();
         await page.locator("#composer-target").getByText(/Mail fixture travel/).waitFor();
         await page.locator("#input").fill("刚才那个先别发，改成草稿");

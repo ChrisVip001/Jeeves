@@ -2,22 +2,19 @@
 
 English | [简体中文](guide.zh.md)
 
-Jeeves carries assignments across conversations and work sessions. Choose where to run the Runtime, then connect the model and tools your tasks need. This page goes from nothing to a useful setup: models, permissions, chat channels, memory, skills, schedules, credentials, the inbox, and moving your data between machines. Everything below is a screen in the dashboard unless a command is shown.
+Jeeves carries long-running assignments across devices. Sign in at your installation's address to delegate work. The settings below are in the account's workbench.
 
 ## 1. Install
 
-| You want | Do this |
+| Use | Get started |
 |---|---|
-| A local dashboard | Download the `jeeves` binary for your platform from [Releases](https://github.com/ChrisVip001/Jeeves/releases/latest) (macOS and Linux), then run `./jeeves dashboard` and open `http://localhost:7777` |
-| A server that is always on | `JEEVES_OPS_TOKEN=$(openssl rand -hex 24) docker compose up -d`, then open `http://<host>:7777` and paste the token |
-| The Mac app | Build it from source: `just desktop-install`, then `just desktop-build` (see [operations](operations.md#mac-desktop-app)) |
-| To hack on it | [CONTRIBUTING](../CONTRIBUTING.md) |
-
-Jeeves runs on macOS and Linux (Windows through WSL2); see [operations](operations.md#supported-platforms).
+| Hosted Web and iOS | Open your deployment's HTTPS address and sign in or register. Wait for the workspace to start on first use. |
+| Self-hosted on one computer | Run `just local-up` from the checkout and create the owner account in the browser. |
+| Mac app | Approve device pairing in the browser for the hosted app. The development app opens the same Go gateway. See [Mac desktop app](operations.md#mac-desktop-app). |
 
 ## 2. The first-run wizard
 
-The dashboard opens a three-step wizard when no model is connected:
+A personal deployment opens the wizard after sign-in when no model is connected:
 
 1. **Connect a model.** Pick a provider and paste its key. The key goes to the system keychain; Ollama needs no key.
 2. **Choose permissions.** *Read-only* looks but never touches files or runs commands. *Standard* reads and writes inside your workspace and asks before anything else.

@@ -58,7 +58,20 @@ func (g *gateway) workspace(w http.ResponseWriter, r *http.Request, a user, toke
 			failure(w, err)
 			return
 		}
-		cloudkit.JSON(w, 200, cloudkit.WorkspaceState{Ready: target.Ready, Managed: !g.local})
+		ready := target.Ready
+		if g.fixed.URL != "" {
+			req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target.URL+"/healthz", nil)
+			if err != nil {
+				failure(w, err)
+				return
+			}
+			resp, err := g.http.Do(req)
+			ready = err == nil && resp.StatusCode == http.StatusOK
+			if resp != nil {
+				resp.Body.Close()
+			}
+		}
+		cloudkit.JSON(w, 200, cloudkit.WorkspaceState{Ready: ready, Managed: g.controlURL != ""})
 		return
 	}
 	if !strings.HasPrefix(suffix, "api/") {

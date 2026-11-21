@@ -119,7 +119,6 @@ never learns the hook exists:
   "name": "deploy",
   "secret": "env:JEEVES_HOOK_SECRET",
   "prompt": "Production is unhappy — handle this event:\n{{payload}}",
-  "session": "hook:deploy",
   "tier": "reasoning",
   "signature": true,
   "limit": 6,
@@ -171,10 +170,10 @@ never learns the hook exists:
   `limit: 0` is refused at load ("configured but can never pass" is a typo, not
   a policy).
 - **`callback: "https://…"` — async.** The caller gets `202` +
-  `{"accepted":true,"hook":…,"session":…}` at once; the turn runs in the
+  `{"accepted":true,"hook":…}` at once; the turn runs in the
   background and its result is POSTed to that URL:
-  `{"hook","session","ok":true,"result":RunResponse}` or
-  `{"hook","session","ok":false,"error":{code,message}}`. Three attempts (1s and
+  `{"hook","ok":true,"result":RunResponse}` or
+  `{"hook","ok":false,"error":{code,message}}`. Three attempts (1s and
   2s apart), **no queue**: if all three fail (or the process dies first) that
   delivery is lost — the answer itself is in the session history and is not gone.
   A callback must be an http(s) URL, or loading fails loudly.
@@ -193,7 +192,7 @@ curl -sS -X POST http://127.0.0.1:7777/api/run \
 
 - The dashboard keeps SSE (a person wants to watch the words arrive); this
   endpoint is for CI / cron / another agent;
-- It takes the same Bearer: it is part of the dashboard, just without a page;
+- It takes the same Bearer: it is part of the private Runtime API;
 - `model` and `routeReason` are the visible proof that the tier pin took effect.
 
 ## Invalid values fail at startup
@@ -547,15 +546,17 @@ requires verification, the configured backend chain continues.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JEEVES_PORT` | `7777` | dashboard port; occupied ports scan upward |
-| `JEEVES_DASHBOARD_DIR` | in-repo dist | location of the built frontend |
+| `JEEVES_PORT` | `7777` | Private Runtime port, scanning upward if occupied |
 | `JEEVES_NOTIFY` | off | `1` / `true` / `yes` turns it on; then reads `<home>/notify.json` (`{"slack": "webhook URL"}`) and pushes notifications: **approval requests / background-job finish / goal outcomes**. Completion notices persist before delivery and retry after failures/restarts (see [delivery limits](limitations.md#notifications-and-audit)); approval prompts remain best-effort. Network delivery does not block the turn. The URL is admin-configured, so pointing it at a self-hosted intranet endpoint (ntfy/Gotify — anything accepting `{"text": …}`) is legitimate; no SSRF guard applies
 | `JEEVES_MORNING_BRIEFING` | off | Opt-in 08:00 proposal; set a channel and IANA zone, e.g. `outbox@Asia/Shanghai`. See [Morning brief](operations.md#morning-brief-cron-friendly). |
-| `JEEVES_OPS_HOST` | `127.0.0.1` | bind address (the Docker image sets `0.0.0.0`). **A non-loopback host requires `JEEVES_OPS_TOKEN` or startup is refused** (a wrong config should fail to boot) |
-| `JEEVES_OPS_TOKEN` | — | Bearer token for `/api/*` (constant-time compare). Optional on loopback; when set, local requests need it too. The dashboard asks once on first 401 and stores it in localStorage. **Deliberately not in `config/read`**: deployment parameters must not be visible to the model |
+| `JEEVES_OPS_HOST` | `127.0.0.1` | Private Runtime bind address. The container uses `0.0.0.0` |
+| `JEEVES_OPS_TOKEN` | — | Private bearer credential required on every bind address. Alternatively use an owner-only `<home>/runtime-token` file. The gateway attaches it server-side and browsers use the account session |
 | `JEEVES_DISPATCHERS` | — | Comma-separated chat sender ids (Feishu `open_id`) allowed to hand out tasks from a group. A message from anyone else still gets an answer, but without the `task` tool; empty admits nobody. Local views are never affected. Not in `config/read` |
 | `JEEVES_BIN` | — | explicit `jeeves` binary path for the TS clients and your own scripts |
-| `JEEVES_RUNTIME_URL` | — | read by the desktop shell only: attach to a running Runtime instead of starting one |
+| `JEEVES_PERSONAL_HOME` | `~/.local/share/jeeves-personal` | Account and Runtime data directory for `just local-up` |
+| `JEEVES_PERSONAL_PORT` | `7788` | Loopback Go gateway port for `just local-up` |
+| `JEEVES_PERSONAL_BROWSER` | `1` | Open the browser from `just local-up`. Use `0` for an unattended launch after setup |
+| `JEEVES_WEB_GATEWAY_URL` | — | Go gateway URL opened by the Mac development app |
 | `JEEVES_DESKTOP_BINARY` | — | read by debug builds of the desktop shell only: absolute path of the `jeeves` binary to start (default `jeeves-rs/target/debug/jeeves`) |
 
 ## Connectors (`<home>/connectors.json`)

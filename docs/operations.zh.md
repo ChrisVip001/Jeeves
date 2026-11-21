@@ -33,45 +33,13 @@ JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 
 ## 网页驾驶舱
 
-```bash
-cd jeeves-ts && npm run build --workspace @jeeves/dashboard   # 前端只需构建一次
-JEEVES_HOME=$HOME/.jeeves ./target/debug/jeeves dashboard        # → http://localhost:7777
-```
-
-首屏展示配置 / 会话 / 记忆；聊天区实时呈现工具调用与流式
-回复。端口被占自动 +1（最多 10 个）。
-
-- **页面记得你在哪。** 当前打开的是哪个会话存在 `localStorage`（`jeeves.session`，和工作目录
-  放在一起），刷新回到的还是它，而不是最老的那一个；如果记住的会话已经不存在，就退到最新的
-  一条 —— 不会给你一个列表里都没有的空壳。
-- **切回去还在你上次读到的地方。** 每个会话各自记着「离底部多远」（在内存里，按页面加载
-  计）：读着长对话切走、再切回来，还是那一行，不用再拖。这次加载里**第一次**打开的会话
-  落在最新一条（刷新也一样）；位置是瞬时放好的，不会从第一句滑下来。
-- 跨设备心跳（另一台设备跑完了一轮）只重读历史、**不动滚动位置**：你正翻着上面的内容，
-  就停在那里。
-- **助手自己的话是英文。** `SOUL.md`、提示词各段、工具结果文案、计划器提示词都是英文 ——
-  不管你说什么语言，它用你的语言回答。`<home>/SOUL.md` 归你：原样使用，只有与内置种子**逐字
-  相同**时才会被替换。
-- **中英双语。** 侧栏右上角的按钮切换中文 / English，并记住选择；全新的浏览器跟随
-  `navigator.language`（`zh-*` 取中文，其余取英文）。切换会刷新页面 —— 文案是在绘制时写进
-  DOM 的。模型输出、会话标题、任务正文保持原样：那些是数据，不是标签。
+在部署提供的 HTTPS 地址注册或登录。有可用会话时，首页直接进入自己的工作台。在同一账号里使用主对话、查看「我的事项」和复验文件交付。首次启用工作区时可以提前写草稿。
 
 ### 放到一台服务器上（自托管）
 
-```bash
-export JEEVES_OPS_HOST=0.0.0.0            # 非回环地址必须配 token，否则拒绝启动
-export JEEVES_OPS_TOKEN=$(openssl rand -hex 16)
-export JEEVES_HOME=/srv/jeeves/.jeeves
-jeeves dashboard                          # → http://<服务器>:7777（/api/* 需要 Bearer token）
-```
+按[云端部署手册](../control-plane/README.zh.md)安装 Go 网关、Go 控制面和 Rust Runtime。只在公网发布网关的 HTTPS 入口。
 
-- 直接访问独立工作台时，首次 401 会问一次 token，之后存在浏览器 localStorage；静态页本身
-  不需要 token（先能加载，才能问）。
-- **key 不用拷文件**：`models.json` 里写 `"key_source": "env:DEEPSEEK_API_KEY"`，
-  在服务器的环境里 export 这个变量即可。key 只在跑那一轮的进程内存里被读到，
-  永不落盘，也永远不会出现在 `/api/*` 的应答里。
-- TLS 交给反向代理（Caddy / nginx 终结 HTTPS），Jeeves 自己只说 HTTP。
-- stdio MCP 服务在 Runtime 宿主执行，HTTP MCP 服务在配置的端点执行。使用共享基础设施时，按用户隔离 Runtime 与工具。[托管部署](../control-plane/README.zh.md)
+在一台电脑上从源码使用时，运行 `just local-up`。它会启动回环网关、创建独立的个人账号库和 Runtime 数据目录，并打开所有者设置页面。重启时使用原目录，浏览器继续访问命令打印的地址。[个人部署配置](../jeeves-ts/packages/gateway/README.zh.md#个人部署)
 
 ## MCP 外挂
 
@@ -143,26 +111,13 @@ for line in proc.stdout:               # 通知与响应共用同一个流
 
 ## 打包
 
-```bash
-JEEVES_OPS_TOKEN=$(openssl rand -hex 24) docker compose up -d   # 驾驶舱，见 compose.yaml
-docker build -t jeeves .
-docker run --rm -p 7777:7777 -v jeeves-state:/home/jeeves/.jeeves \
-  -e JEEVES_OPS_TOKEN=… jeeves                     # 同上，不用 compose
-docker run --rm -it -v jeeves-state:/home/jeeves/.jeeves \
-  -e ANTHROPIC_API_KEY=… jeeves app-server      # stdio 上的协议
-```
+从仓库根目录运行 `docker build -t jeeves .` 构建 Rust Runtime 镜像。租户状态挂载到 `/home/jeeves/.jeeves`，Runtime 在私网上监听，提供 `/healthz` 和鉴权 API。镜像带有 `bubblewrap`、CA 证书和可选的飞书渠道适配器。构建 Go 网关和控制面镜像见[部署手册](../control-plane/README.zh.md#构建与安装)。
 
-全部状态都在 `JEEVES_HOME` 下（镜像里是 `/home/jeeves/.jeeves`），一个 volume 就能带着走。
-镜像把驾驶舱绑在所有网卡上，所以 `JEEVES_OPS_TOKEN` 必须设（不设会拒绝启动）；镜像里带了构建好的前端，以及托管聊天网关用的 Node.js。镜像里还装了 `bubblewrap`——Linux 沙箱后端要的就是它，没有它 `run_command`
-会拒绝执行任何命令（这是设计，不是故障）。Homebrew formula 模板在
-`packaging/homebrew/jeeves.rb`（用 `cargo install` 从源码构建；发布 tarball 的
-sha256 自己填）。
-
-`compose.yaml` 设了 `stop_grace_period: 30s` 和轮询 `/healthz` 的健康检查（200 并带版本，否则 503）。驾驶舱先等待 Runtime 的实际能力响应（最多 60 秒），然后才监听端口、显示访问地址和启动飞书网关；同一 home 有进程占用时直接拒绝启动，不留下不可用的监听器。Ctrl-C 或 SIGTERM 主动关闭 SSE 长连接，并同时开始 HTTP、网关及 Runtime 的退出流程。在跑的回合最多有 25 秒结算，超时则短时强制停止并回收，未完成回合仍可恢复。引擎子进程退出也会停止驾驶舱。`just smoke-lifecycle` 使用临时 home 和端口验证两种停止信号、重复 home 拒绝及引擎崩溃恢复。
+Ctrl-C 和 SIGTERM 会结束 SSE 并让正在执行的回合收尾。超过 25 秒仍未完成的工作可恢复。引擎子进程异常退出时 Runtime 也退出。`just smoke-lifecycle` 验证两个停止信号、重复数据目录和引擎崩溃边界。
 
 ## 保持常驻
 
-`jeeves service` 会写一份守护单元，让 Runtime（`jeeves dashboard`）在关掉所有客户端、重启电脑后仍然在跑。守护者是操作系统自己的，Jeeves 不再另造一个。
+`jeeves service` 会写一份守护单元，让 Runtime（`jeeves runtime`）在关掉所有客户端、重启电脑后仍然在跑。守护者是操作系统自己的，Jeeves 不再另造一个。
 
 ```bash
 jeeves service print            # 只显示将要写入的单元
@@ -172,12 +127,12 @@ jeeves service status           # 单元是否已安装、端口是否有响应
 jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状态不动
 ```
 
-* macOS：`~/Library/LaunchAgents/ai.jeeves.dashboard.plist`，失败后重启，间隔 10 秒。
+* macOS：`~/Library/LaunchAgents/ai.jeeves.runtime.plist`，失败后重启，间隔 10 秒。
 * Linux：`~/.config/systemd/user/jeeves.service`（`Restart=on-failure`，5 秒）。想不登录也开机启动，运行一次 `loginctl enable-linger $USER`。
-* 容器：`compose.yaml` 里的 `restart: unless-stopped`。
 * Windows 没有模板（Runtime 在那里本来就起不来）。
 
-单元会把 `JEEVES_HOME` 和 `JEEVES_PORT` 固定为执行 `install` 的那个 shell 里的值，日志写到 `<home>/jeeves.log`（不做轮转）。单元里绝不含令牌或密钥：`JEEVES_OPS_TOKEN` 和模型密钥请放在钥匙串或设置文件里，因为守护者不会读你的 shell 配置。
+
+单元固定安装时的 `JEEVES_HOME` 和 `JEEVES_PORT`，并把日志写到 `<home>/jeeves.log`。启动前，在数据目录创建仅所有者可读的 `runtime-token` 文件，填入与 Go 网关 `GW_RUNTIME_TOKEN` 一致的私网凭据。容器由 Kubernetes 管理。
 
 ## Mac 桌面应用
 
@@ -185,19 +140,15 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 下节命令适用于源码仓库中的 Runtime 开发应用。
 
-桌面壳（`desktop/`，Tauri）启动 `jeeves dashboard` 并加载它的地址；设 `JEEVES_RUNTIME_URL` 则改为接入已在运行的 Runtime。`just desktop-install` 装前端依赖，`just desktop-build` 把 release 版 `jeeves` 打进应用，`just desktop-dev` 用于开发，`just desktop-build-browser` 再加上 `just browser-runtime` 准备好的可选任务浏览器运行时。
+开发版 Mac App 打开 Go 网关。`just local-up` 的默认地址是 `http://127.0.0.1:7788`，开发者也可以设置 `JEEVES_WEB_GATEWAY_URL`。`just desktop-build` 打包 Runtime，`just desktop-build-browser` 附加可选的任务浏览器运行时。
 
 日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
 
-共同测试前运行 `just desktop-status`，核对已有 App 与 Runtime 的 PID、监听地址、数据和追踪路径。命令显示的提交号是源码版本，正在运行的应用可能来自较早的构建。共同验收沿用同一窗口和账号，完成后把窗口留在对应的事项或报错处。复现问题时记下操作步骤和本机时间，有任务 ID 或回合 ID 就一并记下。可到命令显示的追踪目录查找对应回合。若 Runtime 的 stderr 指向 `/dev/null`，请也保留界面上的报错。自动冒烟使用测试数据，结果单独记录。
+共同测试前运行 `just desktop-status`，核对已有 App 与 Runtime 的 PID、监听地址、数据和追踪路径。命令显示的提交号是源码版本，正在运行的应用可能来自较早的构建。共同验收沿用同一窗口和账号，完成后把窗口留在对应的事项或报错处。复现问题时记下操作步骤和本机时间，有任务 ID 或回合 ID 就一并记下。可到命令显示的追踪目录查找对应回合。App 将 Runtime 诊断日志写到 `<home>/jeeves.log`。自动冒烟使用测试数据，结果单独记录。
 
-双击 Mac 应用会自动启动内置后台。Finder 从根目录启动且未指定 `JEEVES_HOME` 时，仓库构建目录中的应用会沿用仓库已有的 `.jeeves`。安装到「应用程序」的副本默认使用 `~/.jeeves`。从终端启动时也可以用 `JEEVES_HOME` 明确指定其他数据目录。
+需要让开发版 App 启停同一份本机 Runtime 时，在 `JEEVES_HOME` 保存 `desktop-gateway`。第一行写 Go 网关的回环地址，第二行写私网 Runtime 地址，例如 `http://127.0.0.1:7777`。凭据使用同目录中仅所有者可读的 `runtime-token`，和网关一致。启动 App 前先启动网关。Finder 启动仓库构建的 App 时，可沿用仓库中的 `.jeeves`；安装到系统的副本默认使用 `~/.jeeves`。
 
-开发版应用和手机网页共用工作台，并跟随设备的深浅色设置。
-
-仓库中的开发版应用正在运行时，执行 `just desktop-refresh-ui` 并重新载入当前窗口，可以更新网页界面。Runtime 的更新在下次启动时生效。
-
-要在这个 App 里打开已有的 Go 账号网关，在 Runtime 的 `JEEVES_HOME` 中保存 `desktop-gateway` 文件。第一行是回环 HTTPS 网关地址，第二行是它转发到的回环 HTTP Runtime 地址，例如第一行 `https://localhost:8743`，第二行 `http://127.0.0.1:7777`。打开 App 前先启动网关。App 启动常用的 Runtime，核对实际地址和文件第二行，再直接打开网关。设置保存在数据目录中，重新打包仍然有效。
+在仓库根目录运行 `just dashboard-build` 后，重新载入网关页面即可更新前端。Runtime 代码在替换二进制并重启后生效。
 
 应用打开后进入「对话」。从「我的事项」或回执打开交付页面并补充要求。[对话、事项与交付](design/main-entry.zh.md)
 
@@ -205,7 +156,7 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 ## 定时任务
 
-常驻的 Runtime（`jeeves app-server`、`jeeves dashboard`）按五字段 cron（`*`、`*/步长`、`a-b`、`a,b`）触发
+常驻的 Runtime（`jeeves app-server`、`jeeves runtime`）按五字段 cron（`*`、`*/步长`、`a-b`、`a,b`）触发
 定时任务，不再有单独的调度进程。两种声明方式：
 
 * 技能的 frontmatter 里带一行 schedule：

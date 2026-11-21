@@ -1,9 +1,8 @@
-//! The Jeeves desktop shell: a window around the Runtime's own front end.
+//! The source-development desktop window opens the same Go gateway as the browser.
 //!
-//! The shell holds no agent logic and no second protocol. It starts `jeeves dashboard` (or
-//! attaches to the service named by `JEEVES_RUNTIME_URL`). A local Runtime can declare its
-//! HTTPS gateway as the window's entry point in its data directory.
+//! A local gateway profile may ask this window to start the private Runtime it uses.
 use std::{
+    fs::OpenOptions,
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -17,8 +16,8 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 struct Runtime(Mutex<Option<Child>>);
 
 const START_TIMEOUT: Duration = Duration::from_secs(65);
-/// `jeeves dashboard` prints `Jeeves cockpit → http://host:port (...)` once it is listening.
-const READY_MARK: &str = "Jeeves cockpit → ";
+/// `jeeves runtime` announces the private listener when it is ready.
+const READY_MARK: &str = "Jeeves Runtime → ";
 
 fn binary_path() -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
@@ -82,48 +81,57 @@ fn local_origin(raw: &str, scheme: &str) -> Option<tauri::Url> {
     })
 }
 
-fn gateway_target(config: &str, runtime: &str) -> Result<String, String> {
+fn local_profile(config: &str) -> Result<(tauri::Url, tauri::Url), String> {
     let mut lines = config.lines().map(str::trim);
-    let gateway = lines.next().and_then(|raw| local_origin(raw, "https"));
+    let gateway = lines
+        .next()
+        .and_then(|raw| local_origin(raw, "https").or_else(|| local_origin(raw, "http")));
     let expected = lines.next().and_then(|raw| local_origin(raw, "http"));
     let (Some(mut gateway), Some(expected), None) = (gateway, expected, lines.next()) else {
-        return Err("desktop-gateway 需要两行：本机 HTTPS 网关地址和 HTTP Runtime 地址".into());
+        return Err("desktop-gateway 需要两行：回环 Go 网关地址和私网 Runtime 地址".into());
     };
-    if local_origin(runtime, "http").as_ref() != Some(&expected) {
+    gateway.set_path("/app/");
+    Ok((gateway, expected))
+}
+
+fn check_runtime(expected: &tauri::Url, runtime: &str) -> Result<(), String> {
+    if local_origin(runtime, "http").as_ref() != Some(expected) {
         return Err(format!(
             "网关配置的 Runtime 是 {expected}，本次启动地址是 {runtime}"
         ));
     }
-    gateway.set_path("/app/");
-    Ok(gateway.to_string())
+    Ok(())
 }
 
-fn desktop_target(home: &Path, runtime: String) -> Result<String, String> {
-    match std::fs::read_to_string(home.join("desktop-gateway")) {
-        Ok(config) => gateway_target(&config, &runtime),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(runtime),
-        Err(error) => Err(format!("无法读取 desktop-gateway: {error}")),
+fn start_runtime(
+    app: &tauri::AppHandle,
+    binary: &Path,
+    home: &Path,
+    port: u16,
+) -> Result<(Child, String), String> {
+    let log = home.join("jeeves.log");
+    let mut options = OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
     }
-}
-
-/// Start `jeeves dashboard` and wait for the address it announces.
-fn start_runtime(app: &tauri::AppHandle) -> Result<(Child, String, PathBuf), String> {
-    let binary = binary_path()?;
-    let home = runtime_home(app, &binary)?;
-    let mut command = Command::new(&binary);
-    command.env("JEEVES_HOME", &home);
+    let stderr = options
+        .open(&log)
+        .map_err(|e| format!("无法打开 Runtime 日志 ({}): {e}", log.display()))?;
+    let mut command = Command::new(binary);
+    command
+        .env("JEEVES_HOME", home)
+        .env_remove("JEEVES_OPS_TOKEN")
+        .env("JEEVES_PORT", port.to_string())
+        .env("JEEVES_OPS_HOST", "127.0.0.1");
     let helper = binary.with_file_name("jeeves-window");
     if std::env::var_os("JEEVES_DESKTOP_HELPER").is_none() && helper.is_file() {
         command.env("JEEVES_DESKTOP_HELPER", helper);
     }
-    command
-        .arg("dashboard")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit());
+    command.arg("runtime").stdout(Stdio::piped()).stderr(stderr);
     if let Ok(dir) = app.path().resource_dir() {
-        if std::env::var_os("JEEVES_DASHBOARD_DIR").is_none() && dir.join("dashboard").is_dir() {
-            command.env("JEEVES_DASHBOARD_DIR", dir.join("dashboard"));
-        }
         let browser = dir.join("browser-runtime");
         if std::env::var_os("JEEVES_BROWSER_RUNTIME").is_none()
             && browser.join("runtime.json").is_file()
@@ -149,7 +157,7 @@ fn start_runtime(app: &tauri::AppHandle) -> Result<(Child, String, PathBuf), Str
         }
     });
     match rx.recv_timeout(START_TIMEOUT) {
-        Ok(url) => Ok((child, url, home)),
+        Ok(url) => Ok((child, url)),
         Err(reason) => {
             stop_child(&mut child);
             Err(match reason {
@@ -161,6 +169,30 @@ fn start_runtime(app: &tauri::AppHandle) -> Result<(Child, String, PathBuf), Str
             .into())
         }
     }
+}
+
+fn desktop_target(app: &tauri::AppHandle) -> Result<String, String> {
+    if let Ok(url) = std::env::var("JEEVES_WEB_GATEWAY_URL") {
+        return Ok(url);
+    }
+    let binary = binary_path()?;
+    let home = runtime_home(app, &binary)?;
+    let config = match std::fs::read_to_string(home.join("desktop-gateway")) {
+        Ok(config) => config,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok("http://127.0.0.1:7788".into());
+        }
+        Err(error) => return Err(format!("无法读取 desktop-gateway: {error}")),
+    };
+    let (gateway, expected) = local_profile(&config)?;
+    let port = expected.port_or_known_default().ok_or("Runtime 缺少端口")?;
+    let (mut child, runtime) = start_runtime(app, &binary, &home, port)?;
+    if let Err(error) = check_runtime(&expected, &runtime) {
+        stop_child(&mut child);
+        return Err(error);
+    }
+    *app.state::<Runtime>().0.lock().expect("runtime lock") = Some(child);
+    Ok(gateway.to_string())
 }
 
 fn stop_child(child: &mut Child) {
@@ -217,15 +249,7 @@ pub(super) fn main() {
     tauri::Builder::default()
         .manage(Runtime::default())
         .setup(|app| {
-            let handle = app.handle().clone();
-            let target = match std::env::var("JEEVES_RUNTIME_URL") {
-                Ok(url) if !url.is_empty() => Ok(url),
-                _ => start_runtime(&handle).and_then(|(child, url, home)| {
-                    *handle.state::<Runtime>().0.lock().expect("runtime lock") = Some(child);
-                    desktop_target(&home, url)
-                }),
-            };
-            open_window(&handle, target)?;
+            open_window(app.handle(), desktop_target(app.handle()))?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -252,21 +276,13 @@ mod tests {
     #[test]
     fn the_window_uses_the_gateway_configured_for_the_started_runtime() {
         let config = "https://localhost:8743\nhttp://127.0.0.1:7777\n";
-        assert_eq!(
-            gateway_target(config, "http://127.0.0.1:7777").unwrap(),
-            "https://localhost:8743/app/"
-        );
-        assert!(gateway_target(config, "http://127.0.0.1:7778").is_err());
-        assert!(gateway_target(
-            "https://example.test\nhttp://127.0.0.1:7777",
-            "http://127.0.0.1:7777"
-        )
-        .is_err());
-        assert!(gateway_target(
-            "https://localhost:8743/account\nhttp://127.0.0.1:7777",
-            "http://127.0.0.1:7777"
-        )
-        .is_err());
+        let (gateway, expected) = local_profile(config).unwrap();
+        assert_eq!(gateway.as_str(), "https://localhost:8743/app/");
+        assert_eq!(expected.port(), Some(7777));
+        assert!(check_runtime(&expected, "http://127.0.0.1:7777").is_ok());
+        assert!(check_runtime(&expected, "http://127.0.0.1:7778").is_err());
+        assert!(local_profile("https://example.test\nhttp://127.0.0.1:7777").is_err());
+        assert!(local_profile("https://localhost:8743/account\nhttp://127.0.0.1:7777").is_err());
     }
     #[test]
     fn finder_uses_checkout_data_or_the_users_home() {

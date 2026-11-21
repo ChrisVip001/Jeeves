@@ -24,7 +24,7 @@ HOST = {
     "jeeves-mcp/src/lib.rs": "JEEVES_MCP_CONFIG bundled packs; ${VAR} credentials by name",
     "jeeves-memory/src/skills.rs": "JEEVES_SKILL_DIRS: bundled skill packs",
     "jeeves-ops/src/client.rs": "JEEVES_WRITE / JEEVES_APPROVAL defaults for the dashboard child",
-    "jeeves-ops/src/lib.rs": "JEEVES_PORT, JEEVES_DASHBOARD_DIR: the host's listener and assets",
+    "jeeves-ops/src/lib.rs": "JEEVES_PORT and JEEVES_OPS_TOKEN: the private Runtime listener",
     "jeeves-ops/src/gateways.rs": "JEEVES_GATEWAY_BIN: where the host finds the gateway script",
     "jeeves-ops/src/capabilities.rs": "JEEVES_MCP_CONFIG bundled packs",
     "jeeves-ops/src/webhooks.rs": "hook secrets by name (credential)",

@@ -16,9 +16,9 @@ per-layer implementation tutorial is under `docs/internals/`.
    source of truth for the cross-language contract: `ts-rs` emits TypeScript,
    `schemars` emits JSON Schema, and the artifacts are checked in.
 3. **One engine, many shells.** `jeeves-app-server` owns the whole turn and is the
-   only executing runtime for a given `state.db`. The memory MCP opens the same database for memory operations, and home export opens it for a consistent snapshot. The dashboard backend (`jeeves-ops`) spawns it as a subprocess
-   and speaks newline-delimited JSON-RPC over stdio; the chat gateways reach it through the
-   dashboard's HTTP endpoint (`/api/gateway/rpc`). Native CLI commands embed the same
+   only executing runtime for a given `state.db`. The memory MCP opens the same database for memory operations, and home export opens it for a consistent snapshot. The private HTTP API (`jeeves-ops`) spawns it as a subprocess
+   and speaks newline-delimited JSON-RPC over stdio; the chat gateways reach it through its
+   private HTTP endpoint (`/api/gateway/rpc`). Native CLI commands embed the same
    runtime in-process. A runtime takes an OS advisory lock on the canonical database path
    before recovery, so a second execution runtime on the same database fails visibly.
 
@@ -72,7 +72,7 @@ jeeves-loop              the agent loop                                → provi
 jeeves-mcp               MCP client + OAuth + memory server            → state, tools
 jeeves-connector         calendar/email/Feishu connectors               → config, state, tools
 jeeves-app-server        turns, tasks, recovery, JSON-RPC              → all of the above
-jeeves-ops               dashboard backend (axum + SSE); spawns        → config, connector, mcp, memory, protocol
+jeeves-ops               private HTTP API (axum + SSE); spawns        → config, connector, mcp, memory, protocol
                          the app-server subprocess
 jeeves-eval              deterministic evals, judge, release gate      → app-server, config, memory, protocol, provider, state, tools
 jeeves-cli               the `jeeves` binary                              → app-server, ops, eval and the rest

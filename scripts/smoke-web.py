@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 import urllib.parse
 
+from gateway_fixture import RUNTIME_TOKEN, gateway
+
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('desktop_smoke', ROOT / 'scripts/smoke-desktop.py')
 fixture = importlib.util.module_from_spec(spec)
@@ -32,15 +34,15 @@ def start(home, port, extra_env=None):
     finally:
         rpc.close()
     env = {k: v for k, v in os.environ.items() if not k.startswith('JEEVES_')}
-    env.update(JEEVES_HOME=str(home), JEEVES_PORT=str(port), JEEVES_PROVIDER='ollama', JEEVES_OPS_TOKEN='web-fixture-token', JEEVES_DASHBOARD_DIR=str(ROOT / 'jeeves-ts/packages/dashboard/dist'), JEEVES_WRITE='1', JEEVES_SEARCH_DDG='0')
+    env.update(JEEVES_HOME=str(home), JEEVES_PORT=str(port), JEEVES_PROVIDER='ollama', JEEVES_OPS_TOKEN=RUNTIME_TOKEN, JEEVES_WRITE='1', JEEVES_SEARCH_DDG='0')
     env.update(extra_env or {})
     with (Path(home) / 'server.log').open('w') as log:
-        process = subprocess.Popen([str(binary), 'dashboard'], env=env, stdout=log, stderr=subprocess.STDOUT)
+        process = subprocess.Popen([str(binary), 'runtime'], env=env, stdout=log, stderr=subprocess.STDOUT)
     return provider, process
 
 
 def request(base, path, body=None, auth=True):
-    headers = {'Authorization': 'Bearer web-fixture-token'} if auth else {}
+    headers = {'Authorization': 'Bearer ' + RUNTIME_TOKEN} if auth else {}
     if body is not None:
         headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None, headers=headers)
@@ -49,7 +51,7 @@ def request(base, path, body=None, auth=True):
 
 
 def stream(base, session, message, approve=False):
-    req = urllib.request.Request(base + '/api/turn', data=json.dumps({'sessionId': session, 'message': message, 'stream': True}).encode(), headers={'Authorization': 'Bearer web-fixture-token', 'Content-Type': 'application/json'})
+    req = urllib.request.Request(base + '/api/turn', data=json.dumps({'sessionId': session, 'message': message, 'stream': True}).encode(), headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN, 'Content-Type': 'application/json'})
     events = []
     with urllib.request.urlopen(req, timeout=20) as response:
         for line in response:
@@ -66,7 +68,7 @@ def stream(base, session, message, approve=False):
 
 def task_stream(base, session, message, approve=False):
     req = urllib.request.Request(base + '/api/notifications',
-                                 headers={'Authorization': 'Bearer web-fixture-token'})
+                                 headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN})
     events = []
     with urllib.request.urlopen(req, timeout=20) as response:
         task = request(base, '/api/task', {'action': 'create', 'sessionId': session, 'title': message})['task']
@@ -198,9 +200,9 @@ def run(port=0, hold=False, mail_followup=False):
         try:
             for _ in range(100):
                 if process.poll() is not None:
-                    raise AssertionError('dashboard exited before becoming ready: ' + (Path(home) / 'server.log').read_text()[-2000:])
+                    raise AssertionError('Runtime exited before becoming ready: ' + (Path(home) / 'server.log').read_text()[-2000:])
                 startup = (Path(home) / 'server.log').read_text(encoding='utf-8')
-                ready = re.search(r'Jeeves cockpit → (http://[^\s]+)', startup)
+                ready = re.search(r'Jeeves Runtime → (http://[^\s]+)', startup)
                 if ready:
                     base = ready[1]
                 try:
@@ -212,7 +214,7 @@ def run(port=0, hold=False, mail_followup=False):
                 except (OSError, urllib.error.URLError):
                     time.sleep(.1)
             else:
-                raise AssertionError('dashboard startup timed out')
+                raise AssertionError('Runtime startup timed out')
             try:
                 request(base, '/api/session/permission?sessionId=missing', auth=False)
                 raise AssertionError('permission API must require authentication')
@@ -325,22 +327,24 @@ def run(port=0, hold=False, mail_followup=False):
             assert not any(e['type'] == 'approvalRequested' for e in events)
             assert any(e['type'] == 'toolCompleted' and 'Read-only' in e['output'] for e in events)
             assert len(request(base, '/api/session?sessionId=' + session)['data']) >= 6
-            with urllib.request.urlopen(base + '/', timeout=10) as response:
-                html = response.read().decode()
-                assert 'composer-context' in html and 'main.js?v=' in html and './style.css' in html
-            with urllib.request.urlopen(base + '/style.css', timeout=10) as response:
-                assert b'--jeeves-background' in response.read()
             if mail_followup:
                 mail_tasks = seed_mail_followups(base, home)
                 print('Mail fixture tasks ' + json.dumps(mail_tasks), flush=True)
-            print(f'Web smoke passed; {base} (token web-fixture-token)', flush=True)
-            if hold:
-                input()
-                if mail_followup:
-                    import sqlite3
-                    with sqlite3.connect(Path(home) / 'state.db') as db:
-                        assert db.execute("SELECT id,state FROM mail_actions WHERE account='fixture' ORDER BY id").fetchall() == [
-                            ('mail-review', 'queued'), ('mail-travel', 'draft')]
+            with gateway(base, home) as (origin, workspace, cookie):
+                def asset(url):
+                    request = urllib.request.Request(url, headers={'Cookie': cookie})
+                    with urllib.request.urlopen(request, timeout=10) as response:
+                        return response.read()
+                assert b'composer-context' in asset(workspace)
+                assert b'--jeeves-background' in asset(workspace + 'style.css')
+                print('Web smoke passed' + ('; ' + json.dumps(dict(origin=origin, workspace=workspace, cookie=cookie)) if hold else ''), flush=True)
+                if hold:
+                    action = input()
+                    if action == "verify" and mail_followup:
+                        import sqlite3
+                        with sqlite3.connect(Path(home) / 'state.db') as db:
+                            assert db.execute("SELECT id,state FROM mail_actions WHERE account='fixture' ORDER BY id").fetchall() == [
+                                ('mail-review', 'queued'), ('mail-travel', 'draft')]
 
         finally:
             process.terminate()

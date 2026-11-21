@@ -107,7 +107,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 | `smoke-recovery` | `scripts/smoke-recovery.py` | 在分发、副作用、检查点边界处 SIGKILL，用本地 provider 与 MCP 夹具（POSIX） |
 | `smoke-web` | `scripts/smoke-web.py` | 带认证的 dashboard HTTP：设置、策略、流式、审批 |
 | `smoke-interaction` | `scripts/smoke-interaction.py` | 主对话到任务工作区、追问与 worker 审批 |
-| `smoke-dashboard` | `scripts/smoke-dashboard.sh` | 用 curl 驱动 `jeeves dashboard`（HTTP 到 JSON-RPC、SSE） |
+| `smoke-dashboard` | `scripts/smoke-dashboard.sh` | 用 curl 驱动 `jeeves runtime`（HTTP 到 JSON-RPC、SSE） |
 | `smoke-gateway` | `scripts/smoke-gateway.sh` | app-server 加 TypeScript 网关 |
 | `smoke-connector` | `scripts/smoke-connector.sh` | `jeeves connector feishu` 对 `fake_feishu_server.py` |
 | `smoke-business` | `scripts/smoke-business.sh` | 任务 API、入站 webhook、分级路由（回调用 `fake_callback_server.py`） |

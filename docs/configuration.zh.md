@@ -102,7 +102,6 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
   "name": "deploy",
   "secret": "env:JEEVES_HOOK_SECRET",
   "prompt": "线上出事了，按这个事件处理：\n{{payload}}",
-  "session": "hook:deploy",
   "tier": "reasoning",
   "signature": true,
   "limit": 6,
@@ -146,9 +145,9 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
   重启清零，多进程不共享。`limit: 0` 在加载时直接报错（「配了但永不放行」
   是打错字，不是策略）。
 - **`callback: "https://…"` —— 异步**。调用方立刻拿到 `202` +
-  `{"accepted":true,"hook":…,"session":…}`，这一轮在后台跑完，结果 POST 到
-  该 URL：`{"hook","session","ok":true,"result":RunResponse}` 或
-  `{"hook","session","ok":false,"error":{code,message}}`。三次投递（间隔 1s、
+  `{"accepted":true,"hook":…}`，这一轮在后台跑完，结果 POST 到
+  该 URL：`{"hook","ok":true,"result":RunResponse}` 或
+  `{"hook","ok":false,"error":{code,message}}`。三次投递（间隔 1s、
   2s），**没有队列**：三次都没成（或进程中途退出）就丢了这次投递 —— 但答案
   已经在会话历史里，不会消失。callback 必须是 http(s) URL，否则加载即报错。
 
@@ -483,15 +482,17 @@ DDG Lite 使用其正常的 POST 搜索表单，优先用系统可用的 `curl` 
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `JEEVES_PORT` | `7777` | dashboard 端口；占用时自动向后找 10 个 |
-| `JEEVES_DASHBOARD_DIR` | 仓库内 dist | 前端构建产物位置 |
+| `JEEVES_PORT` | `7777` | 私网 Runtime 端口，占用时向上找 |
 | `JEEVES_NOTIFY` | 关 | `1` / `true` / `yes` 才开；开了才读 `<home>/notify.json`（`{"slack": "webhook URL"}`）并往外推通知：**审批请求 / 后台作业收尾 / 目标终局**。完成通知先落盘，失败或重启后重试（见[投递边界](limitations.zh.md#通知与审计)）；批准提示仍为尽力发送。网络投递不阻塞 turn。URL 是管理员配的，指向内网自建端点（ntfy/Gotify 这类收 `{"text": …}` 的）是合法用法，不做 SSRF 护栏
 | `JEEVES_MORNING_BRIEFING` | 关闭 | 手动开启 08:00 晨报，值为渠道及 IANA 时区，如 `outbox@Asia/Shanghai`。见[晨报](operations.zh.md#晨报cron-友好)。 |
-| `JEEVES_OPS_HOST` | `127.0.0.1` | 绑定地址（Docker 镜像设为 `0.0.0.0`）。**绑非回环必须同时设 `JEEVES_OPS_TOKEN`，否则启动期拒绝**（配错就该起不来） |
-| `JEEVES_OPS_TOKEN` | — | `/api/*` 的 Bearer token（常量时间比对）。回环地址可不设；设了本机也要带。驾驶舱页面首次 401 时会问一次并存 localStorage。**刻意不进 `config/read`**：部署面参数不该被模型看到 |
+| `JEEVES_OPS_HOST` | `127.0.0.1` | 私网 Runtime 的监听地址，容器默认使用 `0.0.0.0` |
+| `JEEVES_OPS_TOKEN` | — | 所有监听地址都要求私网 Bearer 凭据。也可提供 `<home>/runtime-token` 文件，权限限所有者。网关在服务端附加凭据，浏览器使用登录会话 |
 | `JEEVES_DISPATCHERS` | — | 逗号分隔的聊天发送者 id（飞书 `open_id`），只有他们能在群里派任务。其他人的消息照常回答，但没有 `task` 工具；留空表示谁都不行。本地视图不受影响。不在 `config/read` 里 |
 | `JEEVES_BIN` | — | TS 客户端与你自己的脚本寻找 `jeeves` 二进制的显式路径 |
-| `JEEVES_RUNTIME_URL` | — | 只有桌面壳读：连到已运行的 Runtime，而不是自己启动一个 |
+| `JEEVES_PERSONAL_HOME` | `~/.local/share/jeeves-personal` | `just local-up` 的账号与 Runtime 数据目录 |
+| `JEEVES_PERSONAL_PORT` | `7788` | `just local-up` 的 Go 网关回环端口 |
+| `JEEVES_PERSONAL_BROWSER` | `1` | `just local-up` 自动打开浏览器。完成首次设置后可设为 `0`，用于无人值守启动 |
+| `JEEVES_WEB_GATEWAY_URL` | — | 开发版 Mac App 打开的 Go 网关地址 |
 | `JEEVES_DESKTOP_BINARY` | — | 只有桌面壳的调试构建读：要启动的 `jeeves` 二进制绝对路径（默认 `jeeves-rs/target/debug/jeeves`） |
 
 ## 连接器（`<home>/connectors.json`）
@@ -613,7 +614,7 @@ CLI 自己的惰性路径。
 | 飞书 | `LARK_APP_ID`、`LARK_APP_SECRET`、`LARK_ALLOW`（open_id）、`LARK_DISPATCHERS`、`LARK_DOMAIN=lark`、`LARK_CLAIM=1`（Runtime 托管网关时由它设置） |
 
 `JEEVES_GATEWAY_BIN` 是 Runtime 托管的网关脚本（设置 → 渠道连接），Docker 镜像已设好。飞书网关的 `JEEVES_GATEWAY_URL` 指向已有 Web 运行时；不设置则启动独立 app-server。
-Web 有访问令牌时还需相同的 `JEEVES_OPS_TOKEN`。飞书入口（`bin-lark.ts`）读取仓库根目录 `.env`，
+访问私网 Runtime 时还需相同的 `JEEVES_OPS_TOKEN`。飞书入口（`bin-lark.ts`）读取仓库根目录 `.env`，
 不覆盖已导出的环境变量，接法见[上手指南](guide.zh.md#渠道微信与飞书)。
 
 ## MCP 外挂（`<home>/mcp.json`）

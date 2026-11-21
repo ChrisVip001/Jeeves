@@ -33,7 +33,7 @@ jeeves-rs/
                         approval, todo injection, background jobs, the goal loop; the ledger
                         writer, the background memory worker, the memory center, and prompt assembly
                         (stable prefix + per-turn tail)
-  jeeves-ops/           dashboard backend (axum + SSE)
+  jeeves-ops/           private Runtime HTTP API (axum + SSE)
   jeeves-cli/           the jeeves binary (REPL / dashboard / eval / mcp / skill)
   jeeves-eval/          deterministic evals + judge + release gate
 jeeves-ts/                 @jeeves/client, @jeeves/channels, @jeeves/dashboard, @jeeves/ui,
@@ -117,6 +117,8 @@ just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # end-to-end
 
 ## Avoid unnecessary defensive code
 
+- Before the first production release, switch callers to the new contract and
+  remove superseded routes, implementations, and instructions in the same change.
 - Validate untrusted input at system boundaries; inside the system, rely on
   established types, contracts, and invariants instead of repeating checks.
 - Add fallbacks, retries, compatibility paths, or defaults only for an existing

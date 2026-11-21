@@ -11,6 +11,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from gateway_fixture import EMAIL, PASSWORD, RUNTIME_TOKEN, gateway
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -96,9 +97,19 @@ class Cockpit:
         if self.listener is None or self.process.poll() is not None:
             raise RuntimeError("The verified fixture runtime is unavailable")
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{self.port}" + path, timeout=3
+            urllib.request.Request(f"http://127.0.0.1:{self.port}" + path,
+                headers={"Authorization": "Bearer " + RUNTIME_TOKEN}), timeout=3
         ) as response:
             return json.load(response)
+
+    def sign_in(self):
+        outcome = wait_for(lambda: "login" if self.control("account-email") else
+                           "workspace" if self.control("mode-assistant") else None, "login or workspace")
+        if outcome == "login":
+            self.native("fill", "account-email", EMAIL)
+            self.native("fixture-password", "account-password", PASSWORD)
+            self.native("press", "account-submit")
+            wait_for(lambda: self.control("mode-assistant"), "signed-in workspace")
 
     def view(self):
         return self.native("inspect")
@@ -168,6 +179,7 @@ def exercise(home, port, env, probe, posts, bundle):
     try:
         evidence["launch"] = app.ready()
         print("Visible native window", evidence["launch"], flush=True)
+        app.sign_in()
         wait_for(lambda: app.control("mode-assistant"), "assistant mode switch")
         app.native("press", "mode-assistant")
         app.submit("input", "send", "Hello from the native Mac fixture")
@@ -291,6 +303,7 @@ def exercise(home, port, env, probe, posts, bundle):
         app.close()
         app = Cockpit(probe, home, port, dict(env, JEEVES_HOME=str(home)), bundle)
         evidence["reopen"] = app.ready()
+        app.sign_in()
         assert evidence["reopen"]["pid"] != evidence["launch"]["pid"]
         app.native("press", "mode-assistant")
         wait_for(
@@ -432,7 +445,11 @@ def main():
                 JEEVES_SEARCH_DDG="0",
                 JEEVES_PROMOTION_FIXTURE="synthetic",
             )
-            evidence = exercise(home, port, env, probe, posts, bundle)
+            runtime = f"http://127.0.0.1:{port}"
+            with gateway(runtime, home) as (origin, _, _):
+                (home / "desktop-gateway").write_text(f"{origin}\n{runtime}\n")
+                (home / "runtime-token").write_text(RUNTIME_TOKEN)
+                evidence = exercise(home, port, env, probe, posts, bundle)
             (OUTPUT / "report.json").write_text(
                 json.dumps(evidence, ensure_ascii=False, indent=2)
             )

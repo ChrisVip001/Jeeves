@@ -11,12 +11,12 @@ use serde_json::json;
 use tower::ServiceExt;
 
 pub(crate) use crate::client::client_tests::fake;
-use crate::{constant_time_eq, router, validate_binding, Gate};
+use crate::{constant_time_eq, router, Gate};
 
 #[tokio::test]
 async fn health_probe_sends_complete_capability_parameters() {
     let (app, mut fake) = fake();
-    let router = router(Gate::single(Arc::new(app), None), std::env::temp_dir());
+    let router = router(Gate::single(Arc::new(app), "fixture".into()));
     let probe = tokio::spawn(status_of(router, "/healthz", None));
     let request = fake.next_request().await;
     assert_eq!(request["method"], "session/capabilities");
@@ -38,10 +38,7 @@ async fn health_probe_sends_complete_capability_parameters() {
 #[tokio::test]
 async fn capability_routes_relay_protocol_and_require_authentication() {
     let (app, mut fake) = fake();
-    let router = router(
-        Gate::single(Arc::new(app), Some("token".into())),
-        std::env::temp_dir(),
-    );
+    let router = router(Gate::single(Arc::new(app), "token".into()));
     assert_eq!(
         status_of(router.clone(), "/api/capability", None).await,
         StatusCode::UNAUTHORIZED
@@ -84,10 +81,7 @@ async fn capability_routes_relay_protocol_and_require_authentication() {
 #[tokio::test]
 async fn new_connector_and_checkpoint_routes_are_human_authenticated_relays() {
     let (app, mut fake) = fake();
-    let router = router(
-        Gate::single(Arc::new(app), Some("token".into())),
-        std::env::temp_dir(),
-    );
+    let router = router(Gate::single(Arc::new(app), "token".into()));
     assert_eq!(
         status_of(router.clone(), "/api/connector/settings", None).await,
         StatusCode::UNAUTHORIZED
@@ -177,10 +171,7 @@ pub(crate) async fn status_of(router: axum::Router, path: &str, auth: Option<&st
 async fn a_token_gates_the_api() {
     let (app, fake) = fake();
     auto_respond(fake);
-    let router = router(
-        Gate::single(Arc::new(app), Some("s3cret".to_string())),
-        std::env::temp_dir(),
-    );
+    let router = router(Gate::single(Arc::new(app), "s3cret".to_string()));
 
     assert_eq!(
         status_of(router.clone(), "/api/data", None).await,
@@ -211,28 +202,17 @@ async fn a_token_gates_the_api() {
 }
 
 #[tokio::test]
-async fn without_a_token_the_api_is_open() {
-    let (app, fake) = fake();
-    auto_respond(fake);
-    let router = router(Gate::single(Arc::new(app), None), std::env::temp_dir());
-    assert_eq!(
-        status_of(router, "/api/data", None).await,
-        StatusCode::OK,
-        "with no token configured the middleware must block nothing"
-    );
-}
-
-#[tokio::test]
 async fn interrupt_answers_with_the_turns_own_fate() {
     let (app, fake) = fake();
     auto_respond(fake);
-    let router = router(Gate::single(Arc::new(app), None), std::env::temp_dir());
+    let router = router(Gate::single(Arc::new(app), "fixture".into()));
 
     let response = router
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/api/interrupt")
+                .header("authorization", "Bearer fixture")
                 .header("content-type", "application/json")
                 .body(Body::from(r#"{"turnId":"no-such-turn"}"#))
                 .expect("the request body"),
@@ -243,37 +223,15 @@ async fn interrupt_answers_with_the_turns_own_fate() {
 }
 
 #[tokio::test]
-async fn static_files_are_not_gated() {
+async fn the_runtime_does_not_serve_the_workspace_ui() {
     let (app, _fake) = fake();
-    let dir = tempfile::tempdir().expect("temp dir");
-    let router = router(
-        Gate::single(Arc::new(app), Some("s3cret".to_string())),
-        dir.path().to_path_buf(),
-    );
-    let response = router
-        .oneshot(
-            Request::builder()
-                .uri("/")
-                .body(Body::empty())
-                .expect("the request body"),
-        )
-        .await
-        .expect("the routed response");
-    assert_ne!(response.status(), StatusCode::UNAUTHORIZED);
-}
-
-#[test]
-fn a_non_loopback_host_needs_a_token() {
-    assert!(validate_binding("127.0.0.1", None).is_ok());
-    assert!(validate_binding("localhost", None).is_ok());
-    assert!(validate_binding("::1", None).is_ok());
-    assert!(validate_binding("0.0.0.0", Some("t")).is_ok());
-    assert!(validate_binding("192.168.1.5", Some("t")).is_ok());
-
-    let error = validate_binding("0.0.0.0", None).unwrap_err();
-    assert!(error.to_string().contains("JEEVES_OPS_TOKEN"), "{error}");
-    let error = validate_binding("192.168.1.5", None).unwrap_err();
-    assert!(error.to_string().contains("JEEVES_OPS_TOKEN"), "{error}");
+    let router = router(Gate::single(Arc::new(app), "fixture".into()));
+    for path in ["/", "/main.js", "/account/", "/app/u-000000000000/"] {
+        assert_eq!(
+            status_of(router.clone(), path, Some("fixture")).await,
+            StatusCode::NOT_FOUND
+        );
+    }
 }
 
 #[test]

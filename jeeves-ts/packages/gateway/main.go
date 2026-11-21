@@ -63,8 +63,10 @@ func configuration(ctx context.Context) (*gateway, error) {
 		http:     &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
 		mailJobs: make(chan mailJob, 32),
 	}
-	if _, err := os.Stat(g.bundle + "/account/account.html"); err != nil {
-		return nil, fmt.Errorf("dashboard is missing; run just dashboard-build: %w", err)
+	for _, entry := range []string{"/index.html", "/account/account.html"} {
+		if _, err := os.Stat(g.bundle + entry); err != nil {
+			return nil, fmt.Errorf("dashboard is missing; run just dashboard-build: %w", err)
+		}
 	}
 	if fixed != "" {
 		u, err := cloudkit.Origin(fixed)
@@ -123,12 +125,6 @@ func main() {
 		log.Fatal(err)
 	}
 	defer g.store.db.Close()
-	if path := os.Getenv("GW_IMPORT_LEGACY"); path != "" {
-		if err := g.importLegacy(context.Background(), path); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
 	addr := cloudkit.Env("GW_ADDR", ":8080")
 	if g.loopbackOnly {
 		host, _, e := net.SplitHostPort(addr)
@@ -211,7 +207,7 @@ func (g *gateway) serve(w http.ResponseWriter, r *http.Request) {
 		cloudkit.Error(w, 403, "request origin rejected")
 		return
 	}
-	if read && (path == "/" || path == "/account") {
+	if read && path == "/account" {
 		http.Redirect(w, r, "/account/?next=%2Fapp%2F", http.StatusSeeOther)
 		return
 	}
@@ -248,7 +244,11 @@ func (g *gateway) serve(w http.ResponseWriter, r *http.Request) {
 			failure(w, err)
 			return
 		}
-		if read && strings.HasPrefix(path, "/app/") && strings.Contains(r.Header.Get("Accept"), "text/html") {
+		if read && path == "/" {
+			http.Redirect(w, r, "/account/?next=%2Fapp%2F", http.StatusSeeOther)
+			return
+		}
+		if read && (path == "/app" || strings.HasPrefix(path, "/app/")) && strings.Contains(r.Header.Get("Accept"), "text/html") {
 			http.Redirect(w, r, "/account/?next="+url.QueryEscape(r.URL.RequestURI()), 303)
 			return
 		}
@@ -285,7 +285,7 @@ func (g *gateway) serve(w http.ResponseWriter, r *http.Request) {
 		g.accountMutation(w, r, a, ss)
 		return
 	}
-	if method == "GET" && (path == "/app" || path == "/app/") {
+	if read && (path == "/" || path == "/app" || path == "/app/") {
 		http.Redirect(w, r, "/app/"+a.id+"/", 303)
 		return
 	}

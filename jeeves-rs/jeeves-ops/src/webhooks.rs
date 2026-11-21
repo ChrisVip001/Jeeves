@@ -59,9 +59,6 @@ pub struct Hook {
     /// The prompt template. `{{payload}}` is replaced by the raw request body; without the
     /// placeholder the body is appended on its own line (a body silently dropped would be worse).
     pub prompt: String,
-    /// Which session the turn lands in; absent = `hook:<name>` (one hook, one thread of history).
-    #[serde(default)]
-    pub session: Option<String>,
     /// Model tier pin (`fast` / `chat` / `reasoning`). A typo fails the turn loudly instead of
     /// quietly costing the wrong model.
     #[serde(default)]
@@ -111,15 +108,6 @@ impl Hook {
         (!raw.is_empty()).then(|| raw.to_string())
     }
 
-    pub fn session_id(&self) -> String {
-        self.session
-            .as_deref()
-            .map(str::trim)
-            .filter(|session| !session.is_empty())
-            .map(str::to_string)
-            .unwrap_or_else(|| format!("hook:{}", self.name))
-    }
-
     /// Put the payload into the prompt. The body stays **as text** — it is data the caller sent,
     /// never instructions Jeeves composes itself; the model reads it inside the prompt, nothing else.
     pub fn render(&self, payload: &str) -> String {
@@ -140,7 +128,7 @@ pub fn load(home: &Path) -> Result<WebhooksConfig> {
     };
     let config: WebhooksConfig = serde_json::from_str(&raw).map_err(|e| {
         anyhow!(
-            "{} could not be read: {e} (the fields are name/secret/prompt/session/tier/enabled/signature/limit/callback)",
+            "{} could not be read: {e} (the fields are name/secret/prompt/tier/enabled/signature/limit/callback)",
             path.display()
         )
     })?;
@@ -352,8 +340,8 @@ pub async fn deliver(callback: &str, payload: Value) {
 }
 
 /// The 202 body for async hooks: the knock was accepted, the answer will be pushed.
-pub fn accepted(name: &str, session: &str) -> Value {
-    json!({ "accepted": true, "hook": name, "session": session })
+pub fn accepted(name: &str) -> Value {
+    json!({ "accepted": true, "hook": name })
 }
 
 pub fn find<'a>(config: &'a WebhooksConfig, name: &str) -> Option<&'a Hook> {
@@ -369,7 +357,6 @@ mod webhooks_tests {
             name: "deploy".to_string(),
             secret: "env:JEEVES_TEST_HOOK_SECRET".to_string(),
             prompt: "handle this deployment event:\n{{payload}}".to_string(),
-            session: None,
             tier: Some("fast".to_string()),
             enabled: None,
             signature: None,
@@ -432,7 +419,6 @@ mod webhooks_tests {
         let rendered = hook.render("{\"status\":\"failed\"}");
         assert!(rendered.contains("{\"status\":\"failed\"}"));
         assert!(!rendered.contains("{{payload}}"));
-        assert_eq!(hook.session_id(), "hook:deploy");
 
         let mut without_slot = hook.clone();
         without_slot.prompt = "have a look at this event".to_string();

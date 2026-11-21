@@ -11,7 +11,7 @@ import type { TodoListView } from "./TodoListView";
 /**
  * Everything the dashboard's first screen needs, fetched in one shot.
  *
- * It is not the response to any RPC but the payload of the `jeeves dashboard` HTTP
+ * It is not the response to any RPC but the payload of the private Runtime HTTP
  * endpoint (`GET /api/data`). **Why it lives in the protocol crate**: the only
  * criterion is that it crosses languages. The browser side type-checks against it, and hand-copying
  * it would drift again — exactly what this whole effort exists to eliminate.

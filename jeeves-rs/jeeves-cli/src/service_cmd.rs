@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 
-const LABEL: &str = "ai.jeeves.dashboard";
+const LABEL: &str = "ai.jeeves.runtime";
 const UNIT: &str = "jeeves.service";
 
 /// Everything a unit needs; all paths absolute.
@@ -35,7 +35,7 @@ pub fn kind_for(os: &str) -> Result<Kind> {
         "macos" => Ok(Kind::Launchd),
         "linux" => Ok(Kind::Systemd),
         other => bail!(
-            "no service template for {other}; run `jeeves dashboard` under your own supervisor (compose.yaml has a restart policy for containers)"
+            "no service template for {other}; run `jeeves runtime` under your own supervisor "
         ),
     }
 }
@@ -68,7 +68,7 @@ pub fn render_launchd(spec: &Spec) -> Result<String> {
 <dict>
   <key>Label</key><string>{LABEL}</string>
   <key>ProgramArguments</key>
-  <array><string>{binary}</string><string>dashboard</string></array>
+  <array><string>{binary}</string><string>runtime</string></array>
   <key>EnvironmentVariables</key>
   <dict>
     <key>JEEVES_HOME</key><string>{home}</string>
@@ -91,8 +91,8 @@ pub fn render_systemd(spec: &Spec) -> Result<String> {
     let home = check_path(&spec.home)?;
     let log = check_path(&spec.log)?;
     Ok(format!(
-        "[Unit]\nDescription=Jeeves personal assistant (dashboard + resident runtime)\nAfter=network-online.target\nWants=network-online.target\n\n\
-         [Service]\nExecStart=\"{binary}\" dashboard\nEnvironment=\"JEEVES_HOME={home}\"\nEnvironment=\"JEEVES_PORT={port}\"\n\
+        "[Unit]\nDescription=Jeeves personal assistant (private resident Runtime)\nAfter=network-online.target\nWants=network-online.target\n\n\
+         [Service]\nExecStart=\"{binary}\" runtime\nEnvironment=\"JEEVES_HOME={home}\"\nEnvironment=\"JEEVES_PORT={port}\"\n\
          Restart=on-failure\nRestartSec=5\nTimeoutStopSec=30\nStandardOutput=append:{log}\nStandardError=append:{log}\n\n\
          [Install]\nWantedBy=default.target\n",
         port = spec.port
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn launchd_restarts_on_failure_with_a_backoff_and_explicit_home() {
         let text = render_launchd(&spec()).unwrap();
-        assert!(text.contains("<string>/opt/jeeves/bin/jeeves</string><string>dashboard</string>"));
+        assert!(text.contains("<string>/opt/jeeves/bin/jeeves</string><string>runtime</string>"));
         assert!(text.contains("<key>JEEVES_HOME</key><string>/Users/a b/.jeeves</string>"));
         assert!(text.contains("<key>JEEVES_PORT</key><string>7777</string>"));
         assert!(text.contains("<key>SuccessfulExit</key><false/>"));
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn systemd_restarts_on_failure_and_quotes_paths_with_spaces() {
         let text = render_systemd(&spec()).unwrap();
-        assert!(text.contains("ExecStart=\"/opt/jeeves/bin/jeeves\" dashboard"));
+        assert!(text.contains("ExecStart=\"/opt/jeeves/bin/jeeves\" runtime"));
         assert!(text.contains("Environment=\"JEEVES_HOME=/Users/a b/.jeeves\""));
         assert!(text.contains("Restart=on-failure"));
         assert!(text.contains("RestartSec=5"));
@@ -349,7 +349,7 @@ mod tests {
         let user = Path::new("/Users/me");
         assert_eq!(
             unit_path(Kind::Launchd, user),
-            Path::new("/Users/me/Library/LaunchAgents/ai.jeeves.dashboard.plist")
+            Path::new("/Users/me/Library/LaunchAgents/ai.jeeves.runtime.plist")
         );
         assert_eq!(
             unit_path(Kind::Systemd, user),

@@ -147,7 +147,7 @@ Smokes use the real `jeeves` binary, because they test the process boundary that
 | `smoke-recovery` | `scripts/smoke-recovery.py` | SIGKILL at dispatch, effect and checkpoint boundaries with local provider and MCP fixtures (POSIX) |
 | `smoke-web` | `scripts/smoke-web.py` | authenticated dashboard HTTP: settings, policy, streaming, approval |
 | `smoke-interaction` | `scripts/smoke-interaction.py` | main conversation to task workspaces, follow-up and worker approval |
-| `smoke-dashboard` | `scripts/smoke-dashboard.sh` | `jeeves dashboard` driven with curl (HTTP to JSON-RPC, SSE) |
+| `smoke-dashboard` | `scripts/smoke-dashboard.sh` | `jeeves runtime` driven with curl (HTTP to JSON-RPC, SSE) |
 | `smoke-gateway` | `scripts/smoke-gateway.sh` | app-server plus the TypeScript gateways |
 | `smoke-connector` | `scripts/smoke-connector.sh` | `jeeves connector feishu` against `fake_feishu_server.py` |
 | `smoke-business` | `scripts/smoke-business.sh` | task API, inbound webhooks, tier routing (`fake_callback_server.py` for callbacks) |

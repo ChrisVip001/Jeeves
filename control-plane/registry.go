@@ -13,7 +13,7 @@ var schema = []string{
 	`CREATE TABLE IF NOT EXISTS cp_tenants (
 		id TEXT PRIMARY KEY, ops TEXT NOT NULL, model TEXT NOT NULL, model_digest TEXT NOT NULL UNIQUE,
 		wanted BOOLEAN NOT NULL, ready BOOLEAN NOT NULL, last_active BIGINT NOT NULL,
-		lease_until BIGINT NOT NULL DEFAULT 0, next_check BIGINT NOT NULL DEFAULT 0, always_on BOOLEAN NOT NULL DEFAULT FALSE)`,
+		lease_until BIGINT NOT NULL DEFAULT 0, next_check BIGINT NOT NULL DEFAULT 0)`,
 	`CREATE TABLE IF NOT EXISTS cp_usage (
 		tenant TEXT NOT NULL REFERENCES cp_tenants(id) ON DELETE CASCADE, period TEXT NOT NULL,
 		used BIGINT NOT NULL DEFAULT 0, reserved BIGINT NOT NULL DEFAULT 0, PRIMARY KEY(tenant,period))`,
@@ -24,9 +24,9 @@ var schema = []string{
 }
 
 type tenant struct {
-	id, ops, model          string
-	wanted, ready, alwaysOn bool
-	last, lease             int64
+	id, ops, model string
+	wanted, ready  bool
+	last, lease    int64
 }
 type registry struct {
 	db  *sql.DB
@@ -35,8 +35,8 @@ type registry struct {
 
 func (s registry) open(ctx context.Context, id string) (tenant, error) {
 	var t tenant
-	err := s.db.QueryRowContext(ctx, `SELECT id,ops,model,wanted,ready,last_active,lease_until,always_on FROM cp_tenants WHERE id=$1`, id).
-		Scan(&t.id, &t.ops, &t.model, &t.wanted, &t.ready, &t.last, &t.lease, &t.alwaysOn)
+	err := s.db.QueryRowContext(ctx, `SELECT id,ops,model,wanted,ready,last_active,lease_until FROM cp_tenants WHERE id=$1`, id).
+		Scan(&t.id, &t.ops, &t.model, &t.wanted, &t.ready, &t.last, &t.lease)
 	if err != nil {
 		return t, err
 	}
@@ -47,15 +47,15 @@ func (s registry) open(ctx context.Context, id string) (tenant, error) {
 	t.model, err = s.box.Open(t.model, id+":model")
 	return t, err
 }
-func (s registry) save(ctx context.Context, id, ops, model string, want bool) error {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO cp_tenants(id,ops,model,model_digest,wanted,ready,last_active,next_check) VALUES($1,$2,$3,$4,$5,FALSE,$6,CASE WHEN $5 THEN 0 ELSE -1 END)
-	ON CONFLICT(id) DO NOTHING`, id, s.box.Seal(ops, id+":ops"), s.box.Seal(model, id+":model"), cloudkit.Digest(model), want, time.Now().UnixMilli())
+func (s registry) save(ctx context.Context, id, ops, model string) error {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO cp_tenants(id,ops,model,model_digest,wanted,ready,last_active,next_check) VALUES($1,$2,$3,$4,TRUE,FALSE,$5,0)
+	ON CONFLICT(id) DO NOTHING`, id, s.box.Seal(ops, id+":ops"), s.box.Seal(model, id+":model"), cloudkit.Digest(model), time.Now().UnixMilli())
 	return err
 }
 func (s registry) wake(ctx context.Context, id string) (tenant, error) {
 	t, err := s.open(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		if err := s.save(ctx, id, cloudkit.Token(24), cloudkit.Token(32), true); err != nil {
+		if err := s.save(ctx, id, cloudkit.Token(24), cloudkit.Token(32)); err != nil {
 			return t, err
 		}
 		return s.open(ctx, id)

@@ -155,11 +155,11 @@ jobs:
         with:
           workspaces: jeeves-rs
       - run: cargo build -p jeeves-cli
-      # The dashboard/hub leg of the smoke test needs a real dist — and the freshness guard
-      # makes a hub whose sources are newer than dist, or that has no dist at all, refuse to
-      # start (fail-closed), so the build has to happen first. The justfile's
-      # `smoke-dashboard: build dashboard-build` spelled that dependency out; CI had missed it,
-      # and the guard caught it on its first day.
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go build -o jeeves-rs/target/jeeves-gateway ./jeeves-ts/packages/gateway
+        working-directory: .
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -176,14 +176,11 @@ jobs:
       # Exercise real process death; all provider and external effects are local fixtures.
       - run: python3 ../scripts/smoke-recovery.py
       - run: python3 ../scripts/smoke-web.py
-      # The dashboard leg drives a real Runtime and keeps observable evidence:
-      # served HTML with its script stamp, the bundle, CSS, startup log and the
-      # deliberate-error body. `lib.sh` copies these even when the run fails.
-      - name: Dashboard smoke (keep evidence)
-        run: JEEVES_EVIDENCE_DIR="$RUNNER_TEMP/jeeves-dashboard-evidence" bash ../scripts/smoke-dashboard.sh
+      - name: Private Runtime API smoke
+        run: JEEVES_EVIDENCE_DIR="$RUNNER_TEMP/jeeves-runtime-evidence" bash ../scripts/smoke-dashboard.sh
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: dashboard-evidence
-          path: ${{ runner.temp }}/jeeves-dashboard-evidence
+          name: runtime-evidence
+          path: ${{ runner.temp }}/jeeves-runtime-evidence
           if-no-files-found: warn

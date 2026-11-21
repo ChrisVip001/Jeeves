@@ -13,20 +13,21 @@
 #
 #   ./scripts/smoke-business.sh
 #
-# Requires: a cargo build, a built frontend (just dashboard-build), python3.
+# Requires: a cargo build and python3.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ASSETS="$REPO/jeeves-ts/packages/dashboard/dist"
 
 fail() { echo "✗ $1" >&2; exit 1; }
 
 need_bin
-[[ -f "$ASSETS/index.html" ]] || fail "the front end has not been built; run: just dashboard-build"
+
+TOKEN=runtime-smoke-token
+curl() { command curl -H "Authorization: Bearer $TOKEN" "$@"; }
 
 # Six streamed turns: /api/run, three webhook modes (plain / signed / async), the capped hook's
 # one allowed knock, and the task's turn.
-python3 "$REPO/scripts/fake_sse_server.py" 6 >"$WORK/fake_port" &
+python3 "$REPO/scripts/fake_sse_server.py" 6 "$WORK/provider-models" >"$WORK/fake_port" &
 FAKE_PID=$!
 track_pid "$FAKE_PID"
 for _ in $(seq 1 50); do
@@ -64,11 +65,11 @@ cat >"$WORK/.jeeves/model-routes.json" <<'EOF_ROUTES'
 {"mode":"fixed","routes":{"chat":"smoke","reasoning":"deep"}}
 EOF_ROUTES
 
-JEEVES_PORT="$PORT" \
+JEEVES_OPS_TOKEN="$TOKEN" JEEVES_PORT="$PORT" \
 JEEVES_HOME="$WORK/.jeeves" \
 JEEVES_HOOK_SECRET=hook-secret \
 JEEVES_PROVIDER=anthropic JEEVES_API_KEY=test JEEVES_BASE_URL="http://127.0.0.1:$MODEL_PORT" \
-  "$BIN" dashboard >"$WORK/dash.log" 2>&1 &
+  "$BIN" runtime >"$WORK/dash.log" 2>&1 &
 DASH_PID=$!
 track_pid "$DASH_PID"
 
@@ -223,14 +224,19 @@ echo "  ✓ async callback: 202 taken at once, the answer pushed to the callback
 
 # ---- A task's tier applies to its own turn -----------------------------------------
 curl -sS -X POST "$BASE/api/task" -H 'content-type: application/json' \
-  -d '{"action":"create","sessionId":"biz","title":"a deep read","tier":"reasoning"}' >"$WORK/task.json"
+  -d '{"action":"create","sessionId":"jeeves-main","title":"a deep read","tier":"reasoning"}' >"$WORK/task.json"
 grep -q '"tier":"reasoning"' "$WORK/task.json" || fail "the task's tier never reached the store: $(cat "$WORK/task.json")"
 
-# The caller does not repeat the tier: the task carries it into the turn.
-curl -sS -X POST "$BASE/api/run" -H 'content-type: application/json' \
-  -d '{"sessionId":"biz","message":"start"}' >"$WORK/run3.json"
-grep -q '"model":"deep-model"' "$WORK/run3.json" \
-  || fail "the task's tier did not reach the turn: $(cat "$WORK/run3.json")"
+TASK_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["task"]["id"])' <"$WORK/task.json")"
+curl -sS -X POST "$BASE/api/task" -H 'content-type: application/json' \
+  -d "{\"action\":\"start\",\"taskId\":\"$TASK_ID\",\"message\":\"start\"}" >"$WORK/started.json"
+for _ in $(seq 1 100); do
+  [[ "$(wc -l <"$WORK/provider-models")" -ge 6 ]] && break
+  sleep .1
+done
+[[ "$(wc -l <"$WORK/provider-models")" -eq 6 && "$(tail -n1 "$WORK/provider-models")" == deep-model ]] \
+  || fail "the task's tier did not reach the provider: $(cat "$WORK/started.json")"
+
 echo "  ✓ task: the tier hangs off the task, so the turn need not repeat it"
 
 echo "✓ business smoke test passed (task API / webhook / tier routing)"

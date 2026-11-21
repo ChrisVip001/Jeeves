@@ -111,16 +111,9 @@ sqlx = { version = "0.8", default-features = false, features = [
     "sqlite",
 ] }
 
-# The HTTP server (jeeves-ops only: the dashboard's cockpit page).
-#   axum = routing + SSE + JSON, thin by itself: the rule is «use hyper, do not build another
-#   framework».
-#   tower-http's fs = static files, **not written by hand**: the most dangerous thing in a static
-#   file server is path traversal (`GET /../../.env`), which has been got right countless times;
-#   there is no reason to write it once more.
-#   set-header = no-cache for static files: the front end still changes daily, and browser
-#   caching turns «but I did change it» into a ten-minute ghost story.
+# Private Runtime HTTP API and SSE (jeeves-ops).
 axum = "0.8"
-tower-http = { version = "0.6", features = ["fs", "set-header"] }
+tower-http = { version = "0.6", features = ["set-header"] }
 
 # ---- Code generation / tests only ------------------------------------------
 # TypeScript bindings

@@ -29,7 +29,7 @@ _PIDS=()
 keep_evidence() {
   [[ -n "${JEEVES_EVIDENCE_DIR:-}" && -n "${WORK:-}" && -d "$WORK" ]] || return 0
   mkdir -p "$JEEVES_EVIDENCE_DIR"
-  for name in dash.log index.html main.js style.css inbox-error.json; do
+  for name in dash.log inbox-error.json; do
     [[ -f "$WORK/$name" ]] && cp "$WORK/$name" "$JEEVES_EVIDENCE_DIR/$name"
   done
   printf 'run %s\nbase %s\n' "$(date -u +%FT%TZ)" "${BASE:-}" \
