@@ -64,7 +64,6 @@ mod task;
 mod trace;
 mod turn;
 mod wake;
-mod weekly_report;
 
 #[cfg(test)]
 #[path = "resume_tests.rs"]

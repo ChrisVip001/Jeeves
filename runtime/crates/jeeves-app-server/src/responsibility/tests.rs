@@ -292,14 +292,14 @@ async fn private_digest_previews_do_not_consume_the_chat_delivery() {
         .is_empty());
     register(&server, p, start()).await.unwrap();
     tick(&server, start()).await.unwrap();
-    let w = jeeves_state::weekly_reports::take(&server.pool, start().timestamp_millis())
+    let w = jeeves_state::responsibility_runs::take(&server.pool, start().timestamp_millis())
         .await
         .unwrap()
         .unwrap();
     let body = "one verified digest";
     for expected in [true, false] {
         assert_eq!(
-            jeeves_state::weekly_reports::deliver_chat(
+            jeeves_state::responsibility_runs::deliver_chat(
                 &server.pool,
                 &w.wake_key,
                 body,

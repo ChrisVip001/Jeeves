@@ -40,6 +40,7 @@ pub mod plans;
 pub mod queue;
 pub mod receipts;
 pub mod responsibilities;
+pub mod responsibility_runs;
 pub mod runs;
 pub mod schedule_completions;
 pub mod schedule_jobs;
@@ -53,7 +54,6 @@ pub mod usage;
 pub mod verification;
 pub mod waits;
 pub mod wake_inbox;
-pub mod weekly_reports;
 
 pub use approvals::{ApprovalLogRow, Approvals};
 pub use artifacts::{ArtifactRow, Artifacts};

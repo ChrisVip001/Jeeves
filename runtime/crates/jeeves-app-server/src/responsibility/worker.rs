@@ -6,10 +6,8 @@ use jeeves_connector::{
     config,
     feishu::{self, Delivery, TokenCache},
 };
-use jeeves_protocol::{
-    BudgetView, FeishuWeeklyReport, ResponsibilityReportsResponse, WeeklyReportView,
-};
-use jeeves_state::weekly_reports::{self as store, Work};
+use jeeves_protocol::{BudgetView, ResponsibilityReportsResponse, WeeklyReportView};
+use jeeves_state::responsibility_runs::{self as store, Work};
 use std::{
     path::PathBuf,
     time::{Duration, Instant},
@@ -61,13 +59,13 @@ pub(crate) async fn run(server: Server, sink: EventSink) -> Result<()> {
             Ok(Some(work)) => {
                 if let Err(error) = process(&server, &sink, &work).await {
                     eprintln!(
-                        "(jeeves) weekly report {} bookkeeping failed: {error}",
+                        "(jeeves) responsibility {} bookkeeping failed: {error}",
                         work.wake_key
                     );
                 }
                 continue;
             }
-            Err(error) => eprintln!("(jeeves) weekly report inbox unavailable: {error}"),
+            Err(error) => eprintln!("(jeeves) responsibility inbox unavailable: {error}"),
             Ok(None) => {}
         }
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -119,7 +117,7 @@ async fn process(server: &Server, sink: &EventSink, work: &Work) -> Result<()> {
     )
     .await?;
     eprintln!(
-        "(jeeves) weekly report {}: {status} — {detail}",
+        "(jeeves) responsibility {}: {status} — {detail}",
         work.wake_key
     );
     Ok(())
@@ -162,15 +160,18 @@ async fn execute(
         );
         return Ok(("confirmed", "Delivered in main chat".into()));
     }
-    let report: FeishuWeeklyReport = serde_json::from_str(
-        work.weekly_report_json
-            .as_deref()
-            .context("Missing report definition")?,
-    )?;
+    let task_id = work
+        .research_task_id
+        .as_ref()
+        .context("Missing research workspace")?;
+    let recipient = work
+        .feishu_recipient
+        .as_ref()
+        .context("Missing delivery recipient")?;
     let sources: Vec<String> = serde_json::from_str(&work.sources_json)?;
     let root = server
         .tasks
-        .get(&report.task_id)
+        .get(task_id)
         .await?
         .and_then(|task| task.cwd)
         .context("Research task or its workspace is unavailable")?;
@@ -189,7 +190,7 @@ async fn execute(
         ));
     };
     ensure!(
-        conf.permits(&report.recipient),
+        conf.permits(recipient),
         "The weekly recipient is outside the Feishu allowlist"
     );
     if !conf.live {
@@ -208,7 +209,7 @@ async fn execute(
         &ctx,
         &conf,
         &TokenCache::default(),
-        &report.recipient,
+        recipient,
         &body,
         Some(&work.wake_key),
         || async {
@@ -217,7 +218,7 @@ async fn execute(
                 .context("Feishu was disconnected")?;
             ensure!(
                 latest.live
-                    && latest.permits(&report.recipient)
+                    && latest.permits(recipient)
                     && latest.app_id == conf.app_id
                     && latest.base_url == conf.base_url
                     && latest.identity() == conf.identity()

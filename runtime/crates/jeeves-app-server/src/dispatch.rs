@@ -578,7 +578,7 @@ async fn dispatch(
         methods::RESPONSIBILITY_REPORTS => {
             let p: jeeves_protocol::ResponsibilityReportsParams = parse(params, method)?;
             respond(
-                crate::weekly_report::reports(server, &p.id)
+                crate::responsibility::worker::reports(server, &p.id)
                     .await
                     .map_err(internal)?,
             )

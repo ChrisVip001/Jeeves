@@ -58,7 +58,7 @@ pub async fn run_stdio(server: Server) -> Result<()> {
     let weekly_host = server.clone();
     let weekly_sink = EventSink::new(tx.clone());
     let weekly = tokio::spawn(async move {
-        if let Err(error) = crate::weekly_report::run(weekly_host, weekly_sink).await {
+        if let Err(error) = crate::responsibility::worker::run(weekly_host, weekly_sink).await {
             eprintln!("(jeeves) weekly report worker stopped: {error}");
         }
     });

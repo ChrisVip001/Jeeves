@@ -11,7 +11,8 @@ pub struct ResponsibilityRow {
     pub cron: String,
     pub expires_ms: i64,
     pub budget_json: String,
-    pub weekly_report_json: Option<String>,
+    pub research_task_id: Option<String>,
+    pub feishu_recipient: Option<String>,
     pub status: String,
     pub last_slot: Option<i64>,
 }
@@ -31,8 +32,8 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<bool> {
         let result = sqlx::query(
             "INSERT INTO responsibilities
-             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, weekly_report_json,digest_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, research_task_id,feishu_recipient,digest_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
         )
         .bind(&row.id)
         .bind(&row.purpose)
@@ -41,7 +42,7 @@ impl Responsibilities<'_> {
         .bind(row.expires_ms)
         .bind(&row.budget_json)
         .bind(now)
-        .bind(&row.weekly_report_json)
+        .bind(&row.research_task_id).bind(&row.feishu_recipient)
         .bind(&row.digest_json)
         .execute(conn)
         .await?;
@@ -67,10 +68,10 @@ impl Responsibilities<'_> {
         now: i64,
     ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let updated = sqlx::query_as(
-            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,weekly_report_json=?,digest_json=?,
+            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,research_task_id=?,feishu_recipient=?,digest_json=?,
              revision=revision+1,enabled_ms=? WHERE id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
         ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
-         .bind(&row.budget_json).bind(&row.weekly_report_json).bind(&row.digest_json).bind(now).bind(&row.id)
+         .bind(&row.budget_json).bind(&row.research_task_id).bind(&row.feishu_recipient).bind(&row.digest_json).bind(now).bind(&row.id)
          .bind(expected).bind(now).fetch_optional(&mut *conn).await?;
         if updated.is_some() {
             Self::stop_wakes(conn, &row.id).await?;

@@ -11,6 +11,7 @@ pub(crate) mod digest;
 pub(crate) mod reviews;
 #[cfg(test)]
 mod tests;
+pub(crate) mod worker;
 
 fn invalid(message: impl ToString) -> ErrorObject {
     ErrorObject {
@@ -62,11 +63,9 @@ fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObjec
         cron: row.cron,
         expires_at: timestamp(row.expires_ms)?,
         weekly_report: row
-            .weekly_report_json
-            .as_deref()
-            .map(serde_json::from_str)
-            .transpose()
-            .map_err(internal)?,
+            .research_task_id
+            .zip(row.feishu_recipient)
+            .map(|(task_id, recipient)| jeeves_protocol::FeishuWeeklyReport { task_id, recipient }),
         budget: serde_json::from_str(&row.budget_json).map_err(internal)?,
     })
 }
@@ -161,12 +160,8 @@ fn validated_row(
         sources_json: serde_json::to_string(&sources).map_err(internal)?,
         cron: cron.into(),
         expires_ms,
-        weekly_report_json: p
-            .weekly_report
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()
-            .map_err(internal)?,
+        research_task_id: p.weekly_report.as_ref().map(|r| r.task_id.clone()),
+        feishu_recipient: p.weekly_report.map(|r| r.recipient),
         budget_json: crate::task::normalise_budget(Some(&p.budget))?,
         status: "active".into(),
         last_slot: None,
