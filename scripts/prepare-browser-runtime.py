@@ -19,11 +19,11 @@ PLAYWRIGHT = '1.65.1'
 
 def install_worker(runtime):
     worker = runtime / 'worker'
-    source = ROOT / 'jeeves-ts/packages/browser-worker'
+    source = ROOT / 'executors/browser'
     shutil.copytree(source / 'src', worker / 'src', dirs_exist_ok=True)
     shutil.copy2(source / 'package.json', worker / 'package.json')
     for module in ('playwright', 'playwright-core'):
-        shutil.copytree(ROOT / 'jeeves-ts/node_modules' / module,
+        shutil.copytree(ROOT / 'node_modules' / module,
                         worker / 'node_modules' / module, dirs_exist_ok=True)
     env = {**os.environ, 'PLAYWRIGHT_BROWSERS_PATH': str(runtime / 'browsers')}
     subprocess.run([str(runtime / 'node'), str(worker / 'node_modules/playwright/cli.js'),
@@ -35,9 +35,9 @@ def main():
     arch = {'arm64': 'arm64', 'aarch64': 'arm64', 'x86_64': 'x64'}.get(platform.machine())
     if not system or not arch:
         raise SystemExit('This preparation script currently supports macOS and Linux arm64/x64 only')
-    package = ROOT / 'jeeves-ts/node_modules/playwright/package.json'
+    package = ROOT / 'node_modules/playwright/package.json'
     if not package.exists() or json.loads(package.read_text())['version'] != PLAYWRIGHT:
-        raise SystemExit('Run npm ci in jeeves-ts first (the lockfile pins Playwright)')
+        raise SystemExit('Run npm ci from the repository root first (the lockfile pins Playwright)')
     manifest = {'node': NODE, 'playwright': PLAYWRIGHT, 'platform': system, 'arch': arch}
     installed = OUTPUT / 'runtime.json'
     if installed.is_file() and json.loads(installed.read_text()) == manifest:

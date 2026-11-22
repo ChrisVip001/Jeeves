@@ -22,7 +22,7 @@ fixture = promotion.web.fixture
 APP = ROOT / "desktop/src-tauri/target/release/bundle/macos/Jeeves.app"
 BIN = APP / "Contents/MacOS"
 OUTPUT = (
-    ROOT / "jeeves-rs/target/acceptance/mac-cockpit" / time.strftime("%Y%m%d-%H%M%S")
+    ROOT / "target/acceptance/mac-cockpit" / time.strftime("%Y%m%d-%H%M%S")
 )
 
 

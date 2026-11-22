@@ -10,7 +10,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[1]
-BIN = ROOT / 'jeeves-rs/target/debug'
+BIN = ROOT / 'target/debug'
 
 
 class ScreenModel(BaseHTTPRequestHandler):

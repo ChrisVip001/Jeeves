@@ -52,7 +52,7 @@ v2.rs 类型 ──(cargo test，被忽略的测试)──> TS + JSON Schema + �
 2. 把新类型名加进 `protocol_types!`。
 3. 运行 `just write-app-server-schema` 并提交产物。
 4. 在 app-server 的 `dispatch.rs` 里处理该方法。
-5. 在 `jeeves-ts/packages/client/src/client.ts` 的 `Methods` 映射里加上条目，类型化客户端才能调用它。
+5. 在 `integrations/channels/runtime-client/src/client.ts` 的 `Methods` 映射里加上条目，类型化客户端才能调用它。
 
 ## 1.3 配置：环境变量优先，一层覆盖
 

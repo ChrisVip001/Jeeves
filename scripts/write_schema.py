@@ -30,9 +30,8 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-RUST_DIR = REPO_ROOT / "jeeves-rs"
 PROTOCOL_CRATE = "jeeves-protocol"
-GENERATED_ROOT = RUST_DIR / PROTOCOL_CRATE / "schema"
+GENERATED_ROOT = REPO_ROOT / "protocol" / "schema"
 TEST_NAME = "export_tests::write_schema_fixtures"
 
 # The two Python SDK artefacts: v2.py is 63 types, consts.py is the two constant tables.
@@ -55,7 +54,7 @@ def run_cargo_export(out_dir: Path, cargo_args: list[str]) -> int:
         *cargo_args,
     ]
     print("›", " ".join(cmd))
-    return subprocess.run(cmd, cwd=RUST_DIR, env=env).returncode
+    return subprocess.run(cmd, cwd=REPO_ROOT, env=env).returncode
 
 
 def format_typescript(ts_dir: Path) -> bool:
@@ -75,7 +74,7 @@ def format_typescript(ts_dir: Path) -> bool:
         return False
     # `.mts` needs formatting too — the constant files (codes / methods) are `.mts`, see
     # write_consts in export.rs.
-    local = REPO_ROOT / "jeeves-ts" / "node_modules" / ".bin" / "prettier"
+    local = REPO_ROOT / "node_modules" / ".bin" / "prettier"
     command = [str(local)] if local.is_file() else ["npx", "--yes", "prettier@3"]
     cmd = [*command, "--write", str(ts_dir / "v2" / "*.{ts,mts}")]
     print("›", " ".join(cmd))

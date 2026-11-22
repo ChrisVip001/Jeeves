@@ -493,7 +493,7 @@ DDG Lite 使用其正常的 POST 搜索表单，优先用系统可用的 `curl` 
 | `JEEVES_PERSONAL_PORT` | `8743` | `just local-up` 的 Go 网关回环端口 |
 | `JEEVES_PERSONAL_BROWSER` | `1` | `just local-up` 自动打开浏览器。完成首次设置后可设为 `0`，用于无人值守启动 |
 | `JEEVES_WEB_GATEWAY_URL` | — | 开发版 Mac App 打开的 Go 网关地址 |
-| `JEEVES_DESKTOP_BINARY` | — | 只有桌面壳的调试构建读：要启动的 `jeeves` 二进制绝对路径（默认 `jeeves-rs/target/debug/jeeves`） |
+| `JEEVES_DESKTOP_BINARY` | — | 只有桌面壳的调试构建读：要启动的 `jeeves` 二进制绝对路径（默认 `target/debug/jeeves`） |
 
 ## 连接器（`<home>/connectors.json`）
 
@@ -606,7 +606,7 @@ token 是**轮换**的：refresh token 用一次就换新的，所以续期只�
 日志。`jeeves connector feishu status` 里的「已过期，下次发送会尝试续期」仍然成立，那是
 CLI 自己的惰性路径。
 
-## 聊天网关（jeeves-ts）
+## 渠道适配器
 
 | 平台 | 变量 |
 |---|---|

@@ -8,7 +8,7 @@ English | [简体中文](README.zh.md)
 
 Give Jeeves an outcome to deliver. For an incident review, that might mean gathering evidence, checking the figures and producing a report another person can verify. In main chat you can name an output file and quote text it must contain. The task can check the file, correct a missing result and bring the outcome back to the conversation. Open the original task from its receipt to follow up. [Main chat and task threads](docs/design/main-entry.md) · [Long-task roadmap](docs/planning/long-task-roadmap.md)
 
-Cloud users sign in through one Go gateway. A new workspace can start while you draft the first assignment. Rust Runtimes isolate tasks and data per tenant. Run a source installation in your local browser with `just local-up`. [Architecture](docs/architecture.md) · [Unified gateway](jeeves-ts/packages/gateway/README.md) · [Hosted deployment](control-plane/README.md)
+Cloud users sign in through one Go gateway. A new workspace can start while you draft the first assignment. Rust Runtimes isolate tasks and data per tenant. Run a source installation in your local browser with `just local-up`. [Architecture](docs/architecture.md) · [Unified gateway](gateway/README.md) · [Hosted deployment](control-plane/README.md)
 
 Pair a device by public key and revoke its grant through the [device protocol](docs/protocol.md#device-pairing-and-revocation). The cockpit’s [global emergency stop](docs/protocol.md#global-emergency-stop) freezes managed task browsers across restarts. Take over a task browser from your phone or desktop and [save a download to that task](docs/protocol.md#remote-browser-input-and-downloads).
 
@@ -23,6 +23,8 @@ On a Mac, [select one window for a task](docs/protocol.md#macos-single-window-op
 Coding tasks can run an approved CLI in a private Git worktree. A parent can integrate completed child checkpoints and run its own final tests. [Coding task protocol](docs/protocol.md)
 
 ## Install
+
+Develop from the repository root with `just build`, `just check` and `just release-package`. See the [repository layout](AGENTS.md#repository-layout).
 
 **Hosted** users register or sign in at the service's public HTTPS origin. Web and iOS share the same account and workspace. Pair the Mac app with that account to authorize work in selected windows. [Cloud deployment](control-plane/README.md)
 

@@ -52,7 +52,7 @@ v2.rs types ──(cargo test, ignored test)──> TS + JSON Schema + constants
 2. Add the new type names to `protocol_types!`.
 3. Run `just write-app-server-schema` and commit the artifacts.
 4. Handle the method in app-server `dispatch.rs`.
-5. Add its entry to the `Methods` map in `jeeves-ts/packages/client/src/client.ts` so the typed client can call it.
+5. Add its entry to the `Methods` map in `integrations/channels/runtime-client/src/client.ts` so the typed client can call it.
 
 ## 1.3 Configuration: environment first, one overlay
 

@@ -25,9 +25,9 @@ keys = json.loads(settings.read_text())
 gateway_port = int(os.environ.get("JEEVES_PERSONAL_PORT", "8743"))
 origin = f"http://127.0.0.1:{gateway_port}"
 runtime_home = (home / "runtime").resolve()
-asset = root / "jeeves-ts/packages/dashboard/dist"
+asset = root / "web/dist"
 runtime = subprocess.Popen(
-    [root / "jeeves-rs/target/debug/jeeves", "runtime"],
+    [root / "target/debug/jeeves", "runtime"],
     cwd=root,
     env={
         **os.environ, "JEEVES_HOME": str(runtime_home), "JEEVES_OPS_HOST": "127.0.0.1",
@@ -56,7 +56,7 @@ def await_health(service, started):
 
 try:
     gateway = subprocess.Popen(
-        [root / "jeeves-rs/target/jeeves-gateway"],
+        [root / "target/jeeves-gateway"],
         cwd=root,
         env={
             **{k: v for k, v in os.environ.items() if not k.startswith("GW_")},

@@ -4,7 +4,7 @@
 
 `jeeves-provider` 在 Jeeves 唯一的方言与各厂商 API 之间做翻译。`jeeves-loop` 持有工作记忆，反复「问模型、跑工具、把结果喂回去」，直到该停为止。循环不知道自己在和哪家厂商说话：所有厂商差异都收在 wire 适配器里。
 
-目录：`jeeves-rs/jeeves-provider/src/` 与 `jeeves-rs/jeeves-loop/src/`。循环由 `jeeves-app-server` 驱动（见 [06-app-server](06-app-server.zh.md)），工具来自 [04-tools](04-tools.zh.md)。
+目录：`runtime/crates/jeeves-provider/src/` 与 `runtime/crates/jeeves-loop/src/`。循环由 `jeeves-app-server` 驱动（见 [06-app-server](06-app-server.zh.md)），工具来自 [04-tools](04-tools.zh.md)。
 
 ## 3.1 中间方言
 

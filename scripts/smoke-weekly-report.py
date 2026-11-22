@@ -41,7 +41,7 @@ def evidence(path, mode):
 
 
 async def run(root, base, sends, crash_received):
-    binary = ROOT / 'jeeves-rs/target/debug/jeeves'
+    binary = ROOT / 'target/debug/jeeves'
     home = root / 'home'
     home.mkdir()
     config = dict(app_id='cli_fixture', app_secret='env:JEEVES_RECOVERY_TEST_KEY',

@@ -163,7 +163,7 @@ turnStarted → retry* → textDelta* → toolStarted → toolDelta* → toolCom
 
 ## 客户端
 
-* TypeScript：`jeeves-ts/packages/client`（`StdioTransport` + `JeevesClient`，
+* TypeScript：`integrations/channels/runtime-client`（`StdioTransport` + `JeevesClient`，
   通知按判别式 `type` 分发）。
 * 终端 REPL 在进程内走同一套方法；驾驶舱通过 HTTP 接入（路由见 `jeeves-ops/src/lib.rs`）。
 

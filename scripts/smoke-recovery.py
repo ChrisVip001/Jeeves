@@ -142,7 +142,7 @@ class App:
                    JEEVES_LLM_RETRIES='0', JEEVES_LLM_TIMEOUT='10', JEEVES_RESUME_MAX_AGE='0',
                    JEEVES_CONSOLIDATE_EVERY='1' if (home / 'memory-crash').exists() else '1000')
         if coding:
-            env.update(JEEVES_EXEC='1', JEEVES_WRITE='1', JEEVES_EXEC_ALLOW='echo fixture*')
+            env.update(JEEVES_EXEC='1', JEEVES_WRITE='1')
         if approval is not None:
             env['JEEVES_APPROVAL'] = approval
         log = open(home / 'process.log', 'ab')
@@ -245,39 +245,42 @@ async def run_case(binary: Path, mode: str, baseline: dict | None):
                 for disabled in (True, False):
                     tools = await app.request('connector/tools/set', dict(connector, tool='commit', disabled=disabled))
                     assert tools['tools'][0] == {'name':'commit', 'effect':'write', 'disabled':disabled}
-            created = await app.request('task/create', {'sessionId': 'fault', 'title': 'Synthetic crash recovery',
+            created = await app.request('task/create', {'sessionId': 'jeeves-main', 'title': 'Synthetic crash recovery',
                 'cwd': str(workspace), 'maxRounds': 2, 'acceptance': [{'kind': 'toolsOk', 'tool': 'fault_commit', 'min': 1}]})
             task = created['task']['id']
-            turn = await app.send('turn/start', {'sessionId': 'fault', 'message': 'Perform one synthetic commit and verify it.',
-                                               'cwd': str(workspace), 'stream': False})
+            await app.request('task/start', {'taskId': task, 'message': 'Perform one synthetic commit and verify it.'})
             ask = await asyncio.wait_for(app.approvals.get(), timeout=15)
-            assert ask['tool'] == 'fault/commit' and '{"value":"synthetic"}' in ask['argsPreview'], ask
+            assert ask['tool'] == 'fault_commit' and json.loads(ask['argsPreview']) == {'value': 'synthetic'}, ask
             answer = await app.request('approval/respond', dict(turnId=ask['turnId'], requestId=ask['requestId'],
                 version=ask['version'], approved=True, remember='once'))
             assert answer['accepted']
             original_run = None
             if mode in ('normal', 'memory_claim'):
-                await asyncio.wait_for(turn, timeout=20)
                 result = await status(app, task, 'done')
                 if mode == 'memory_claim':
                     await wait_for(lambda: (root / 'memory-ready').exists(), 'memory extraction admission')
                     with sqlite3.connect(home / 'state.db') as database:
-                        claimed = database.execute('SELECT COUNT(*) FROM chat_log WHERE consolidation_claimed_at IS NOT NULL').fetchone()[0]
-                        memory_batch = database.execute('SELECT consolidation_batch FROM chat_log LIMIT 1').fetchone()[0]
-                    assert claimed == 2, 'Memory crash is not inside an admitted source batch'
+                        batches = database.execute(
+                            'SELECT consolidation_batch,COUNT(*) FROM chat_log '
+                            'WHERE consolidation_claimed_at IS NOT NULL GROUP BY consolidation_batch'
+                        ).fetchall()
+                    assert len(batches) == 1 and batches[0][0], batches
+                    memory_batch, batch_size = batches[0]
                     await app.kill(); app = None
                     provider.release.set()
                     app = await App.start(binary, home, workspace, approval='on-request')
                     def memory_is_recovered():
                         nonlocal memory_recovery
                         with sqlite3.connect(home / 'state.db') as database:
-                            claimed = database.execute('SELECT COUNT(*) FROM chat_log WHERE consolidation_claimed_at IS NOT NULL').fetchone()[0]
-                            pending = database.execute('SELECT COUNT(*) FROM chat_log WHERE consolidated=0').fetchone()[0]
-                            completed = database.execute('SELECT COUNT(*) FROM chat_log WHERE consolidated=1 AND consolidation_claimed_at IS NULL').fetchone()[0]
+                            counts = database.execute(
+                                'SELECT COUNT(*),COUNT(consolidation_claimed_at),COALESCE(SUM(consolidated),0) '
+                                'FROM chat_log WHERE consolidation_batch=?', (memory_batch,)
+                            ).fetchone()
                             summaries = database.execute('SELECT COUNT(*) FROM memory_episode_contexts').fetchone()[0]
-                            same_batch = database.execute('SELECT COUNT(*) FROM chat_log WHERE consolidation_batch=?', (memory_batch,)).fetchone()[0]
-                        memory_recovery = dict(pendingRows=pending, completedRows=completed, summaries=summaries, sourceBatchPreserved=same_batch == 2)
-                        return claimed == 0 and pending + completed == 2 and summaries <= 1 and same_batch == 2
+                        rows, claimed, completed = counts
+                        memory_recovery = dict(pendingRows=rows-completed, completedRows=completed,
+                                               summaries=summaries, sourceBatchPreserved=rows == batch_size)
+                        return claimed == 0 and summaries <= 1 and rows == batch_size
                     await wait_for(memory_is_recovered, 'memory source claim recovery')
                     result = await status(app, task, 'done')
             else:
@@ -285,7 +288,11 @@ async def run_case(binary: Path, mode: str, baseline: dict | None):
                           'after_checkpoint': 'checkpoint-ready'}[mode]
                 await wait_for(lambda: (root / marker).exists(), marker)
                 with sqlite3.connect(home / 'state.db') as database:
-                    row = database.execute('SELECT messages_json,usage_json,run_id FROM turn_checkpoints WHERE session_id=?', ('fault',)).fetchone()
+                    row = database.execute(
+                        'SELECT c.messages_json,c.usage_json,c.run_id FROM turn_checkpoints c '
+                        'JOIN task_runs r ON r.id=c.run_id WHERE r.task_id=?', (task,)
+                    ).fetchone()
+                    assert row, 'Crash boundary has no task checkpoint'
                     original_run = row[2]
                     assert original_run, 'Crash checkpoint has no execution identity'
                     checkpoint_usage = json.loads(row[1])
@@ -376,10 +383,15 @@ async def coding_executor(binary: Path, mode: str):
             'base_url': f'http://127.0.0.1:{provider.server.server_port}', 'key_source': 'env:JEEVES_RECOVERY_TEST_KEY'}]}))
         app = None
         try:
-            app = await App.start(binary, home, repo, approval='never', coding=True)
+            app = await App.start(binary, home, repo, approval='on-request', coding=True)
             task = (await app.request('task/create', {'title': 'coding fixture', 'repo': str(repo)}))['task']
             key, tree = task['id'], Path(task['worktreePath'])
             await app.request('task/start', {'taskId': key, 'message': 'Run the fixture once.'})
+            ask = await asyncio.wait_for(app.approvals.get(), timeout=15)
+            assert ask['tool'] == 'run_command' and 'echo fixture >> launches' in ask['argsPreview'], ask
+            answer = await app.request('approval/respond', dict(turnId=ask['turnId'], requestId=ask['requestId'],
+                version=ask['version'], approved=True, remember='once'))
+            assert answer['accepted']
             await wait_for(lambda: count(tree / 'launches') == 1, 'executor in its own worktree')
             if mode != 'coding-failure':
                 await status(app, key, 'suspended')
@@ -390,7 +402,7 @@ async def coding_executor(binary: Path, mode: str):
                 expected = 'killed'
             else:
                 await app.kill()
-                app = await App.start(binary, home, repo, approval='never', coding=True)
+                app = await App.start(binary, home, repo, approval='on-request', coding=True)
                 expected = 'interrupted'
             def job_states():
                 with sqlite3.connect(home / 'state.db') as db:
@@ -403,6 +415,11 @@ async def coding_executor(binary: Path, mode: str):
                 assert not (tree / 'late-write').exists(), 'executor descendant wrote after stop'
             assert count(tree / 'launches') == 1 and not (repo / 'launches').exists()
             return {'case': mode, 'job': expected, 'launches': 1}
+        except Exception:
+            log = home / 'process.log'
+            if log.exists():
+                print(log.read_text()[-12000:], file=sys.stderr)
+            raise
         finally:
             if app and not app.log.closed:
                 await app.kill()
@@ -411,7 +428,7 @@ async def coding_executor(binary: Path, mode: str):
 
 async def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--bin', type=Path, default=Path(__file__).resolve().parents[1] / 'jeeves-rs/target/debug/jeeves')
+    parser.add_argument('--bin', type=Path, default=Path(__file__).resolve().parents[1] / 'target/debug/jeeves')
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
     if os.name != 'posix':

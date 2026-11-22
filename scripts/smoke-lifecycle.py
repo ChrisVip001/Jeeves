@@ -19,7 +19,7 @@ import urllib.request
 from gateway_fixture import gateway
 
 ROOT = Path(__file__).resolve().parents[1]
-BIN = ROOT / "jeeves-rs/target/debug/jeeves"
+BIN = ROOT / "target/debug/jeeves"
 TOKEN = "lifecycle-fixture-only"
 
 

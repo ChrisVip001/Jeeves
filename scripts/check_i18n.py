@@ -27,7 +27,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SRC = ROOT / "jeeves-ts/packages/dashboard/src"
+SRC = ROOT / "web/src"
 
 DICT_LINE = re.compile(r'^\s*(?:"((?:[^"\\]|\\.)*)"|([^\W\d]\w*)):\s*"((?:[^"\\]|\\.)*)",\s*$', re.M)
 CALL = re.compile(r"""\bt\(\s*(?P<quote>["'])(?P<key>(?:\\.|(?!(?P=quote)).)*)(?P=quote)""")
@@ -56,7 +56,7 @@ def main() -> int:
         report()
         return 1
 
-    shared = ROOT / "jeeves-ts/packages/dashboard/src/ui"
+    shared = ROOT / "web/src/ui"
     shared_dict = (shared / "en.ts").read_text(encoding="utf-8")
     entries.update({unquote(quoted or identifier): unquote(en) for quoted, identifier, en in DICT_LINE.findall(shared_dict)})
 

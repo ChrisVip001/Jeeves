@@ -6,13 +6,13 @@ This layer has no product features. It decides whether the fail-open and never-r
 other chapters are actually true. Layers are ordered cheapest first; deterministic evals passing 100%
 is the release gate.
 
-Locations: `jeeves-rs/jeeves-eval/`, `evals/`, `scripts/`, `justfile`, `.github/workflows/ci.yml`.
+Locations: `runtime/crates/jeeves-eval/`, `evals/`, `scripts/`, `justfile`, `.github/workflows/ci.yml`.
 
 ## 8.1 Layers
 
 | Layer | Location | Shape | Blocks |
 |---|---|---|---|
-| Unit tests | inside each `jeeves-rs` crate; `jeeves-ts` (`npm test`); `control-plane` (`npm test`) | in-process, offline | yes |
+| Unit tests | each Rust crate, `npm test` and `go test ./...` | in-process, offline | yes |
 | Deterministic eval | `evals/deterministic/*.jsonl` | a scripted model drives the real `run_turn` | yes (exit 0 = releasable) |
 | Replay eval | `evals/replay/*.jsonl` | recorded dialogue plus an expected event sequence, same runner | yes |
 | Long-task benchmark | `evals/long/tasks.jsonl` | same harness, asks whether autonomous task work got better | never |
@@ -27,7 +27,7 @@ not gates, because a real model's output is unstable.
 ## 8.2 Deterministic Eval
 
 Entry: `jeeves eval [path]` (default `evals/deterministic`; `just eval`). Implementation:
-`jeeves-rs/jeeves-eval/src/` (`scenario.rs`, `lib.rs`, `jsonl.rs`, `report.rs`).
+`runtime/crates/jeeves-eval/src/` (`scenario.rs`, `lib.rs`, `jsonl.rs`, `report.rs`).
 
 ### Scenario format
 
@@ -99,7 +99,7 @@ of JSON.
 ## 8.3 Replay Eval
 
 Entry: `jeeves eval --replay [path]` (default `evals/replay`; `just eval-replay`). Implementation:
-`jeeves-rs/jeeves-eval/src/replay.rs`.
+`runtime/crates/jeeves-eval/src/replay.rs`.
 
 A replay line has `id`, `schemaVersion`, `recorded.turns[]` (`say`, `replies`, `approval`, `cwd`) and
 `expect`, plus optional `settings`, `files`, `prereq`, `task`. It is converted into the same
@@ -133,7 +133,7 @@ instead of entering the average. Without an API key the whole group is skipped a
 
 ## 8.6 Live Reliability Example
 
-`jeeves-rs/jeeves-eval/examples/live_reliability.rs` is an explicitly invoked, budgeted run against a real
+`runtime/crates/jeeves-eval/examples/live_reliability.rs` is an explicitly invoked, budgeted run against a real
 provider. Required flags: `--home`, `--budget-cny` (above 0, at most 10) and `--out`; `--suite` picks
 `baseline`, `expanded`, `memory`, `research`, `research-guarded`, `support` or `research-long`.
 Retained outputs live in `evals/results/`. `just test-research-publication` exercises the research
@@ -170,7 +170,7 @@ Shared helpers are in `scripts/lib.sh`. All smokes run offline with isolated hom
 | `windows` | build `jeeves-cli`; tests excluding `jeeves-tools`, then `jeeves-tools` skipping sandbox and spill tests |
 | `schema` | `scripts/write_schema.py --check` |
 | `docs` | `check_tool_docs.py`, `check_doc_paths.py`, `check_env_reads.py`, `check_i18n.py`, `check_config_docs.py` |
-| `ts` | `npm ci`, `npm run typecheck`, `npm test` in `jeeves-ts` |
+| `ts` | `npm ci`, `npm run typecheck`, `npm test` at the workspace root |
 | `desktop` (macOS) | `just desktop-check`, `just smoke-desktop` |
 | `gate` | build `jeeves-cli` and the dashboard, then `jeeves eval`, `jeeves eval --replay`, `smoke.sh`, `smoke-recovery.py`, `smoke-web.py` |
 

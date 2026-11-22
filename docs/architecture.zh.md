@@ -20,7 +20,7 @@ Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状�
 ## 多租户
 
 每个租户有一个工作区和一个活跃的 Rust Runtime。云入口将请求交给
-[Go 统一网关](../jeeves-ts/packages/gateway/README.zh.md)，由网关处理用户账号、会话和 Runtime 路由。
+[Go 统一网关](../gateway/README.zh.md)，由网关处理用户账号、会话和 Runtime 路由。
 私网中的 [Go 控制面](../control-plane/README.zh.md)为每个租户协调一个 Pod 和一块持久卷，并计量平台模型用量。
 聊天、事项、检查点、记忆和交付留在 Runtime 的 `JEEVES_HOME`。源码个人部署可通过 `just local-up`
 在回环地址运行相同的网关和 Runtime。

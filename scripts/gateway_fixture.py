@@ -31,13 +31,13 @@ def gateway(runtime, home, token=RUNTIME_TOKEN):
         GW_STATE_KEY=secrets.token_hex(32),
         GW_RUNTIME_TOKEN=token,
         GW_DATABASE_URL='sqlite:' + str(Path(home) / f'fixture-accounts-{listener_port}.sqlite'),
-        GW_DASHBOARD_DIR=str(ROOT / 'jeeves-ts/packages/dashboard/dist'),
+        GW_DASHBOARD_DIR=str(ROOT / 'web/dist'),
     )
     env[runtime_setting] = str(runtime)
     log = Path(home) / 'gateway.log'
     with log.open('w') as stream:
         process = subprocess.Popen(
-            [ROOT / 'jeeves-rs/target/jeeves-gateway'], env=env,
+            [ROOT / 'target/jeeves-gateway'], env=env,
             stdout=stream, stderr=subprocess.STDOUT,
         )
         try:

@@ -28,9 +28,7 @@ fn binary_path() -> Result<PathBuf, String> {
             }
             return Ok(path);
         }
-        return Ok(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../jeeves-rs/target/debug/jeeves")
-        );
+        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/jeeves"));
     }
     std::env::current_exe()
         .map_err(|e| e.to_string())?

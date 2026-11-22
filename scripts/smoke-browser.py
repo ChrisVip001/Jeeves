@@ -69,7 +69,7 @@ class Fixture(desktop.Provider):
 
 
 def run(binary=None,runtime=None):
-    binary=Path(binary or ROOT/'jeeves-rs/target/debug/jeeves').resolve()
+    binary=Path(binary or ROOT/'target/debug/jeeves').resolve()
     runtime=Path(runtime or ROOT/'desktop/src-tauri/browser-runtime').resolve()
     assert (runtime/'runtime.json').is_file(),'Run just browser-runtime first'
     fixture=ThreadingHTTPServer(('127.0.0.1',0),Fixture)

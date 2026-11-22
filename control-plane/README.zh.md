@@ -1,6 +1,6 @@
 # Jeeves 云端部署
 
-公网 HTTPS 入口将流量发给 [Go 统一网关](../jeeves-ts/packages/gateway/README.zh.md)，同时部署私网中的 Go 控制面。Kubernetes 运行并隔离每个租户的 Rust Runtime，控制面计量套餐内模型用量。[架构](../docs/architecture.zh.md)
+公网 HTTPS 入口将流量发给 [Go 统一网关](../gateway/README.zh.md)，同时部署私网中的 Go 控制面。Kubernetes 运行并隔离每个租户的 Rust Runtime，控制面计量套餐内模型用量。[架构](../docs/architecture.zh.md)
 
 ## 构建与安装
 

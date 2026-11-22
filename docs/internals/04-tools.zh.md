@@ -2,7 +2,7 @@
 
 [English](04-tools.md) | 简体中文
 
-模型能用来行动的一切都在 `jeeves-rs/jeeves-tools/`。工具层只认识 trait
+模型能用来行动的一切都在 `runtime/crates/jeeves-tools/`。工具层只认识 trait
 （`SubagentRunner`、`ApprovalBroker`、`JobRegistry`、`ExecutionPolicy`、`ResourceCoordinator`、`BrowserHost`），
 所有实现都在 `jeeves-app-server`（[06](06-app-server.zh.md)）。线上类型见
 [01](01-protocol-and-config.zh.md)，调用工具的循环见 [03](03-model-and-loop.zh.md)，`memory` / `read_page`

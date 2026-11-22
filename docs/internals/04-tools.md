@@ -2,7 +2,7 @@
 
 English | [简体中文](04-tools.zh.md)
 
-Everything the model can use to act lives in `jeeves-rs/jeeves-tools/`. The tool layer knows only traits
+Everything the model can use to act lives in `runtime/crates/jeeves-tools/`. The tool layer knows only traits
 (`SubagentRunner`, `ApprovalBroker`, `JobRegistry`, `ExecutionPolicy`, `ResourceCoordinator`, `BrowserHost`);
 every implementation lives in `jeeves-app-server` ([06](06-app-server.md)). Wire types are in
 [01](01-protocol-and-config.md), the loop that calls tools is in [03](03-model-and-loop.md), the memory behind

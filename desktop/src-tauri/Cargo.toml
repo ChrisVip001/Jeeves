@@ -17,5 +17,5 @@ tauri = { version = "2", features = [] }
 libc = "0.2"
 
 # A workspace of its own: the shell's dependency tree (tauri/wry) should not join every
-# `cargo build` in jeeves-rs.
+# `cargo build` at the repository root.
 [workspace]

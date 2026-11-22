@@ -557,7 +557,7 @@ requires verification, the configured backend chain continues.
 | `JEEVES_PERSONAL_PORT` | `8743` | Loopback Go gateway port for `just local-up` |
 | `JEEVES_PERSONAL_BROWSER` | `1` | Open the browser from `just local-up`. Use `0` for an unattended launch after setup |
 | `JEEVES_WEB_GATEWAY_URL` | — | Go gateway URL opened by the Mac development app |
-| `JEEVES_DESKTOP_BINARY` | — | read by debug builds of the desktop shell only: absolute path of the `jeeves` binary to start (default `jeeves-rs/target/debug/jeeves`) |
+| `JEEVES_DESKTOP_BINARY` | — | read by debug builds of the desktop shell only: absolute path of the `jeeves` binary to start (default `target/debug/jeeves`) |
 
 ## Connectors (`<home>/connectors.json`)
 
@@ -678,7 +678,7 @@ asks for a human login instead of writing the same line into the log every five 
 The CLI keeps its lazy path ("expired, will refresh on the next send" in
 `jeeves connector feishu status`).
 
-## Chat gateways (jeeves-ts)
+## Channel adapters
 
 | Platform | Variables |
 |---|---|

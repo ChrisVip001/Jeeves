@@ -71,7 +71,7 @@ Allowlist entries are **open_ids** (`ou_…`), not App IDs. If logs say `outside
 
 For a bot direct message or an ordinary group turn from the sole allowlisted owner, Jeeves replies with an approval card showing the operation and time limit. The original sender can use the buttons or send the approval text shown in the card. Jeeves sends the approval as text if card delivery fails. For text approval in a group, mention the bot in the reply. An allowlisted dispatcher can use the same flow in direct messages. If the request expires or the gateway restarts, check the operation's status before sending it again.
 
-Without the dashboard, run `just gateway-lark` with `LARK_APP_ID`, `LARK_APP_SECRET` and `LARK_ALLOW` set; `JEEVES_GATEWAY_URL` (plus the same `JEEVES_OPS_TOKEN`) attaches it to a running Runtime instead of starting its own engine. The variables are in the [configuration reference](configuration.md#chat-gateways-jeeves-ts).
+Without the dashboard, run `just gateway-lark` with `LARK_APP_ID`, `LARK_APP_SECRET` and `LARK_ALLOW` set; `JEEVES_GATEWAY_URL` (plus the same `JEEVES_OPS_TOKEN`) attaches it to a running Runtime instead of starting its own engine. The variables are in the [configuration reference](configuration.md#channel-adapters).
 
 #### Dispatching tasks from a group
 

@@ -9,17 +9,12 @@ jobs:
   rust:
     name: Rust (fmt / clippy / test)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: jeeves-rs
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: jeeves-rs
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
@@ -31,17 +26,12 @@ jobs:
     # gate», which is worse than no gate.
     name: Rust (coverage floor 60%)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: jeeves-rs
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: jeeves-rs
       - uses: taiki-e/install-action@cargo-llvm-cov
       - run: cargo llvm-cov --workspace --fail-under-lines 60 --summary-only
 
@@ -52,15 +42,10 @@ jobs:
     # Windows too.
     name: Windows (build + tests, sandbox tests not applicable)
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: jeeves-rs
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: jeeves-rs
       - run: cargo build -p jeeves-cli
       # jeeves-tools is excluded wholesale: the exec sandbox backend does not exist on Windows,
       # and some of its tests really start one.
@@ -103,11 +88,8 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-        working-directory: jeeves-ts
       - run: npm run typecheck
-        working-directory: jeeves-ts
       - run: npm test
-        working-directory: jeeves-ts
 
   go:
     name: Go (gateway / control plane)
@@ -117,7 +99,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - run: test -z "$(gofmt -l internal/cloudkit control-plane/*.go jeeves-ts/packages/gateway)"
+      - run: test -z "$(gofmt -l internal/cloudkit control-plane/*.go gateway)"
       - run: go vet ./...
       - run: go test -race ./...
 
@@ -135,7 +117,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            jeeves-rs
+            .
             desktop/src-tauri
       - uses: extractions/setup-just@v3
       - run: just desktop-install
@@ -145,39 +127,32 @@ jobs:
   gate:
     name: Release gate (deterministic evals + smoke)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: jeeves-rs
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: jeeves-rs
       - run: cargo build -p jeeves-cli
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - run: go build -o jeeves-rs/target/jeeves-gateway ./jeeves-ts/packages/gateway
-        working-directory: .
+      - run: go build -o target/jeeves-gateway ./gateway
       - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci && npm run build --workspace @jeeves/dashboard
-        working-directory: jeeves-ts
-      - run: ./target/debug/jeeves eval ../evals/deterministic
+      - run: ./target/debug/jeeves eval evals/deterministic
       # Replay evals pin event order; `just check` already treats them as a gate.
-      - run: ./target/debug/jeeves eval --replay ../evals/replay
+      - run: ./target/debug/jeeves eval --replay evals/replay
       # The smoke test runs the protocol over real processes: the evals use an in-process
       # scripted model, and this is the only leg that goes through a real app-server over real
       # stdio JSON-RPC. It guards the seam between Rust and the front end — that seam has leaked
       # before, and neither the unit tests nor the evals can see it.
-      - run: bash ../scripts/smoke.sh
+      - run: bash scripts/smoke.sh
       # Exercise real process death; all provider and external effects are local fixtures.
-      - run: python3 ../scripts/smoke-recovery.py
-      - run: python3 ../scripts/smoke-web.py
+      - run: python3 scripts/smoke-recovery.py
+      - run: python3 scripts/smoke-web.py
       - name: Private Runtime API smoke
-        run: JEEVES_EVIDENCE_DIR="$RUNNER_TEMP/jeeves-runtime-evidence" bash ../scripts/smoke-dashboard.sh
+        run: JEEVES_EVIDENCE_DIR="$RUNNER_TEMP/jeeves-runtime-evidence" bash scripts/smoke-dashboard.sh
       - uses: actions/upload-artifact@v5
         if: always()
         with:

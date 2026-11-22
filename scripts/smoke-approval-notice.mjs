@@ -9,10 +9,10 @@ import path from "node:path";
 import { webcrypto } from "node:crypto";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const out = path.join(process.env.CARGO_TARGET_DIR ?? path.join(root, "jeeves-rs/target"), "acceptance/m4-05");
+const out = path.join(process.env.CARGO_TARGET_DIR ?? path.join(root, "target"), "acceptance/m4-05");
 await mkdir(out, { recursive: true });
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= path.join(root, "desktop/src-tauri/browser-runtime/browsers");
-const { chromium } = await import("../jeeves-ts/node_modules/playwright/index.mjs");
+const { chromium } = await import("../node_modules/playwright/index.mjs");
 const system = spawn("python3", ["scripts/smoke-web.py", "--hold", ...(process.argv.includes("--offline-only") ? [] : ["--mail-followup"])], { cwd: root, stdio: ["pipe", "pipe", "inherit"] });
 const done = once(system, "exit");
 const pictures = [];

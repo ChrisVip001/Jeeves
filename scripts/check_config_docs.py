@@ -23,6 +23,7 @@ leftover.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -86,9 +87,9 @@ def code_vars() -> set[str]:
     """Everywhere a `JEEVES_*` is **readable**: non-comment Rust literals plus the SDK/TS/scripts."""
     found: set[str] = set()
 
-    # Walk only crate sources: `rglob` over jeeves-rs/ descends into target/ (gigabytes) before
-    # any filter runs, which is what made this check time out.
-    for path in (p for d in (ROOT / "jeeves-rs").glob("*/src") for p in d.rglob("*.rs")):
+    # Search source folders directly, outside build trees.
+    crates = [*(ROOT / "runtime/crates").glob("*/src"), ROOT / "protocol/src"]
+    for path in (p for source in crates for p in source.rglob("*.rs")):
         if path.name.endswith("_tests.rs"):
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -106,12 +107,14 @@ def code_vars() -> set[str]:
 
     # Scripts / TS packages: they read the runtime environment in their own shapes, so only
     # the names are recognised. TS is walked per package `src/`/`test/`, never node_modules.
+    workspace = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     sources = [
         *(ROOT / "scripts").glob("*.sh"),
         *(ROOT / "scripts").glob("*.py"),
         *(
             p
-            for pkg in (ROOT / "jeeves-ts" / "packages").iterdir()
+            for name in workspace["workspaces"]
+            for pkg in (ROOT / name,)
             for sub in ("src", "test")
             if (pkg / sub).is_dir()
             for p in (pkg / sub).rglob("*.ts")

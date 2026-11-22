@@ -10,11 +10,11 @@
 #
 #   ./scripts/smoke-gateway.sh
 #
-# Requires: a cargo build, jeeves-ts deps installed (cd jeeves-ts && npm install), python3.
+# Requires: a cargo build, Node dependencies installed (npm ci), python3.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-BRIDGE="$REPO/jeeves-ts/packages/channels/src/bridge.ts"
+BRIDGE="$REPO/integrations/channels/src/bridge.ts"
 
 fail() { echo "✗ $1" >&2; exit 1; }
 
@@ -87,7 +87,7 @@ JEEVES_BIN="$BIN" \
 JEEVES_HOME="$WORK/.jeeves" \
 JEEVES_PROVIDER=anthropic JEEVES_API_KEY=test JEEVES_BASE_URL="http://127.0.0.1:$PORT" \
 JEEVES_BRIDGE_URL="file://$BRIDGE" \
-JEEVES_WECHAT_URL="file://$REPO/jeeves-ts/packages/channels/src/wechat.ts" \
+JEEVES_WECHAT_URL="file://$REPO/integrations/channels/src/wechat.ts" \
 node --input-type=module -e '
   const { createHash } = await import("node:crypto");
   const { JeevesBridge } = await import(process.env.JEEVES_BRIDGE_URL);
@@ -181,8 +181,8 @@ JEEVES_BIN="$BIN" \
 JEEVES_HOME="$WORK/.jeeves" \
 JEEVES_PROVIDER=anthropic JEEVES_API_KEY=test JEEVES_BASE_URL="http://127.0.0.1:$PORT" \
 JEEVES_BRIDGE_URL="file://$BRIDGE" \
-JEEVES_LARK_URL="file://$REPO/jeeves-ts/packages/channels/src/lark.ts" \
-JEEVES_LARK_PROTO_URL="file://$REPO/jeeves-ts/packages/channels/src/lark-proto.ts" \
+JEEVES_LARK_URL="file://$REPO/integrations/channels/src/lark.ts" \
+JEEVES_LARK_PROTO_URL="file://$REPO/integrations/channels/src/lark-proto.ts" \
 node --input-type=module -e '
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const { JeevesBridge } = await import(process.env.JEEVES_BRIDGE_URL);

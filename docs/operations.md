@@ -22,7 +22,7 @@ hooks tests); libraries compile everywhere, the binary simply will not boot.
 ## Terminal conversation
 
 ```bash
-cd jeeves-rs && cargo build
+cargo build
 JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 ```
 
@@ -39,7 +39,7 @@ Sign in or register at the deployment's HTTPS address. The home page takes an ex
 
 Follow the [cloud deployment guide](../control-plane/README.md) to install the Go gateway, Go control plane and Rust Runtime. Publish the gateway alone through HTTPS.
 
-For a single computer, run `just local-up` from the checkout. It starts a loopback gateway with its own account database and Runtime directory and opens the owner setup page. Keep the same data directory when restarting and return to the address printed by the command. [Personal deployment settings](../jeeves-ts/packages/gateway/README.md#personal-deployment)
+For a single computer, run `just local-up` from the checkout. It starts a loopback gateway with its own account database and Runtime directory and opens the owner setup page. Keep the same data directory when restarting and return to the address printed by the command. [Personal deployment settings](../gateway/README.md#personal-deployment)
 
 ## MCP servers
 
@@ -124,7 +124,7 @@ Ctrl-C and SIGTERM close SSE and let active turns drain for up to 25 seconds. Un
 
 ### CLI releases
 
-Set the Rust workspace version in `jeeves-rs/Cargo.toml`, update both changelogs, and add `.github/release-notes/v<version>.md`. Run `just check` and `just release-package` on the release commit. The [release workflow](../.github/workflows/release.yml) can be dispatched on a branch to build and verify all four CLI archives. Push the matching `v<version>` tag to publish the macOS and Linux archives for arm64 and x86-64 with their `SHA256SUMS`. Follow the hosted deployment and Mac build instructions for those artifacts.
+Set the Rust workspace version in `Cargo.toml`, update both changelogs, and add `.github/release-notes/v<version>.md`. Run `just check` and `just release-package` on the release commit. The [release workflow](../.github/workflows/release.yml) can be dispatched on a branch to build and verify all four CLI archives. Push the matching `v<version>` tag to publish the macOS and Linux archives for arm64 and x86-64 with their `SHA256SUMS`. Follow the hosted deployment and Mac build instructions for those artifacts.
 
 ## Keeping it running
 
@@ -163,7 +163,7 @@ Run `just dashboard-build` and reload the gateway page to see frontend changes. 
 
 The app opens in Chat. Open a receipt or My work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
 
-To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `jeeves-rs/target/acceptance/mac-cockpit/<run>/`.
+To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `target/acceptance/mac-cockpit/<run>/`.
 
 ## Scheduled jobs
 
@@ -346,6 +346,6 @@ SDK hosts can inspect and reconcile through the [operation protocol](protocol.md
 
 ## Running Jeeves for many users
 
-Web and iOS users sign in at the public HTTPS origin. The Mac device app pairs with the same account. Deploy the [Go unified gateway](../jeeves-ts/packages/gateway/README.md), the private [Go control plane](../control-plane/README.md), and a Rust Runtime image for tenant Pods. Keep the control plane, PostgreSQL and Runtime endpoints private.
+Web and iOS users sign in at the public HTTPS origin. The Mac device app pairs with the same account. Deploy the [Go unified gateway](../gateway/README.md), the private [Go control plane](../control-plane/README.md), and a Rust Runtime image for tenant Pods. Keep the control plane, PostgreSQL and Runtime endpoints private.
 
 For a personal source installation, run `just local-up` and create the owner in the browser on that machine. It runs the gateway and one Runtime on loopback.

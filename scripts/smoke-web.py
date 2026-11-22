@@ -26,7 +26,7 @@ spec.loader.exec_module(fixture)
 def start(home, port, extra_env=None):
     provider = fixture.ThreadingHTTPServer(('127.0.0.1', 0), fixture.Provider)
     threading.Thread(target=provider.serve_forever, daemon=True).start()
-    binary = Path(os.environ['CARGO_TARGET_DIR']) / 'debug/jeeves' if os.environ.get('CARGO_TARGET_DIR') else ROOT / 'jeeves-rs/target/debug/jeeves'
+    binary = Path(os.environ['CARGO_TARGET_DIR']) / 'debug/jeeves' if os.environ.get('CARGO_TARGET_DIR') else ROOT / 'target/debug/jeeves'
     rpc = fixture.Rpc(binary, home)
     try:
         rpc.call('model/save', {'id': 'local-fixture', 'provider': 'ollama', 'model': 'fixture', 'smallModel': 'fixture', 'baseUrl': f'http://127.0.0.1:{provider.server_port}/v1', 'makeActive': True})

@@ -2,18 +2,17 @@
 #
 # Install just:  brew install just      (or cargo install just)
 #
-# Convention: this file only orchestrates; business logic lives in jeeves-rs/.
+# Run the repository tasks from its root.
 
 python := if os_family() == "windows" { "python" } else { "python3" }
-rust_dir := justfile_directory() / "jeeves-rs"
-ts_dir := justfile_directory() / "jeeves-ts"
+root := justfile_directory()
 
 # List all tasks
 help:
     @just -l
 
 # ---- Protocol: single source of truth ----------------------------------------------------
-# Regenerate TypeScript and JSON Schema from the Rust types in jeeves-rs/jeeves-protocol.
+# Regenerate TypeScript and JSON Schema from the Rust types in protocol.
 # Run this whenever the protocol changes, or the frontend silently drifts.
 write-app-server-schema *args:
     {{ python }} {{ justfile_directory() }}/scripts/write_schema.py {{args}}
@@ -73,10 +72,10 @@ feishu-cli *args:
 
 # ---- Rust ------------------------------------------------------------------
 fmt:
-    cd {{ rust_dir }} && cargo fmt --all
+    cd {{ root }} && cargo fmt --all
 
 fmt-check:
-    cd {{ rust_dir }} && cargo fmt --all -- --check
+    cd {{ root }} && cargo fmt --all -- --check
 
 # Reclaim build debris without losing compiled dependencies: incremental sessions
 # (one directory per compilation unit per rebuild) and cross-target artefacts.
@@ -84,26 +83,26 @@ fmt-check:
 # `find -delete` rather than `rm -rf`: some environments wrap `rm` with a bulk-delete
 # confirmation that a Makefile-style recipe cannot answer.
 tidy:
-    @find {{ rust_dir }}/target/debug/incremental -depth -delete 2>/dev/null || true
-    @rm -rf {{ rust_dir }}/target/x86_64-* {{ rust_dir }}/target/aarch64-* 2>/dev/null || true
-    @du -sh {{ rust_dir }}/target 2>/dev/null || true
+    @find {{ root }}/target/debug/incremental -depth -delete 2>/dev/null || true
+    @rm -rf {{ root }}/target/x86_64-* {{ root }}/target/aarch64-* 2>/dev/null || true
+    @du -sh {{ root }}/target 2>/dev/null || true
 
 clippy *args:
-    cd {{ rust_dir }} && cargo clippy --workspace --all-targets {{args}}
+    cd {{ root }} && cargo clippy --workspace --all-targets {{args}}
 
 fix *args:
-    cd {{ rust_dir }} && cargo clippy --fix --allow-dirty --workspace --all-targets {{args}}
+    cd {{ root }} && cargo clippy --fix --allow-dirty --workspace --all-targets {{args}}
 
 build *args:
-    cd {{ rust_dir }} && cargo build --workspace {{args}}
+    cd {{ root }} && cargo build --workspace {{args}}
 
 # Regular tests. Protocol export tests are #[ignore]d (they write files); not run here.
 test *args:
-    cd {{ rust_dir }} && cargo test --workspace {{args}}
+    cd {{ root }} && cargo test --workspace {{args}}
 
 # Only the protocol crate
 test-protocol *args:
-    cd {{ rust_dir }} && cargo test -p jeeves-protocol {{args}}
+    cd {{ root }} && cargo test -p jeeves-protocol {{args}}
 
 # End to end: really start app-server, feed JSON-RPC via stdin, check every reply.
 smoke: build dashboard-build
@@ -128,36 +127,36 @@ smoke-lifecycle: build gateway-build
 # ---- Evals: the diamond before a release --------------------------------------------------
 # Deterministic eval: scripted models + assertions, offline 0/1. **Must pass 100%** —
 # this is the release gate: exit 0 = releasable. Cases live in evals/deterministic/.
-# Cases load from relative `evals/…` paths, so eval/judge run from the repo root (not jeeves-rs).
+# Cases load from relative `evals/…` paths, so eval/judge run from the repo root.
 eval: build
-    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ rust_dir }}/Cargo.toml --bin jeeves -- eval
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ root }}/Cargo.toml --bin jeeves -- eval
 
 # Replay eval: recorded conversations + expected event order (compaction, approval timeout,
 # streamed output, MCP disconnects). A gate like the deterministic eval: it pins "what happens
 # before what", the thing most likely to drift unnoticed.
 eval-replay: build
-    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ rust_dir }}/Cargo.toml --bin jeeves -- eval --replay
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ root }}/Cargo.toml --bin jeeves -- eval --replay
 
 # Long-task benchmarks: same scripted harness, asks "did autonomous task work get better or
 # worse". **Records, never blocks** — exit 0 even when cases fail. Cases live in evals/long/.
 bench: build
-    cd {{ justfile_directory() }} && {{ rust_dir }}/target/debug/jeeves bench
+    cd {{ justfile_directory() }} && {{ root }}/target/debug/jeeves bench
 
 # judge: a real model answers one turn; a small judge model scores 0-10 by rubric. Needs a key;
 # the score doesn't block releases — it answers "how good", not "can we ship".
 judge: build
-    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ rust_dir }}/Cargo.toml --bin jeeves -- judge
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ root }}/Cargo.toml --bin jeeves -- judge
 
 # ---- TypeScript ------------------------------------------------------------
 # Install TS-side deps (npm workspace: client, gateways and dashboard frontend in one go)
 ts-install:
-    cd {{ ts_dir }} && npm install
+    cd {{ root }} && npm install
 
 # Type check and unit tests for the TS side. Generated artifacts are how TS consumes the protocol,
 # so this also catches protocol drift — though the drift check above is the real guard.
 ts-check: ts-install
-    cd {{ ts_dir }} && npm run typecheck
-    cd {{ ts_dir }} && npm test
+    cd {{ root }} && npm run typecheck
+    cd {{ root }} && npm test
 
 # End to end: really start app-server, have the TS gateway ask it one thing.
 smoke-gateway: build
@@ -166,60 +165,60 @@ smoke-gateway: build
 # Start the WeChat gateway. Needs WECHAT_TOKEN and WECHAT_APP_ID; WeChat wants a public address
 # (only 80 / 443), so run local tunnels first for local runs.
 gateway-wechat *args:
-    cd {{ ts_dir }} && npm run gateway:wechat {{args}}
+    cd {{ root }} && npm run gateway:wechat {{args}}
 
 # Start the Lark gateway. Needs LARK_APP_ID and LARK_APP_SECRET; LARK_ALLOW takes open_ids
 # (the ou_… string, not the App ID); add LARK_DOMAIN=lark for the international Lark.
 # The app also needs bot capability enabled, a subscription to im.message.receive_v1, and
 # **long connection as the subscription mode** — miss one and it "connects but never responds".
 gateway-lark *args:
-    cd {{ ts_dir }} && npm run gateway:lark {{args}}
+    cd {{ root }} && npm run gateway:lark {{args}}
 
 # Telegram bot gateway (long polling; needs TELEGRAM_BOT_TOKEN, see docs/guide.md).
 gateway-telegram *args:
-    cd {{ ts_dir }} && npm run gateway:telegram {{args}}
+    cd {{ root }} && npm run gateway:telegram {{args}}
 
 # ---- Dashboard -----------------------------------------------------------------
 # Build the Web workbench: Vue typecheck + Vite + static/PWA assets; output lands in
-# jeeves-ts/packages/dashboard/dist, served by the Go gateway.
+# web/dist, served by the Go gateway.
 # Browsers can't read .ts, so this is the only TS package that needs building.
 dashboard-build: ts-install
-    cd {{ ts_dir }} && npm run build --workspace @jeeves/dashboard
+    cd {{ root }} && npm run build --workspace @jeeves/dashboard
 
 # Offline authenticated Web workflow: typed settings, policies, stream and approval.
 smoke-web: gateway-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-web.py
 
 go-check:
-    test -z "$(gofmt -l internal/cloudkit control-plane/*.go jeeves-ts/packages/gateway)"
+    test -z "$(gofmt -l internal/cloudkit control-plane/*.go gateway)"
     go vet ./...
     go test -race ./...
 
 gateway-build: dashboard-build
-    go build -o {{ rust_dir }}/target/jeeves-gateway ./jeeves-ts/packages/gateway
+    go build -o {{ root }}/target/jeeves-gateway ./gateway
 
 local-up: gateway-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/local-assistant.py
 
 smoke-account: dashboard-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     node {{ justfile_directory() }}/scripts/smoke-account.mjs
 
 # Apple PWA approval fixtures in the bundled Chromium, including an offline cold launch.
 smoke-approval-notice: gateway-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     node {{ justfile_directory() }}/scripts/smoke-approval-notice.mjs
 
 # Offline main conversation → task workspaces → follow-up and worker approval.
 smoke-interaction: gateway-build
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-interaction.py
 
 # One npm workspace owns both the Web cockpit and the desktop UI.
 desktop-install:
-    cd {{ ts_dir }} && npm ci
+    cd {{ root }} && npm ci
 
 # One vector source for the UI and all currently shipped platform icon formats.
 desktop-icons:
@@ -227,7 +226,7 @@ desktop-icons:
     set -euo pipefail
     icon_tmp=$(mktemp -d)
     trap 'rm -rf "$icon_tmp"' EXIT
-    cargo tauri icon jeeves-ts/packages/dashboard/src/ui/assets/jeeves-icon.svg --output "$icon_tmp"
+    cargo tauri icon web/src/ui/assets/jeeves-icon.svg --output "$icon_tmp"
     for asset in "$icon_tmp"/*; do
         if [[ -f "$asset" ]]; then cp "$asset" desktop/src-tauri/icons/; fi
     done
@@ -237,7 +236,7 @@ desktop-check:
 
 # Offline provider fixture; no credentials or real user data are used.
 smoke-desktop:
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-desktop.py
 
 # Opt-in acceptance using the packaged app's foreground window and synthetic loopback services.
@@ -297,26 +296,26 @@ desktop-status:
 
 # The development shell opens the Go gateway.
 desktop-dev:
-    cd {{ rust_dir }} && cargo build --bin jeeves
+    cd {{ root }} && cargo build --bin jeeves
     cd desktop/src-tauri && cargo tauri dev
 
 # Build the optional single-window adapter without starting AppKit or requesting permissions.
 desktop-window-helper:
-    mkdir -p jeeves-rs/target/debug
-    xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/*.swift -o jeeves-rs/target/debug/jeeves-window
-    @echo "{{justfile_directory()}}/jeeves-rs/target/debug/jeeves-window"
+    mkdir -p target/debug
+    xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/*.swift -o target/debug/jeeves-window
+    @echo "{{justfile_directory()}}/target/debug/jeeves-window"
 
 # Open two disposable native windows for operator acceptance on a Mac.
 desktop-window-fixture: desktop-window-helper build gateway-build
-    mkdir -p jeeves-rs/target/debug
-    xcrun swiftc desktop/tests/WindowFixture.swift -o jeeves-rs/target/debug/JeevesWindowFixture
+    mkdir -p target/debug
+    xcrun swiftc desktop/tests/WindowFixture.swift -o target/debug/JeevesWindowFixture
     {{ python }} scripts/manual-window.py
 
 # Opt-in regression with real AppKit windows. Requires Accessibility and Screen Recording.
 smoke-mac-window:
     #!/usr/bin/env bash
     set -euo pipefail
-    out="{{justfile_directory()}}/jeeves-rs/target/native-window-check"
+    out="{{justfile_directory()}}/target/native-window-check"
     mkdir -p "$out"
     xcrun swiftc desktop/tests/WindowFixture.swift -o "$out/JeevesWindowFixture"
     xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/Window.swift desktop/tests/NativeWindowCheck.swift -o "$out/native-window-check"
@@ -327,17 +326,15 @@ smoke-mac-window:
 desktop-build *configs:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd jeeves-rs
     cargo build --release -p jeeves-cli --bin jeeves
-    cd ..
     target=$(rustc -vV | sed -n 's/^host: //p')
     test -n "$target"
     mkdir -p desktop/src-tauri/binaries
-    cp jeeves-rs/target/release/jeeves "desktop/src-tauri/binaries/jeeves-$target"
+    cp target/release/jeeves "desktop/src-tauri/binaries/jeeves-$target"
     flags=(--config sidecar.conf.json)
     if [[ "$(uname -s)" == Darwin ]]; then
         just desktop-window-helper
-        cp jeeves-rs/target/debug/jeeves-window "desktop/src-tauri/binaries/jeeves-window-$target"
+        cp target/debug/jeeves-window "desktop/src-tauri/binaries/jeeves-window-$target"
         flags+=(--config mac-window.conf.json)
     fi
     cd desktop/src-tauri
@@ -349,8 +346,8 @@ desktop-device-build origin: desktop-window-helper
     set -euo pipefail
     target=$(rustc -vV | sed -n 's/^host: //p')
     mkdir -p desktop/src-tauri/binaries
-    CGO_ENABLED=0 go build -o "desktop/src-tauri/binaries/jeeves-device-$target" ./jeeves-ts/packages/gateway
-    cp jeeves-rs/target/debug/jeeves-window "desktop/src-tauri/binaries/jeeves-window-$target"
+    CGO_ENABLED=0 go build -o "desktop/src-tauri/binaries/jeeves-device-$target" ./gateway
+    cp target/debug/jeeves-window "desktop/src-tauri/binaries/jeeves-window-$target"
     cd desktop/src-tauri
     JEEVES_PUBLIC_ORIGIN="{{origin}}" cargo tauri build --bundles app --features cloud-device --config cloud-device.conf.json
 
@@ -372,17 +369,17 @@ release-package *args:
 
 # Fake-clock, sourced-output and one-shot delivery fixtures for the resident morning duty.
 eval-morning-briefing:
-    cd {{ rust_dir }} && cargo test -p jeeves-app-server scheduler::morning::tests
+    cd {{ root }} && cargo test -p jeeves-app-server scheduler::morning::tests
 
 # Advance a controlled clock over persisted responsibility contracts and reopen the same database.
 eval-responsibility:
-    cd {{ rust_dir }} && cargo test -p jeeves-app-server responsibility::tests
+    cd {{ root }} && cargo test -p jeeves-app-server responsibility::tests
 
 # ---- Run all checks in one command ----------------------------------------------
 # gate sits last: beyond green tests and lint, the deterministic eval must also pass 100%.
 check: fmt-check go-check check-app-server-schema check-architecture check-comments check-doc-paths check-doc-links check-env-reads check-tool-docs check-config-docs check-i18n ts-check eval eval-replay eval-morning-briefing eval-responsibility
-    cd {{ rust_dir }} && cargo clippy --workspace --all-targets -- -D warnings
-    cd {{ rust_dir }} && cargo test --workspace
+    cd {{ root }} && cargo clippy --workspace --all-targets -- -D warnings
+    cd {{ root }} && cargo test --workspace
 
 # Optional components: official Node + locked Playwright + its matching Chromium.
 browser-runtime: ts-install
@@ -393,8 +390,8 @@ desktop-build-browser: browser-runtime
     just desktop-build --config browser.conf.json
 
 smoke-browser:
-    cd {{ rust_dir }} && cargo build --bin jeeves
-    PLAYWRIGHT_BROWSERS_PATH="{{ justfile_directory() }}/desktop/src-tauri/browser-runtime/browsers" JEEVES_BROWSER_REQUIRED=1 node --test jeeves-ts/packages/browser-worker/test/*.test.ts
+    cd {{ root }} && cargo build --bin jeeves
+    PLAYWRIGHT_BROWSERS_PATH="{{ justfile_directory() }}/desktop/src-tauri/browser-runtime/browsers" JEEVES_BROWSER_REQUIRED=1 node --test executors/browser/test/*.test.ts
     {{ python }} {{ justfile_directory() }}/scripts/smoke-browser.py
     {{ python }} {{ justfile_directory() }}/scripts/smoke-remote-browser.py
 

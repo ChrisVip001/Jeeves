@@ -3,7 +3,7 @@
 [English](AGENTS.md) | 简体中文
 
 Jeeves 是面向复杂长任务的超级个人助理，可按需要部署。Rust 持有助理逻辑与状态。
-Go 负责统一网关和云控制面，TypeScript 负责浏览器与渠道适配。改 `jeeves-rs/` 前先读
+Go 负责统一网关和云控制面，TypeScript 负责浏览器与渠道适配。改 `runtime/` 前先读
 [docs/architecture.md](docs/architecture.md)；本文件是 AI 编码助手与人类
 贡献者共用的仓库工作规范。
 
@@ -14,34 +14,19 @@ Go 负责统一网关和云控制面，TypeScript 负责浏览器与渠道适配
 ## 仓库布局
 
 ```
-jeeves-rs/
-  jeeves-protocol/      跨语言契约，唯一事实来源（schema/ 生成物 check-in）
-  jeeves-config/        JEEVES_* 环境变量，启动读一次
-  jeeves-state/         SQLite + FTS5(trigram)；只追加的会话账本（ledger）；记忆后端契约与 conformance
-  jeeves-provider/      12 家厂商（含本地 Ollama），三种 wire format + SSE，重试与 token 估算、
-                        cached token 记账
-  jeeves-tools/         工具注册表（带 schema 校验）+ 内置工具、沙箱执行、子代理、批准、
-                       待办清单、后台作业宿主接口、延迟加载（find_tools）
-  jeeves-agent/         确定性的任务辅助（verify / observe / plan / paths），不联网
-  jeeves-connector/     日历、邮件（IMAP/SMTP）与飞书连接器：白名单硬边界，默认只出草稿
-  jeeves-loop/          agent 主循环（可打断）
-  jeeves-mcp/           MCP 客户端（stdio/HTTP）+ 浏览器 OAuth + 记忆服务器（`jeeves mcp serve`）
-  jeeves-memory/        本地检索 + consolidation + Skills + `home/memory` 的 OKF bundle
-  jeeves-app-server/    JSON-RPC over stdio，每个 state.db 只运行一个执行 Runtime，一轮的全流程、批准等待表、
-                       钩子落地、待办注入、后台作业与目标循环；账本写入、后台整理 worker、
-                       记忆中心（memory_center）与稳定前缀/动态尾巴的提示装配
-  jeeves-ops/           驾驶舱后端（axum + SSE）
-  jeeves-cli/           jeeves 二进制（REPL / dashboard / eval / mcp / skill）
-  jeeves-eval/          确定性 eval + judge + release gate
-jeeves-ts/                 @jeeves/client、@jeeves/channels、@jeeves/dashboard、@jeeves/ui、
-                        @jeeves/browser-worker
-  packages/gateway/     Go 账号、会话、设备配对和 Runtime 路由服务
-control-plane/          Go 租户实例配置和模型用量服务
-desktop/                Tauri Mac 设备端及源码开发 Runtime 外壳
-evals/                  确定性、回放、长任务与 judge 用例（JSONL）
-docs/                   guide / architecture / configuration / protocol / operations / limitations（含 internals/）
-                        internals/ —— 实现原理教程（每层一章）
-scripts/                schema 生成、文档漂移检查、端到端冒烟与本地 fixture
+protocol/               跨语言契约、生成的 schema 和共用 TS 传输辅助代码
+runtime/crates/         助理执行、状态、工具、记忆、HTTP 和 CLI 的 Rust crate
+gateway/                Go 统一网关，管理账号、会话、设备和 Runtime 路由
+control-plane/          Go 私网服务，负责租户实例、配额和模型用量
+internal/cloudkit/      Go 服务共用代码
+web/                    浏览器工作台和账号界面
+desktop/                Tauri Mac 设备客户端和源码开发外壳
+integrations/channels/  渠道适配器及其 Node Runtime 客户端
+executors/browser/      浏览器任务执行器
+deploy/                 部署清单
+evals/                  确定性、回放、长任务和 judge 用例
+docs/                   架构、运维和实现指南
+scripts/                协议生成、仓库检查和端到端冒烟测试
 ```
 
 ## 命令
@@ -85,7 +70,7 @@ just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # 端到端�
   OS 能力适配——凭证存储（`jeeves-config/src/models.rs`）与打开 OAuth 浏览器
   （`jeeves-connector/src/feishu_oauth.rs`）；`check_architecture` 只放行这两个文件，
   新增例外必须在此写明理由。所有 WebView
-  前端都放在 `jeeves-ts/` 下，共用 dashboard 的 `src/ui` 组件与生成的协议类型；将来的原生移动端
+  前端都放在 `web/` 下，共用 dashboard 的 `src/ui` 组件与生成的协议类型；将来的原生移动端
   通过 FFI 复用同一个引擎与契约，而不是复用 Vue 组件。增加平台只增加壳，不增加引擎。
 - **能力默认值**见[配置](docs/configuration.zh.md)。命令与子代理需要开启；交互式驾驶舱默认开启文件工具并按需审批。
 - **人工授权**：审批决定与目标启动由人发起。主聊天可将用户消息中的原文片段派给任务。记忆工具依照本轮权限维护事实和技能；启用外部记忆 MCP 后，接入的客户端也可保存和遗忘事实。

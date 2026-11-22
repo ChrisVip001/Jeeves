@@ -6,7 +6,7 @@
 回合装配在 `jeeves-app-server`（[06](06-app-server.zh.md)）。这里每一个依赖模型的步骤都是失败开放：
 调用失败时数据保持原样，回合继续。
 
-源码：`jeeves-rs/jeeves-memory/src/`。
+源码：`runtime/crates/jeeves-memory/src/`。
 
 | 模块 | 职责 |
 |---|---|

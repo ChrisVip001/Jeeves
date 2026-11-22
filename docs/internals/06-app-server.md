@@ -6,7 +6,7 @@ This crate is the single execution runtime per `state.db`, and it is where every
 
 ## Layout
 
-| Path (`jeeves-rs/jeeves-app-server/src/`) | Owns |
+| Path (`runtime/crates/jeeves-app-server/src/`) | Owns |
 |---|---|
 | `lib.rs`, `server/` | `Server` (shared handles), boot (`runtime.rs`), tool assembly (`tools.rs`), turn table, capacity caps and follow-up queue (`controls.rs`), event sink (`events.rs`) |
 | `stdio.rs`, `dispatch.rs` | transport and the method table |
@@ -17,7 +17,7 @@ This crate is the single execution runtime per `state.db`, and it is where every
 | `ledger_writer.rs`, `memory_worker.rs`, `memory_center.rs` | ledger rows, background memory maintenance, the memory center window |
 | `resume.rs`, `scheduler/`, `lock.rs`, `resources.rs`, `trace.rs`, `agents_md.rs` | crash resume, scheduled jobs, runtime ownership, mutation gate, trace file, project conventions |
 
-The deterministic half lives in `jeeves-rs/jeeves-agent/src/`: `verify.rs` (acceptance checks), `observe.rs` (what a round did), `plan.rs`, `paths.rs` (the one containment rule shared by write tools and acceptance), plus the pure cron and schedule helpers. That crate holds no `Server` and calls no JSON-RPC, so fact judgments are testable alone.
+The deterministic half lives in `runtime/crates/jeeves-agent/src/`: `verify.rs` (acceptance checks), `observe.rs` (what a round did), `plan.rs`, `paths.rs` (the one containment rule shared by write tools and acceptance), plus the pure cron and schedule helpers. That crate holds no `Server` and calls no JSON-RPC, so fact judgments are testable alone.
 
 ## Server and boot
 
@@ -64,7 +64,7 @@ Conventions worth knowing before editing: storage `i64` is narrowed to protocol 
 
 ## One turn
 
-`run_turn` ([`turn/entry.rs`](../../jeeves-rs/jeeves-app-server/src/turn/entry.rs)) is the order below; each step sits where it does so that a rejected turn leaves nothing behind.
+`run_turn` ([`turn/entry.rs`](../../runtime/crates/jeeves-app-server/src/turn/entry.rs)) is the order below; each step sits where it does so that a rejected turn leaves nothing behind.
 
 ### Prepare
 

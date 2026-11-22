@@ -6,7 +6,7 @@
 
 ## 目录布局
 
-| 路径（`jeeves-rs/jeeves-app-server/src/`） | 负责 |
+| 路径（`runtime/crates/jeeves-app-server/src/`） | 负责 |
 |---|---|
 | `lib.rs`、`server/` | `Server`（共享句柄）、启动（`runtime.rs`）、工具装配（`tools.rs`）、轮表/容量上限/跟进队列（`controls.rs`）、事件出口（`events.rs`） |
 | `stdio.rs`、`dispatch.rs` | 传输与方法表 |
@@ -17,7 +17,7 @@
 | `ledger_writer.rs`、`memory_worker.rs`、`memory_center.rs` | 账本行、后台记忆整理、记忆中心窗口 |
 | `resume.rs`、`scheduler/`、`lock.rs`、`resources.rs`、`trace.rs`、`agents_md.rs` | 崩溃续跑、定时任务、运行时所有权、变更闸门、trace 文件、项目约定 |
 
-确定性的一半在 `jeeves-rs/jeeves-agent/src/`：`verify.rs`（验收检查）、`observe.rs`（一轮做了什么）、`plan.rs`、`paths.rs`（写工具与验收共用的唯一包含规则），以及纯函数的 cron / schedule。那个 crate 不持有 `Server`、不碰 JSON-RPC，事实判断可以单独测试。
+确定性的一半在 `runtime/crates/jeeves-agent/src/`：`verify.rs`（验收检查）、`observe.rs`（一轮做了什么）、`plan.rs`、`paths.rs`（写工具与验收共用的唯一包含规则），以及纯函数的 cron / schedule。那个 crate 不持有 `Server`、不碰 JSON-RPC，事实判断可以单独测试。
 
 ## Server 与启动
 
@@ -64,7 +64,7 @@ std 锁只守一次读改写，绝不跨 await。每会话写段锁覆盖历史�
 
 ## 一轮
 
-`run_turn`（[`turn/entry.rs`](../../jeeves-rs/jeeves-app-server/src/turn/entry.rs)）的顺序如下；每一步放在那个位置，是为了让被拒绝的轮不留下任何东西。
+`run_turn`（[`turn/entry.rs`](../../runtime/crates/jeeves-app-server/src/turn/entry.rs)）的顺序如下；每一步放在那个位置，是为了让被拒绝的轮不留下任何东西。
 
 ### 准备
 

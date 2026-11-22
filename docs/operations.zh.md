@@ -21,7 +21,7 @@
 ## 终端对话
 
 ```bash
-cd jeeves-rs && cargo build
+cargo build
 JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 ```
 
@@ -39,7 +39,7 @@ JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 
 按[云端部署手册](../control-plane/README.zh.md)安装 Go 网关、Go 控制面和 Rust Runtime。只在公网发布网关的 HTTPS 入口。
 
-在一台电脑上从源码使用时，运行 `just local-up`。它会启动回环网关、创建独立的个人账号库和 Runtime 数据目录，并打开所有者设置页面。重启时使用原目录，浏览器继续访问命令打印的地址。[个人部署配置](../jeeves-ts/packages/gateway/README.zh.md#个人部署)
+在一台电脑上从源码使用时，运行 `just local-up`。它会启动回环网关、创建独立的个人账号库和 Runtime 数据目录，并打开所有者设置页面。重启时使用原目录，浏览器继续访问命令打印的地址。[个人部署配置](../gateway/README.zh.md#个人部署)
 
 ## MCP 外挂
 
@@ -117,7 +117,7 @@ Ctrl-C 和 SIGTERM 会结束 SSE 并让正在执行的回合收尾。超过 25 �
 
 ### CLI 发布
 
-在 `jeeves-rs/Cargo.toml` 更新 Rust workspace 版本，同步中英文更新日志，并添加 `.github/release-notes/v<版本>.md`。在发布提交上运行 `just check` 和 `just release-package`。可在分支上手动运行[发布流水线](../.github/workflows/release.yml)，构建并验证四个平台的 CLI 压缩包。推送对应的 `v<版本>` 标签后，流水线会发布 macOS 和 Linux 的 arm64、x86-64 CLI 压缩包与 `SHA256SUMS`。云端镜像和 Mac 应用分别按各自的构建说明打包。
+在 `Cargo.toml` 更新 Rust workspace 版本，同步中英文更新日志，并添加 `.github/release-notes/v<版本>.md`。在发布提交上运行 `just check` 和 `just release-package`。可在分支上手动运行[发布流水线](../.github/workflows/release.yml)，构建并验证四个平台的 CLI 压缩包。推送对应的 `v<版本>` 标签后，流水线会发布 macOS 和 Linux 的 arm64、x86-64 CLI 压缩包与 `SHA256SUMS`。云端镜像和 Mac 应用分别按各自的构建说明打包。
 
 ## 保持常驻
 
@@ -156,7 +156,7 @@ Mac 和 Web 共用开发工作区时，在 `<home>/desktop-gateway` 写一行 Go
 
 应用打开后进入「对话」。从「我的事项」或回执打开交付页面并补充要求。[对话、事项与交付](design/main-entry.zh.md)
 
-在 Mac 的仓库目录运行 `just smoke-mac-cockpit` 可复验桌面端。命令会构建 Jeeves.app，在自己的前台窗口中操作主聊天和 Cowork；运行时使用临时目录，模型和发布服务均由本机模拟。测试随后退出并重新打开应用，用同一份临时数据核对任务 ID、完整会话和唯一的完成摘要。运行终端需已有辅助功能权限。若已有屏幕录制权限，测试会将 Jeeves 单窗口截图和 JSON 报告一起保存在 `jeeves-rs/target/acceptance/mac-cockpit/<运行时间>/`。
+在 Mac 的仓库目录运行 `just smoke-mac-cockpit` 可复验桌面端。命令会构建 Jeeves.app，在自己的前台窗口中操作主聊天和 Cowork；运行时使用临时目录，模型和发布服务均由本机模拟。测试随后退出并重新打开应用，用同一份临时数据核对任务 ID、完整会话和唯一的完成摘要。运行终端需已有辅助功能权限。若已有屏幕录制权限，测试会将 Jeeves 单窗口截图和 JSON 报告一起保存在 `target/acceptance/mac-cockpit/<运行时间>/`。
 
 ## 定时任务
 
@@ -321,6 +321,6 @@ SDK 宿主通过[操作协议](protocol.zh.md#操作日志与人工核对)检查
 
 ## 给多个用户运行 Jeeves
 
-Web 和 iOS 用户在公网 HTTPS 地址登录，Mac 设备端与同一账号配对。部署 [Go 统一网关](../jeeves-ts/packages/gateway/README.zh.md)、私网 [Go 控制面](../control-plane/README.zh.md)，以及供租户 Pod 使用的 Rust Runtime 镜像。控制面、PostgreSQL 和 Runtime 均使用私网端点。
+Web 和 iOS 用户在公网 HTTPS 地址登录，Mac 设备端与同一账号配对。部署 [Go 统一网关](../gateway/README.zh.md)、私网 [Go 控制面](../control-plane/README.zh.md)，以及供租户 Pod 使用的 Rust Runtime 镜像。控制面、PostgreSQL 和 Runtime 均使用私网端点。
 
 个人源码部署运行 `just local-up`，在这台电脑的浏览器中创建所有者。网关和单实例 Runtime 均监听回环接口。

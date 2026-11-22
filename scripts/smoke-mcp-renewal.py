@@ -53,7 +53,7 @@ def run():
     http.mode, http.refreshes, http.calls = 'ok', [], []
     threading.Thread(target=http.serve_forever,daemon=True).start()
     base = 'http://127.0.0.1:' + str(http.server_port)
-    binary = ROOT / 'jeeves-rs/target/debug/jeeves'
+    binary = ROOT / 'target/debug/jeeves'
     try:
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

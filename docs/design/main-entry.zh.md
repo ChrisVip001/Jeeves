@@ -29,7 +29,7 @@ Grok 允许打开一次自动化运行的完整对话继续工作。dot 允许�
 
 主聊天首选评测候选为 DeepSeek V4.1 Flash，官方模型 ID 为 `deepseek-flash`。此次选择仅用于主聊天意图评测。后台任务沿用其执行模型，开发使用 GPT-6.2 Sol / high，默认配置保持现状。[DeepSeek 官方模型列表](https://api-docs.deepseek.com/api/list-models/)
 
-在 `jeeves-rs/` 中运行 `cargo run -p jeeves-provider --example deepseek_intents -- <Jeeves目录> <Flash配置名>` 可手动复验意图识别。它向官方端点发一次请求，包含普通聊天、明确交办、明确引用任务、指代不清四条合成消息，检查模型提出的意图与目标。桌面端验收另用本机夹具验证路由、审批和回执。
+在仓库根目录运行 `cargo run -p jeeves-provider --example deepseek_intents -- <Jeeves目录> <Flash配置名>` 可手动复验意图识别。它向官方端点发一次请求，包含普通聊天、明确交办、明确引用任务、指代不清四条合成消息，检查模型提出的意图与目标。桌面端验收另用本机夹具验证路由、审批和回执。
 
 用户说「刚才那个先别发，改成草稿」时，Runtime 按用户所选任务或明确引用解析改稿请求。回指可使用紧邻的上一条已完成私聊交互。存在多个候选发送动作时，由用户选择动作 ID。任务使用 iPhone 与 Mac 共享的固定 ID，发送动作有独立记录。同一会话中有两个合理目标时，主聊天用可区分的邮件主题或任务名称请用户选择；单凭最近更新时间不足以选定目标。澄清前保留原状。
 

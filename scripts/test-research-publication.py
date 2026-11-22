@@ -11,7 +11,7 @@ def main():
     repository = pathlib.Path(__file__).resolve().parent.parent
     source = (
         repository
-        / "jeeves-rs/jeeves-eval/examples/live_reliability/research_case.rs"
+        / "runtime/crates/jeeves-eval/examples/live_reliability/research_case.rs"
     ).read_text().split('const SERVER: &str = r#"', 1)[1].split('"#;', 1)[0]
     with tempfile.TemporaryDirectory() as folder:
         root = pathlib.Path(folder)

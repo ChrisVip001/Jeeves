@@ -11,7 +11,6 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RUST = ROOT / "jeeves-rs"
 TARGETS = (
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
@@ -23,7 +22,7 @@ TARGETS = (
 def project():
     metadata = json.loads(subprocess.check_output(
         ["cargo", "metadata", "--locked", "--format-version", "1", "--no-deps"],
-        cwd=RUST,
+        cwd=ROOT,
     ))
     version = next(package["version"] for package in metadata["packages"] if package["name"] == "jeeves-cli")
     return version, Path(metadata["target_directory"])
@@ -34,7 +33,7 @@ def archive_name(version, target):
 
 
 def package(version, build_dir, output, target):
-    info = subprocess.check_output(["rustc", "-vV"], cwd=RUST, text=True)
+    info = subprocess.check_output(["rustc", "-vV"], cwd=ROOT, text=True)
     host = next(line.removeprefix("host: ") for line in info.splitlines() if line.startswith("host: "))
     target = target or host
     if target not in TARGETS:
@@ -43,7 +42,7 @@ def package(version, build_dir, output, target):
     if target != host:
         build.extend(["--target", target])
         build_dir /= target
-    subprocess.run(build, cwd=RUST, check=True)
+    subprocess.run(build, cwd=ROOT, check=True)
 
     output.mkdir(parents=True, exist_ok=True)
     final = output / archive_name(version, target)

@@ -168,7 +168,7 @@ unknown value is normalised to `fact`.
 
 ## Clients
 
-* TypeScript: `jeeves-ts/packages/client` (`StdioTransport` + `JeevesClient`;
+* TypeScript: `integrations/channels/runtime-client` (`StdioTransport` + `JeevesClient`;
   notifications dispatch on the `type` discriminant).
 * The terminal REPL drives the same method surface in-process; the dashboard reaches it
   over HTTP (routes in `jeeves-ops/src/lib.rs`).

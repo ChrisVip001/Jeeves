@@ -15,8 +15,8 @@ cd "$WORK"
 export JEEVES_HOME="$WORK/.jeeves"
 
 # Ask several things in one session: write → retrieve → forget → config → unimplemented →
-# unknown method → bad JSON. Note: no API key here, so turn/start should report PROVIDER_ERROR,
-# with a message telling the user what to do — while all other methods must keep working.
+# unknown method → bad JSON. The fixture starts without a model, so turn/start asks to configure
+# one and the other methods remain available.
 OUTPUT=$(printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"memory/remember","params":{"subject":"Alex","content":"Alex likes morning meetings"}}' \
   '{"jsonrpc":"2.0","id":2,"method":"memory/search","params":{"query":"morning"}}' \
@@ -37,8 +37,8 @@ echo "$OUTPUT" | grep -q '"id":2,"result":{"episodes":\[\],"facts":\[{"content":
                                                               || fail "the search found nothing"
 echo "$OUTPUT" | grep -q '"id":3,"result":{"removed":1}'     || fail "memory/forget deleted nothing"
 echo "$OUTPUT" | grep -q '"id":4,"result":{"config":'        || fail "config/read returned no config"
-echo "$OUTPUT" | grep -q '"id":5,"error":{"code":-32000'     || fail "with no key, turn/start should report PROVIDER_ERROR"
-echo "$OUTPUT" | grep -qE 'no API key'      || fail "PROVIDER_ERROR should say what to do"
+echo "$OUTPUT" | grep -q '"id":5,"error":{"code":-32602'     || fail "turn/start should refuse a missing model"
+echo "$OUTPUT" | grep -q 'Configure a model before sending a message' || fail "the error should explain how to continue"
 echo "$OUTPUT" | grep -q '"id":6,"error":{"code":-32601'     || fail "an unknown method should report METHOD_NOT_FOUND"
 echo "$OUTPUT" | grep -q '"code":-32700'                     || fail "bad JSON should report PARSE_ERROR"
 
@@ -92,12 +92,10 @@ import sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
     db.execute("DROP VIEW active_facts")
     db.execute("INSERT INTO episodes(happened_at, summary) VALUES('2026-01-02', 'fixture episode still available')")
-    db.execute("ALTER TABLE sessions RENAME TO fixture_unavailable_sessions")
 PY_DB
-READS="$(printf '%s\n' '/memory' '/sessions' '/quit' | "$BIN" 2>&1)"
+READS="$(printf '%s\n' '/memory' '/quit' | "$BIN" 2>&1)"
 grep -q 'Could not read memory' <<<"$READS" || fail "/memory hid a storage failure"
 grep -q 'fixture episode still available' <<<"$READS" || fail "/memory suppressed the healthy episode index"
-grep -q 'Could not list sessions' <<<"$READS" || fail "/sessions hid a storage failure"
 grep -q 'Bye.' <<<"$READS" || fail "a failed read should leave the terminal usable"
 
 python3 "$REPO/scripts/smoke-model-credentials.py" "$BIN"

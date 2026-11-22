@@ -4,7 +4,7 @@ English | [简体中文](03-model-and-loop.zh.md)
 
 `jeeves-provider` translates between Jeeves's one dialect and each vendor's API. `jeeves-loop` holds the working memory and repeats "ask the model, run tools, feed results back" until it should stop. The loop never learns which vendor it talks to: every vendor difference is confined to the wire adapters.
 
-Directories: `jeeves-rs/jeeves-provider/src/` and `jeeves-rs/jeeves-loop/src/`. The loop is driven by `jeeves-app-server` (see [06-app-server](06-app-server.md)); tools come from [04-tools](04-tools.md).
+Directories: `runtime/crates/jeeves-provider/src/` and `runtime/crates/jeeves-loop/src/`. The loop is driven by `jeeves-app-server` (see [06-app-server](06-app-server.md)); tools come from [04-tools](04-tools.md).
 
 ## 3.1 The intermediate dialect
 

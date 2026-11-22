@@ -1,7 +1,7 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import assert from "node:assert/strict";
-import { chromium } from "../jeeves-ts/node_modules/playwright/index.mjs";
+import { chromium } from "../node_modules/playwright/index.mjs";
 
 const [workspace, cookie, taskId, channel, decisionId] = process.argv.slice(2);
 const [name, value] = cookie.split("=");

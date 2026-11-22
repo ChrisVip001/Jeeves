@@ -177,7 +177,7 @@ def ordinary_comments(src: str, rust: bool) -> list[int]:
 
 def collect_files() -> list[Path]:
     files: list[Path] = []
-    for base in ("jeeves-rs", "desktop"):
+    for base in ("runtime/crates", "protocol", "desktop"):
         for dirpath, _, names in os.walk(ROOT / base):
             for name in names:
                 if name.endswith(".rs"):
@@ -185,7 +185,7 @@ def collect_files() -> list[Path]:
                     rel = "/" + p.relative_to(ROOT).as_posix()
                     if not any(s in rel for s in SKIP):
                         files.append(p)
-    for base in ("jeeves-ts", "control-plane", "desktop"):
+    for base in ("protocol/typescript", "web", "integrations", "executors", "gateway", "control-plane", "desktop"):
         for dirpath, _, names in os.walk(ROOT / base):
             for name in names:
                 if name.endswith((".ts", ".mts")):

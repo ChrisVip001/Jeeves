@@ -5,7 +5,7 @@
 ## 开发环境
 
 ```bash
-just build                       # 在 jeeves-rs/ 里执行 cargo build --workspace（Rust ≥ 1.85）
+just build                       # 在仓库根目录执行 cargo build --workspace（Rust ≥ 1.85）
 just ts-install
 ```
 

@@ -71,7 +71,7 @@ Jeeves 能跨设备执行长任务。使用部署提供的链接注册或登录�
 
 白名单只有一人时，这位所有者在私聊或普通群聊中发起的操作若需审批，Jeeves 会在原对话回复审批卡，显示操作内容和有效时间。原发起人可点击按钮，也可按卡片提示发送确认文字。卡片发送失败时，Jeeves 会改发文字审批。群聊用文字回复时需同时 @机器人。白名单内的派发者也可在私聊使用同样的流程。请求过期或网关重启后，先核对操作状态，再按需重新发送命令。
 
-不用驾驶舱时，设好 `LARK_APP_ID`、`LARK_APP_SECRET`、`LARK_ALLOW` 后运行 `just gateway-lark`；设 `JEEVES_GATEWAY_URL`（再加相同的 `JEEVES_OPS_TOKEN`）则接到已运行的 Runtime，而不是另起引擎。变量见[配置参考](configuration.zh.md#聊天网关jeeves-ts)。
+不用驾驶舱时，设好 `LARK_APP_ID`、`LARK_APP_SECRET`、`LARK_ALLOW` 后运行 `just gateway-lark`；设 `JEEVES_GATEWAY_URL`（再加相同的 `JEEVES_OPS_TOKEN`）则接到已运行的 Runtime，而不是另起引擎。变量见[配置参考](configuration.zh.md#渠道适配器)。
 
 #### 从群里派任务
 

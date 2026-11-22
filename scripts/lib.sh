@@ -18,7 +18,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BIN="$REPO/jeeves-rs/target/debug/jeeves"
+BIN="$REPO/target/debug/jeeves"
 WORK="$(mktemp -d)"
 
 _PIDS=()
@@ -55,5 +55,5 @@ track_pid() {
 }
 
 need_bin() {
-  [[ -x "$BIN" ]] || fail "cannot find $BIN; run: cd jeeves-rs && cargo build"
+  [[ -x "$BIN" ]] || fail "cannot find $BIN; run: cargo build"
 }

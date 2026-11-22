@@ -30,8 +30,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS_TESTS = ROOT / "jeeves-rs" / "jeeves-tools" / "src" / "tools_tests.rs"
-APP_SERVER = ROOT / "jeeves-rs" / "jeeves-app-server" / "src"
+TOOLS_TESTS = ROOT / "runtime/crates" / "jeeves-tools" / "src" / "tools_tests.rs"
+APP_SERVER = ROOT / "runtime/crates" / "jeeves-app-server" / "src"
 DOCS = (
     ROOT / "docs" / "internals" / "04-tools.md",
     ROOT / "docs" / "internals" / "04-tools.zh.md",

@@ -7,7 +7,7 @@ protocol ([01-protocol-and-config](01-protocol-and-config.md)). A shell renders,
 exposes native capabilities; it never re-implements agent behavior
 ([architecture](../architecture.md)).
 
-Directories: `jeeves-rs/jeeves-cli/`, `jeeves-rs/jeeves-ops/`, `jeeves-ts/packages/{client,dashboard,gateway,browser-worker}`,
+Directories: `runtime/crates/jeeves-cli/`, `runtime/crates/jeeves-ops/`, `web/`, `gateway/`, `integrations/channels/`, `executors/browser/`,
 `desktop/src-tauri/`, plus `Dockerfile`.
 
 ## 7.1 The `jeeves` binary
@@ -127,7 +127,7 @@ The TypeScript client of the protocol. Types come from the generated artifacts t
   notification, an error or a response, and rejects every pending request when the transport closes. `JeevesError`
   carries `code` and `data` with the predicates `isProvider`, `isNotImplemented`, `isInvalidParams`.
 - `StdioTransport` spawns `jeeves app-server`, splits stdout into lines, forwards stderr to `onLog`, and `close()` only ends stdin so
-  the server flushes its remaining frames. `findJeevesBinary` resolves `JEEVES_BIN`, then `jeeves-rs/target/{debug,release}/jeeves` found by
+  the server flushes its remaining frames. `findJeevesBinary` resolves `JEEVES_BIN`, then `target/{debug,release}/jeeves` found by
   walking up from the package, then `jeeves` on PATH.
 - `HttpTransport` attaches to a running Runtime instead of spawning one: it reads `/api/notifications` and sends with an optional
   Bearer token.
@@ -195,7 +195,7 @@ second terminal:
 - Settings are stored in `<home>/gateways.json` (`enabled`, `appId`, `allow`, `dispatchers`, `domain`); the app secret goes to
   the secret store under account `gateway:lark:app-secret` and is never read back through the API. Ids in `allow` and `dispatchers` must
   start with `ou_`.
-- `start` spawns `node jeeves-ts/packages/channels/src/bin-lark.ts` (override with `JEEVES_GATEWAY_BIN`) with the Lark variables and
+- `start` spawns `node integrations/channels/src/bin-lark.ts` (override with `JEEVES_GATEWAY_BIN`) with the Lark variables and
   `JEEVES_GATEWAY_URL` pointing at this Runtime, plus `JEEVES_OPS_TOKEN` when a token is set. The gateway attaches through
   `POST /api/gateway/rpc` and `/api/notifications`.
 - **Claim flow**: with an empty `allow` the process runs with `LARK_CLAIM=1` and answers nobody; the first sender is reported on stderr as

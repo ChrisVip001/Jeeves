@@ -68,7 +68,7 @@ def run():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f'http://127.0.0.1:{server.server_port}'
     installed = ROOT/'desktop/src-tauri/browser-runtime'
-    binary = ROOT/'jeeves-rs/target/debug/jeeves'
+    binary = ROOT/'target/debug/jeeves'
     try:
         with tempfile.TemporaryDirectory(prefix='jeeves-remote-browser-') as temp:
             runtime = Path(temp)/'runtime'
@@ -76,7 +76,7 @@ def run():
             for name in ['node','runtime.json','browsers']:
                 (runtime/name).symlink_to(installed/name)
             # Test the checkout’s worker using the already-installed matching Node and Chromium.
-            (runtime/'worker').symlink_to(ROOT/'jeeves-ts/packages/browser-worker')
+            (runtime/'worker').symlink_to(ROOT/'executors/browser')
             home = Path(temp)/'home'
             rpc = desktop.Rpc(binary,home,{'JEEVES_BROWSER_RUNTIME':str(runtime),'JEEVES_BROWSER_HEADLESS':'1'})
             try:

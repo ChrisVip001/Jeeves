@@ -25,7 +25,7 @@ per-layer implementation tutorial is under `docs/internals/`.
 ## Multi-tenancy
 
 A tenant has one workspace and one active Rust Runtime. The ingress forwards client
-traffic to the [Go unified gateway](../jeeves-ts/packages/gateway/README.md), which owns user
+traffic to the [Go unified gateway](../gateway/README.md), which owns user
 accounts, sessions and Runtime routing. The private [Go control plane](../control-plane/README.md)
 reconciles one Pod and one persistent volume per tenant and meters platform model usage. The
 Runtime retains chat, tasks, checkpoints, memory and outputs in its own `JEEVES_HOME`. A source

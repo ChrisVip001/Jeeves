@@ -4,7 +4,7 @@ English | [简体中文](AGENTS.zh.md)
 
 Jeeves is a personal assistant built to complete complex, long-running tasks across deployments. Rust owns agent logic and state.
 Go owns the unified gateway and cloud control plane. TypeScript covers the browser and the channel adapters.
-Read [docs/architecture.md](docs/architecture.md) before changing `jeeves-rs/`;
+Read [docs/architecture.md](docs/architecture.md) before changing `runtime/`;
 this file is the working standard for AI coding assistants and human
 contributors alike.
 
@@ -15,36 +15,19 @@ Choose work from the [long-task roadmap](docs/planning/long-task-roadmap.md). St
 ## Repository layout
 
 ```
-jeeves-rs/
-  jeeves-protocol/      the cross-language contract, single source of truth
-                        (schema/ artifacts are checked in)
-  jeeves-config/        JEEVES_* environment variables, read once at boot
-  jeeves-state/         SQLite + FTS5(trigram); the append-only ledger; memory-backend contract & conformance
-  jeeves-provider/      12 providers (incl. local Ollama), three wire formats + SSE, retry + token estimation
-  jeeves-tools/         tool registry (schema-checked) + built-in tools, sandboxed exec, subagents,
-                        approval, the todo list, the background-job host trait
-  jeeves-agent/         deterministic task helpers (verify / observe / plan / paths), no network
-  jeeves-connector/     calendar/email/Feishu connectors: allowlisted, drafts by default
-  jeeves-loop/          the agent loop (cancellable)
-  jeeves-mcp/           MCP client (stdio/HTTP) + browser OAuth + memory server (`jeeves mcp serve`)
-  jeeves-memory/        local retrieval + consolidation + Skills + the OKF bundle in `home/memory`
-                        (bundle.rs, mirror.rs)
-  jeeves-app-server/    JSON-RPC over stdio, one execution runtime per state.db, owning the whole turn:
-                        approval, todo injection, background jobs, the goal loop; the ledger
-                        writer, the background memory worker, the memory center, and prompt assembly
-                        (stable prefix + per-turn tail)
-  jeeves-ops/           private Runtime HTTP API (axum + SSE)
-  jeeves-cli/           the jeeves binary (REPL / dashboard / eval / mcp / skill)
-  jeeves-eval/          deterministic evals + judge + release gate
-jeeves-ts/                 @jeeves/client, @jeeves/channels, @jeeves/dashboard, @jeeves/ui,
-                        @jeeves/browser-worker
-  packages/gateway/     Go account, session, device pairing and Runtime routing service
-control-plane/          Go tenant provisioning and model usage service
-desktop/                Tauri Mac device app and source-development Runtime shell
-evals/                  deterministic, replay, long-task and judge scenarios (JSONL)
-docs/                   guide / architecture / configuration / protocol / operations / limitations (+ internals/)
-                        internals/ — the implementation tutorial (one chapter per layer)
-scripts/                schema generation, docs drift checks, end-to-end smokes and local fixtures
+protocol/               cross-language contract and generated schema; shared TS transport helpers
+runtime/crates/         Rust workspace crates for agent execution, state, tools, memory, HTTP and CLI
+gateway/                Go public gateway for accounts, sessions, devices and Runtime routing
+control-plane/          Go private service for tenant provisioning, quotas and model usage
+internal/cloudkit/      shared Go service code
+web/                    browser workbench and account UI
+desktop/                Tauri Mac device app and source-development shell
+integrations/channels/  channel adapters and their Node Runtime client
+executors/browser/      browser task executor
+deploy/                 deployment manifests
+evals/                  deterministic, replay, long-task and judge scenarios
+docs/                   architecture, operations and implementation guides
+scripts/                schema generation, repository checks and end-to-end smokes
 ```
 
 ## Commands
@@ -95,7 +78,7 @@ just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # end-to-end
   adapters — credential storage (`jeeves-config/src/models.rs`) and opening the
   OAuth browser (`jeeves-connector/src/feishu_oauth.rs`); `check_architecture`
   allowlists exactly those two files, and adding another needs a reason here.
-  All WebView frontends live under `jeeves-ts/` and
+  All WebView frontends live under `web/` and
   share the dashboard's `src/ui` components plus the generated protocol types; native mobile shells will
   share the same engine and contract through FFI, not the Vue components.
   Adding a platform adds a shell, never a second engine.

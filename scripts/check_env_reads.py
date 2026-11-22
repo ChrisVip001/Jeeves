@@ -11,41 +11,42 @@ import pathlib
 import re
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent / "jeeves-rs"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 READ = re.compile(r"env::var(?:_os|s)?\(\s*(\"[A-Z_]+\"|[a-z_.()]+)?")
 
 # file -> what it reads and why that is the host's, not a tenant's.
 HOST = {
-    "jeeves-app-server/src/server/mcp_live.rs": "MCP hot rebuild: JEEVES_MCP_CONFIG operator-level extra config paths, same as jeeves-mcp",
-    "jeeves-app-server/src/capability.rs": "capability probes: JEEVES_MCP_CONFIG bundled packs; credentials looked up by name",
-    "jeeves-app-server/src/route.rs": "JEEVES_MODEL_ROUTE: operator override for unattended runs",
-    "jeeves-app-server/src/server/search_mcp.rs": "JEEVES_SEARCH_MCP: operator switch",
-    "jeeves-app-server/src/browser/process.rs": "inherits the host environment for the browser child",
-    "jeeves-mcp/src/lib.rs": "JEEVES_MCP_CONFIG bundled packs; ${VAR} credentials by name",
-    "jeeves-memory/src/skills.rs": "JEEVES_SKILL_DIRS: bundled skill packs",
-    "jeeves-ops/src/client.rs": "JEEVES_WRITE / JEEVES_APPROVAL defaults for the dashboard child",
-    "jeeves-ops/src/lib.rs": "JEEVES_PORT and JEEVES_OPS_TOKEN: the private Runtime listener",
-    "jeeves-ops/src/gateways.rs": "JEEVES_GATEWAY_BIN: where the host finds the gateway script",
-    "jeeves-ops/src/capabilities.rs": "JEEVES_MCP_CONFIG bundled packs",
-    "jeeves-ops/src/webhooks.rs": "hook secrets by name (credential)",
-    "jeeves-ops/src/api/files.rs": "HOME for the file picker's starting point",
-    "jeeves-connector/src/config.rs": "connector secrets by name (credential)",
-    "jeeves-tools/src/exec.rs": "PATH to find the sandbox binary",
-    "jeeves-tools/src/web.rs": "search keys by name (credential) and operator switches",
-    "jeeves-tools/src/fs.rs": "HOME for ~ expansion",
-    "jeeves-protocol/src/export.rs": "schema generator (build tool)",
-    "jeeves-cli/src/main.rs": "CLI entry point",
-    "jeeves-cli/src/skill_cmd.rs": "CLI entry point",
-    "jeeves-cli/src/service_cmd.rs": "JEEVES_PORT for the unit and HOME for where the supervisor looks: the host's, not a tenant's",
-    "jeeves-eval/src/lib.rs": "eval harness",
+    "runtime/crates/jeeves-app-server/src/server/mcp_live.rs": "MCP hot rebuild: JEEVES_MCP_CONFIG operator-level extra config paths, same as jeeves-mcp",
+    "runtime/crates/jeeves-app-server/src/capability.rs": "capability probes: JEEVES_MCP_CONFIG bundled packs; credentials looked up by name",
+    "runtime/crates/jeeves-app-server/src/route.rs": "JEEVES_MODEL_ROUTE: operator override for unattended runs",
+    "runtime/crates/jeeves-app-server/src/server/search_mcp.rs": "JEEVES_SEARCH_MCP: operator switch",
+    "runtime/crates/jeeves-app-server/src/browser/process.rs": "inherits the host environment for the browser child",
+    "runtime/crates/jeeves-mcp/src/lib.rs": "JEEVES_MCP_CONFIG bundled packs; ${VAR} credentials by name",
+    "runtime/crates/jeeves-memory/src/skills.rs": "JEEVES_SKILL_DIRS: bundled skill packs",
+    "runtime/crates/jeeves-ops/src/client.rs": "JEEVES_WRITE / JEEVES_APPROVAL defaults for the dashboard child",
+    "runtime/crates/jeeves-ops/src/lib.rs": "JEEVES_PORT and JEEVES_OPS_TOKEN: the private Runtime listener",
+    "runtime/crates/jeeves-ops/src/gateways.rs": "JEEVES_GATEWAY_BIN: where the host finds the gateway script",
+    "runtime/crates/jeeves-ops/src/capabilities.rs": "JEEVES_MCP_CONFIG bundled packs",
+    "runtime/crates/jeeves-ops/src/webhooks.rs": "hook secrets by name (credential)",
+    "runtime/crates/jeeves-ops/src/api/files.rs": "HOME for the file picker's starting point",
+    "runtime/crates/jeeves-connector/src/config.rs": "connector secrets by name (credential)",
+    "runtime/crates/jeeves-tools/src/exec.rs": "PATH to find the sandbox binary",
+    "runtime/crates/jeeves-tools/src/web.rs": "search keys by name (credential) and operator switches",
+    "runtime/crates/jeeves-tools/src/fs.rs": "HOME for ~ expansion",
+    "protocol/src/export.rs": "schema generator (build tool)",
+    "runtime/crates/jeeves-cli/src/main.rs": "CLI entry point",
+    "runtime/crates/jeeves-cli/src/skill_cmd.rs": "CLI entry point",
+    "runtime/crates/jeeves-cli/src/service_cmd.rs": "JEEVES_PORT for the unit and HOME for where the supervisor looks: the host's, not a tenant's",
+    "runtime/crates/jeeves-eval/src/lib.rs": "eval harness",
 }
 
 
 def main() -> int:
     bad = []
-    for path in sorted(ROOT.glob("jeeves-*/src/**/*.rs")):
+    sources = [*ROOT.glob("runtime/crates/*/src/**/*.rs"), *ROOT.glob("protocol/src/**/*.rs")]
+    for path in sorted(sources):
         rel = str(path.relative_to(ROOT))
-        if rel.startswith("jeeves-config/") or "test" in path.name:
+        if rel.startswith("runtime/crates/jeeves-config/") or "test" in path.name:
             continue
         text = path.read_text(encoding="utf-8")
         text = text.split("#[cfg(test)]", 1)[0]
@@ -53,7 +54,7 @@ def main() -> int:
             if line.lstrip().startswith("//") or not READ.search(line):
                 continue
             if rel not in HOST:
-                bad.append(f"jeeves-rs/{rel}:{n}: {line.strip()}")
+                bad.append(f"{rel}:{n}: {line.strip()}")
     if bad:
         print(
             "environment read outside jeeves-config; read it into Settings at boot, "

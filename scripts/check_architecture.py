@@ -16,8 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # Credential storage and launching the OAuth browser are OS-capability adapters,
 # not agent behaviour or state. Everywhere else the engine stays platform-free.
 CFG_ALLOWLIST = {
-    "jeeves-rs/jeeves-config/src/models.rs",
-    "jeeves-rs/jeeves-connector/src/feishu_oauth.rs",
+    "runtime/crates/jeeves-config/src/models.rs",
+    "runtime/crates/jeeves-connector/src/feishu_oauth.rs",
 }
 # Composition roots sit above the engine and may reach app-server.
 SHELLS = {"jeeves-cli", "jeeves-eval"}
@@ -30,7 +30,8 @@ def rel(path: Path) -> str:
 
 
 def check_crate_edges() -> None:
-    for manifest in sorted(ROOT.glob("jeeves-rs/*/Cargo.toml")):
+    manifests = [*ROOT.glob("runtime/crates/*/Cargo.toml"), ROOT / "protocol/Cargo.toml", ROOT / "protocol/noop-macros/Cargo.toml"]
+    for manifest in sorted(manifests):
         crate = manifest.parent.name
         deps = set()
         for line in manifest.read_text(encoding="utf-8").splitlines():
@@ -46,7 +47,8 @@ def check_crate_edges() -> None:
 
 
 def check_platform_cfg() -> None:
-    for src in sorted((ROOT / "jeeves-rs").glob("*/src/**/*.rs")):
+    sources = [*ROOT.glob("runtime/crates/*/src/**/*.rs"), *ROOT.glob("protocol/src/**/*.rs"), *ROOT.glob("protocol/noop-macros/src/**/*.rs")]
+    for src in sorted(sources):
         path = rel(src)
         if path in CFG_ALLOWLIST:
             continue
@@ -62,7 +64,9 @@ def check_platform_cfg() -> None:
 
 def check_ts_edges() -> None:
     packages: dict[str, set[str]] = {}
-    for manifest in sorted((ROOT / "jeeves-ts/packages").glob("*/package.json")):
+    workspace = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+    for package in workspace["workspaces"]:
+        manifest = ROOT / package / "package.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
         name = data.get("name", rel(manifest))
         deps = set(data.get("dependencies", {})) | set(data.get("devDependencies", {}))

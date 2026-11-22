@@ -5,10 +5,10 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PATH_RE = re.compile(r"`((?:jeeves-rs|jeeves-ts|desktop|docs|scripts|evals)/[A-Za-z0-9_./-]+)`")
+PATH_RE = re.compile(r"`((?:runtime|protocol|web|integrations|executors|gateway|control-plane|target|desktop|docs|scripts|evals|deploy)/[A-Za-z0-9_./-]+)`")
 SKIP = ("planning", "node_modules")  # planning notes are dated records, not live docs
 GENERATED_BY = {
-    "jeeves-rs/target/debug/jeeves": "jeeves-rs/jeeves-cli/Cargo.toml",
+    "target/debug/jeeves": "runtime/crates/jeeves-cli/Cargo.toml",
     "desktop/src-tauri/browser-runtime": "scripts/prepare-browser-runtime.py",
 }
 

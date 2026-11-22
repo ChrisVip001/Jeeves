@@ -4,13 +4,13 @@
 
 本层没有产品功能，它决定其他章节里的 fail-open 与「绝不裸跑」规则是否真的成立。各层按成本从低到高排列；确定性 eval 100% 通过是发布闸门。
 
-位置：`jeeves-rs/jeeves-eval/`、`evals/`、`scripts/`、`justfile`、`.github/workflows/ci.yml`。
+位置：`runtime/crates/jeeves-eval/`、`evals/`、`scripts/`、`justfile`、`.github/workflows/ci.yml`。
 
 ## 8.1 分层
 
 | 层 | 位置 | 形态 | 是否拦截 |
 |---|---|---|---|
-| 单元测试 | 各 `jeeves-rs` crate 内部；`jeeves-ts`（`npm test`）；`control-plane`（`npm test`） | 进程内、离线 | 是 |
+| 单元测试 | 各 Rust crate、`npm test` 和 `go test ./...` | 进程内、离线 | 是 |
 | 确定性 eval | `evals/deterministic/*.jsonl` | 脚本化模型驱动真实的 `run_turn` | 是（exit 0 = 可发布） |
 | 回放 eval | `evals/replay/*.jsonl` | 录制对话加期望事件序列，同一个 runner | 是 |
 | 长任务基准 | `evals/long/tasks.jsonl` | 同一套装置，问自主任务能力有没有变好 | 从不 |
@@ -22,7 +22,7 @@
 
 ## 8.2 确定性 eval
 
-入口：`jeeves eval [path]`（默认 `evals/deterministic`；`just eval`）。实现：`jeeves-rs/jeeves-eval/src/`（`scenario.rs`、`lib.rs`、`jsonl.rs`、`report.rs`）。
+入口：`jeeves eval [path]`（默认 `evals/deterministic`；`just eval`）。实现：`runtime/crates/jeeves-eval/src/`（`scenario.rs`、`lib.rs`、`jsonl.rs`、`report.rs`）。
 
 ### 用例格式
 
@@ -78,7 +78,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 ## 8.3 回放 eval
 
-入口：`jeeves eval --replay [path]`（默认 `evals/replay`；`just eval-replay`）。实现：`jeeves-rs/jeeves-eval/src/replay.rs`。
+入口：`jeeves eval --replay [path]`（默认 `evals/replay`；`just eval-replay`）。实现：`runtime/crates/jeeves-eval/src/replay.rs`。
 
 回放行含 `id`、`schemaVersion`、`recorded.turns[]`（`say`、`replies`、`approval`、`cwd`）与 `expect`，以及可选的 `settings`、`files`、`prereq`、`task`。它被转换成同一个 `Scenario`，因此 runner、断言与报告共用。加载器拒绝缺少 `schemaVersion` 的行，也拒绝 `expect.events` 为空的行。
 
@@ -96,7 +96,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 ## 8.6 真实可靠性示例
 
-`jeeves-rs/jeeves-eval/examples/live_reliability.rs` 是显式调用、带预算的真实 provider 运行。必需参数：`--home`、`--budget-cny`（大于 0、至多 10）与 `--out`；`--suite` 选择 `baseline`、`expanded`、`memory`、`research`、`research-guarded`、`support` 或 `research-long`。保留的输出在 `evals/results/`。`just test-research-publication` 离线验证 research 用例的发布闸门。
+`runtime/crates/jeeves-eval/examples/live_reliability.rs` 是显式调用、带预算的真实 provider 运行。必需参数：`--home`、`--budget-cny`（大于 0、至多 10）与 `--out`；`--suite` 选择 `baseline`、`expanded`、`memory`、`research`、`research-guarded`、`support` 或 `research-long`。保留的输出在 `evals/results/`。`just test-research-publication` 离线验证 research 用例的发布闸门。
 
 ## 8.7 冒烟脚本
 
@@ -129,7 +129,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 | `windows` | 构建 `jeeves-cli`；测试排除 `jeeves-tools`，再跑 `jeeves-tools` 并跳过 sandbox 与 spill 测试 |
 | `schema` | `scripts/write_schema.py --check` |
 | `docs` | `check_tool_docs.py`、`check_doc_paths.py`、`check_env_reads.py`、`check_i18n.py`、`check_config_docs.py` |
-| `ts` | 在 `jeeves-ts` 中 `npm ci`、`npm run typecheck`、`npm test` |
+| `ts` | 在仓库根目录运行 `npm ci`、`npm run typecheck`、`npm test` |
 | `desktop`（macOS） | `just desktop-check`、`just smoke-desktop` |
 | `gate` | 构建 `jeeves-cli` 与 dashboard，然后 `jeeves eval`、`jeeves eval --replay`、`smoke.sh`、`smoke-recovery.py`、`smoke-web.py` |
 

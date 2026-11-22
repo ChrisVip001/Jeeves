@@ -1,6 +1,6 @@
 ---
 name: dashboard-verification
-description: Verify a dashboard change end to end before calling it done. Use when changing jeeves-ts dashboard source, its backend in jeeves-ops, the protocol schema, or sw.js. Runs the real product, collects reusable evidence (status codes, API responses, screenshots), and reports what passed.
+description: Verify a dashboard change end to end before calling it done. Use when changing the Web workbench in web/, its backend in jeeves-ops, the protocol schema, or sw.js. Runs the real product, collects reusable evidence (status codes, API responses, screenshots), and reports what passed.
 ---
 
 # Dashboard verification
@@ -30,7 +30,7 @@ Run from the repo root, in this order. Each command exits non-zero on failure.
 
 ```sh
 cargo build -p jeeves-cli                 # engine + dashboard binary
-cd jeeves-ts && npm run build             # typecheck + bundle + version stamp
+npm run build --workspace @jeeves/dashboard             # typecheck + bundle + version stamp
 cd .. && just check                        # all static gates
 bash scripts/smoke-dashboard.sh            # real Runtime, curl as the browser
 ```

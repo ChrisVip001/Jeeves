@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import { chromium, devices } from "../jeeves-ts/node_modules/playwright/index.mjs";
+import { chromium, devices } from "../node_modules/playwright/index.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const directory = mkdtempSync(join(tmpdir(), "jeeves-cloud-account-"));
@@ -92,7 +92,7 @@ try {
   const control = join(directory, "control-plane");
   const gateway = join(directory, "gateway");
   execFileSync("go", ["build", "-o", control, "./control-plane"], { cwd: root, stdio: "inherit" });
-  execFileSync("go", ["build", "-o", gateway, "./jeeves-ts/packages/gateway"], { cwd: root, stdio: "inherit" });
+  execFileSync("go", ["build", "-o", gateway, "./gateway"], { cwd: root, stdio: "inherit" });
   const key = join(directory, "tls.key");
   const cert = join(directory, "tls.crt");
   execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",

@@ -1,6 +1,6 @@
 # Jeeves cloud deployment
 
-The public HTTPS entry sends traffic to the [Go unified gateway](../jeeves-ts/packages/gateway/README.md). Deploy the private Go control plane beside it. Kubernetes runs and isolates each tenant's Rust Runtime, and the control plane meters the included model. [Architecture](../docs/architecture.md)
+The public HTTPS entry sends traffic to the [Go unified gateway](../gateway/README.md). Deploy the private Go control plane beside it. Kubernetes runs and isolates each tenant's Rust Runtime, and the control plane meters the included model. [Architecture](../docs/architecture.md)
 
 ## Build and install
 

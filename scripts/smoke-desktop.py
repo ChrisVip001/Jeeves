@@ -250,5 +250,5 @@ def run(binary):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--binary', type=Path, default=Path(__file__).resolve().parents[1] / 'jeeves-rs/target/debug/jeeves')
+    parser.add_argument('--binary', type=Path, default=Path(__file__).resolve().parents[1] / 'target/debug/jeeves')
     run(parser.parse_args().binary.resolve())

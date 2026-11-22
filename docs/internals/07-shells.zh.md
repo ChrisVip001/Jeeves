@@ -6,7 +6,7 @@
 （[01-protocol-and-config](01-protocol-and-config.zh.md)）。外壳只负责渲染、传输和原生能力，
 不重新实现智能体行为（[architecture](../architecture.zh.md)）。
 
-目录：`jeeves-rs/jeeves-cli/`、`jeeves-rs/jeeves-ops/`、`jeeves-ts/packages/{client,dashboard,gateway,browser-worker}`、
+目录：`runtime/crates/jeeves-cli/`、`runtime/crates/jeeves-ops/`、`web/`、`gateway/`、`integrations/channels/`、`executors/browser/`、
 `desktop/src-tauri/`，以及 `Dockerfile`。
 
 ## 7.1 `jeeves` 二进制
@@ -116,7 +116,7 @@ hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 - `JeevesClient` 分配 id，维护以字符串化 id 为键的待决表，把每行解析为通知、错误或响应，传输关闭时拒绝所有待决请求。
   `JeevesError` 携带 `code` 和 `data`，并提供 `isProvider`、`isNotImplemented`、`isInvalidParams` 三个判断。
 - `StdioTransport` 启动 `jeeves app-server`，按行切分 stdout，把 stderr 转给 `onLog`，`close()` 只结束 stdin，让服务器写完剩余帧。
-  `findJeevesBinary` 依次取 `JEEVES_BIN`、从包目录向上查找的 `jeeves-rs/target/{debug,release}/jeeves`、PATH 上的 `jeeves`。
+  `findJeevesBinary` 依次取 `JEEVES_BIN`、从包目录向上查找的 `target/{debug,release}/jeeves`、PATH 上的 `jeeves`。
 - `HttpTransport` 附着到已在运行的 Runtime 而不是再启动一个：读取 `/api/notifications`，发送时可带 Bearer 令牌。
 
 ## 7.6 `@jeeves/dashboard`
@@ -175,7 +175,7 @@ Vue 和 Vite 将工作台及账号页面构建到 `dist/`。Go 网关在通过�
 
 - 设置存于 `<home>/gateways.json`（`enabled`、`appId`、`allow`、`dispatchers`、`domain`）；应用密钥存入密钥库，账户名
   `gateway:lark:app-secret`，API 从不读回。`allow` 和 `dispatchers` 中的 id 必须以 `ou_` 开头。
-- `start` 启动 `node jeeves-ts/packages/channels/src/bin-lark.ts`（可用 `JEEVES_GATEWAY_BIN` 覆盖），传入 Lark 变量和指向本 Runtime 的
+- `start` 启动 `node integrations/channels/src/bin-lark.ts`（可用 `JEEVES_GATEWAY_BIN` 覆盖），传入 Lark 变量和指向本 Runtime 的
   `JEEVES_GATEWAY_URL`，设置了令牌时还传 `JEEVES_OPS_TOKEN`。网关通过 `POST /api/gateway/rpc` 和 `/api/notifications` 附着。
 - **认领流程**：`allow` 为空时进程以 `LARK_CLAIM=1` 运行，不回答任何人；第一个发消息的人以 `claim candidate: <open_id>`
   写到 stderr，由 Runtime 捕获。带该 id 调用 `POST /api/connections/lark/claim` 会把它写成唯一的允许名单条目并重启网关；

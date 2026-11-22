@@ -6,7 +6,7 @@ English | [简体中文](05-memory.zh.md)
 the turn assembly in `jeeves-app-server` ([06](06-app-server.md)). Every model-backed step here
 fails open: a failed call leaves the data where it was and the turn goes on.
 
-Source: `jeeves-rs/jeeves-memory/src/`.
+Source: `runtime/crates/jeeves-memory/src/`.
 
 | Module | Role |
 |---|---|

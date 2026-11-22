@@ -16,7 +16,7 @@ The vault hides a value from `run_command` output by exact text match. A command
 transforms the value (base64, splitting it) before printing defeats the scrub, and a secret
 sent to a remote server is out of Jeeves's hands. It narrows what the model can read; it is not a
 sandbox for hostile commands.
-→ `jeeves-rs/jeeves-config/src/vault.rs`, `jeeves-rs/jeeves-ops/src/api/vault.rs`
+→ `runtime/crates/jeeves-config/src/vault.rs`, `runtime/crates/jeeves-ops/src/api/vault.rs`
 
 ## Models and keys
 
@@ -28,14 +28,14 @@ sandbox for hostile commands.
   `<home>/secrets.json` (plaintext, mode 0600 on Unix). A keychain call that fails or exceeds
   5 seconds counts as failure and falls back to the file, so one credential operation can never
   freeze the server. `model/save` reports the real landing spot (`keychain` / `file`).
-  → `jeeves-rs/jeeves-config/src/models.rs` (`SecretStore`, `KEYCHAIN_TIMEOUT_SECS`)
+  → `runtime/crates/jeeves-config/src/models.rs` (`SecretStore`, `KEYCHAIN_TIMEOUT_SECS`)
 * **Deliberate** — Switching models rewrites in-process settings and re-resolves the provider;
   the configuration lives in `<home>/models.json`, so the next start keeps your last pick. The
   model cannot switch models: `model/*` is human-only and the model never sees a key.
 * **Deliberate** — The model catalog (`<home>/models-catalog.json`) is read once at boot; a
   new entry needs a restart. Broken rows cost one stderr line each and are skipped; a broken
   file falls back to the built-in table.
-  → `jeeves-rs/jeeves-provider/src/catalog.rs`
+  → `runtime/crates/jeeves-provider/src/catalog.rs`
 
 ## Notifications and sync
 
@@ -48,7 +48,7 @@ sandbox for hostile commands.
   DingTalk/WeCom channels are deferred (human decision 2026-11-18), so their signed
   formats are not implemented. The outbox records transport acknowledgement, not user
   readership.
-  → `jeeves-rs/jeeves-tools/src/notify_queue.rs`
+  → `runtime/crates/jeeves-tools/src/notify_queue.rs`
 * **Deliberate** — Cross-device sync is a knock, not a feed: `/api/events` pings say
   "something happened" and the client re-pulls what it shows. Task events are the exception: `task/events` reads them from a cursor. There is no message-level delta
   protocol for chat, no offline chat queue or general-purpose chat push. Paired devices can receive [task approval notifications](protocol.md#task-approval-notifications).
@@ -62,18 +62,18 @@ sandbox for hostile commands.
   lock file to bypass an owner. This is local cooperative ownership, not a distributed lease or
   workspace write isolation. `Server::boot(pool, settings)` is for isolated embedding; its
   caller must own the store exclusively.
-  → `jeeves-rs/jeeves-app-server/src/lock.rs`
+  → `runtime/crates/jeeves-app-server/src/lock.rs`
 * **Deliberate** — One turn per session: `turn/start` claims the session first and a second
   caller gets `SESSION_BUSY` naming the holder. The gate is per process. `turn/interrupt`
   holds no session and always gets in.
-  → `jeeves-rs/jeeves-app-server/src/server/controls.rs` (`begin_turn`)
+  → `runtime/crates/jeeves-app-server/src/server/controls.rs` (`begin_turn`)
 * **Deliberate** — A per-session write-section lock covers only a turn's write sections
   (compaction and the tail section). Model-call sections never hold it, which would stall the
   session and keep interrupt out. Locks are created lazily and never removed.
-  → `jeeves-rs/jeeves-app-server/src/server/controls.rs` (`session_write_lock`)
+  → `runtime/crates/jeeves-app-server/src/server/controls.rs` (`session_write_lock`)
 * **Deliberate** — SQLite waits 10 seconds for a lock; concurrent writers queue instead of
   failing. If that is not enough, the answer is fewer writers, not a longer timeout.
-  → `jeeves-rs/jeeves-state/src/db.rs`
+  → `runtime/crates/jeeves-state/src/db.rs`
 * **Deliberate** — `turn/list`, `turn/steer` and the session gate see only turns in this
   process; a turn in another process is invisible to them and is not forwarded.
 
@@ -92,67 +92,67 @@ high-quality extraction use `run_command` with curl or an MCP fetching service.
   The Jeeves home is not writable: it holds `settings.json` (the exec allow table) and
   `hooks.json`, so a shell that could write it could grant itself more. Entries that are the
   home, an ancestor of it, or one of `HOME_CONTROL` are dropped even when listed.
-  → `jeeves-rs/jeeves-tools/src/roots.rs`, `exec.rs` (`sandbox_argv`)
+  → `runtime/crates/jeeves-tools/src/roots.rs`, `exec.rs` (`sandbox_argv`)
 * **Deliberate** — Without a working sandbox nothing runs. On Linux `bwrap` must exist and be
   able to create a namespace (Ubuntu 24.04 restricts unprivileged user namespaces), so
   availability is probed by running it once per process.
-  → `jeeves-rs/jeeves-tools/src/exec.rs` (`sandbox_backend`)
+  → `runtime/crates/jeeves-tools/src/exec.rs` (`sandbox_backend`)
 * **Deliberate** — The write tools (`write_file` / `edit`, `JEEVES_WRITE=1`) have no process
   sandbox; the hard gate is the writable roots, resolved from the selected workspace and the applicable extra roots.
   With no folder chosen nothing is writable. Outside them is refused before approval is
   consulted.
-  → `jeeves-rs/jeeves-tools/src/roots.rs`, `fs_write.rs`
+  → `runtime/crates/jeeves-tools/src/roots.rs`, `fs_write.rs`
 * **Deliberate** — `JEEVES_WRITE_ALLOW_DIRS` is a "don't ask again" list, not a writable root.
-  → `jeeves-rs/jeeves-tools/src/fs_write.rs` (`pass_write_gate`)
+  → `runtime/crates/jeeves-tools/src/fs_write.rs` (`pass_write_gate`)
 * **Deliberate** — The hard deny list is substring matching plus a hand-written
   pipe-into-shell check, so obfuscated variants (`bash -c "$(printf …)"`) slip past. It is a
   seatbelt; the allowlist and the sandbox are what hold.
-  → `jeeves-rs/jeeves-tools/src/exec.rs` (`HARD_DENY`, `pipes_into_a_shell`)
+  → `runtime/crates/jeeves-tools/src/exec.rs` (`HARD_DENY`, `pipes_into_a_shell`)
 * **Deliberate** — `JEEVES_APPROVAL` is `never` (default) or `on-request`, per mode rather than
   per tool class: only exec and writes have a gate to ask at.
-  → `jeeves-rs/jeeves-config/src/lib.rs`
+  → `runtime/crates/jeeves-config/src/lib.rs`
 * **Deliberate** — "Remember this" has three scopes: `once`, `session` (in-process, gone on
   restart) and `always` (written to `settings.json`). What is recorded is exactly what was
   approved: the command line without wildcards, or a write's directory. Hard-deny, the sandbox
   and the writable boundary still run first.
-  → `jeeves-rs/jeeves-app-server/src/approval.rs`
+  → `runtime/crates/jeeves-app-server/src/approval.rs`
 * **Deliberate** — A question waiting for a human survives a restart: it comes back from
   `approval/pending` with `restored: true` and a higher `version`, and an answer carrying an older
   version is refused. A yes to such a question is a single-use, in-memory yes that the resumed turn
   spends when it asks again; it is not stored, so it is lost if the process restarts again first.
-  → `jeeves-rs/jeeves-app-server/src/approval.rs`, `jeeves-rs/jeeves-state/src/grants.rs`
+  → `runtime/crates/jeeves-app-server/src/approval.rs`, `runtime/crates/jeeves-state/src/grants.rs`
 * **Partial** — Email and Feishu scoped send approvals record a grant; a once grant is recorded as already spent. General command and directory "remember" still writes `settings.json`, not `action_grants`.
-  → `jeeves-rs/jeeves-state/src/grants.rs`
+  → `runtime/crates/jeeves-state/src/grants.rs`
 * **Partial** — MCP servers are reconnected between turns when `mcp.json` (or `JEEVES_MCP_CONFIG`) changes,
   and each rebuild logs the tools added and removed; a turn in flight keeps its table. Servers advertising `tools.listChanged` have their list queried at the next turn boundary (no idle notification listener). Connector and MCP tools are refreshed for new turns and new subagents. `JEEVES_EXEC_ALLOW` and Feishu's background token renewer configuration still need a restart.
-  → `jeeves-rs/jeeves-app-server/src/server/mcp_live.rs`
+  → `runtime/crates/jeeves-app-server/src/server/mcp_live.rs`
 * **Deliberate** — Spilled command output is cleaned by age only (`spill/` keeps 7 days,
   pruned at startup), not by a size quota. Nothing else in `JEEVES_HOME` is rotated.
-  → `jeeves-rs/jeeves-tools/src/exec.rs` (`prune_spill`)
+  → `runtime/crates/jeeves-tools/src/exec.rs` (`prune_spill`)
 * **Deliberate** — Background commands go through the same gate as foreground ones. The
   in-process output ring is 64 KiB (overflow drops the oldest bytes and says how many); output
   also streams to `<home>/jobs/` with a 1 MiB cap. After a crash, boot reconciliation marks
   still-running jobs `interrupted` and keeps their output readable; they are never auto-rerun.
   There is no PTY, so interactive programs do not belong in the background.
-  → `jeeves-rs/jeeves-app-server/src/jobs.rs`, `jobs_buffer.rs`
+  → `runtime/crates/jeeves-app-server/src/jobs.rs`, `jobs_buffer.rs`
 * **Deliberate** — MCP reverse requests (elicitation/sampling) get an explicit "not supported"
   error. One MCP connection carries one in-flight request at a time; different servers run in
   parallel. The circuit breaker is in-process: 3 consecutive failures open it for 60 seconds,
   with no persistence and no knob.
-  → `jeeves-rs/jeeves-mcp/src/transport.rs`, `lib.rs` (`Breaker`)
+  → `runtime/crates/jeeves-mcp/src/transport.rs`, `lib.rs` (`Breaker`)
 * **Gap** — `jeeves mcp serve` implements `initialize`, `tools/list` and `tools/call` only; MCP
   `resources`, `prompts`, sampling and notifications are not implemented. MCP OAuth needs a
   manual `jeeves mcp login <name>`; there is no background re-authorisation after a refresh token
   expires.
-  → `jeeves-rs/jeeves-mcp/src/server.rs`, `oauth.rs`
+  → `runtime/crates/jeeves-mcp/src/server.rs`, `oauth.rs`
 * **Deliberate** — Model calls are retried only for 429/5xx/network, at most `JEEVES_LLM_RETRIES`
   times (default 2) inside a 30-second budget, and never by switching provider.
-  → `jeeves-rs/jeeves-provider/src/retry.rs`
+  → `runtime/crates/jeeves-provider/src/retry.rs`
 * **Deliberate** — The sandbox is Unix-only (macOS `sandbox-exec`, Linux `bubblewrap`). On
   native Windows the `jeeves` binary refuses to boot (exit 2) with the reasons printed; WSL2 is
   the supported route (see the matrix in [operations.md](operations.md)). CI keeps a Windows job
   for build and unit tests only.
-  → `jeeves-rs/jeeves-cli/src/main.rs` (`windows_blocker`), `.github/workflows/ci.yml`
+  → `runtime/crates/jeeves-cli/src/main.rs` (`windows_blocker`), `.github/workflows/ci.yml`
 
 ## Subagents, turns and goals
 
@@ -160,37 +160,37 @@ high-quality extraction use `run_command` with curl or an MCP fetching service.
   refused), is not persisted (no `subagent:*` rows in `session/list`), streams no internal
   events, cannot spawn subagents and does not get the todo list or project conventions. The
   parent sees one tool call and its conclusion.
-  → `jeeves-rs/jeeves-app-server/src/subagent.rs`
+  → `runtime/crates/jeeves-app-server/src/subagent.rs`
 * **Deliberate** — Batched subagents (`tasks`, at most 4) are read-only: their tool table
   carries no `run_command` / `write_file` / `edit` / `apply_patch`, because the one-write-at-a-time
   barrier cannot reach concurrent loops. Single delegations get the full table.
-  → `jeeves-rs/jeeves-tools/src/lib.rs` (`ToolRegistry::readonly`)
+  → `runtime/crates/jeeves-tools/src/lib.rs` (`ToolRegistry::readonly`)
 * **Deliberate** — `JEEVES_MAX_ITERATIONS` (default 32) is a spend budget. The last step is a
   wrap-up with tools removed. A turn continues itself at most `JEEVES_AUTO_CONTINUE_MAX` times
   (default 2) on a chat turn or a task without a budget; a task run that has a budget continues instead for as long as the budget has room (a ceiling of 64 only guards against bugs), and when the budget is spent it stops and names the open items. Each automatic continuation writes an `auto_continue` task event and a stderr line. A turn continues itself only when it was cut off with open todo items, buying one more slice
   (`JEEVES_TURN_STEP_SLICE`). The completion gate reads facts (open todo items), never asks the
   model "are you done?".
-  → `jeeves-rs/jeeves-loop/src/lib.rs`, `jeeves-rs/jeeves-app-server/src/turn/history.rs` (`unfinished_work`)
+  → `runtime/crates/jeeves-loop/src/lib.rs`, `runtime/crates/jeeves-app-server/src/turn/history.rs` (`unfinished_work`)
 * **Deliberate** — The todo list is capped at 20 items of 4000 characters, one `in_progress`
   at a time.
-  → `jeeves-rs/jeeves-tools/src/todo.rs`
+  → `runtime/crates/jeeves-tools/src/todo.rs`
 * **Deliberate** — The `/goal` judge sees only the conversation (a cheap model, no tools, no
   retrieval), so its verdict can be wrong; it may only continue a round, never get anything past
   a permission check. Goals are set by humans only (`goalCondition` on the task row). After a
   terminal outcome the loop stops and waits for a human.
-  → `jeeves-rs/jeeves-app-server/src/goal.rs`
+  → `runtime/crates/jeeves-app-server/src/goal.rs`
 * **Deliberate** — `steer` lands at an iteration boundary; a sentence added just before the
   turn ends is still written to `chat_log` (`meta.steer`). "Do this once you are done" is
   `turn/follow-up` (a durable queue that survives restart, one message at a time). After a
   restart, uncertain claims are retained as `needs_attention`, never auto-replayed. A queued
   follow-up shows up in an SSE stream only when the next turn starts.
-  → `jeeves-rs/jeeves-loop/src/lib.rs` (`Steering`), `jeeves-rs/jeeves-state/src/queue.rs`
+  → `runtime/crates/jeeves-loop/src/lib.rs` (`Steering`), `runtime/crates/jeeves-state/src/queue.rs`
 * **Deliberate** — `turn/interrupt` interrupts model calls and running tools. Before the loop starts, local memory lookup and history compaction also observe cancellation.
-  → `jeeves-rs/jeeves-app-server/src/turn/`
+  → `runtime/crates/jeeves-app-server/src/turn/`
 * **Deliberate** — The report hardening (`Human:` / `System:` prefixes and control markers get
   a backslash, plus a "this is a transcription" header) is a speed bump, not a sandbox. It does
   not judge maliciousness or change any permission check.
-  → `jeeves-rs/jeeves-tools/src/report.rs`
+  → `runtime/crates/jeeves-tools/src/report.rs`
 
 ## Model routing
 
@@ -202,7 +202,7 @@ profile. The L1 classifier sees only the message text.
 * **Deliberate** — A declared `tier` beats `fixed` mode. When `model-routes.json` has no entry
   for that tier it falls through to the active profile, and `TurnMeta.routeReason` says so
   instead of hiding it.
-  → `jeeves-rs/jeeves-app-server/src/route.rs` (`resolved_for_turn`)
+  → `runtime/crates/jeeves-app-server/src/route.rs` (`resolved_for_turn`)
 
 ## Files and uploads
 
@@ -215,14 +215,14 @@ straight from the file header.
 
 * **Gap** — Attachments are not replayed on session restore: `chat_log` stores the message text,
   so a restored session describes the image instead of re-showing it.
-  → `jeeves-rs/jeeves-app-server/src/turn/attachments.rs`, `history.rs`
+  → `runtime/crates/jeeves-app-server/src/turn/attachments.rs`, `history.rs`
 * **Deliberate** — Images over 4096 px on a side are refused rather than downscaled; sending
   them in pieces is the right move, and auto-slicing would need an image crate.
-  → `jeeves-rs/jeeves-app-server/src/image_meta.rs` (`MAX_EDGE`)
+  → `runtime/crates/jeeves-app-server/src/image_meta.rs` (`MAX_EDGE`)
 * **Deliberate** — `vision` follows the vendor's catalog row by default and errs toward
   `false`. A declaration on the profile (`--vision` on `/model add`, or `"vision": true` in
   `models.json`) wins.
-  → `jeeves-rs/jeeves-config/src/models.rs`, `jeeves-rs/jeeves-provider/src/lib.rs`
+  → `runtime/crates/jeeves-config/src/models.rs`, `runtime/crates/jeeves-provider/src/lib.rs`
 
 ## Memory
 
@@ -236,17 +236,17 @@ straight from the file header.
 * **Deliberate** — Exact duplicates never enter the table: a unique index on
   `(subject, lower(trim(content)))` makes `add` return the existing row. Near-duplicates (the
   same fact reworded) land as a second row; merging them is not done.
-  → `jeeves-rs/jeeves-state/src/facts.rs`, `migrations/0008_memory_dedup.sql`
+  → `runtime/crates/jeeves-state/src/facts.rs`, `migrations/0008_memory_dedup.sql`
 * **Deliberate** — Memory kinds are a closed set of five (`fact` is the fallback); an invented
   category lands in `fact`.
-  → `jeeves-rs/jeeves-state/src/facts.rs` (`KINDS`)
+  → `runtime/crates/jeeves-state/src/facts.rs` (`KINDS`)
 * **Deliberate** — Temporary-statement filtering is a marker list, not a classifier, and will
   miss unusual phrasing.
-  → `jeeves-rs/jeeves-memory/src/consolidation.rs` (`TEMPORARY_MARKERS`)
+  → `runtime/crates/jeeves-memory/src/consolidation.rs` (`TEMPORARY_MARKERS`)
 * **Deliberate** — Skill discovery is lexical: ASCII words and adjacent Han-character pairs,
   with at least two distinct overlaps. It does not understand synonyms; the skill catalog stays
   available to the model for semantic selection.
-  → `jeeves-rs/jeeves-memory/src/skills.rs`
+  → `runtime/crates/jeeves-memory/src/skills.rs`
 * **Deliberate** — Database-backed memory pages are checked against current durable facts at
   recall time; a missing, corrected or bounded source excludes the whole page, while raw files
   stay on disk. Validity applies to facts, not to episodes or checkpoints
@@ -262,23 +262,23 @@ straight from the file header.
   summary plus newly evicted turns within a 700-token output budget; model failure falls back
   to a 600-character excerpt (and the prompt says so). Details can be lost through repeated
   compression, and the summary is not a durable record of authorization or task commitments.
-  → `jeeves-rs/jeeves-memory/src/compaction.rs`
+  → `runtime/crates/jeeves-memory/src/compaction.rs`
 * **Deliberate** — Compaction does not preserve file-operation state. What survives eviction is
   the rolling summary plus the `[tools used: …]` fold; a fold line carries a `spill/…` address
   for output over 2000 characters, so shorter output or a changed file has to be read again.
-  → `jeeves-rs/jeeves-app-server/src/turn/history.rs`
+  → `runtime/crates/jeeves-app-server/src/turn/history.rs`
 * **Deliberate** — The six-section meter covers only what grows with a session. The clock,
   todo board, capability note and project conventions (`AGENTS.md` and friends, capped at 32 KB
   per turn) ride in the prompt uncounted, so in a repository with a fat `AGENTS.md` the band
   understates the prompt by that file.
-  → `jeeves-rs/jeeves-app-server/src/memory_center.rs`, `agents_md.rs`
+  → `runtime/crates/jeeves-app-server/src/memory_center.rs`, `agents_md.rs`
 * **Deliberate** — Token counts are estimated with a tiktoken encoding applied across
   providers. The estimate decides when to compact, never what is billed; the provider's
   reported `usage` is authoritative. Calibration is a ratio clamped to 0.5–2.0.
-  → `jeeves-rs/jeeves-provider/src/tokens.rs`, `jeeves-rs/jeeves-state/src/chat.rs` (`context_factor`)
+  → `runtime/crates/jeeves-provider/src/tokens.rs`, `runtime/crates/jeeves-state/src/chat.rs` (`context_factor`)
 * **Deliberate** — The per-turn tool-result budget only touches individually large results; many
   medium results overflowing the cap are left alone (one stderr line).
-  → `jeeves-rs/jeeves-loop/src/budget.rs`
+  → `runtime/crates/jeeves-loop/src/budget.rs`
 * **Deliberate** — The runtime speaks English to the model and to the human. Data stays in the
   language it was written in (model output, session titles, task text, memory pages,
   `AGENTS.md`, a hand-edited `SOUL.md`). The only switcher is the dashboard's zh/en button;
@@ -289,7 +289,7 @@ straight from the file header.
 * **Boundary** — Session metadata holds only a name, a working directory and the fork origin:
   no owner, no visibility, no status. Sessions created before the sessions table have an empty
   working directory.
-  → `jeeves-rs/jeeves-state/src/chat.rs`, `migrations/0018_sessions.sql`
+  → `runtime/crates/jeeves-state/src/chat.rs`, `migrations/0018_sessions.sql`
 * **Boundary** — Creation alone does not execute a task. Human-only `task/start` queues one
   initial execution in a separate work session. Local workers (1–8, default 1) need a live process and
   a configured model; it is not an always-online or distributed scheduler
@@ -299,56 +299,56 @@ straight from the file header.
   it, `failed` otherwise. Email claims `email_message` and confirms from SMTP acceptance, fails on a
   permanent SMTP rejection, and leaves an unknown post-DATA outcome claimed without retrying. Outside a
   task run both send but write no receipt and say so. Other tools write no receipts.
-  → `jeeves-rs/jeeves-state/src/receipts.rs`, `jeeves-rs/jeeves-connector/src/{feishu,email}.rs`
+  → `runtime/crates/jeeves-state/src/receipts.rs`, `runtime/crates/jeeves-connector/src/{feishu,email}.rs`
 * **Boundary** — "Done" is decided by facts, not by the model: `fileExists`, `fileContains`,
   `jsonEquals`, `toolsOk`, `receiptConfirmed`, `commandSucceeds` and `sourceSupports` are checked after every round and a
   failing condition skips the judge. A command check that did not run (exec off, no sandbox, refused) is
   reported as `skipped:` and counts as not met. Anything else ("the report is good") is not accepted as a condition. `fileContains` is
   a plain substring, never a regex.
-  → `jeeves-rs/jeeves-agent/src/verify.rs`
+  → `runtime/crates/jeeves-agent/src/verify.rs`
 * **Boundary** — Budgets are checked once per round, before the next model call, so a single
   round can overshoot a cap; the ledger reports the overshoot instead of pretending to cut
   mid-call. Budgets are not provider billing reservations.
-  → `jeeves-rs/jeeves-app-server/src/turn/accounting.rs`
+  → `runtime/crates/jeeves-app-server/src/turn/accounting.rs`
 * **Boundary** — Resuming after a crash happens when a process starts, only for checkpoints
   younger than `JEEVES_RESUME_MAX_AGE` (default 60 minutes) — except checkpoints of an open task that has a budget with room left, which resume at any age; older chat checkpoints are marked `abandoned`
   (a status, not a deletion). Notifications are not replayed; whoever missed them reads the chat
   log. A human interrupt, or a turn that errored inside its process, also marks the checkpoint
   `abandoned`, so an `open` checkpoint after a process ends can only mean a crash.
-  → `jeeves-rs/jeeves-app-server/src/resume.rs`, `turn/finalize.rs`
+  → `runtime/crates/jeeves-app-server/src/resume.rs`, `turn/finalize.rs`
 * **Boundary** — On restart a `running` task is marked `suspended` first; an `open` checkpoint
   then resumes it. Crash recovery is automatic, a human pause is not: only `task/resume` moves a
   paused task.
-  → `jeeves-rs/jeeves-app-server/src/resume.rs`
+  → `runtime/crates/jeeves-app-server/src/resume.rs`
 * **Boundary** — Background jobs are not attached to a task's ledger by default, except that a
   job started inside a task carries that task's run identity and a task can wait on its jobs.
-  → `jeeves-rs/jeeves-state/src/jobs.rs`, `jeeves-rs/jeeves-app-server/src/task/`
+  → `runtime/crates/jeeves-state/src/jobs.rs`, `runtime/crates/jeeves-app-server/src/task/`
 
 ## Connectors and gateways
 
 * **Boundary** — Connectors have no retry, backoff or rate limiting: a failed send goes back to
   the model, which decides the next step. Bulk third-party calls are out of scope.
-  → `jeeves-rs/jeeves-connector/src/feishu.rs`
+  → `runtime/crates/jeeves-connector/src/feishu.rs`
 * **Boundary** — Feishu sends as the app (`tenant_access_token`) by default; acting as a person
   needs one browser authorization (`jeeves connector feishu login`). The flow has no PKCE and the
   callback is fixed at `127.0.0.1:41766/callback`, which must be registered in the console.
   Renewal rotates the refresh token, so a long-lived app-server renews ten minutes before
   expiry; with every process stopped nothing renews and an expired refresh token needs a new
   login. A personal WeChat account has no programmable outbound API.
-  → `jeeves-rs/jeeves-connector/src/feishu_oauth.rs`
+  → `runtime/crates/jeeves-connector/src/feishu_oauth.rs`
 * **Deliberate** — Connector allowlists are exact matches: no wildcards, no regex, no domain
   suffix entries. Only the human edits them, and a change takes effect on the next turn.
-  → `jeeves-rs/jeeves-connector/src/config.rs`
+  → `runtime/crates/jeeves-connector/src/config.rs`
 * **Boundary** — Calendar support is read-only CalDAV/ICS. TZIDs must resolve through the IANA
   database; a custom `VTIMEZONE` definition is not interpreted. Recurrence expansion covers
   `RRULE` and `EXDATE`; `RECURRENCE-ID` overrides and `EXRULE` are ignored. Email reads UNSEEN
   messages as plain text, does not store attachments, and keeps at most 16,000 characters of
   each body. Sending is plain text; attachments are not supported. Connectors have no automatic
   retry, so an uncertain SMTP result is reported rather than replayed.
-  → `jeeves-rs/jeeves-connector/src/{calendar,email}.rs`
+  → `runtime/crates/jeeves-connector/src/{calendar,email}.rs`
 * **Gap** — The WeChat Official Account and Lark gateways have never been pointed at the real platforms; they
   are tested against fakes only. WhatsApp and voice gateways do not exist.
-  → `jeeves-ts/packages/channels/`
+  → `integrations/channels/`
 
 ## Operations
 
@@ -357,20 +357,20 @@ straight from the file header.
   have produced effects, so it is never replayed and blocks later firings of the same job (other jobs are not blocked) until
   `jeeves schedule acknowledge <name>` releases it after review
   ([recovery](operations.md#schedule-recovery-and-delivery)).
-  → `jeeves-rs/jeeves-app-server/src/scheduler/`
+  → `runtime/crates/jeeves-app-server/src/scheduler/`
 
 ## Business form (task API, webhooks)
 
 * **Deliberate** — `/api/run` and synchronous webhooks wait for the turn to finish; "accept now,
   deliver later" is the webhook `callback` mode. Neither has a job queue: if delivery fails (or
   the process dies first) it is lost. The answer is in the session history but is not re-pushed.
-  → `jeeves-rs/jeeves-ops/src/api/stream.rs` (`run_headless`), `webhooks.rs`
+  → `runtime/crates/jeeves-ops/src/api/stream.rs` (`run_headless`), `webhooks.rs`
 * **Deliberate** — Replay protection exists only with `signature: true`, and freshness is judged
   by the local clock with a ±300 s window. Plain `X-Jeeves-Secret` mode does not refuse replays.
-  → `jeeves-rs/jeeves-ops/src/webhooks.rs` (`SIGNATURE_WINDOW`)
+  → `runtime/crates/jeeves-ops/src/webhooks.rs` (`SIGNATURE_WINDOW`)
 * **Deliberate** — The webhook rate cap is a per-process per-minute counter, with no per-caller
   buckets; a restart clears it.
-  → `jeeves-rs/jeeves-ops/src/webhooks.rs`
+  → `runtime/crates/jeeves-ops/src/webhooks.rs`
 
 ## Configuration
 
@@ -378,14 +378,14 @@ straight from the file header.
   environment, so a saved patch outranks `JEEVES_*` for that field until cleared (an empty string
   clears model overrides; an empty patch removes the file). Invalid values are rejected
   wholesale.
-  → `jeeves-rs/jeeves-config/src/lib.rs` (`apply_patch`, `save_patch`)
+  → `runtime/crates/jeeves-config/src/lib.rs` (`apply_patch`, `save_patch`)
 
 ## Quality system
 
 * **Deliberate** — Deterministic evals run against a scripted provider (no keys, no network).
   Judge evals need a real model and key and are a separate command (`jeeves judge`); their scores
   never block a release.
-  → `jeeves-rs/jeeves-eval/src/`, `evals/`
+  → `runtime/crates/jeeves-eval/src/`, `evals/`
 * **Deliberate** — Scenarios that need something the machine may lack (python3, a shell, a
   working sandbox) declare `prereq` and are counted as skipped, never as passed.
   → `evals/deterministic/exec.jsonl`
@@ -401,7 +401,7 @@ straight from the file header.
   code also reports unknown effects and stops further tools; killing a process does not undo its
   writes. A nonzero exit is a known failure and cannot satisfy `toolsOk`. This is conservative
   batch-level protection, not end-to-end exactly-once execution.
-  → `jeeves-rs/jeeves-loop/src/lib.rs`, `jeeves-mcp/src/lib.rs`, `jeeves-app-server/src/resume.rs`
+  → `runtime/crates/jeeves-loop/src/lib.rs`, `jeeves-mcp/src/lib.rs`, `jeeves-app-server/src/resume.rs`
 * **Boundary** — Round accounts have stable checkpoint identities; task and run totals commit
   atomically with cumulative watermarks, recovery charges only new deltas, and an accounting
   failure stops the task for review. Wall time lost before a crash is approximate, usage the
