@@ -15,6 +15,7 @@ mod morning;
 #[cfg(test)]
 mod plans_tests;
 pub(crate) mod price;
+mod records;
 mod research;
 pub(crate) mod reviews;
 #[cfg(test)]

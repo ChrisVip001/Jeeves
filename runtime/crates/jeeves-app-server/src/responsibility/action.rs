@@ -208,6 +208,8 @@ fn adapters() -> &'static [Adapter] {
         MODEL,
         super::research::ADAPTER,
         super::morning::ADAPTER,
+        super::price::ADAPTER,
+        super::records::ADAPTER,
     ]
 }
 

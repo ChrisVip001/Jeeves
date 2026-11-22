@@ -115,19 +115,7 @@ pub async fn outcome(
     tx.commit().await
 }
 
-/// An adapter owns its existing clock. Record admission on the same connection as its cursor.
-pub async fn begin_bound(
-    conn: &mut sqlx::SqliteConnection,
-    id: &str,
-    key: &str,
-    slot_ms: i64,
-) -> sqlx::Result<()> {
-    enqueue_bound(conn, id, key, slot_ms, None).await?;
-    sqlx::query("INSERT INTO responsibility_runs(wake_key,responsibility_id,status) VALUES(?,?,'preparing')")
-        .bind(key).bind(id).execute(&mut *conn).await?;
-    Ok(())
-}
-
+/// Store compatibility trigger observations for the same worker that claims timer and event wakes.
 pub async fn enqueue_bound(
     conn: &mut sqlx::SqliteConnection,
     id: &str,

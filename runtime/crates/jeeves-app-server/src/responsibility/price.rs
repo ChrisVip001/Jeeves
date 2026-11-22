@@ -1,13 +1,15 @@
 //! Admit the next saved quote observation and settle it with its source and chat receipt.
+use super::action::{Adapter, Output, Settlement};
 use crate::{
     interaction::price_watch::{amount, current_tools, Product, Quote, HOUR},
     Server,
 };
 use anyhow::{ensure, Result};
 use jeeves_state::responsibility_runs as runs;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Serialize, Deserialize)]
 struct Due {
     task_id: String,
     duty_id: String,
@@ -22,15 +24,62 @@ struct Due {
     next_check_ms: i64,
 }
 
+#[derive(Serialize, Deserialize)]
+struct Observation {
+    total: Option<i64>,
+    evidence: Value,
+}
+
+pub(super) const ADAPTER: Adapter = Adapter {
+    kind: "productQuote",
+    label: "Verify the current delivered price",
+    uses_model: false,
+    internal: true,
+    schema: || json!({"type":"object","additionalProperties":false}),
+    describe: |value| {
+        ensure!(
+            value.as_object().is_some_and(serde_json::Map::is_empty),
+            "Unexpected quote configuration"
+        );
+        Ok(vec![])
+    },
+    preflight: |_, _| Ok(()),
+    run: |input, _| {
+        Box::pin(async move {
+            let watch: Due = serde_json::from_str(
+                input
+                    .event
+                    .ok_or_else(|| anyhow::anyhow!("Missing assigned quote"))?,
+            )?;
+            let tools = current_tools(input.server).await;
+            let observed = read_quote(input.server, &tools, &watch).await;
+            let observation = match observed {
+                Ok((total, evidence)) => Observation {
+                    total: Some(total),
+                    evidence,
+                },
+                Err(error) => Observation {
+                    total: None,
+                    evidence: json!({"unconfirmed":error.to_string().chars().take(512).collect::<String>()}),
+                },
+            };
+            Ok(Output {
+                body: Some(serde_json::to_string(&observation)?),
+                tools_used: 1,
+            })
+        })
+    },
+    settle: Some(|context, _| Box::pin(settle(context))),
+};
+
 pub(crate) async fn tick(server: &Server, now: i64) -> Result<()> {
     let due: Vec<Due> = sqlx::query_as("SELECT w.*,o.tool,o.input_json,t.session_id,r.id AS duty_id,r.revision AS duty_revision FROM price_watches w JOIN responsibilities r ON r.id='watch-'||w.task_id AND r.clock_owner='price-watch' JOIN agent_tasks t ON t.id=w.task_id JOIN tool_operations o ON o.id=w.operation_id WHERE (r.status='active' OR w.expires_ms<=?) AND t.status IN ('pending','running') AND (w.next_check_ms<=? OR w.expires_ms<=?) ORDER BY w.next_check_ms")
         .bind(now).bind(now).bind(now).fetch_all(&server.pool).await?;
     if due.is_empty() {
         return Ok(());
     }
-    let tools = current_tools(server).await;
     for w in due {
-        if let Err(error) = poll(server, &tools, &w, now).await {
+        if let Err(error) = poll(server, &w, now).await {
             eprintln!("(jeeves) price watch {}: {error}", w.task_id);
         }
     }
@@ -55,12 +104,7 @@ async fn read_quote(
     quote.delivered(&serde_json::from_str(&watch.quote_json)?)
 }
 
-async fn poll(
-    server: &Server,
-    tools: &jeeves_tools::ToolRegistry,
-    w: &Due,
-    now: i64,
-) -> Result<()> {
+async fn poll(server: &Server, w: &Due, now: i64) -> Result<()> {
     let mut tx = server.pool.begin_with("BEGIN IMMEDIATE").await?;
     if now >= w.expires_ms {
         sqlx::query("UPDATE agent_tasks SET status='failed',finished_at=datetime('now'),last_stop_reason='监测期限已到，没有确认低于阈值的到手价' WHERE id=? AND status IN ('pending','running')")
@@ -76,20 +120,50 @@ async fn poll(
         return Ok(());
     }
     let key = format!("price-watch:{}:{}", w.task_id, w.next_check_ms);
-    runs::begin_bound(&mut tx, &w.duty_id, &key, w.next_check_ms).await?;
+    runs::enqueue_bound(
+        &mut tx,
+        &w.duty_id,
+        &key,
+        w.next_check_ms,
+        Some(&serde_json::to_string(w)?),
+    )
+    .await?;
     sqlx::query("UPDATE agent_tasks SET spent_tools=spent_tools+1 WHERE id=?")
         .bind(&w.task_id)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;
-    let observed = read_quote(server, tools, w).await;
-    let (total, evidence) = match observed {
-        Ok((total, evidence)) => (Some(total), evidence),
-        Err(e) => (
-            None,
-            json!({"unconfirmed":e.to_string().chars().take(512).collect::<String>()}),
-        ),
-    };
+    let (sink, _rx) = crate::EventSink::channel();
+    if let Some(work) = runs::take_key(
+        &server.pool,
+        chrono::Utc::now().timestamp_millis(),
+        Some(&key),
+    )
+    .await?
+    {
+        super::worker::process(server, &sink, &work).await?;
+    }
+    Ok(())
+}
+
+async fn settle(context: Settlement<'_>) -> Result<(&'static str, String)> {
+    let server = context.server;
+    let key = &context.work.wake_key;
+    let w: Due = serde_json::from_str(
+        context
+            .work
+            .event_json
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Missing assigned quote"))?,
+    )?;
+    let Observation { total, evidence } = serde_json::from_str(
+        context
+            .output
+            .body
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("Missing quote observation"))?,
+    )?;
+    let now = chrono::Utc::now().timestamp_millis();
     let mut tx = server.pool.begin_with("BEGIN IMMEDIATE").await?;
     sqlx::query("INSERT INTO watch_observations(task_id,checked_ms,revision,threshold_minor,evidence) VALUES(?,?,?,?,?)")
         .bind(&w.task_id).bind(now).bind(w.revision).bind(w.threshold_minor).bind(evidence.to_string()).execute(&mut *tx).await?;
@@ -115,7 +189,9 @@ async fn poll(
     )
     .await?;
     let mut delivery = None;
-    if let Some(total) = total.filter(|n| *n < w.threshold_minor) {
+    if let Some(total) =
+        total.filter(|n| super::records::less_than(&json!(n), &json!(w.threshold_minor)))
+    {
         let product: Product = serde_json::from_str(&w.quote_json)?;
         let detail = format!(
             "{} {} · 含运费到手价 {} {}，低于 {}。{}",
@@ -144,12 +220,12 @@ async fn poll(
     let detail = delivery.as_deref().unwrap_or(&measurement);
     sqlx::query("UPDATE responsibility_runs SET body=?,tools_used=1 WHERE wake_key=?")
         .bind(evidence.to_string())
-        .bind(&key)
+        .bind(key)
         .execute(&mut *tx)
         .await?;
     runs::finish_on(
         &mut tx,
-        &key,
+        key,
         if delivery.is_some() {
             "confirmed"
         } else {
@@ -161,5 +237,12 @@ async fn poll(
     .await?;
     tx.commit().await?;
     eprintln!("(jeeves) price watch {}: {}", w.task_id, detail);
-    Ok(())
+    Ok((
+        if delivery.is_some() {
+            "confirmed"
+        } else {
+            "draft"
+        },
+        detail.to_owned(),
+    ))
 }
