@@ -47,10 +47,9 @@ and MCP tools. Connector reads declare `read`; an undeclared tool effect is alwa
 | Unknown name | `Error: no tool named '{name}'. Available: …` |
 | Arguments violate the schema | `Error: the arguments do not match the {name} schema — …` (at most three violations, each with its field path) |
 | Handler returns `Err` | `Error: {name} failed: {e}` |
-| Refusal or business failure | The handler returns its own `Error: …` text |
+| Refusal or business failure | The handler reports a failure and the registry renders its message |
 
-Success or failure is read from the `Error:` prefix. Predictable failures (id not found, duplicate skill name) are
-returned as text by the handler; `Err` is for real surprises (IO, database).
+The loop uses `execute_result` to read the status from authorization, validation and the handler alongside its text. Successful content may start with `Error:`.
 
 `register` precompiles `input_schema` with `jsonschema`; `execute` validates before anything else, so a
 failed validation never reaches a handler. A schema that does not compile skips validation and logs one line on stderr.
@@ -98,7 +97,7 @@ table and the session-approved commands are shared cells, so an approval or a `c
 `ExecutionPolicy` is implemented in `jeeves-app-server/src/permissions.rs`; each session has a `PermissionMode`
 (`readOnly` / `standard` / `fullAccess`), stored per session with a revision.
 
-- **Main conversation**: refuses everything that is not a proven read, except the `task` hand-off.
+- The private main conversation uses enabled tools under its session policy. Channel conversations retain their source-scoped tool table.
 - **`readOnly`**: refuses every call that is not a proven read.
 - **`standard`**: every non-read call asks once through the approval broker (120 s; the preview is redacted for keys such as
   `token`, `password`, `authorization` and capped at 8192 bytes). If it is approved, approval requests the handler itself
@@ -179,7 +178,7 @@ The sandbox allows writes only under the writable roots (the call's `cwd`, which
 Roots are canonicalized before they go into the rules.
 
 Execution: stdin is null, stdout and stderr are read concurrently under `JEEVES_EXEC_TIMEOUT` (default 30 s, 1–3600), stdout is streamed as deltas to an observer when one is watching.
-Result: `exit code N` followed by stdout, or `Error: exit code N` for non-zero, with a `--- stderr ---` section when stderr is non-empty.
+The result includes the exit code and stdout. A non-zero exit marks the call failed. Non-empty stderr appears under `--- stderr ---`.
 A timeout, unreadable pipe or missing exit code returns `Error: … outcome is unknown. Reconcile any committed effects …` and notifies the host (`on_uncertain`).
 Output over 8000 characters is replaced by a stub of whole head and tail lines; the full text is first written to
 `<home>/spill/<date>/command-<time>-<pid>.txt` and the stub names the path. A failed spill leaves the stub without a path.

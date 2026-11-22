@@ -291,7 +291,7 @@ pub fn write_file(policy: WritePolicy) -> Tool {
                 )
                 .await
                 {
-                    return Ok(format!("Error: {why}"));
+                    return Err(anyhow::anyhow!("{why}"));
                 }
 
                 let old = if path.is_file() {
@@ -372,7 +372,7 @@ pub fn edit(policy: WritePolicy) -> Tool {
                 )
                 .await
                 {
-                    return Ok(format!("Error: {why}"));
+                    return Err(anyhow::anyhow!("{why}"));
                 }
 
                 let old = read_text(&path)?;

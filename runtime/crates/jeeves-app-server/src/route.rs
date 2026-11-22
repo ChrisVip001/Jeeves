@@ -125,6 +125,7 @@ impl Server {
     pub(crate) async fn resolved_for_turn(
         &self,
         base: Resolved,
+        classifier: &Resolved,
         message: &str,
         tier: Option<&str>,
     ) -> (Resolved, Option<String>) {
@@ -165,7 +166,7 @@ impl Server {
         let window = base.context_window();
         let mut tier: String = pick_tier(estimated, window).to_string();
         if needs_classify(estimated, window) {
-            if let Some(said) = classify_tier(&base, message).await {
+            if let Some(said) = classify_tier(classifier, message).await {
                 tier = said;
             }
         }

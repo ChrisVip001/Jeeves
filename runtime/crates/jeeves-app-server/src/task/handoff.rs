@@ -62,7 +62,7 @@ pub(crate) async fn load(
         .await
         .map_err(failed)?;
     let open_todos = operations.iter().rev().find_map(|operation| {
-        if operation.tool != "todo_write" || operation.status != "succeeded" {
+        if operation.tool != "todo_write" || operation.evidence_status() != "succeeded" {
             return None;
         }
         let input: Value = serde_json::from_str(&operation.input_json).ok()?;
@@ -107,9 +107,24 @@ pub(crate) async fn load(
             }
         }
     }
+    let mut sources = Vec::new();
+    for op in operations
+        .iter()
+        .filter(|op| op.evidence_status() == "succeeded")
+    {
+        let input: Value = serde_json::from_str(&op.input_json).map_err(failed)?;
+        if let Some(url) = input["url"].as_str().filter(|s| s.len() <= 2048) {
+            if !sources.iter().any(|source: &Value| source["url"] == url) {
+                sources.push(json!({"url":url,"operationId":op.id}));
+                if sources.len() == 16 {
+                    break;
+                }
+            }
+        }
+    }
     let operations: Vec<Value> = operations.into_iter().filter(|operation| operation.run_id.as_deref()==Some(run.id.as_str()))
         .rev().take(16).map(|operation| json!({
-            "operationId":operation.id,"tool":operation.tool,"status":operation.status,
+            "operationId":operation.id,"tool":operation.tool,"status":operation.evidence_status(),
             "inputDigest":operation.input_digest,"automaticReplay":"never",
             "argumentsPreview":operation.input_json.chars().take(2048).collect::<String>(),
             "humanEvidencePreview":operation.evidence.map(|text|text.chars().take(512).collect::<String>())
@@ -138,10 +153,26 @@ pub(crate) async fn load(
             })
         })
         .collect();
+    let assignment: Option<(String, String, String, String)> = sqlx::query_as(
+        "SELECT message_id,instruction,context,evidence_json FROM conversation_handoffs WHERE task_id=?",
+    )
+    .bind(&task.id)
+    .fetch_optional(&server.pool)
+    .await
+    .map_err(failed)?;
+    let assignment = assignment.map(|(message,instruction,context,evidence)| -> Result<Value,ErrorObject> {
+        let operations:Vec<String> = serde_json::from_str(&evidence).map_err(failed)?;
+        Ok(json!({"messageId":message,"instruction":instruction,"quotedContext":context,"settledOperationRefs":operations}))
+    }).transpose()?;
+    let amendments:Vec<(String,String)> = sqlx::query_as("SELECT message_id,instruction FROM task_amendments WHERE task_id=? ORDER BY rowid DESC LIMIT 16")
+        .bind(&task.id).fetch_all(&server.pool).await.map_err(failed)?;
     let handoff = json!({
+        "originalAssignment": assignment,
+        "humanAmendmentsNewestFirst":amendments.into_iter().map(|(message,instruction)|json!({"messageId":message,"instruction":instruction})).collect::<Vec<_>>(),
         "schemaVersion":1,
         "externalInput":input,
         "recentOperationEvidenceNewestFirst":operations,
+        "sourceReferences":sources,
         "recentTaskEventsNewestFirst":recent_events,
         "latestEditCheck":latest_edit_check.map(|text| text.chars().take(512).collect::<String>()),
         "pathsMentionedByEditOperationsNotRevalidated":edited.into_iter().take(50).collect::<Vec<_>>(),
@@ -230,7 +261,7 @@ mod tests {
                 r#"{"todos":[{"content":"finish tests","status":"pending"}]}"#,
             ),
         ] {
-            sqlx::query("INSERT INTO tool_operations(id,task_id,run_id,turn_id,session_id,round_id,tool_use_id,tool,input_json,input_digest,status) VALUES(?, 'task', 'run', 'execution', 'work', 'round', ?, ?, ?, 'digest', 'succeeded')")
+            sqlx::query("INSERT INTO tool_operations(id,task_id,run_id,turn_id,session_id,round_id,tool_use_id,tool,input_json,input_digest,status,output_preview) VALUES(?, 'task', 'run', 'execution', 'work', 'round', ?, ?, ?, 'digest', 'succeeded', 'recorded')")
                 .bind(id).bind(id).bind(tool).bind(input).execute(&pool).await.unwrap();
         }
         let restored = load(&server, "execution", "work").await.unwrap();

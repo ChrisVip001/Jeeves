@@ -33,12 +33,17 @@ def start(home, port, extra_env=None):
         rpc.call('config/write', {'patch': {'consolidateEvery': 1000, 'graphWorkflows': False}})
     finally:
         rpc.close()
+    return provider, start_runtime(home, port, extra_env)
+
+
+def start_runtime(home, port, extra_env=None):
+    binary = ROOT / 'target/debug/jeeves' if not os.environ.get('CARGO_TARGET_DIR') else Path(os.environ['CARGO_TARGET_DIR']) / 'debug/jeeves'
     env = {k: v for k, v in os.environ.items() if not k.startswith('JEEVES_')}
     env.update(JEEVES_HOME=str(home), JEEVES_PORT=str(port), JEEVES_PROVIDER='ollama', JEEVES_OPS_TOKEN=RUNTIME_TOKEN, JEEVES_WRITE='1', JEEVES_SEARCH_DDG='0')
     env.update(extra_env or {})
-    with (Path(home) / 'server.log').open('w') as log:
+    with (Path(home) / 'server.log').open('a') as log:
         process = subprocess.Popen([str(binary), 'runtime'], env=env, stdout=log, stderr=subprocess.STDOUT)
-    return provider, process
+    return process
 
 
 def request(base, path, body=None, auth=True):
@@ -51,7 +56,7 @@ def request(base, path, body=None, auth=True):
 
 
 def stream(base, session, message, approve=False):
-    req = urllib.request.Request(base + '/api/turn', data=json.dumps({'sessionId': session, 'message': message, 'stream': True}).encode(), headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN, 'Content-Type': 'application/json'})
+    req = urllib.request.Request(base + '/api/interaction', data=json.dumps({'sessionId': session, 'message': message, 'messageId': str(time.time_ns())}).encode(), headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN, 'Content-Type': 'application/json'})
     events = []
     with urllib.request.urlopen(req, timeout=20) as response:
         for line in response:

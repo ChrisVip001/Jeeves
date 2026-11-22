@@ -424,7 +424,7 @@ async fn structured_only_search_results_are_not_lost() {
         .call_tool("web_search", json!({}))
         .await
         .unwrap();
-    let result: Value = serde_json::from_str(&text).expect("preserve structured content");
+    let result: Value = serde_json::from_str(&text.text).expect("preserve structured content");
     assert_eq!(result["results"][0]["url"], "https://example.com/");
 }
 
@@ -530,7 +530,7 @@ async fn http_session_handshakes_sends_the_token_and_reads_sse() {
         .call_tool("reverse", json!({"text": "abc"}))
         .await
         .expect("call it");
-    assert_eq!(text, "cba");
+    assert_eq!(text.text, "cba");
 
     let seen = fake.seen.lock().await;
     assert!(seen[0].0.contains("Bearer s3cret"), "{}", seen[0].0);
@@ -752,11 +752,10 @@ async fn a_real_subprocess_server_registers_working_tools() {
             .await,
         "ok"
     );
-    let failed = registry.execute(ctx, "demo_boom", json!({})).await;
-    assert!(
-        failed.starts_with("Error: MCP tool boom failed:"),
-        "{failed}"
-    );
+    let outcome = registry.execute_result(ctx, "demo_boom", json!({})).await;
+    assert!(!outcome.success);
+    let failed = outcome.text;
+    assert!(failed.contains("MCP tool boom failed:"), "{failed}");
     assert!(
         !failed.contains("outcome unknown"),
         "a remote tool error is a known outcome: {failed}"
@@ -785,7 +784,7 @@ async fn a_server_that_cannot_start_is_skipped_with_a_warning() {
     );
     assert_eq!(
         client.call("ghost", "reverse", json!({})).await,
-        "MCP server 'ghost' is not connected."
+        "Error: MCP server 'ghost' is not connected."
     );
 }
 
@@ -926,7 +925,7 @@ async fn http_session_restarts_after_a_404_and_resends_the_request() {
         .call_tool("echo", json!({}))
         .await
         .expect("the retried call succeeds");
-    assert_eq!(text, "back");
+    assert_eq!(text.text, "back");
 
     let seen = fake.seen.lock().await;
     assert_eq!(seen.len(), 6, "{seen:?}");

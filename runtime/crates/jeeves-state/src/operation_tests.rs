@@ -38,10 +38,11 @@ async fn fixture() -> (
 }
 fn operation(output: Option<&str>) -> OperationSnapshot {
     OperationSnapshot {
+        proposed_only: false,
         tool_use_id: "call".into(),
         tool: "external_write".into(),
         input_json: r#"{"value":42}"#.into(),
-        output: output.map(str::to_string),
+        output: output.map(|text| crate::operations::ToolOutput::success(text.into())),
     }
 }
 async fn save(
@@ -83,17 +84,21 @@ async fn intent_and_result_commit_with_the_exact_boundary_and_cannot_be_reused()
             .status,
         "intent"
     );
-    save(&checkpoints, "[1]", &[operation(Some("Committed"))])
-        .await
-        .unwrap();
+    save(
+        &checkpoints,
+        "[1]",
+        &[operation(Some("Error: literal receipt"))],
+    )
+    .await
+    .unwrap();
     let settled = operations.get(&intent.id).await.unwrap().unwrap();
     assert_eq!(settled.status, "succeeded");
     assert_eq!(
         settled.output_digest,
-        Some(crate::ledger::digest_of(b"Committed"))
+        Some(crate::ledger::digest_of(b"Error: literal receipt"))
     );
     assert!(save(&checkpoints, "[2]", &[operation(None)]).await.is_err());
-    let mut changed = operation(Some("Committed"));
+    let mut changed = operation(Some("Error: literal receipt"));
     changed.input_json = r#"{"value":43}"#.into();
     assert!(save(&checkpoints, "[3]", &[changed]).await.is_err());
     assert_eq!(

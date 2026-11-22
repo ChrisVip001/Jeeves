@@ -9,7 +9,7 @@ use std::time::Duration;
 const OUTPUT_LIMIT: usize = 4096;
 const EDIT_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
 
-pub(crate) struct HostEditChecks(pub(crate) Server);
+pub(crate) struct HostEditChecks(pub(crate) Server, pub(crate) jeeves_tools::ToolCtx);
 
 /// At most `OUTPUT_LIMIT` bytes, cut on a character boundary, with an honest marker.
 fn clip(text: &str) -> String {
@@ -39,8 +39,15 @@ pub(crate) fn render(name: &str, outcome: Option<CommandOutcome>) -> String {
 }
 
 impl EditChecks for HostEditChecks {
-    fn after_edit(&self, run_id: Option<String>, cwd: Option<PathBuf>) -> CheckFut {
+    fn after_edit(
+        &self,
+        run_id: Option<String>,
+        cwd: Option<PathBuf>,
+        lease: Option<jeeves_tools::resources::Lease>,
+    ) -> CheckFut {
         let server = self.0.clone();
+        let mut ctx = self.1.clone();
+        ctx.resource_lease = lease;
         Box::pin(async move {
             let run = server.runs.get(&run_id?).await.ok()??;
             let json = jeeves_state::EditChecks::new(server.pool.clone())
@@ -54,6 +61,7 @@ impl EditChecks for HostEditChecks {
                 _ => return Some("[check] not run: task workspace unavailable".into()),
             };
             let runner = server.check_runner(
+                ctx,
                 None,
                 crate::task::worktree::owned(&server.settings().home, Some(&task)),
             );
@@ -146,9 +154,9 @@ mod tests {
             .start("turn#1", &id, None, Some("turn"))
             .await
             .unwrap();
-        let hook = HostEditChecks(server.clone());
+        let hook = HostEditChecks(server.clone(), server.tool_ctx("default", None, None));
         let out = hook
-            .after_edit(Some("turn#1".into()), Some(std::env::temp_dir()))
+            .after_edit(Some("turn#1".into()), Some(std::env::temp_dir()), None)
             .await
             .expect("the task declared an edit check");
         assert_eq!(
@@ -159,7 +167,7 @@ mod tests {
         assert!(events.iter().any(|event| event.kind == "edit_check"
             && event.detail.as_deref() == Some("[check build] not run: exec off")));
         assert!(hook
-            .after_edit(Some("no-such-run".into()), None)
+            .after_edit(Some("no-such-run".into()), None, None)
             .await
             .is_none());
         let e = rpc(&server, "task/create", serde_json::json!({"title":"x","codeChecks":[{"name":"c","argv":["a"],"after":"never"}]}))

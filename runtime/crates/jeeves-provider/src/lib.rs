@@ -140,6 +140,7 @@ pub enum StopReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Usage {
+    /// Complete input, including cache reads and writes on every wire.
     pub input_tokens: i64,
     pub output_tokens: i64,
     /// Tokens this call read **from** the provider's prompt cache (billed at a fraction of
@@ -151,9 +152,7 @@ pub struct Usage {
     /// Zero elsewhere — the reason to record it is that a cache miss is not free either.
     #[serde(default)]
     pub cache_creation_input_tokens: i64,
-    /// The whole prompt this call carried, cached part included, on every wire. `input_tokens`
-    /// cannot say that: Anthropic leaves cache reads and writes out of it, OpenAI keeps them in.
-    /// 0 = the wire did not say; use [`Usage::prompt_size`].
+    /// Observed context size for this request.
     #[serde(default)]
     pub prompt_tokens: i64,
 }

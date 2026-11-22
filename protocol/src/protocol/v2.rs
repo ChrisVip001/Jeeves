@@ -819,6 +819,39 @@ pub struct TaskOperationsResponse {
     pub checkpoint_digest: Option<String>,
 }
 
+/// A historical label without executor evidence cannot certify a delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case", export_to = "v2/")]
+pub enum OperationStatus {
+    Intent,
+    Succeeded,
+    Failed,
+    ReconciledSuccess,
+    ReconciledFailure,
+    NotExecuted,
+    HistoricalUnverified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case", export_to = "v2/")]
+pub enum OperationResolution {
+    ReconciledSuccess,
+    ReconciledFailure,
+    NotExecuted,
+}
+
+impl OperationResolution {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ReconciledSuccess => "reconciled_success",
+            Self::ReconciledFailure => "reconciled_failure",
+            Self::NotExecuted => "not_executed",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
@@ -834,9 +867,10 @@ pub struct ToolOperationView {
     pub input_digest: String,
     /// checkpoint / recovered_checkpoint; neither proves network transmission.
     pub origin: String,
-    pub status: String,
+    pub status: OperationStatus,
     /// Automatic replay policy; this journal grants no provider idempotency guarantees.
     pub replay_policy: String,
+    pub output_preview: Option<String>,
     pub output_digest: Option<String>,
     pub evidence: Option<String>,
     pub started_at: String,
@@ -856,7 +890,7 @@ pub struct TaskReconcileParams {
     pub operation_id: String,
     pub checkpoint_digest: String,
     /// reconciled_success / reconciled_failure / not_executed.
-    pub resolution: String,
+    pub resolution: OperationResolution,
     pub evidence: String,
 }
 
@@ -2546,7 +2580,7 @@ pub struct TurnReconcileParams {
     pub turn_id: String,
     pub operation_id: String,
     pub checkpoint_digest: String,
-    pub resolution: String,
+    pub resolution: OperationResolution,
     pub evidence: String,
 }
 

@@ -255,7 +255,10 @@ async fn a_long_sequence_of_distinct_tools_runs_until_the_model_finishes() {
     responses.push(Mock::text("All steps completed."));
     let mock = Mock::new(responses);
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("echo", 0, "evidence"));
+    tools.register_with_effect(
+        slow_tool("echo", 0, "evidence"),
+        jeeves_tools::ToolEffect::Read,
+    );
     let result = turn(&mock, &tools, ctx().await, None).await;
     assert_eq!(result.iterations, 67);
     assert_eq!(result.tool_calls.len(), 66);
@@ -286,7 +289,10 @@ async fn an_active_context_overflow_retries_only_the_model_request() {
     let mock = Mock::with_outcomes(outcomes);
     let evidence = "Important evidence in the original tool response. ".repeat(300);
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("fetch", 0, &evidence));
+    tools.register_with_effect(
+        slow_tool("fetch", 0, &evidence),
+        jeeves_tools::ToolEffect::Read,
+    );
     let result = turn(&mock, &tools, ctx().await, None).await;
     assert_eq!(result.reply, "The work is complete.");
     assert_eq!(result.tool_calls.len(), 6);
@@ -320,7 +326,10 @@ async fn repeated_batches_eventually_yield_for_review() {
             .collect(),
     );
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("fetch", 0, "same evidence"));
+    tools.register_with_effect(
+        slow_tool("fetch", 0, "same evidence"),
+        jeeves_tools::ToolEffect::Read,
+    );
     let result = turn(&mock, &tools, ctx().await, None).await;
     assert_eq!(result.tool_calls.len(), 5);
     assert!(result.stop_detail.unwrap().contains("repeated warnings"));
@@ -332,7 +341,10 @@ async fn a_truncated_response_cannot_execute_tools() {
     truncated.stop_reason = StopReason::MaxTokens;
     let mock = Mock::new(vec![truncated]);
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("write", 0, "would be a side effect"));
+    tools.register_with_effect(
+        slow_tool("write", 0, "would be a side effect"),
+        jeeves_tools::ToolEffect::Read,
+    );
     let result = turn(&mock, &tools, ctx().await, None).await;
     assert_eq!(result.stop_reason, StopReason::MaxTokens);
     assert!(result.tool_calls.is_empty());
@@ -1120,8 +1132,14 @@ async fn read_only_tools_in_one_round_run_together() {
         Mock::text("everything is done."),
     ]);
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("slow_a", 200, "A"));
-    tools.register(slow_tool("slow_b", 200, "B"));
+    tools.register_with_effect(
+        slow_tool("slow_a", 200, "A"),
+        jeeves_tools::ToolEffect::Read,
+    );
+    tools.register_with_effect(
+        slow_tool("slow_b", 200, "B"),
+        jeeves_tools::ToolEffect::Read,
+    );
 
     let (result, elapsed) = run_one_round(&mock, &tools).await;
 
@@ -1139,10 +1157,30 @@ async fn results_are_reported_in_request_order_not_completion_order() {
         Mock::text("everything is done."),
     ]);
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("slow_a", 120, "A"));
-    tools.register(slow_tool("slow_b", 5, "B"));
+    tools.register_with_effect(
+        slow_tool("slow_a", 120, "A"),
+        jeeves_tools::ToolEffect::Read,
+    );
+    tools.register_with_effect(slow_tool("slow_b", 5, "B"), jeeves_tools::ToolEffect::Read);
 
-    let (result, _) = run_one_round(&mock, &tools).await;
+    let completion_order = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let observed = completion_order.clone();
+    let observer: crate::Observer = Arc::new(move |event| {
+        if let crate::LoopEvent::Tool {
+            tool_use_id,
+            success,
+            ..
+        } = event
+        {
+            assert!(success);
+            observed.lock().unwrap().push(tool_use_id);
+        }
+    });
+    let (result, _) = run_with(&mock, &tools, Some(observer)).await;
+    assert_eq!(
+        *completion_order.lock().unwrap(),
+        ["call-fast", "call-slow"]
+    );
 
     let names: Vec<&str> = result.tool_calls.iter().map(|c| c.name.as_str()).collect();
     assert_eq!(
@@ -1178,10 +1216,19 @@ async fn an_exclusive_tool_is_a_barrier() {
         Mock::text("everything is done."),
     ]);
     let mut tools = jeeves_tools::ToolRegistry::new();
-    tools.register(slow_tool("reader", 120, "R"));
+    tools.register_with_effect(
+        slow_tool("reader", 120, "R"),
+        jeeves_tools::ToolEffect::Read,
+    );
     tools.register_exclusive(slow_tool("writer", 120, "W"));
-    tools.register(slow_tool("reader2", 120, "R2"));
-    tools.register(slow_tool("reader3", 120, "R3"));
+    tools.register_with_effect(
+        slow_tool("reader2", 120, "R2"),
+        jeeves_tools::ToolEffect::Read,
+    );
+    tools.register_with_effect(
+        slow_tool("reader3", 120, "R3"),
+        jeeves_tools::ToolEffect::Read,
+    );
 
     let (result, elapsed) = run_one_round(&mock, &tools).await;
 
@@ -1261,12 +1308,14 @@ async fn a_streaming_tool_emits_deltas_and_still_returns_the_real_result() {
 
 #[tokio::test]
 async fn uncertain_effect_stops_remaining_tools_and_keeps_the_intent_checkpoint() {
-    let mock = Mock::new(vec![
-        two_calls(("first", "uncertain"), ("second", "must_not_run")),
-        Mock::text("must not be called"),
-    ]);
+    let mut proposal = two_calls(("saved", "save_report"), ("unknown", "uncertain"));
+    proposal
+        .content
+        .extend(Mock::tool_use("later", "must_not_run", json!({})).content);
+    let mock = Mock::new(vec![proposal, Mock::text("must not be called")]);
     let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut tools = jeeves_tools::ToolRegistry::new();
+    tools.register(slow_tool("save_report", 0, "Error: sample report"));
     tools.register_exclusive(jeeves_tools::Tool {
         name: "uncertain".into(),
         description: "unknown remote effect".into(),
@@ -1328,22 +1377,19 @@ async fn uncertain_effect_stops_remaining_tools_and_keeps_the_intent_checkpoint(
     assert_eq!(result.stop_reason, StopReason::UncertainEffect);
     assert_eq!(mock.received.lock().unwrap().len(), 1);
     assert!(!ran.load(std::sync::atomic::Ordering::SeqCst));
-    assert_eq!(result.tool_calls.len(), 1);
+    assert_eq!(result.tool_calls.len(), 2);
+    assert!(result.tool_calls[0].ok());
+    assert!(!result.tool_calls[1].ok());
     let saved = checkpoints.lock().unwrap();
-    assert_eq!(
-        saved.len(),
-        2,
-        "initial input and intent only; unknown results must not become resumable success"
-    );
-    assert!(matches!(
-        saved
-            .last()
-            .unwrap()
-            .messages
-            .last()
-            .unwrap()
-            .content
-            .first(),
-        Some(ContentBlock::ToolUse { .. })
-    ));
+    assert_eq!(saved.len(), 4);
+    assert!(saved[1].operations[0].output.is_none());
+    let report = saved[2].operations[0].output.as_ref().unwrap();
+    assert!(report.success);
+    assert_eq!(report.text, "Error: sample report");
+    assert_eq!(saved[3].operations.len(), 1);
+    assert_eq!(saved[3].operations[0].tool_use_id, "unknown");
+    assert!(saved[3].operations[0].output.is_none());
+    let transcript = serde_json::to_string(&saved[3].messages).unwrap();
+    assert!(transcript.contains("Error: sample report"));
+    assert!(!transcript.contains("must_not_run"));
 }

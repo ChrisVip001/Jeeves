@@ -30,6 +30,10 @@ use crate::{EventSink, Server};
 /// Resume every `open` checkpoint. Called once per transport start; each resume runs as its
 /// own task, so one broken turn never blocks the others (or the request loop).
 pub async fn reconcile(server: &Server, sink: &EventSink) {
+    if let Err(error) = server.usage.charge_pending(None, None).await {
+        eprintln!("(jeeves) cannot recover reported model usage; recovery stopped: {error}");
+        return;
+    }
     let rows = match server.checkpoints.open_rows().await {
         Ok(rows) => rows,
         Err(e) => {
@@ -40,6 +44,10 @@ pub async fn reconcile(server: &Server, sink: &EventSink) {
     let max_age = server.settings().resume_max_age_minutes;
     let now = chrono::Utc::now().naive_utc();
     for row in rows {
+        if let Err(reason) = crate::turn::restore_observation(server, &row).await {
+            crate::task::contract::stop_recovery(server, sink, &row, &reason).await;
+            continue;
+        }
         if row.run_id.is_some() && row.round_id.is_some() {
             let charged = match crate::task::contract::checkpoint_usage(&row.usage_json) {
                 Ok(usage) => crate::task::contract::charge_checkpoint(server, &row, usage).await,
@@ -174,34 +182,43 @@ pub(crate) async fn resume_waiting(
 /// as failed, which is the truth: no result was observed.
 const INTERRUPTED_READ: &str = "Error: the process stopped before this read-only call returned. Nothing was changed; call it again if you still need the result.";
 
-/// A crash mid-batch leaves calls with no result. When every one of them is a proven read
-/// (`proven_read_call`), nothing outside can have changed, so each gets an "interrupted" result
-/// and the turn continues; the checkpoint and its operation rows are settled in one commit.
-/// Any other unknown call keeps the whole batch suspended for a human, as before.
-/// Returns how many calls were settled.
-async fn settle_interrupted_reads(
+/// Reconstruct a committed local handoff or close an interrupted read. Any other missing
+/// result stays unresolved. Persist the message and operation status together.
+async fn settle_known_calls(
     server: &Server,
     row: &mut CheckpointRow,
     messages: &mut Vec<Message>,
 ) -> anyhow::Result<usize> {
-    let reads: Vec<(String, String, serde_json::Value)> = {
-        let pending = crate::task::recovery::pending_tools(messages)
-            .map_err(|error| anyhow::anyhow!(error.message))?;
-        let all_reads = pending
-            .values()
-            .all(|(name, input)| jeeves_tools::permissions::proven_read_call(name, input));
-        if pending.is_empty() || !all_reads {
+    let pending =
+        crate::task::recovery::pending_tools(messages).map_err(|e| anyhow::anyhow!(e.message))?;
+    let mut settled = Vec::new();
+    for (id, (tool, input)) in pending {
+        let output = if jeeves_tools::permissions::proven_read_call(tool, input) {
+            jeeves_state::operations::ToolOutput::failure(INTERRUPTED_READ.into())
+        } else if matches!(
+            tool,
+            crate::interaction::task_tool::NAME | crate::interaction::task_tool::SELECTED_WATCH
+        ) {
+            let Some(receipt) =
+                crate::interaction::handoff::committed_result(server, row, id, input).await?
+            else {
+                return Ok(0);
+            };
+            jeeves_state::operations::ToolOutput::success(receipt)
+        } else {
             return Ok(0);
-        }
-        pending
-            .into_iter()
-            .map(|(id, (name, input))| (id.to_string(), name.to_string(), input.clone()))
-            .collect()
-    };
-    let results = reads.iter().map(|(id, _, _)| ContentBlock::ToolResult {
-        tool_use_id: id.clone(),
-        content: INTERRUPTED_READ.into(),
-    });
+        };
+        settled.push((id.to_owned(), tool.to_owned(), input.clone(), output));
+    }
+    if settled.is_empty() {
+        return Ok(0);
+    }
+    let results = settled
+        .iter()
+        .map(|(id, _, _, output)| ContentBlock::ToolResult {
+            tool_use_id: id.clone(),
+            content: output.text.clone(),
+        });
     match messages.last_mut() {
         Some(last) if last.role == Role::User => last.content.extend(results),
         _ => messages.push(Message {
@@ -209,15 +226,28 @@ async fn settle_interrupted_reads(
             content: results.collect(),
         }),
     }
+    if let [.., proposal, response] = messages.as_mut_slice() {
+        response.content.sort_by_cached_key(|result| match result {
+            ContentBlock::ToolResult { tool_use_id, .. } => proposal
+                .content
+                .iter()
+                .position(
+                    |block| matches!(block, ContentBlock::ToolUse { id, .. } if id == tool_use_id),
+                )
+                .unwrap_or(usize::MAX),
+            _ => usize::MAX,
+        });
+    }
     let messages_json = serde_json::to_string(messages)?;
     let operations: Vec<OperationSnapshot> = match row.round_id {
-        Some(_) => reads
+        Some(_) => settled
             .iter()
-            .map(|(id, name, input)| OperationSnapshot {
+            .map(|(id, name, input, output)| OperationSnapshot {
+                proposed_only: false,
                 tool_use_id: id.clone(),
                 tool: name.clone(),
                 input_json: input.to_string(),
-                output: Some(INTERRUPTED_READ.into()),
+                output: Some(output.clone()),
             })
             .collect(),
         None => Vec::new(),
@@ -240,7 +270,7 @@ async fn settle_interrupted_reads(
         )
         .await?;
     row.messages_json = messages_json;
-    Ok(reads.len())
+    Ok(settled.len())
 }
 
 /// Continue one checkpointed turn and give it the same accounting as a fresh one.
@@ -277,10 +307,10 @@ pub(crate) async fn resume_turn(
         return false;
     };
     if row.status == "open" {
-        match settle_interrupted_reads(server, &mut row, &mut messages).await {
+        match settle_known_calls(server, &mut row, &mut messages).await {
             Ok(0) => {}
             Ok(count) => eprintln!(
-                "(jeeves) reconcile: {count} read-only call(s) of turn {} were cut off by the crash; the model is told and may call them again",
+                "(jeeves) reconcile: {count} call(s) of turn {} settled from read-only status or durable handoff evidence",
                 row.turn_id
             ),
             Err(error) => {
@@ -288,7 +318,7 @@ pub(crate) async fn resume_turn(
                     server,
                     sink,
                     &row,
-                    &format!("Interrupted read-only calls could not be settled: {error}"),
+                    &format!("Interrupted calls could not be settled: {error}"),
                 )
                 .await;
                 return false;

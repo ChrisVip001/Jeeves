@@ -138,16 +138,7 @@ impl ExecutionPolicy for Policies {
         let policy = self.snapshot(&ctx.session_id);
         let handoff = ctx.session_id == crate::interaction::MAIN_SESSION
             && name == crate::interaction::task_tool::NAME;
-        let main_read_only = ctx.session_id == crate::interaction::MAIN_SESSION
-            && !proven_read_call(&name, &args)
-            && !handoff;
         Box::pin(async move {
-            if main_read_only {
-                return Err(
-                    "Execution belongs to a task workspace; the main conversation is read-only"
-                        .into(),
-                );
-            }
             let Some((mode, revision)) = policy? else {
                 return Ok(Authorization {
                     revision: 0,

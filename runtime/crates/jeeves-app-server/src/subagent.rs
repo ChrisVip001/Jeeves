@@ -120,8 +120,7 @@ impl SubagentRunner for Delegated {
         &self,
         task: String,
         result_schema: Option<serde_json::Value>,
-        parent_cwd: Option<std::path::PathBuf>,
-        worktree: Option<std::path::PathBuf>,
+        parent: jeeves_tools::ToolCtx,
         readonly: bool,
     ) -> BoxFut {
         let tools = self.tools.clone();
@@ -132,7 +131,8 @@ impl SubagentRunner for Delegated {
         let episodes = self.episodes.clone();
         let chat = self.chat.clone();
         let catalog = self.catalog.clone();
-        let cwd = parent_cwd;
+        let cwd = parent.cwd;
+        let worktree = parent.worktree;
 
         Box::pin(async move {
             let Some(resolved) = resolved
@@ -201,6 +201,23 @@ impl SubagentRunner for Delegated {
                     .map(|d| d.as_millis())
                     .unwrap_or(0),
                 SUBAGENT_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            );
+            let owner_turn: Option<String> = sqlx::query_scalar(
+                "SELECT c.turn_id FROM turn_checkpoints c JOIN tool_operations o ON o.turn_id=c.turn_id AND o.round_id=c.round_id
+                 WHERE c.session_id=? AND o.run_id IS ? AND o.status='intent' AND o.tool='delegate_task'
+                 AND ?=o.round_id||':'||(c.iterations+1)||':'||o.tool_use_id"
+            ).bind(&parent.session_id).bind(&parent.task_run_id).bind(&parent.invocation_id).fetch_optional(&chat.pool()).await?;
+            anyhow::ensure!(
+                parent.task_run_id.is_none() || owner_turn.is_some(),
+                "Missing parent execution for delegated request"
+            );
+            let resolved = crate::turn::meter::metered(
+                &chat.pool(),
+                &resolved,
+                &parent.session_id,
+                owner_turn.as_deref().unwrap_or(&child_session),
+                parent.task_run_id.as_deref(),
+                "delegation",
             );
             let mut ctx = crate::tool_ctx(
                 &facts,

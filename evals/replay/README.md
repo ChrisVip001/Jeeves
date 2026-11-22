@@ -27,9 +27,7 @@
 - 每项既能写事件名（`toolStarted`），也能写限定名（`toolStarted:run_command`、`toolCompleted:run_command:error`）；
 - 失败信息会指出「第几个没出现」并打印实际序列。
 
-一个形状上的注意点：`toolStarted` 是**边跑边发**的，而 `toolCompleted` 在收尾时按结果统一发 ——
-所以一轮里有两个工具时，事件序读起来是「先两个 toolStarted，再两个 toolCompleted」。写期望值时
-按这个顺序写（`continuation.jsonl` 就是这么排的），不要按调用先后交替写。
+连续调用中，前一操作落盘并发出 `toolCompleted` 后，下一操作才发出 `toolStarted`。并发读取可按完成顺序分别通知，按 `toolUseId` 与启动事件配对。
 
 为什么不精确匹配：一次流式回答会吐出几十个 `textDelta`，精确匹配会让「多吐一个 delta」变成红灯 —— 那是噪声，
 不是回归。真正要钉住的是「谁在谁之前」。

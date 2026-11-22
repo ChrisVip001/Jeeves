@@ -1,9 +1,4 @@
-//! Usage ledger (migration 0010): bookkeeping only, never enforcement.
-//!
-//! One row per turn; `summary` computes per-model aggregates in SQL. Deliberately no cost
-//! column — under BYOK the money is on the user's own vendor bill; rates are the deployer's
-//! business (tokens are stored; rates can be applied anytime). One home, one state.db, one
-//! owner: there is nobody else's usage to keep apart.
+//! Aggregate provider-reported request usage and historical turn-only records.
 
 use anyhow::Result;
 use sqlx::{FromRow, SqlitePool};
@@ -38,8 +33,17 @@ impl Usage {
         Self { pool }
     }
 
-    /// Record one turn's usage. Write failure **never blocks the turn** — bookkeeping is a side path.
-    pub async fn record(
+    /// Charge reported requests once, including reports persisted before a process stop.
+    pub async fn charge_pending(&self, task: Option<&str>, run: Option<&str>) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("UPDATE model_requests SET charged=1 WHERE charged=0 AND input_tokens IS NOT NULL AND ((?1 IS NULL AND ?2 IS NULL) OR task_id=COALESCE(?1,(SELECT task_id FROM task_runs WHERE id=?2)))")
+            .bind(task).bind(run).execute(&mut *tx).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    async fn record_legacy(
         &self,
         session_id: &str,
         provider: &str,
@@ -48,7 +52,7 @@ impl Usage {
         output_tokens: i64,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO usage_ledger (session_id, provider, model, input_tokens, output_tokens)
+            "INSERT INTO historical_turn_usage (session_id, provider, model, input_tokens, output_tokens)
              VALUES (?, ?, ?, ?, ?)",
         )
         .bind(session_id)
@@ -74,25 +78,34 @@ impl Usage {
         since: Option<&str>,
         until: Option<&str>,
     ) -> Result<UsageSummary> {
-        let by_model = sqlx::query_as::<_, UsageByModel>(
-            "SELECT provider, model, COUNT(*) AS turns,
-                    SUM(input_tokens) AS input_tokens,
-                    SUM(output_tokens) AS output_tokens
-             FROM usage_ledger
-             WHERE (?1 IS NULL OR created_at >= ?1) AND (?2 IS NULL OR created_at < ?2)
-             GROUP BY provider, model
-             ORDER BY SUM(input_tokens) DESC",
+        let rows = sqlx::query_as::<_, (bool, String, String, i64, i64, i64)>(
+            "WITH entries AS (
+                SELECT provider,model,created_at,input_tokens,output_tokens,'legacy:'||id AS owner FROM historical_turn_usage
+                UNION ALL SELECT provider,model,created_at,input_tokens,output_tokens,'turn:'||turn_id FROM model_requests
+             ), period AS (
+                SELECT * FROM entries WHERE (?1 IS NULL OR created_at >= ?1) AND (?2 IS NULL OR created_at < ?2)
+             )
+             SELECT 0 AS overall, provider, model, COUNT(DISTINCT owner), COALESCE(SUM(input_tokens),0) AS input, COALESCE(SUM(output_tokens),0) FROM period GROUP BY provider,model
+             UNION ALL SELECT 1,'','',COUNT(DISTINCT owner), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0) FROM period
+             ORDER BY input DESC,provider,model",
         )
-        .bind(since)
-        .bind(until)
-        .fetch_all(&self.pool)
-        .await?;
-        let summary = UsageSummary {
-            turns: by_model.iter().map(|row| row.turns).sum(),
-            input_tokens: by_model.iter().map(|row| row.input_tokens).sum(),
-            output_tokens: by_model.iter().map(|row| row.output_tokens).sum(),
-            by_model,
-        };
+        .bind(since).bind(until).fetch_all(&self.pool).await?;
+        let mut summary = UsageSummary::default();
+        for (overall, provider, model, turns, input_tokens, output_tokens) in rows {
+            if overall {
+                summary.turns = turns;
+                summary.input_tokens = input_tokens;
+                summary.output_tokens = output_tokens;
+            } else {
+                summary.by_model.push(UsageByModel {
+                    provider,
+                    model,
+                    turns,
+                    input_tokens,
+                    output_tokens,
+                });
+            }
+        }
         Ok(summary)
     }
 }
@@ -117,15 +130,15 @@ mod tests {
         assert_eq!(empty.turns, 0);
 
         usage
-            .record("s1", "deepseek", "deepseek-flash", 100, 50)
+            .record_legacy("s1", "deepseek", "deepseek-flash", 100, 50)
             .await
             .expect("record one row");
         usage
-            .record("s1", "deepseek", "deepseek-flash", 200, 80)
+            .record_legacy("s1", "deepseek", "deepseek-flash", 200, 80)
             .await
             .expect("record another row");
         usage
-            .record("s2", "openai", "gpt-5.2", 1000, 10)
+            .record_legacy("s2", "openai", "gpt-5.2", 1000, 10)
             .await
             .expect("another vendor");
 
@@ -141,6 +154,40 @@ mod tests {
         assert_eq!(summary.by_model[1].input_tokens, 300);
     }
 
+    #[tokio::test]
+    async fn a_routing_request_and_a_different_execution_model_share_one_turn_and_budget() {
+        let (usage, _dir) = db().await;
+        let pool = &usage.pool;
+        sqlx::query(
+            "INSERT INTO agent_tasks(id,title,budget_json) VALUES('t','task','{\"tokens\":20}')",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO model_requests(session_id,turn_id,task_id,purpose,provider,model,termination,input_tokens,output_tokens) VALUES('s','turn','t','routing','p','cheap','end_turn',5,2)").execute(pool).await.unwrap();
+        usage.charge_pending(Some("t"), None).await.unwrap();
+        crate::Runs::new(pool.clone())
+            .start("run", "t", Some("s"), Some("turn"))
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO model_requests(session_id,turn_id,task_id,run_id,purpose,provider,model,termination,input_tokens,output_tokens) VALUES('s','turn','t','run','execution','p','main','end_turn',10,3)").execute(pool).await.unwrap();
+        usage.charge_pending(None, Some("run")).await.unwrap();
+        usage.charge_pending(None, None).await.unwrap();
+        let spent: (i64,i64,i64) = sqlx::query_as("SELECT t.spent_tokens,r.tokens_in,r.tokens_out FROM agent_tasks t JOIN task_runs r ON r.task_id=t.id").fetch_one(pool).await.unwrap();
+        assert_eq!(spent, (20, 15, 5));
+        let summary = usage.summary().await.unwrap();
+        assert_eq!(
+            (
+                summary.turns,
+                summary.by_model.len(),
+                summary.input_tokens,
+                summary.output_tokens
+            ),
+            (1, 2, 15, 5)
+        );
+        assert!(sqlx::query("INSERT INTO model_requests(session_id,turn_id,task_id,purpose,provider,model) VALUES('s','screen','t','screen','p','vision')").execute(pool).await.unwrap_err().to_string().contains("budget exhausted"));
+    }
+
     /// A period is half-open: `since` is inside, `until` is outside, and a missing end is open.
     #[tokio::test]
     async fn a_period_only_counts_rows_inside_it() {
@@ -151,7 +198,7 @@ mod tests {
             ("2026-11-30 23:59:59", 100),
             ("2026-12-01 00:00:00", 1000),
         ] {
-            sqlx::query("INSERT INTO usage_ledger (session_id, provider, model, input_tokens, output_tokens, created_at) VALUES ('s', 'p', 'm', ?, 0, ?)")
+            sqlx::query("INSERT INTO historical_turn_usage (session_id, provider, model, input_tokens, output_tokens, created_at) VALUES ('s', 'p', 'm', ?, 0, ?)")
                 .bind(input)
                 .bind(at)
                 .execute(&usage.pool)

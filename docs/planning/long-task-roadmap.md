@@ -2,6 +2,8 @@
 
 English | [简体中文](long-task-roadmap.zh.md)
 
+For the Runtime changes that let ongoing work grow out of the main conversation, see the [conversation-to-delivery contract and acceptance](../design/conversation-runtime.md).
+
 This roadmap covers long-running work. An assignment can span reasoning rounds, tools, human decisions and Runtime restarts. A person should be able to amend it, see what remains and verify the outcome from artifacts or external receipts. A personal computer, a self-hosted server and an isolated hosted Runtime all carry the same task contract. [Conversation and delivery](../design/main-entry.md) · [Architecture](../architecture.md)
 
 ## Own a recurring assignment

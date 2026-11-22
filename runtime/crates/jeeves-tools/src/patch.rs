@@ -290,7 +290,7 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                 check_content(&text, "patch")?;
                 let ops = match parse(&text) {
                     Ok(ops) => ops,
-                    Err(why) => return Ok(format!("Error: the patch could not be parsed: {why}")),
+                    Err(why) => return Err(anyhow::anyhow!("the patch could not be parsed: {why}")),
                 };
 
                 let mut planned: Vec<(PathBuf, Option<String>, Option<String>)> = Vec::new();
@@ -307,7 +307,7 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                             };
                             let new = match apply(&old, hunks) {
                                 Ok(new) => new,
-                                Err(why) => return Ok(format!("Error: {path}: {why}")),
+                                Err(why) => return Err(anyhow::anyhow!("{path}: {why}")),
                             };
                             check_content(&new, "patch result")?;
                             planned.push((resolved, Some(old), Some(new)));
@@ -349,7 +349,7 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                     )
                     .await
                     {
-                        return Ok(format!("Error: {why}"));
+                        return Err(anyhow::anyhow!("{why}"));
                     }
                 }
 

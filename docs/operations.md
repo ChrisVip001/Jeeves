@@ -240,10 +240,9 @@ Every change to `state.db` follows three steps, so a downgrade never breaks work
 2. **Migrate.** Backfill in code, and make the backfill safe to run twice.
 3. **Contract.** Drop the old structure at least one release after nothing reads it.
 
-On start, Jeeves refuses a database whose applied schema is newer than the binary knows, and prints both
-version numbers and the backup path. Before migrating an existing database it copies `state.db` to
-`state.db.pre-<version>` (`<version>` is the target schema) and prints that path. The copy is made once;
-a new database is not copied.
+For the pre-release cutover the Runtime verifies the complete incremental v24 or v25 migration history, archives it and applies the current baseline and its successors. A matching version number with an unrecognized checksum is refused. Before upgrading an existing store, SQLite creates a consistent `state.db.pre-<target-version>` snapshot once. Adopting v24 also archives existing session origins.
+
+From the checkout run `cargo build -p jeeves-cli` and `python3 scripts/smoke-storage-cutover.py <old-state.db> <gateway-accounts.sqlite>`. The rehearsal takes read-only snapshots, imports and re-exports a temporary Runtime, compares original columns across work, artifacts, receipts and usage, and checks the separate gateway account records. Rehearse on copies before upgrading a running installation.
 
 ## Troubleshooting
 

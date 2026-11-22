@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline desktop RPC smoke: real app-server, local scripted provider, isolated home."""
 import argparse
+import inline_delivery_fixture
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,16 @@ PROMOTION_RECEIPT = "本地模拟渠道已收到最终文案，回执 om_synthet
 class Provider(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
+
+    def do_GET(self):
+        quote = inline_delivery_fixture.offer(self.path)
+        if quote is None:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(quote).encode())
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
@@ -49,7 +60,9 @@ class Provider(BaseHTTPRequestHandler):
         try:
             instruction = user.rsplit('Current human task:', 1)[-1].strip()
             task_tool = any(t.get('function', {}).get('name') == 'task' for t in body.get('tools', []))
-            if 'open-source-promotion-fixture' in user and not tool_result:
+            if inline_delivery_fixture.respond(self, messages, body.get('tools', [])):
+                pass
+            elif 'open-source-promotion-fixture' in user and not tool_result:
                 final = 'final edition' in user
                 revised = 'second edition' in user
                 if task_tool and 'final edition #' in user:

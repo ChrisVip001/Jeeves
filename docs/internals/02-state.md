@@ -33,7 +33,7 @@ Table families:
 | `agent_tasks`, `task_*`, `task_runs`, `run_*`, `turn_checkpoints`, `jobs`, `job_*` | Long-running tasks, runs, resumable turn state, background jobs |
 | `tool_operations`, `approval_log`, `interaction_receipts`, `browser_sessions` | Operation, approval and interaction records |
 | `schedule_jobs`, `schedule_state`, `schedule_completions` | Schedule declarations and run state |
-| `usage_ledger` | Token usage |
+| `model_requests`, `historical_turn_usage` | Per-request measurements and historical per-turn totals |
 
 ### Facts and episodes
 

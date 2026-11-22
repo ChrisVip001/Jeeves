@@ -1,5 +1,7 @@
 //! Long-lived human entry; task execution retains its own context and permissions.
 mod decision;
+pub(crate) mod handoff;
+pub(crate) mod price_watch;
 pub(crate) mod receipt;
 pub(crate) mod task_tool;
 #[cfg(test)]
@@ -225,6 +227,16 @@ async fn execute(
     }
     if let Some(task_id) = &p.task_id {
         let started = Instant::now();
+        task_tool::owned_task(server, p, task_id)
+            .await
+            .map_err(invalid)?;
+        if price_watch::exists(server, task_id)
+            .await
+            .map_err(internal)?
+        {
+            let tool = task_tool::build(server.clone(), p.clone(), sink.clone());
+            return receipt::conversation(server, p, id, sink, Some(&tool), tier).await;
+        }
         let task = task_tool::continue_task(server, p, task_id, &p.message, sink, || {})
             .await
             .map_err(invalid)?;

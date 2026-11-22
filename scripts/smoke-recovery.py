@@ -136,11 +136,12 @@ class App:
         self.reader = asyncio.create_task(self.read())
 
     @classmethod
-    async def start(cls, binary: Path, home: Path, workspace: Path, *, approval=None, coding=False):
+    async def start(cls, binary: Path, home: Path, workspace: Path, *, approval=None, coding=False, extra_env=None):
         env = {name: os.environ[name] for name in ('PATH', 'HOME', 'TMPDIR', 'LANG', 'JEEVES_TASK_WORKERS') if name in os.environ}
         env.update(JEEVES_HOME=str(home), JEEVES_PROVIDER='anthropic', JEEVES_RECOVERY_TEST_KEY='synthetic-only',
                    JEEVES_LLM_RETRIES='0', JEEVES_LLM_TIMEOUT='10', JEEVES_RESUME_MAX_AGE='0',
                    JEEVES_CONSOLIDATE_EVERY='1' if (home / 'memory-crash').exists() else '1000')
+        env.update(extra_env or {})
         if coding:
             env.update(JEEVES_EXEC='1', JEEVES_WRITE='1')
         if approval is not None:

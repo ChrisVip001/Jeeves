@@ -73,10 +73,12 @@ async fn fixture(unknown: bool) -> (tempfile::TempDir, Server, jeeves_state::Che
                 round_no: Some(1),
             },
             &[jeeves_state::operations::OperationSnapshot {
+                proposed_only: false,
                 tool_use_id: "call".into(),
                 tool: "external_write".into(),
                 input_json: "{}".into(),
-                output: (!unknown).then(|| "Observed result".into()),
+                output: (!unknown)
+                    .then(|| jeeves_tools::ToolOutput::success("Observed result".into())),
             }],
         )
         .await

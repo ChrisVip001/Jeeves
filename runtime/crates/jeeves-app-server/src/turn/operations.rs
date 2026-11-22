@@ -74,6 +74,7 @@ async fn inspect_inner(
                 let snapshots: Vec<_> = pending
                     .into_iter()
                     .map(|(id, (tool, input))| OperationSnapshot {
+                        proposed_only: false,
                         tool_use_id: id.into(),
                         tool: tool.into(),
                         input_json: input.to_string(),
@@ -147,7 +148,7 @@ pub(crate) async fn reconcile(
         &cp,
         &operation,
         &params.checkpoint_digest,
-        &params.resolution,
+        params.resolution.as_str(),
         &params.evidence,
     )?;
     operations
@@ -158,7 +159,7 @@ pub(crate) async fn reconcile(
             },
             operation_id: &params.operation_id,
             expected_checkpoint_digest: &params.checkpoint_digest,
-            resolution: &params.resolution,
+            resolution: params.resolution.as_str(),
             evidence: &params.evidence,
             messages_json: &messages,
         })
@@ -221,7 +222,7 @@ pub(crate) async fn context(server: &Server, session: &str) -> Result<ChatContex
         .await
         .map_err(invalid)?;
     let receipts: Vec<_> = rows.into_iter().rev().filter(|row| row.evidence.is_some()).take(8).map(|row|
-        serde_json::json!({"operationId":row.id,"turnId":row.turn_id,"tool":row.tool,"resolution":row.status,"evidence":row.evidence.map(|text| text.chars().take(512).collect::<String>())})
+        serde_json::json!({"operationId":row.id,"turnId":row.turn_id,"tool":row.tool,"resolution":row.evidence_status(),"evidence":row.evidence.as_ref().map(|text| text.chars().take(512).collect::<String>())})
     ).collect();
     if notes.is_empty() && receipts.is_empty() {
         return Ok(ChatContext {

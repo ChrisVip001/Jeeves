@@ -758,12 +758,14 @@ async fn an_interrupted_read_is_reported_to_the_model_and_the_turn_continues() {
             },
             &[
                 jeeves_state::operations::OperationSnapshot {
+                    proposed_only: false,
                     tool_use_id: "r1".into(),
                     tool: "read_file".into(),
                     input_json: json!({"path": "/tmp/app.log"}).to_string(),
                     output: None,
                 },
                 jeeves_state::operations::OperationSnapshot {
+                    proposed_only: false,
                     tool_use_id: "r2".into(),
                     tool: "memory".into(),
                     input_json: json!({"action": "search", "query": "logs"}).to_string(),

@@ -950,7 +950,8 @@ async fn fresh_home_creates_the_full_baseline_schema() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn an_old_incremental_database_is_refused_not_migrated_in_place() -> anyhow::Result<()> {
+async fn an_unrecognized_incremental_database_is_refused_without_changing_its_history(
+) -> anyhow::Result<()> {
     use sqlx::{migrate::Migrate, sqlite::SqliteConnectOptions, Connection, SqliteConnection};
 
     let dir = tempfile::tempdir()?;
@@ -961,24 +962,26 @@ async fn an_old_incremental_database_is_refused_not_migrated_in_place() -> anyho
     let mut conn = SqliteConnection::connect_with(&options).await?;
     conn.ensure_migrations_table().await?;
 
-    let mut version = 1i64;
-    loop {
-        sqlx::query("INSERT OR IGNORE INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time) VALUES (?, '', datetime('now'), 1, x'', 0)")
+    for version in 1..=25 {
+        sqlx::query("INSERT INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time) VALUES (?, '', datetime('now'), 1, zeroblob(48), 0)")
             .bind(version)
             .execute(&mut conn)
             .await?;
-        if version == 25 {
-            break;
-        }
-        version += 1;
     }
     conn.close().await?;
 
     let err = crate::open(&path).await.unwrap_err();
     assert!(
-        err.to_string().contains("home export"),
-        "an old database must point the owner to the export/import path: {err}"
+        err.to_string()
+            .contains("Unrecognized incremental schema history"),
+        "{err}"
     );
+    let mut conn = SqliteConnection::connect_with(&options).await?;
+    let intact: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations WHERE checksum=zeroblob(48)")
+            .fetch_one(&mut conn)
+            .await?;
+    assert_eq!(intact, 25);
     Ok(())
 }
 

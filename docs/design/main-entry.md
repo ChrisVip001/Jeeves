@@ -53,6 +53,8 @@ When the person says “Hold off on sending that one. Make it a draft,” the Ru
 
 The Runtime verifies task ownership, the action’s association with that task, current action state and permissions. It applies the change only to a unique, still-valid target. Task progress cannot establish whether mail was sent or cancelled. Whether the send can be stopped depends on which commits first, the draft change or the sender’s claim. The reply reflects the durable action record and any acceptance receipt. See the [task mail contract](../configuration.md#calendar-and-email).
 
+After comparing prices from a configured read-only quote source, you can ask Jeeves to watch one variant for a fixed number of days. The assignment keeps the source, variant and currency. Jeeves checks the price plus shipping hourly. You can open the same item in **My work** on your phone and change the threshold. The first verified total strictly below the current threshold returns to the original chat with its source. An equal total, unknown shipping or an expired watch produces no alert. Watching a price authorizes no purchase.
+
 ### Task notifications
 
 **Needs your decision** has the highest notification priority in Jeeves. On iPhone, the person answers in the main chat, which routes the reply to the waiting task. When a task reaches **Completed**, Jeeves proactively notifies the person once at normal priority and reports the result in the originating chat. Routine progress stays quiet between agreed milestone reports. These priorities govern how Jeeves presents updates. System notifications always respect the person’s iOS notification settings.
@@ -76,7 +78,7 @@ The Runtime verifies task ownership, the action’s association with that task, 
 
 Jeeves keeps working in the same task as tool results arrive. Approvals still come to you. A task pauses when work reaches a resource limit, when you stop it or when an external action needs review. [Runtime limits](../configuration.md#behavior-knobs)
 
-When an assignment explicitly names an output file, main chat can hand off a file check. If the person also specifies literal text that must appear, the check measures that text in the file. The Runtime records each result against the task's workspace and sends a failed check back for correction within the task's round limit. The task detail shows the recorded criteria and verdicts. Source accuracy, code behavior and other semantic requirements need their own evidence.
+Assignments made in chat, explicitly created tasks and resumed runs share delivery criteria. The Runtime can check files and required text, JSON values, quotations against saved sources, exit codes of specified tests, and operation records or receipts. Acceptance commands use the workspace execution permissions. A failed check returns to the same task for correction within its round limit. Task details retain the criteria and measurements from each round.
 
 A follow-up after delivery opens a new run in the same task and workspace. The earlier receipt stays attached to its run. The follow-up starts without file checks, so its output is marked unverified.
 

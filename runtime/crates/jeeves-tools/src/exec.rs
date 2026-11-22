@@ -606,7 +606,9 @@ pub async fn execute(
     approval: Option<&dyn crate::approval::ApprovalBroker>,
     on_delta: Option<crate::DeltaSink>,
 ) -> String {
-    execute_with_notice(command, policy, writable, approval, on_delta, None).await
+    execute_with_notice(command, policy, writable, approval, on_delta, None)
+        .await
+        .unwrap_or_else(|error| format!("Error: {error}"))
 }
 
 pub(crate) async fn execute_with_notice(
@@ -616,19 +618,36 @@ pub(crate) async fn execute_with_notice(
     approval: Option<&dyn crate::approval::ApprovalBroker>,
     on_delta: Option<crate::DeltaSink>,
     on_uncertain: Option<crate::UncertainSink>,
-) -> String {
+) -> anyhow::Result<String> {
+    let (code, output) =
+        execute_process(command, policy, writable, approval, on_delta, on_uncertain).await?;
+    anyhow::ensure!(code == 0, "{output}");
+    Ok(output)
+}
+
+/// Return the process exit status separately from its display text. Gate and transport failures carry no exit status.
+pub async fn execute_process(
+    command: &str,
+    policy: &ExecPolicy,
+    writable: &[PathBuf],
+    approval: Option<&dyn crate::approval::ApprovalBroker>,
+    on_delta: Option<crate::DeltaSink>,
+    on_uncertain: Option<crate::UncertainSink>,
+) -> anyhow::Result<(i32, String)> {
     let unknown = |reason: String| {
         if let Some(notice) = &on_uncertain {
             notice(&reason);
         }
-        format!("Error: {reason}; outcome is unknown. Reconcile any committed effects before continuing.")
+        Err(anyhow::anyhow!(
+            "{reason}; outcome is unknown. Reconcile any committed effects before continuing."
+        ))
     };
     if let Err(why) = pass_gate(command, policy, approval).await {
-        return format!("Error: {why}");
+        anyhow::bail!("{why}");
     }
     let mut child = match spawn_sandboxed(command, policy, writable) {
         Ok(child) => child,
-        Err(why) => return format!("Error: {why}"),
+        Err(why) => anyhow::bail!("{why}"),
     };
 
     let timeout = Duration::from_secs(policy.timeout_secs.max(1) as u64);
@@ -670,17 +689,13 @@ pub(crate) async fn execute_with_notice(
         return unknown("Command terminated without an exit code".into());
     };
 
-    let mut combined = if code == 0 {
-        format!("exit code {code}\n{out}")
-    } else {
-        format!("Error: exit code {code}\n{out}")
-    };
+    let mut combined = format!("exit code {code}\n{out}");
     if !err.trim().is_empty() {
         combined.push_str("\n--- stderr ---\n");
         combined.push_str(&err);
     }
     let combined = scrub(combined, policy);
-    match crate::spill::stub(
+    let output = match crate::spill::stub(
         policy.spill_dir.as_deref(),
         &combined,
         MAX_OUTPUT_CHARS,
@@ -688,7 +703,8 @@ pub(crate) async fn execute_with_notice(
     ) {
         Some(stub) => stub.text,
         None => combined,
-    }
+    };
+    Ok((code, output))
 }
 
 /// Clean files older than `max_age_days` from `spill/`. Runs once at startup.
@@ -762,8 +778,8 @@ pub fn run_command(policy: ExecPolicy) -> Tool {
                     .or_else(|| std::env::current_dir().ok());
                 if let (Some(requested), Some(workspace)) = (&cwd, &ctx.cwd) {
                     if crate::fs_write::inside_workspace(requested, workspace).is_err() {
-                        return Ok(format!(
-                            "Error: cwd {requested:?} is not inside this turn's working directory {workspace:?} — run_command may only run in the working directory and its subdirectories."
+                        return Err(anyhow::anyhow!(
+                            "cwd {requested:?} is not inside this turn's working directory {workspace:?} — run_command may only run in the working directory and its subdirectories."
                         ));
                     }
                 }
@@ -776,17 +792,13 @@ pub fn run_command(policy: ExecPolicy) -> Tool {
 
                 if background {
                     if let Err(why) = pass_gate(&command, &policy, approval.as_deref()).await {
-                        return Ok(format!("Error: {why}"));
+                        return Err(anyhow::anyhow!("{why}"));
                     }
                     let Some(jobs) = ctx.jobs.clone() else {
-                        return Ok(
-                            "Error: background jobs are not enabled on this machine (they are switched on together with run_command: JEEVES_EXEC=1)."
-                                .to_string(),
-                        );
+                        return Err(anyhow::anyhow!("background jobs are not enabled on this machine (they are switched on together with run_command: JEEVES_EXEC=1)."));
                     };
                     let cwd_text = cwd.as_ref().map(|p| p.display().to_string());
-                    return Ok(
-                        match jobs
+                    return match jobs
                             .spawn_guarded(
                                 &ctx.session_id,
                                 &command,
@@ -797,15 +809,14 @@ pub fn run_command(policy: ExecPolicy) -> Tool {
                             )
                             .await
                         {
-                            Ok(id) => format!(
+                            Ok(id) => Ok(format!(
                             "Running in the background: {id} ({command})\nUse job(action=output) for progress, job(action=list) for all of them, job(action=kill) to stop one."
-                        ),
-                            Err(why) => format!("Error: {why}"),
-                        },
-                    );
+                        )),
+                            Err(why) => Err(anyhow::anyhow!(why)),
+                        };
                 }
 
-                Ok(execute_with_notice(
+                execute_with_notice(
                     &command,
                     &policy,
                     &writable,
@@ -813,7 +824,7 @@ pub fn run_command(policy: ExecPolicy) -> Tool {
                     ctx.on_delta.clone(),
                     ctx.on_uncertain.clone(),
                 )
-                .await)
+                .await
             })
         }),
     }

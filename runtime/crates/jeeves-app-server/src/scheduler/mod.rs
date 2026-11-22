@@ -333,6 +333,11 @@ pub async fn run(server: Server) -> Result<()> {
         if let Err(error) = crate::responsibility::tick(&server, now).await {
             eprintln!("(jeeves) responsibility clock: {error}");
         }
+        if let Err(error) =
+            crate::interaction::price_watch::tick(&server, now.timestamp_millis()).await
+        {
+            eprintln!("(jeeves) price watch clock: {error}");
+        }
         let jobs = runtime_jobs(&home, &pool, briefing).await;
         let (briefs, ordinary): (Vec<_>, Vec<_>) = jobs
             .into_iter()

@@ -14,7 +14,7 @@
 - 除 `Text`、`ToolUse`、`ToolResult` 外，还有 `Image`（base64，不带路径），以及必须原样回放的延续块：`Thinking` / `RedactedThinking`（Anthropic wire）、`OpenAiReasoning`（Chat Completions 的 `reasoning_content`）、`ResponseItem`（Responses 的加密 reasoning）。一种 wire 绝不发送另一种 wire 的延续块：Anthropic 与 Chat Completions 遇到 `ResponseItem` 或带 Responses 标记的 `ToolUse.extra` 会拒绝，Anthropic 遇到 `OpenAiReasoning` 也拒绝，而不是悄悄丢掉。
 - `ToolUse.extra` 是一个不透明槽位，为 `None` 时序列化跳过。Gemini 思考模型会给 tool call 附 `thought_signature`，下一轮必须原样带回；在 Chat Completions wire 上它以 `extra_content` 往返。
 - `StopReason` 带 `#[serde(other)]` 兜底，厂商新增取值不会让一轮崩溃。`UncertainEffect` 由循环设置，从不来自 wire。
-- `Usage` 在 input/output 之外记录缓存读取与缓存写入 token，以及 `prompt_tokens`：每种 wire 上都含缓存部分的完整 prompt（Anthropic 的 `input_tokens` 不含缓存读取，OpenAI 的含）。`Usage::prompt_size()` 是衡量下一次请求大小的数。
+- `Usage.input_tokens` 记录完整输入。Anthropic 适配器将新输入、缓存读取和缓存写入相加。OpenAI 的输入总量已经包含缓存。缓存明细单列。每次模型调用保留用途、执行归属、终止原因及实际用量。任务预算按已知的完整输入加输出计入一次，缺少供应商计量的中断请求保留未知用量。
 
 ## 3.2 厂商目录
 
@@ -149,7 +149,7 @@ trait Provider: Send + Sync {
 5. 调用模型，同时与中断赛跑。累加 usage，发出 `Llm`，把 assistant 内容推入。
 6. 没有工具调用：返回。否则写检查点、跑工具、推入一条由 `ToolResult` 块组成的 user 消息，并在下一次模型调用**之前**再写一次检查点，崩溃后恰好从这个边界恢复，不会重跑已完成的工具。检查点写失败会中止回合。
 
-工具分批运行（`plan_segments`）：连续的只读调用共享一批并发执行；独占调用（写、exec、子代理；`register_exclusive`）自成一批，前后都是屏障。无论完成顺序如何，事件、`tool_calls` 与结果都按请求顺序排列。panic 的工具会变成 `Error:` 结果，保证每个 `tool_use` 都有对应的 `tool_result`。如果某个工具报告外部效果不确定，循环在该批之后以 `StopReason::UncertainEffect` 停止，并保留执行前的检查点供对账。
+独立读取并发执行，每个结果落盘后即可通知客户端，模型按提议顺序收到结果。写入、命令和委派各自独占执行。外部操作效果未知时，循环以 `StopReason::UncertainEffect` 停止，在持久检查点等待核对。
 
 ## 3.13 中断
 
@@ -190,7 +190,7 @@ trait Provider: Send + Sync {
 
 `LoopResult` 携带 `stop_reason`、`reply`、`tool_calls`（`ToolOutcome`：id、名称、输出、耗时）、`iterations`、累加的 `usage`、完整的工作记忆 `messages`（给 trace）、`interrupted`、守卫报告，以及估算与实测的输入 token。
 
-`ToolOutcome::ok()` 即 `!output.starts_with("Error:")`。这是「工具错误是文本」约定的读取端，写入端是 `ToolRegistry::execute`（[04-tools](04-tools.zh.md)）；改动这个前缀会悄悄改变所有工具的成功率统计。
+首次准入操作时，同一提议中尚未分发的后续调用记为未执行。每次分发前写入该调用的意图，结算后才能推进依赖它的操作。任务步骤从[持久操作结果](04-tools.zh.md#注册表契约)生成。
 
 不变量：
 

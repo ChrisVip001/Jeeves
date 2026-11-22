@@ -40,8 +40,7 @@ impl SubagentRunner for Fake {
         &self,
         task: String,
         result_schema: Option<serde_json::Value>,
-        _parent_cwd: Option<std::path::PathBuf>,
-        _worktree: Option<std::path::PathBuf>,
+        _parent: crate::ToolCtx,
         readonly: bool,
     ) -> BoxFut {
         self.seen.lock().expect("lock").push(Seen {
@@ -101,11 +100,13 @@ async fn a_delegation_returns_the_summary_with_a_label() {
 
 #[tokio::test]
 async fn a_failed_delegation_is_still_text() {
-    let tool = delegate_task(Fake::failing("the model call failed: boom"));
-    let out = match (tool.handler)(ctx().await, json!({"task": "check it"})).await {
-        Ok(out) => out,
-        Err(e) => panic!("must not fail: {e}"),
-    };
+    let mut registry = ToolRegistry::new();
+    registry.register(delegate_task(Fake::failing("the model call failed: boom")));
+    let result = registry
+        .execute_result(ctx().await, NAME, json!({"task": "check it"}))
+        .await;
+    assert!(!result.success);
+    let out = result.text;
     assert!(
         out.starts_with("Error:"),
         "the Error: prefix has to stay: {out}"
@@ -172,8 +173,7 @@ impl SubagentRunner for Echo {
         &self,
         task: String,
         _result_schema: Option<serde_json::Value>,
-        _parent_cwd: Option<std::path::PathBuf>,
-        _worktree: Option<std::path::PathBuf>,
+        _parent: crate::ToolCtx,
         _readonly: bool,
     ) -> BoxFut {
         Box::pin(async move { Ok(format!("verdict: {task}")) })

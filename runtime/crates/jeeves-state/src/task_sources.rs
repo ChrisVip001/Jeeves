@@ -16,6 +16,13 @@ pub struct TaskSource {
 
 /// Record the source of a task. Re-recording replaces it (a retried dispatch of the same task).
 pub async fn set(pool: &SqlitePool, task_id: &str, source: &TaskSource) -> Result<()> {
+    insert(&mut *pool.acquire().await?, task_id, source).await
+}
+pub async fn insert(
+    conn: &mut sqlx::SqliteConnection,
+    task_id: &str,
+    source: &TaskSource,
+) -> Result<()> {
     sqlx::query(
         "INSERT OR REPLACE INTO task_sources (task_id, channel, chat_id, message_id, sender_id)
          VALUES (?, ?, ?, ?, ?)",
@@ -25,7 +32,7 @@ pub async fn set(pool: &SqlitePool, task_id: &str, source: &TaskSource) -> Resul
     .bind(&source.chat_id)
     .bind(&source.message_id)
     .bind(&source.sender_id)
-    .execute(pool)
+    .execute(conn)
     .await?;
     Ok(())
 }

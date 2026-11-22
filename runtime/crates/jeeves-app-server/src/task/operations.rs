@@ -48,6 +48,7 @@ async fn inspect_inner(
                     .into_iter()
                     .map(
                         |(id, (tool, input))| jeeves_state::operations::OperationSnapshot {
+                            proposed_only: false,
                             tool_use_id: id.into(),
                             tool: tool.into(),
                             input_json: input.to_string(),
@@ -88,6 +89,8 @@ pub(crate) fn operation_view(
     row: jeeves_state::operations::OperationRow,
     checkpoint_digest: Option<String>,
 ) -> Result<ToolOperationView, ErrorObject> {
+    let status =
+        serde_json::from_value(serde_json::Value::from(row.evidence_status())).map_err(invalid)?;
     Ok(ToolOperationView {
         id: row.id,
         run_id: row.run_id,
@@ -98,7 +101,8 @@ pub(crate) fn operation_view(
         arguments: serde_json::from_str(&row.input_json).map_err(invalid)?,
         input_digest: row.input_digest,
         origin: row.origin,
-        status: row.status,
+        status,
+        output_preview: row.output_preview,
         replay_policy: "never".into(),
         output_digest: row.output_digest,
         evidence: row.evidence,
@@ -171,14 +175,14 @@ pub(crate) async fn reconcile(
         &cp,
         &operation,
         &params.checkpoint_digest,
-        &params.resolution,
+        params.resolution.as_str(),
         &params.evidence,
     )?;
     rows.reconcile(Reconciliation {
         owner: jeeves_state::operations::OperationOwner::Task(&params.task_id),
         operation_id: &params.operation_id,
         expected_checkpoint_digest: &params.checkpoint_digest,
-        resolution: &params.resolution,
+        resolution: params.resolution.as_str(),
         evidence: &params.evidence,
         messages_json: &messages,
     })

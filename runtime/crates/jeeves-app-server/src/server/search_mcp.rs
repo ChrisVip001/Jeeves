@@ -60,8 +60,7 @@ async fn execute(state: &Mutex<State>, home: &Path, args: Value) -> Result<Strin
             .client
             .as_ref()
             .ok_or_else(|| anyhow!("Search MCP is not connected"))?;
-        let text = client.call("jeeves_search", tool, request).await;
-        ensure!(!text.starts_with("Error:"), "Search MCP request failed");
+        let text = client.call_result("jeeves_search", tool, request).await?;
         render(&text, &args)
     })
     .await

@@ -6,6 +6,8 @@ use jeeves_agent::verify::{CommandFut, CommandOutcome, CommandRunner};
 use std::path::PathBuf;
 
 pub(crate) struct ExecRunner {
+    server: crate::Server,
+    ctx: jeeves_tools::ToolCtx,
     pub(crate) policy: Option<jeeves_tools::exec::ExecPolicy>,
     /// Where the output of each check is written; `None` = not kept.
     pub(crate) log_dir: Option<PathBuf>,
@@ -27,39 +29,51 @@ pub(crate) fn shell_line(argv: &[String]) -> String {
     argv.iter().map(|w| quote(w)).collect::<Vec<_>>().join(" ")
 }
 
-/// Turn `execute`'s text into an outcome. `exit code N` / `Error: exit code N` ran; any other
-/// `Error:` is a refusal or an unknown outcome and counts as not run.
-pub(crate) fn outcome_of(text: &str) -> CommandOutcome {
-    let first = text.lines().next().unwrap_or("");
-    let code = first
-        .strip_prefix("Error: exit code ")
-        .or_else(|| first.strip_prefix("exit code "))
-        .and_then(|n| n.trim().parse::<i32>().ok());
-    match code {
-        Some(code) => CommandOutcome::Ran {
-            code,
-            output: text.to_string(),
-        },
-        None => CommandOutcome::Skipped(first.trim_start_matches("Error: ").to_string()),
-    }
-}
-
 impl CommandRunner for ExecRunner {
     fn run(&self, argv: Vec<String>, cwd: PathBuf) -> CommandFut {
         let policy = self.policy.clone();
+        let server = self.server.clone();
+        let mut ctx = self.ctx.clone();
         let log_dir = self.log_dir.clone();
         Box::pin(async move {
-            let Some(mut policy) = policy else {
+            let Some(policy) = policy else {
                 return CommandOutcome::Skipped("exec off".into());
             };
-            policy.approval = false;
+
             let command = format!(
                 "cd {} && {}",
                 quote(&cwd.display().to_string()),
                 shell_line(&argv)
             );
-            let text = jeeves_tools::exec::execute(&command, &policy, &[cwd], None, None).await;
-            let outcome = outcome_of(&text);
+            ctx.worktree = policy.worktree.clone();
+            if let Err(reason) = server
+                .tools
+                .admit_call(
+                    &mut ctx,
+                    "run_command",
+                    &serde_json::json!({"command":command}),
+                )
+                .await
+            {
+                return CommandOutcome::Skipped(reason);
+            }
+            let (code, text) = match jeeves_tools::exec::execute_process(
+                &command,
+                &policy,
+                &[cwd],
+                ctx.approval.as_deref(),
+                None,
+                ctx.on_uncertain,
+            )
+            .await
+            {
+                Ok(measured) => measured,
+                Err(reason) => return CommandOutcome::Skipped(reason.to_string()),
+            };
+            let outcome = CommandOutcome::Ran {
+                code,
+                output: text.clone(),
+            };
             if let (Some(dir), CommandOutcome::Ran { .. }) = (log_dir, &outcome) {
                 let name = format!("check-{:016x}.log", fnv(&argv.join("\0")));
                 if let Some(root) = &policy.worktree {
@@ -90,6 +104,7 @@ impl crate::Server {
     /// The runner for one verification. `None` policy when exec is off.
     pub(crate) fn check_runner(
         &self,
+        ctx: jeeves_tools::ToolCtx,
         root: Option<&std::path::Path>,
         worktree: Option<PathBuf>,
     ) -> std::sync::Arc<ExecRunner> {
@@ -104,6 +119,8 @@ impl crate::Server {
             policy
         });
         std::sync::Arc::new(ExecRunner {
+            ctx,
+            server: self.clone(),
             policy,
             log_dir: root.map(|r| r.join("checks")),
         })
@@ -123,25 +140,5 @@ mod tests {
             "it's".into(),
         ]);
         assert_eq!(line, "echo 'a b' 'x;rm -rf /' 'it'\\''s'");
-    }
-
-    #[test]
-    fn exit_text_maps_to_outcomes() {
-        assert!(matches!(
-            outcome_of("exit code 0\nok"),
-            CommandOutcome::Ran { code: 0, .. }
-        ));
-        assert!(matches!(
-            outcome_of("Error: exit code 1\nbad"),
-            CommandOutcome::Ran { code: 1, .. }
-        ));
-        assert_eq!(
-            outcome_of("Error: nothing is allowed"),
-            CommandOutcome::Skipped("nothing is allowed".into())
-        );
-        assert!(matches!(
-            outcome_of("Error: The command exceeded 5 seconds and was killed; outcome is unknown."),
-            CommandOutcome::Skipped(_)
-        ));
     }
 }

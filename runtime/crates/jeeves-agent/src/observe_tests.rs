@@ -3,30 +3,19 @@
 //! Both scenarios below are the **same tool call with the same output text** — only the
 //! filesystem differs. That is the point: the ledger reads the world, not the model's prose.
 
-use jeeves_provider::{ContentBlock, Message, Role};
+use crate::observe::SettledCall;
 use serde_json::json;
 
 use crate::observe::{observe, Fact};
 
-fn round(tool: &str, args: serde_json::Value, output: &str) -> Vec<Message> {
-    vec![
-        Message {
-            role: Role::Assistant,
-            content: vec![ContentBlock::ToolUse {
-                id: "toolu_1".to_string(),
-                name: tool.to_string(),
-                input: args,
-                extra: None,
-            }],
-        },
-        Message {
-            role: Role::User,
-            content: vec![ContentBlock::ToolResult {
-                tool_use_id: "toolu_1".to_string(),
-                content: output.to_string(),
-            }],
-        },
-    ]
+fn round(tool: &str, args: serde_json::Value, output: &str, success: bool) -> Vec<SettledCall> {
+    vec![SettledCall {
+        seq: 1,
+        tool: tool.to_owned(),
+        input: args,
+        output: output.to_owned(),
+        success,
+    }]
 }
 
 #[tokio::test]
@@ -38,9 +27,10 @@ async fn a_real_write_becomes_an_artifact() {
     let messages = round(
         "write_file",
         json!({ "path": "report.md", "content": "verdict: ready to ship\n" }),
-        "wrote report.md (22 bytes)",
+        "Error: report.md is the actual output",
+        true,
     );
-    let observation = observe(&messages, "turn1", 1, Some(dir.path()));
+    let observation = observe(&messages, "turn1", Some(dir.path()));
 
     assert_eq!(observation.steps.len(), 1, "one tool call is one step");
     assert!(observation.steps[0].ok);
@@ -63,9 +53,10 @@ async fn a_write_that_left_no_file_is_a_contradiction() {
     let messages = round(
         "write_file",
         json!({ "path": "report.md", "content": "verdict: ready to ship\n" }),
-        "wrote report.md (22 bytes)",
+        "Error: report.md is the actual output",
+        true,
     );
-    let observation = observe(&messages, "turn1", 1, Some(dir.path()));
+    let observation = observe(&messages, "turn1", Some(dir.path()));
 
     assert!(
         observation.has_contradiction(),
@@ -94,9 +85,10 @@ async fn a_failed_write_with_no_file_is_not_a_contradiction() {
     let messages = round(
         "write_file",
         json!({ "path": "report.md", "content": "x" }),
-        "Error: this write was not approved (or nobody answered), so it was skipped.",
+        "permission denied",
+        false,
     );
-    let observation = observe(&messages, "turn1", 1, Some(dir.path()));
+    let observation = observe(&messages, "turn1", Some(dir.path()));
     assert!(
         !observation.has_contradiction(),
         "failing and not writing is honest"
@@ -104,36 +96,33 @@ async fn a_failed_write_with_no_file_is_not_a_contradiction() {
     assert!(!observation.steps[0].ok);
 }
 
-#[tokio::test]
-async fn steps_keep_one_continuous_order_across_absorbed_passes() {
-    let dir = tempfile::tempdir().expect("temp dir");
-    let first = observe(
-        &round("read_file", json!({ "path": "a.md" }), "content"),
-        "turn1",
-        1,
-        Some(dir.path()),
+#[test]
+fn a_late_settlement_preserves_the_original_step_key() {
+    let mut calls = round("read_file", json!({"path":"b"}), "content", true);
+    calls[0].seq = 2;
+    let second_key = observe(&calls, "round", None).steps[0]
+        .idempotency_key
+        .clone();
+    calls.insert(
+        0,
+        round("read_file", json!({"path":"a"}), "content", true).remove(0),
     );
-    let second = observe(
-        &round("read_file", json!({ "path": "b.md" }), "content"),
-        "turn1",
-        1,
-        Some(dir.path()),
-    );
-
-    let mut merged = first;
-    merged.absorb(second);
-    let seqs: Vec<i32> = merged.steps.iter().map(|step| step.seq).collect();
-    assert_eq!(seqs, vec![1, 2], "the second round follows the first");
-    assert_eq!(merged.steps[1].idempotency_key, "turn1:2");
+    let both = observe(&calls, "round", None);
+    assert_eq!(second_key, "round:2");
+    assert_eq!(both.steps[1].idempotency_key, second_key);
 }
 
 #[tokio::test]
 async fn a_non_write_tool_never_produces_facts() {
     let dir = tempfile::tempdir().expect("temp dir");
     let observation = observe(
-        &round("run_command", json!({ "command": "ls" }), "a.md\nb.md"),
+        &round(
+            "run_command",
+            json!({ "command": "ls" }),
+            "a.md\nb.md",
+            true,
+        ),
         "turn1",
-        1,
         Some(dir.path()),
     );
     assert!(
@@ -150,9 +139,9 @@ fn human_receipts_do_not_count_as_observed_successful_tool_calls() {
             "external_write",
             json!({"value":42}),
             "Human reconciliation: external receipt tx-42 confirmed",
+            false,
         ),
         "turn",
-        1,
         None,
     );
     assert_eq!(observation.steps.len(), 1);
@@ -166,9 +155,10 @@ fn a_denied_write_to_an_existing_file_cannot_publish_an_artifact() {
     let messages = round(
         "write_file",
         json!({"path":"draft.txt","content":"other"}),
-        "Error: denied",
+        "Denied",
+        false,
     );
-    assert!(observe(&messages, "turn", 1, Some(dir.path()))
+    assert!(observe(&messages, "turn", Some(dir.path()))
         .artifacts()
         .is_empty());
 }

@@ -310,6 +310,7 @@ impl Client {
                     usage.prompt_tokens = usage.input_tokens
                         + usage.cache_read_input_tokens
                         + usage.cache_creation_input_tokens;
+                    usage.input_tokens = usage.prompt_tokens;
                 }
                 Some("content_block_start") => {
                     let index = value.get("index").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -473,6 +474,7 @@ pub fn parse_message(value: &Value) -> Result<CreateResponse, ProviderError> {
         .unwrap_or_default();
     usage.prompt_tokens =
         usage.input_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens;
+    usage.input_tokens = usage.prompt_tokens;
 
     Ok(CreateResponse {
         stop_reason,

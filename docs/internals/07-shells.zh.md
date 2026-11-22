@@ -93,7 +93,7 @@ hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 | 同步 | `GET /api/events`（ping 的 SSE：kind、turn id、session id）、`GET /api/notifications`（完整通知 SSE） |
 | 连接 | `GET/POST /api/connections/lark`、`POST /api/connections/lark/claim`、`POST /api/gateway/rpc` |
 
-`/api/turn` 先订阅再发送 `turn/start`，所以不会丢失最早的通知。SSE 只有服务器到浏览器一个方向；发送消息是普通 POST。
+`/api/interaction` 先订阅再发送 `interaction/start`，所以不会丢失最早的通知。SSE 只有服务器到浏览器一个方向；发送消息是普通 POST。
 被拒绝的人工操作（`/api/task`、能力写入）以状态 200 加 `ErrorObject` 响应体回答，页面可原样显示这句话。
 
 **能力中心**（`capabilities.rs`）：来自 `JEEVES_SKILL_DIRS` 的技能和来自 `JEEVES_MCP_CONFIG` 的 MCP 服务器以 `source: "builtin"`

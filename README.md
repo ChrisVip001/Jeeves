@@ -38,7 +38,7 @@ just desktop-build     # optional Mac development bundle
 just desktop-open      # return to the original window if already running
 ```
 
-Delegate in Chat. Open **My work** to see results, review changed lines and continue the task. [Getting started](docs/guide.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
+Ask about screenshots, compare sourced prices and review an action in Chat. Ask Jeeves to keep watching one of the compared prices, then adjust the threshold from your phone. Open **My work** to see which checks failed or passed after correction, review changed lines and continue the task. [Getting started](docs/guide.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
 
 ## What Jeeves can do
 
@@ -98,7 +98,7 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 | [docs/architecture.md](docs/architecture.md) | deployment topology, module responsibilities, dependencies and turn lifecycle |
 | [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, session list and detail responses, human responsibility controls and sourced Feishu weekly reports, notifications and error codes |
 | [docs/configuration.md](docs/configuration.md) | runtime settings, model key rotation and recovery, and every `JEEVES_*` variable |
-| [docs/operations.md](docs/operations.md) | running every shape, backups, troubleshooting |
+| [docs/operations.md](docs/operations.md) | deployment modes, backups, legacy database migration rehearsals and troubleshooting |
 | [docs/limitations.md](docs/limitations.md) | known boundaries, each with the file to open next |
 | [docs/internals/](docs/internals/README.md) | the implementation tutorial, one chapter per layer |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | engineering discipline and commit rules |

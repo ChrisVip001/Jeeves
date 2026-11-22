@@ -2,6 +2,8 @@
 
 [English](long-task-roadmap.md) | 简体中文
 
+主对话中的工作怎样转为持续跟进的事项，见[从主对话到交付的 Runtime 契约与验收](../design/conversation-runtime.zh.md)。
+
 本路线图关注长任务能力。一次委托可以跨多轮推理、多个工具、人工决定和进程重启。用户应能补充要求，看到尚未完成的部分，并根据产物或外部回执判断结果。个人电脑、自托管服务器、按用户隔离的云 Runtime 都承载同一份任务契约。[对话与交付](../design/main-entry.zh.md) · [架构](../architecture.zh.md)
 
 ## 从一次交办到长期负责

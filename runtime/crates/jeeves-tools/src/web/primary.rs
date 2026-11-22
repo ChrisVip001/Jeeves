@@ -6,9 +6,7 @@ use serde_json::Value;
 pub(super) async fn call(primary: &Option<Handler>, ctx: ToolCtx, args: Value) -> Option<String> {
     let handler = primary.as_ref()?;
     match handler(ctx, args).await {
-        Ok(text) if !text.trim().is_empty() && !text.trim_start().starts_with("Error:") => {
-            Some(super::finish_fetch(&text, false))
-        }
+        Ok(text) if !text.trim().is_empty() => Some(super::finish_fetch(&text, false)),
         _ => {
             eprintln!("(jeeves) search MCP unavailable or empty; using built-in web fallback");
             None
@@ -84,18 +82,16 @@ mod tests {
         ctx.turn_limits
             .used
             .store(ctx.turn_limits.search_max, Ordering::Relaxed);
-        let text = (tool.handler)(ctx, json!({"query":"test"})).await.unwrap();
-        assert!(text.starts_with("Error:"));
+        let error = (tool.handler)(ctx, json!({"query":"test"}))
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("limit"));
         assert_eq!(calls.load(Ordering::Relaxed), 1);
     }
 
     #[tokio::test]
     async fn failure_empty_and_error_text_activate_fallback() {
-        for result in [
-            Ok("".to_string()),
-            Ok("Error: quota".to_string()),
-            Err(anyhow::anyhow!("offline")),
-        ] {
+        for result in [Ok("".to_string()), Err(anyhow::anyhow!("offline"))] {
             let result = Arc::new(std::sync::Mutex::new(Some(result)));
             let handler: Handler = Arc::new(move |_, _| {
                 let result = result.lock().unwrap().take().unwrap();

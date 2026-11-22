@@ -11,7 +11,12 @@ pub type CheckFut = Pin<Box<dyn Future<Output = Option<String>> + Send>>;
 pub trait EditChecks: Send + Sync {
     /// The text to append to an edit's result (check name, outcome, up to 4 KB of output), or
     /// `None` when this run has no edit checks.
-    fn after_edit(&self, run_id: Option<String>, cwd: Option<PathBuf>) -> CheckFut;
+    fn after_edit(
+        &self,
+        run_id: Option<String>,
+        cwd: Option<PathBuf>,
+        lease: Option<crate::resources::Lease>,
+    ) -> CheckFut;
 }
 
 /// Append the checks' output to `result`. Never fails the edit: whatever the checks do, the
@@ -21,6 +26,7 @@ pub async fn append(ctx: &ToolCtx, result: String) -> String {
         ctx.edit_checks.as_ref(),
         ctx.task_run_id.clone(),
         ctx.cwd.clone(),
+        ctx.resource_lease.clone(),
         result,
     )
     .await
@@ -30,12 +36,13 @@ async fn append_with(
     checks: Option<&std::sync::Arc<dyn EditChecks>>,
     run_id: Option<String>,
     cwd: Option<PathBuf>,
+    lease: Option<crate::resources::Lease>,
     result: String,
 ) -> String {
     let Some(checks) = checks else {
         return result;
     };
-    match checks.after_edit(run_id, cwd).await {
+    match checks.after_edit(run_id, cwd, lease).await {
         Some(extra) => format!("{result}\n{extra}"),
         None => result,
     }
@@ -48,7 +55,12 @@ mod tests {
 
     struct Fixed(Option<&'static str>);
     impl EditChecks for Fixed {
-        fn after_edit(&self, _: Option<String>, _: Option<PathBuf>) -> CheckFut {
+        fn after_edit(
+            &self,
+            _: Option<String>,
+            _: Option<PathBuf>,
+            _: Option<crate::resources::Lease>,
+        ) -> CheckFut {
             let text = self.0.map(str::to_string);
             Box::pin(async move { text })
         }
@@ -58,17 +70,17 @@ mod tests {
     async fn output_follows_the_edit_result_and_absence_changes_nothing() {
         let none = None;
         assert_eq!(
-            append_with(none, None, None, "Edited".into()).await,
+            append_with(none, None, None, None, "Edited".into()).await,
             "Edited"
         );
         let some: Arc<dyn EditChecks> = Arc::new(Fixed(Some("[check cargo] exit 1\nerror[E0308]")));
         assert_eq!(
-            append_with(Some(&some), None, None, "Edited".into()).await,
+            append_with(Some(&some), None, None, None, "Edited".into()).await,
             "Edited\n[check cargo] exit 1\nerror[E0308]"
         );
         let silent: Arc<dyn EditChecks> = Arc::new(Fixed(None));
         assert_eq!(
-            append_with(Some(&silent), None, None, "Edited".into()).await,
+            append_with(Some(&silent), None, None, None, "Edited".into()).await,
             "Edited"
         );
     }

@@ -6,6 +6,8 @@ scripted provider. No account or paid model is involved.
 """
 import importlib.util
 import argparse
+import inline_delivery_fixture
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
@@ -84,6 +86,17 @@ def run(browser_channel=None):
                     completion = next(event for event in future.result() if event['type'] == 'turnCompleted')
                     assert completion['turnId'] == 'interaction-' + key, completion
             assert not Path(home, 'workspaces').exists(), 'chat should allocate no task folder'
+            if browser_channel:
+                origin = f'http://127.0.0.1:{provider.server_port}'
+                inline_delivery_fixture.configure(home, origin)
+                with gateway(base, home) as (_, workspace, cookie):
+                    subprocess.run(['node', ROOT / 'scripts/smoke-inline-delivery.mjs',
+                                    workspace, cookie, browser_channel, origin, home], check=True)
+                with sqlite3.connect(Path(home, 'state.db')) as db:
+                    operations = db.execute("SELECT tool,status FROM tool_operations WHERE tool LIKE 'shop_%' ORDER BY rowid").fetchall()
+                assert operations == [('shop_quote', 'succeeded')] * 2 + [('shop_deliver', 'succeeded'), ('shop_deliver', 'failed')], operations
+                assert not tasks(base)
+                print('Main composer: two screenshots, two priced sources, one approved receipt, one denial, zero tasks', flush=True)
             web.request(base, '/api/session/permission', dict(sessionId='jeeves-main', mode='fullAccess', expectedRevision=1, confirmFullAccess=True))
             interact(base, 'task-alpha-fixture;task-beta-fixture', 'two-tasks')
             rows = tasks(base)

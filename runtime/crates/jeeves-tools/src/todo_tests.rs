@@ -35,11 +35,11 @@ async fn ctx(session: &str) -> super::ToolCtx {
 }
 
 async fn call(board: &Arc<TodoBoard>, session: &str, args: serde_json::Value) -> String {
-    let tool = todo_write(board.clone());
-    match (tool.handler)(ctx(session).await, args).await {
-        Ok(text) => text,
-        Err(e) => panic!("must not fail: {e}"),
-    }
+    let mut registry = super::ToolRegistry::new();
+    registry.register(todo_write(board.clone()));
+    registry
+        .execute(ctx(session).await, "todo_write", args)
+        .await
 }
 
 #[tokio::test]
@@ -199,7 +199,7 @@ async fn an_unknown_status_says_which_item_and_what_was_seen() {
         json!({"todos": [{"content": "alpha", "status": "done"}]}),
     )
     .await;
-    assert!(out.contains("item 1"), "{out}");
+    assert!(out.contains("/todos/0/status"), "{out}");
     assert!(out.contains("done"), "{out}");
     assert!(
         out.contains("in_progress"),

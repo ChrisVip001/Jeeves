@@ -909,7 +909,7 @@ fn prompt_size_counts_cached_tokens_on_every_wire() {
                   "cache_read_input_tokens": 900, "cache_creation_input_tokens": 90}
     });
     let parsed = crate::anthropic::parse_message(&message).expect("parse");
-    assert_eq!(parsed.usage.input_tokens, 10);
+    assert_eq!(parsed.usage.input_tokens, 1000);
     assert_eq!(parsed.usage.prompt_size(), 1000);
     let bare = Usage {
         input_tokens: 42,

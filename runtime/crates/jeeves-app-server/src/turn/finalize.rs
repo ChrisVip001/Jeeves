@@ -4,7 +4,7 @@ use chrono::Local;
 use jeeves_loop::LoopResult;
 use jeeves_protocol::{
     codes, ConsolidationCompletedNotification, ErrorObject, ServerNotification, TokenUsage,
-    ToolCallRecord, ToolCompletedNotification, ToolStatus, TurnCompletedNotification, TurnMeta,
+    ToolCallRecord, ToolStatus, TurnCompletedNotification, TurnMeta,
 };
 use jeeves_provider::Resolved;
 
@@ -56,28 +56,11 @@ pub(crate) async fn finalize_turn(
         goal_rounds,
         history,
         started,
-        run_id: _,
+        run_id,
         decision: _,
     } = t;
 
     crate::completion_delivery::flush(server).await;
-
-    for call in &result.tool_calls {
-        sink.notification(ServerNotification::ToolCompleted(
-            ToolCompletedNotification {
-                turn_id: turn_id.clone(),
-                tool_use_id: call.tool_use_id.clone(),
-                tool: call.name.clone(),
-                output: call.output.clone(),
-                status: if call.ok() {
-                    ToolStatus::Ok
-                } else {
-                    ToolStatus::Error
-                },
-                duration_ms: Some(narrow(call.duration_ms)),
-            },
-        ));
-    }
 
     let spill_dir = settings.home.join("spill");
     let mut reply = fold_tool_activity(&result.reply, &result.tool_calls, Some(&spill_dir));
@@ -162,20 +145,6 @@ pub(crate) async fn finalize_turn(
             "stopDetail": result.stop_detail,
         }),
     );
-    if let Err(e) = server
-        .usage
-        .record(
-            &session_id,
-            &meta.provider,
-            &meta.model,
-            result.usage.input_tokens,
-            result.usage.output_tokens,
-        )
-        .await
-    {
-        eprintln!("(jeeves) usage not recorded in the ledger: {e}");
-    }
-
     let session_write_lock = server.session_write_lock(&session_id);
     let write_guard = session_write_lock.lock().await;
 
@@ -284,11 +253,27 @@ pub(crate) async fn finalize_turn(
 
     if let Some(worker) = server.memory_worker.as_ref() {
         worker.wake();
-        let (server, resolved, session_id) = (server.clone(), resolved.clone(), session_id.clone());
+        let resolved = super::meter::metered(
+            &server.pool,
+            resolved,
+            &session_id,
+            &turn_id,
+            run_id.as_deref(),
+            "summary",
+        );
+        let (server, session_id) = (server.clone(), session_id.clone());
         tokio::spawn(
             async move { super::history::precompact(&server, &resolved, &session_id).await },
         );
     } else {
+        let resolved = super::meter::metered(
+            &server.pool,
+            resolved,
+            "workspace-memory",
+            &crate::turn::new_turn_id(),
+            None,
+            "memory",
+        );
         let new_facts = jeeves_memory::consolidation::consolidate_if_due(
             &server.chat,
             &server.facts,

@@ -65,7 +65,6 @@ pub(crate) mod vault;
 pub use stream::events;
 pub use stream::run;
 pub(crate) use stream::run_headless;
-pub use stream::turn;
 mod hooks;
 pub use hooks::hook;
 

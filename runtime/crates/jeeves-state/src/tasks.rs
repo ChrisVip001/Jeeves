@@ -179,6 +179,14 @@ impl Tasks {
     }
 
     pub async fn create_with_parent(&self, task: NewTask<'_>, parent: Option<&str>) -> Result<()> {
+        Self::insert(&mut *self.pool.acquire().await?, task, parent).await
+    }
+
+    pub async fn insert(
+        conn: &mut sqlx::SqliteConnection,
+        task: NewTask<'_>,
+        parent: Option<&str>,
+    ) -> Result<()> {
         sqlx::query(
             "INSERT INTO agent_tasks
                  (id, session_id, title, goal_condition, acceptance_json, budget_json,
@@ -195,7 +203,7 @@ impl Tasks {
         .bind(task.max_rounds)
         .bind(task.tier)
         .bind(parent)
-        .execute(&self.pool)
+        .execute(conn)
         .await?;
         Ok(())
     }
@@ -216,6 +224,7 @@ impl Tasks {
             "SELECT {COLS} FROM agent_tasks
              WHERE session_id = ? AND status IN ('pending', 'running', 'suspended', 'needs_attention')
              AND NOT EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=agent_tasks.id)
+             AND NOT EXISTS(SELECT 1 FROM price_watches w WHERE w.task_id=agent_tasks.id)
              AND NOT EXISTS(SELECT 1 FROM task_pause_fences p WHERE p.task_id=agent_tasks.id)
              ORDER BY created_at DESC, rowid DESC LIMIT 1"
         ))
@@ -538,18 +547,14 @@ impl Tasks {
     /// Mark it suspended with the honest reason — but the run's own checkpoint decides
     /// whether it actually continues (an `open` checkpoint resumes and flips it back).
     pub async fn reconcile_restart(&self) -> Result<Vec<TaskRow>> {
-        let rows = sqlx::query_as::<_, TaskRow>(&format!(
-            "SELECT {COLS} FROM agent_tasks WHERE status = 'running' ORDER BY created_at ASC"
-        ))
-        .fetch_all(&self.pool)
-        .await?;
-        let mut tx = self.pool.begin().await?;
-        sqlx::query(
-            "UPDATE agent_tasks SET status = 'suspended',\n             suspend_reason = 'the process restarted; an unfinished turn resumes automatically if it can',\n             last_stop_reason = 'the process restarted; an unfinished turn resumes automatically if it can',\n             updated_at = datetime('now')\n             WHERE status = 'running'",
-        )
-        .execute(&mut *tx)
-        .await?;
-        tx.commit().await?;
+        let rows = sqlx::query_as::<_,TaskRow>(&format!(
+            "UPDATE agent_tasks SET status='suspended',
+                suspend_reason='the process restarted; an unfinished turn resumes automatically if it can',
+                last_stop_reason='the process restarted; an unfinished turn resumes automatically if it can',
+                updated_at=datetime('now')
+             WHERE status='running' AND NOT EXISTS(SELECT 1 FROM price_watches w WHERE w.task_id=agent_tasks.id)
+             RETURNING {COLS}"))
+            .fetch_all(&self.pool).await?;
         Ok(rows)
     }
 }

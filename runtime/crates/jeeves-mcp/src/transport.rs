@@ -206,7 +206,11 @@ pub async fn list_tools(session: &mut impl Rpc) -> Result<Vec<ToolMeta>, String>
 }
 
 /// Call a tool once, returning the text for the model to read.
-pub async fn call_tool(session: &mut impl Rpc, tool: &str, args: Value) -> Result<String, String> {
+pub async fn call_tool(
+    session: &mut impl Rpc,
+    tool: &str,
+    args: Value,
+) -> Result<jeeves_tools::ToolOutput, String> {
     let result = session
         .rpc_request("tools/call", json!({"name": tool, "arguments": args}))
         .await?;
@@ -238,9 +242,11 @@ pub async fn call_tool(session: &mut impl Rpc, tool: &str, args: Value) -> Resul
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        return Ok(format!("Error: MCP tool {tool} failed: {joined}"));
+        return Ok(jeeves_tools::ToolOutput::failure(format!(
+            "MCP tool {tool} failed: {joined}"
+        )));
     }
-    Ok(joined)
+    Ok(jeeves_tools::ToolOutput::success(joined))
 }
 
 impl<R, W> StdioSession<R, W>
@@ -256,7 +262,11 @@ where
         list_tools(self).await
     }
 
-    pub async fn call_tool(&mut self, tool: &str, args: Value) -> Result<String, String> {
+    pub async fn call_tool(
+        &mut self,
+        tool: &str,
+        args: Value,
+    ) -> Result<jeeves_tools::ToolOutput, String> {
         call_tool(self, tool, args).await
     }
 }
@@ -470,7 +480,11 @@ impl HttpSession {
         list_tools(self).await
     }
 
-    pub async fn call_tool(&mut self, tool: &str, args: Value) -> Result<String, String> {
+    pub async fn call_tool(
+        &mut self,
+        tool: &str,
+        args: Value,
+    ) -> Result<jeeves_tools::ToolOutput, String> {
         call_tool(self, tool, args).await
     }
 }
@@ -592,7 +606,11 @@ impl Transport {
     }
 
     /// Call a tool once, returning the text for the model to read.
-    pub async fn call_tool(&mut self, tool: &str, args: Value) -> Result<String, String> {
+    pub async fn call_tool(
+        &mut self,
+        tool: &str,
+        args: Value,
+    ) -> Result<jeeves_tools::ToolOutput, String> {
         match self {
             Transport::Stdio(stdio) => stdio.session.call_tool(tool, args).await,
             Transport::Http(session) => session.call_tool(tool, args).await,

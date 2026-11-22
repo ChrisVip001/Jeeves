@@ -92,8 +92,24 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         data: None,
     })?;
 
+    let turn_id = dispatch
+        .as_ref()
+        .map(|row| row.turn_id.clone())
+        .or_else(|| {
+            interaction.map(|(key, channel)| jeeves_protocol::interaction_turn_id(key, channel))
+        })
+        .unwrap_or_else(new_turn_id);
+    let classifier = super::meter::for_owner(
+        &server.pool,
+        &resolved,
+        &session_id,
+        &turn_id,
+        task.as_ref().map(|t| t.id.as_str()),
+        None,
+        "routing",
+    );
     let (resolved, turn_route) = server
-        .resolved_for_turn(resolved, &params.message, tier.as_deref())
+        .resolved_for_turn(resolved, &classifier, &params.message, tier.as_deref())
         .await;
 
     let user_images = resolve_attachments(server, &params, &resolved.provider_id, resolved.vision)?;
@@ -141,13 +157,6 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
             crate::task::recovery::require_known(&checkpoint)?;
         }
     }
-    let turn_id = dispatch
-        .as_ref()
-        .map(|row| row.turn_id.clone())
-        .or_else(|| {
-            interaction.map(|(key, channel)| jeeves_protocol::interaction_turn_id(key, channel))
-        })
-        .unwrap_or_else(new_turn_id);
 
     if let Err(why) = server.turn_capacity() {
         eprintln!("(jeeves) turn refused: {why}");
@@ -206,8 +215,6 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
     drop(task_guard);
     let task_id = task.as_ref().map(|task| task.id.clone());
 
-    let plan = load_plan(server, &resolved, task.as_ref(), &acceptance).await;
-
     let run_id = open_run(server, task.as_ref(), &turn_id, &session_id).await;
     if task.is_some() && run_id.is_none() {
         return Err(ErrorObject {
@@ -216,6 +223,15 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
             data: None,
         });
     }
+    let planner = super::meter::metered(
+        &server.pool,
+        &resolved,
+        &session_id,
+        &turn_id,
+        run_id.as_deref(),
+        "planning",
+    );
+    let plan = load_plan(server, &planner, task.as_ref(), &acceptance).await;
     let round_no = 1i32;
     let max_rounds = task
         .as_ref()

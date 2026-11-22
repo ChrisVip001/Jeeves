@@ -5,7 +5,7 @@ import { chromium } from "../node_modules/playwright/index.mjs";
 
 const [workspace, cookie, taskId, channel, decisionId] = process.argv.slice(2);
 const [name, value] = cookie.split("=");
-const browser = await chromium.launch({ channel });
+const browser = await chromium.launch({headless: process.env.PW_HEADED !== "1",  channel });
 try {
   for (const width of [1280, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 850 }, serviceWorkers: "block" });

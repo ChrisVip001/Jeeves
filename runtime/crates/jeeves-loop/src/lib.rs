@@ -151,12 +151,14 @@ pub enum LoopEvent {
     /// Progress only: the Tool event that follows carries the real, complete result, and that
     /// is what the model sees. A consumer that ignores this event loses nothing but liveness.
     ToolDelta { tool_use_id: String, chunk: String },
-    /// One tool finished (output is exactly the text the model will see).
+    /// One tool returned. Uncertain external effects report unsuccessful completion.
     Tool {
         tool_use_id: String,
         name: String,
         args: Value,
         output: String,
+        success: bool,
+        duration_ms: i64,
     },
 }
 
@@ -168,10 +170,11 @@ pub type Observer = Arc<dyn Fn(LoopEvent) + Send + Sync>;
 /// assistant thoughts, tool calls and their results all in `messages`, nothing half-done.
 #[derive(Debug, Clone)]
 pub struct ToolCheckpoint {
+    pub proposed_only: bool,
     pub tool_use_id: String,
     pub tool: String,
     pub input: serde_json::Value,
-    pub output: Option<String>,
+    pub output: Option<jeeves_tools::ToolOutput>,
 }
 
 /// The current tool batch only; prior conversation is never admitted as new work.
@@ -217,14 +220,13 @@ pub struct ToolOutcome {
     pub tool_use_id: String,
     pub name: String,
     pub output: String,
+    pub success: bool,
     pub duration_ms: i64,
 }
 
 impl ToolOutcome {
-    /// Output starting with "Error:" means this call failed.
-    /// This is the reporting side of the "errors as text" convention.
     pub fn ok(&self) -> bool {
-        !self.output.starts_with("Error:")
+        self.success
     }
 }
 
@@ -324,7 +326,7 @@ fn plan_segments(
     let mut segments: Vec<Vec<(String, String, Value)>> = Vec::new();
     let mut open_shared = false;
     for (id, name, input) in uses {
-        let exclusive = tools.is_exclusive(name);
+        let exclusive = tools.is_exclusive(name) || !tools.effect(name).is_read();
         if !exclusive && open_shared {
             if let Some(last) = segments.last_mut() {
                 last.push((id.to_string(), name.to_string(), input.clone()));
@@ -335,6 +337,36 @@ fn plan_segments(
         open_shared = !exclusive;
     }
     segments
+}
+
+/// Recovery sees only the prefix that has reached dispatch and the results already observed.
+fn admitted_exchange(
+    messages: &[Message],
+    admitted: usize,
+    results: &[ContentBlock],
+) -> Vec<Message> {
+    let mut snapshot = messages.to_vec();
+    let mut remaining = admitted;
+    snapshot
+        .last_mut()
+        .expect("assistant response")
+        .content
+        .retain(|block| {
+            if matches!(block, ContentBlock::ToolUse { .. }) {
+                if remaining == 0 {
+                    return false;
+                }
+                remaining -= 1;
+            }
+            true
+        });
+    if !results.is_empty() {
+        snapshot.push(Message {
+            role: Role::User,
+            content: results.to_vec(),
+        });
+    }
+    snapshot
 }
 
 pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
@@ -597,6 +629,8 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         iterations = iteration;
         usage.input_tokens += response.usage.input_tokens;
         usage.output_tokens += response.usage.output_tokens;
+        usage.cache_read_input_tokens += response.usage.cache_read_input_tokens;
+        usage.cache_creation_input_tokens += response.usage.cache_creation_input_tokens;
         last_observed = response.usage.prompt_size().max(0) as usize;
         sent_len = messages.len();
         if let Some(notify) = &notify {
@@ -658,40 +692,29 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             });
         }
 
-        if let Some(checkpoint) = &turn.checkpoint {
-            checkpoint(Checkpoint {
-                round_id: round_id.clone(),
-                messages: messages.clone(),
-                iterations: iteration - 1,
-                operations: uses
-                    .iter()
-                    .map(|(id, name, input)| ToolCheckpoint {
-                        tool_use_id: id.to_string(),
-                        tool: name.to_string(),
-                        input: (*input).clone(),
-                        output: None,
-                    })
-                    .collect(),
-                usage,
-            })
-            .await
-            .map_err(jeeves_provider::ProviderError::Api)?;
+        let mut ids = std::collections::HashSet::new();
+        if uses
+            .iter()
+            .any(|(id, _, _)| id.is_empty() || !ids.insert(*id))
+        {
+            anyhow::bail!("Duplicate or empty tool call identity");
         }
-        let operation_uses = uses.clone();
-
+        let proposed = uses.len();
+        let proposals: Vec<_> = uses
+            .iter()
+            .map(|(id, name, input)| ToolCheckpoint {
+                tool_use_id: (*id).to_owned(),
+                tool: (*name).to_owned(),
+                input: (*input).clone(),
+                proposed_only: true,
+                output: None,
+            })
+            .collect();
+        let mut admitted = 0;
         let mut results = Vec::new();
         let mut progressed = false;
         let uncertain = Arc::new(std::sync::atomic::AtomicBool::new(false));
         for segment in plan_segments(turn.tools, uses) {
-            for (id, name, input) in &segment {
-                if let Some(notify) = &notify {
-                    notify(LoopEvent::ToolStart {
-                        tool_use_id: id.clone(),
-                        name: name.clone(),
-                        args: input.clone(),
-                    });
-                }
-            }
             if let Some(cancel) = turn.interrupt.as_ref() {
                 if cancel.is_cancelled() {
                     return Ok(interrupted_result(Scene {
@@ -708,6 +731,45 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                 }
             }
 
+            admitted += segment.len();
+            let mut operations: Vec<_> = segment
+                .iter()
+                .map(|(id, name, input)| ToolCheckpoint {
+                    proposed_only: false,
+                    tool_use_id: id.clone(),
+                    tool: name.clone(),
+                    input: input.clone(),
+                    output: None,
+                })
+                .collect();
+            let checkpoint =
+                |iterations, results: &[ContentBlock], operations: &[ToolCheckpoint]| {
+                    turn.checkpoint.as_ref().map(|sink| {
+                        sink(Checkpoint {
+                            round_id: round_id.clone(),
+                            messages: admitted_exchange(&messages, admitted, results),
+                            iterations,
+                            operations: operations.to_vec(),
+                            usage,
+                        })
+                    })
+                };
+            let mut admissions = operations.clone();
+            if admitted == segment.len() {
+                admissions.extend_from_slice(&proposals[admitted..]);
+            }
+            if let Some(save) = checkpoint(iteration - 1, &results, &admissions) {
+                save.await.map_err(jeeves_provider::ProviderError::Api)?;
+            }
+            for (id, name, input) in &segment {
+                if let Some(notify) = &notify {
+                    notify(LoopEvent::ToolStart {
+                        tool_use_id: id.clone(),
+                        name: name.clone(),
+                        args: input.clone(),
+                    });
+                }
+            }
             let mut set = tokio::task::JoinSet::new();
             for (position, (id, name, input)) in segment.iter().enumerate() {
                 let registry = turn.tools.clone();
@@ -735,13 +797,14 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                 let input = input.clone();
                 set.spawn(async move {
                     let started = Instant::now();
-                    let output = registry.execute(ctx, &name, input).await;
+                    let output = registry.execute_result(ctx, &name, input).await;
                     (position, output, started.elapsed().as_millis() as i64)
                 });
             }
 
-            let mut slots: Vec<Option<(String, i64)>> = vec![None; segment.len()];
+            let mut slots: Vec<Option<(jeeves_tools::ToolOutput, i64)>> = vec![None; segment.len()];
             let mut panic_note: Option<String> = None;
+            let mut completed_reads = vec![None; segment.len()];
             loop {
                 let next = match turn.interrupt.as_ref() {
                     Some(cancel) => tokio::select! {
@@ -753,7 +816,8 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                                         tool_calls.push(ToolOutcome {
                                             tool_use_id: id.clone(),
                                             name: name.clone(),
-                                            output: output.clone(),
+                                            output: output.text.clone(),
+                                            success: output.success,
                                             duration_ms: *duration_ms,
                                         });
                                     }
@@ -776,6 +840,34 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                 };
                 match next {
                     Some(Ok((position, output, duration_ms))) => {
+                        if segment.len() > 1 {
+                            let op = &mut operations[position];
+                            op.output = Some(output.clone());
+                            completed_reads[position] = Some(ContentBlock::ToolResult {
+                                tool_use_id: op.tool_use_id.clone(),
+                                content: output.text.clone(),
+                            });
+                            let ordered: Vec<_> = results
+                                .iter()
+                                .chain(completed_reads.iter().flatten())
+                                .cloned()
+                                .collect();
+                            if let Some(save) =
+                                checkpoint(iteration - 1, &ordered, std::slice::from_ref(op))
+                            {
+                                save.await.map_err(jeeves_provider::ProviderError::Api)?;
+                            }
+                            if let Some(notify) = &notify {
+                                notify(LoopEvent::Tool {
+                                    tool_use_id: op.tool_use_id.clone(),
+                                    name: op.tool.clone(),
+                                    args: op.input.clone(),
+                                    output: output.text.clone(),
+                                    success: output.success,
+                                    duration_ms,
+                                });
+                            }
+                        }
                         slots[position] = Some((output, duration_ms));
                     }
                     Some(Err(e)) => {
@@ -785,8 +877,17 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                 }
             }
             if let Some(note) = panic_note {
-                if let Some(gap) = slots.iter_mut().find(|slot| slot.is_none()) {
-                    *gap = Some((note, 0));
+                if !segment
+                    .iter()
+                    .all(|(_, name, _)| turn.tools.effect(name).is_read())
+                {
+                    uncertain.store(true, std::sync::atomic::Ordering::Release);
+                    if let Some(notice) = &turn.ctx.on_uncertain {
+                        notice(&note);
+                    }
+                }
+                for slot in slots.iter_mut().filter(|slot| slot.is_none()) {
+                    *slot = Some((jeeves_tools::ToolOutput::failure(note.clone()), 0));
                 }
             }
 
@@ -795,18 +896,15 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                     continue;
                 };
                 let (id, name, input) = &segment[position];
-                if let Some(notify) = &notify {
-                    notify(LoopEvent::Tool {
-                        tool_use_id: id.clone(),
-                        name: name.clone(),
-                        args: input.clone(),
-                        output: output.clone(),
-                    });
-                }
+                operations[position].output = Some(output.clone());
+                let success =
+                    output.success && !uncertain.load(std::sync::atomic::Ordering::Acquire);
+                let output = output.text;
                 tool_calls.push(ToolOutcome {
                     tool_use_id: id.clone(),
                     name: name.clone(),
                     output: output.clone(),
+                    success,
                     duration_ms,
                 });
                 let verdict = guard.observe(name, input, &output);
@@ -817,7 +915,35 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                     content: for_model,
                 });
             }
-            if uncertain.load(std::sync::atomic::Ordering::Acquire) {
+            let unresolved = uncertain.load(std::sync::atomic::Ordering::Acquire);
+            if !unresolved {
+                let completed = if admitted == proposed {
+                    iteration
+                } else {
+                    iteration - 1
+                };
+                if let Some(save) = checkpoint(completed, &results, &operations) {
+                    save.await.map_err(jeeves_provider::ProviderError::Api)?;
+                }
+            }
+            if let Some(notify) = &notify {
+                let calls = &tool_calls[tool_calls.len() - segment.len()..];
+                for ((call, op), already_reported) in
+                    calls.iter().zip(&operations).zip(&completed_reads)
+                {
+                    if already_reported.is_none() {
+                        notify(LoopEvent::Tool {
+                            tool_use_id: call.tool_use_id.clone(),
+                            name: call.name.clone(),
+                            args: op.input.clone(),
+                            output: call.output.clone(),
+                            success: call.success,
+                            duration_ms: call.duration_ms,
+                        });
+                    }
+                }
+            }
+            if unresolved {
                 break;
             }
         }
@@ -847,29 +973,6 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             });
         }
 
-        if let Some(checkpoint) = &turn.checkpoint {
-            checkpoint(Checkpoint {
-                round_id: round_id.clone(),
-                messages: messages.clone(),
-                iterations: iteration,
-                operations: operation_uses
-                    .iter()
-                    .map(|(id, name, input)| ToolCheckpoint {
-                        tool_use_id: id.to_string(),
-                        tool: name.to_string(),
-                        input: (*input).clone(),
-                        output: tool_calls
-                            .iter()
-                            .rev()
-                            .find(|call| &call.tool_use_id == id)
-                            .map(|call| call.output.clone()),
-                    })
-                    .collect(),
-                usage,
-            })
-            .await
-            .map_err(jeeves_provider::ProviderError::Api)?;
-        }
         stalled_batches = if progressed { 0 } else { stalled_batches + 1 };
         if stalled_batches >= 3 {
             break "Tools kept returning the same results after repeated warnings. Work stopped for review".into();

@@ -126,7 +126,7 @@ try {
     GW_MAIL_FROM: "jeeves@example.test", GW_RESEND_API_KEY: "placeholder",
     GW_TEST_MAIL_URL: "http://127.0.0.1:" + mail.address().port,
   });
-  browser = await chromium.launch({ channel: process.env.JEEVES_TEST_BROWSER_CHANNEL ?? "chrome" });
+  browser = await chromium.launch({headless: process.env.PW_HEADED !== "1",  channel: process.env.JEEVES_TEST_BROWSER_CHANNEL ?? "chrome" });
   const desktop = await browser.newContext({ ignoreHTTPSErrors: true, locale: "en-US", userAgent: "Test Macintosh" });
   const phone = await browser.newContext({ ...devices["iPhone 13"], ignoreHTTPSErrors: true, locale: "en-US" });
   await poll(async () => (await desktop.request.get(origin + "/healthz")).ok(), "Go gateway");
@@ -173,10 +173,18 @@ try {
   await poll(() => page.locator("#send").isEnabled(), "workspace ready to send");
   await assertTealTheme(page, page.locator("#send"));
   assert.equal(await page.locator("#input").inputValue(), "task-alpha-fixture");
-  const policy = await desktop.request.post(api + "session/permission", { data: {
-    sessionId: "jeeves-main", mode: "fullAccess", expectedRevision: 1, confirmFullAccess: true,
-  } });
-  assert.ok(policy.ok(), await policy.text());
+  async function approveReport(client, expectedText) {
+    const pending = await poll(async () => {
+      const payload = await (await client.request.get(api + "approval/pending?sessionId=jeeves-main")).json();
+      return payload.approvals?.find(entry => entry.request.tool === "write_file" && entry.task?.title === "task-alpha-fixture");
+    }, "report write awaiting approval");
+    const preview = JSON.stringify(pending.request);
+    assert.ok(preview.includes(expectedText) && preview.includes("report.txt"), preview);
+    const {turnId, requestId, version} = pending.request;
+    const response = await client.request.post(api + "approval", {data: {turnId, requestId, version, approved: true, remember: "once"}});
+    assert.equal((await response.json()).accepted, true);
+    return requestId;
+  }
   try {
     await Promise.all([
       page.waitForResponse(res => res.url().endsWith("/api/interaction"), {timeout: 12000}),
@@ -186,6 +194,7 @@ try {
     console.error((await page.locator("body").innerText()).slice(-1700));
     throw error;
   }
+  const firstDecision = await approveReport(desktop, "task-alpha-fixture");
   const task = await poll(async () => {
     const payload = await (await desktop.request.get(api + "tasks")).json();
     return payload.tasks?.find(t => t.title === "task-alpha-fixture" && t.status === "done");
@@ -217,6 +226,8 @@ try {
   await mobile.getByRole("button", { name: /task-alpha-fixture/ }).click();
   await mobile.locator("#cowork-input").fill("task-follow-fixture");
   await mobile.locator("#cowork-send").click();
+  const secondDecision = await approveReport(phone, "task-follow-fixture");
+  assert.notEqual(secondDecision, firstDecision);
   await poll(async () => {
     const payload = await (await phone.request.get(api + "tasks")).json();
     return payload.tasks?.find(t => t.id === task.id && t.runCount >= 2 && t.status === "done");

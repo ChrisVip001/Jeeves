@@ -584,8 +584,8 @@ pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
             Box::pin(async move {
                 let used = ctx.turn_limits.used.fetch_add(1, Ordering::Relaxed);
                 if used >= ctx.turn_limits.search_max {
-                    return Ok(format!(
-                        "Error: search_web has hit this turn's limit ({} calls). Answer from what you already have; if you really need to keep searching, tell the user and ask them to widen it (raise JEEVES_SEARCH_MAX_PER_TURN).",
+                    return Err(anyhow::anyhow!(
+                        "search_web has hit this turn's limit ({} calls). Answer from what you already have; if you really need to keep searching, tell the user and ask them to widen it (raise JEEVES_SEARCH_MAX_PER_TURN).",
                         ctx.turn_limits.search_max
                     ));
                 }
@@ -606,14 +606,11 @@ pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
 
                 let plan = plan_backends(tavily_key(), brave_key(), bing_enabled(), ddg_enabled());
                 if plan.is_empty() {
-                    return Ok(
-                        "Error: no search backend available (no key, and both Bing and DDG are switched off). Configure a key (TAVILY_API_KEY / BRAVE_API_KEY), or re-enable JEEVES_SEARCH_BING / JEEVES_SEARCH_DDG."
-                            .to_string(),
-                    );
+                    return Err(anyhow::anyhow!("no search backend available (no key, and both Bing and DDG are switched off). Configure a key (TAVILY_API_KEY / BRAVE_API_KEY), or re-enable JEEVES_SEARCH_BING / JEEVES_SEARCH_DDG."));
                 }
                 let (engine, hits) = match search_backends(&plan, query, max_results).await {
                     Ok(result) => result,
-                    Err(error) => return Ok(format!("Error: web search returned no usable results ({error}). Refine the query or use fetch_url with a known source URL. Report that search failed; do not invent search findings.")),
+                    Err(error) => return Err(anyhow::anyhow!("web search returned no usable results ({error}). Refine the query or use fetch_url with a known source URL. Report that search failed; do not invent search findings.")),
                 };
                 let lines: Vec<String> = hits
                     .iter()

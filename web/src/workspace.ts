@@ -820,6 +820,11 @@ async function waitForHostedWorkspace(): Promise<boolean> {
 
 async function boot(): Promise<void> {
   initLang();
+  dom.file.addEventListener("change", () => {
+    for (const file of dom.file.files ?? []) staged.push(file);
+    dom.file.value = "";
+    renderStaged();
+  });
   applyStatic(document);
   dom.input.addEventListener("input", () => {
     if (preparing) sessionStorage.setItem(startupDraftKey, dom.input.value);
@@ -960,12 +965,6 @@ async function boot(): Promise<void> {
   workspaceActions.main = openMain;
   openHashPanel();
   setWorkspace(workspace);
-
-  dom.file.addEventListener("change", () => {
-    for (const file of dom.file.files ?? []) staged.push(file);
-    dom.file.value = "";
-    renderStaged();
-  });
 
   dom.input.focus();
 }

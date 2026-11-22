@@ -117,6 +117,9 @@ test-research-publication:
     {{ python }} {{ justfile_directory() }}/scripts/test-research-publication.py
 
 # Real SIGKILL boundaries with isolated local provider/MCP fixtures (POSIX).
+smoke-runtime-contract: build
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-runtime-contract.py
+
 smoke-recovery: build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-recovery.py
 
@@ -212,9 +215,14 @@ smoke-approval-notice: gateway-build
     node {{ justfile_directory() }}/scripts/smoke-approval-notice.mjs
 
 # Offline main conversation → task workspaces → follow-up and worker approval.
-smoke-interaction: gateway-build
+smoke-interaction *args: gateway-build
     cd {{ root }} && cargo build --bin jeeves
-    {{ python }} {{ justfile_directory() }}/scripts/smoke-interaction.py
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-interaction.py {{args}}
+
+# Sourced comparison to a restart-safe watch, with a mobile threshold amendment.
+smoke-price-watch *args: gateway-build
+    cd {{ root }} && cargo build --bin jeeves
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-price-watch.py {{args}}
 
 # One npm workspace owns both the Web cockpit and the desktop UI.
 desktop-install:

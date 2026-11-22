@@ -102,8 +102,8 @@ pub trait JobRegistry: Send + Sync {
 }
 
 /// The answer to the model when no job host is present (background is off by default).
-fn no_registry() -> String {
-    "Error: background jobs are not enabled on this machine (they are switched on together with run_command: JEEVES_EXEC=1).".to_string()
+fn no_registry() -> anyhow::Error {
+    anyhow::anyhow!("background jobs are not enabled on this machine (they are switched on together with run_command: JEEVES_EXEC=1).")
 }
 
 /// `job_output`: read a slice of output. To continue reading, pass back the `cursor` you got.
@@ -125,10 +125,10 @@ pub fn job_output(jobs: Option<std::sync::Arc<dyn JobRegistry>>) -> Tool {
             let jobs = jobs.clone();
             Box::pin(async move {
                 let Some(jobs) = jobs else {
-                    return Ok(no_registry());
+                    return Err(no_registry());
                 };
                 let Some(id) = args.get("id").and_then(Value::as_str) else {
-                    return Ok("Error: missing id".to_string());
+                    return Err(anyhow::anyhow!("missing id"));
                 };
                 let cursor = args.get("cursor").and_then(Value::as_u64).unwrap_or(0);
                 let wait = args.get("wait").and_then(Value::as_bool).unwrap_or(false);
@@ -138,7 +138,7 @@ pub fn job_output(jobs: Option<std::sync::Arc<dyn JobRegistry>>) -> Tool {
                     .await
                 {
                     Ok(read) => Ok(render(&read)),
-                    Err(why) => Ok(format!("Error: {why}")),
+                    Err(why) => Err(anyhow::anyhow!("{why}")),
                 }
             })
         }),
@@ -156,7 +156,7 @@ pub fn job_list(jobs: Option<std::sync::Arc<dyn JobRegistry>>) -> Tool {
             let jobs = jobs.clone();
             Box::pin(async move {
                 let Some(jobs) = jobs else {
-                    return Ok(no_registry());
+                    return Err(no_registry());
                 };
                 let list = jobs.list(&ctx.session_id);
                 if list.is_empty() {
@@ -195,15 +195,15 @@ pub fn job_kill(jobs: Option<std::sync::Arc<dyn JobRegistry>>) -> Tool {
             let jobs = jobs.clone();
             Box::pin(async move {
                 let Some(jobs) = jobs else {
-                    return Ok(no_registry());
+                    return Err(no_registry());
                 };
                 let Some(id) = args.get("id").and_then(Value::as_str) else {
-                    return Ok("Error: missing id".to_string());
+                    return Err(anyhow::anyhow!("missing id"));
                 };
                 match jobs.kill(&ctx.session_id, &id.to_string()).await {
                     Ok(true) => Ok(format!("Stopped job {id}.")),
                     Ok(false) => Ok(format!("job {id} has already finished; nothing to stop.")),
-                    Err(why) => Ok(format!("Error: {why}")),
+                    Err(why) => Err(anyhow::anyhow!("{why}")),
                 }
             })
         }),
@@ -239,7 +239,7 @@ pub fn job(jobs: Option<std::sync::Arc<dyn JobRegistry>>) -> Tool {
                     Some("output") => output(ctx, args).await,
                     Some("list") => list(ctx, args).await,
                     Some("kill") => kill(ctx, args).await,
-                    _ => Ok("Error: action must be output / list / kill.".to_string()),
+                    _ => Err(anyhow::anyhow!("action must be output / list / kill.")),
                 }
             })
         }),

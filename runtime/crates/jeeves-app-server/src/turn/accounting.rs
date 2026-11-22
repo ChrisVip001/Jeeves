@@ -19,22 +19,96 @@ pub(crate) enum TaskDecision {
 }
 
 /// Checkpoint recovery and continuation observe the same round with identical operation keys.
-pub(crate) fn observe_round(
-    result: &LoopResult,
+pub(crate) async fn observe_round(
+    server: &Server,
     turn_id: &str,
+    round_id: &str,
     cwd: Option<&std::path::Path>,
-) -> jeeves_agent::observe::Observation {
-    jeeves_agent::observe::observe(
-        &result.messages,
-        &format!("{turn_id}:{}", result.round_id),
-        1,
-        cwd,
+) -> Result<jeeves_agent::observe::Observation, String> {
+    let rows: Vec<jeeves_state::operations::OperationRow> = sqlx::query_as(
+        "SELECT * FROM tool_operations WHERE turn_id=? AND round_id=? ORDER BY rowid",
     )
+    .bind(turn_id)
+    .bind(round_id)
+    .fetch_all(&server.pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    let calls = rows
+        .into_iter()
+        .zip(1..)
+        .filter(|(op, _)| {
+            !matches!(
+                op.evidence_status(),
+                "intent" | "not_executed" | "historical_unverified"
+            )
+        })
+        .map(|(op, seq)| {
+            Ok(jeeves_agent::observe::SettledCall {
+                seq,
+                tool: op.tool,
+                input: serde_json::from_str(&op.input_json)?,
+                success: op.status == "succeeded",
+                output: op
+                    .output_preview
+                    .or(op.evidence)
+                    .or(op.output_digest)
+                    .unwrap_or_default(),
+            })
+        })
+        .collect::<Result<Vec<_>, serde_json::Error>>()
+        .map_err(|e| e.to_string())?;
+    Ok(jeeves_agent::observe::observe(
+        &calls,
+        &format!("{turn_id}:{round_id}"),
+        cwd,
+    ))
+}
+
+/// Publish already settled work before a recovered turn can pause on a later uncertain effect.
+pub(crate) async fn restore_observation(
+    server: &Server,
+    row: &jeeves_state::CheckpointRow,
+) -> Result<(), String> {
+    let (Some(run_id), Some(round_id)) = (&row.run_id, &row.round_id) else {
+        return Ok(());
+    };
+    let run = server
+        .runs
+        .for_turn(&row.turn_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .filter(|run| {
+            run.id == *run_id && run.session_id.as_ref().is_none_or(|s| s == &row.session_id)
+        })
+        .ok_or("Cannot restore observation without the owning run")?;
+    let task = server
+        .tasks
+        .get(&run.task_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("Task missing while restoring observation")?;
+    let observation = observe_round(
+        server,
+        &row.turn_id,
+        round_id,
+        task.cwd.as_deref().map(std::path::Path::new),
+    )
+    .await?;
+    jeeves_agent::observe::Recorder {
+        steps: &server.steps,
+        artifacts: &server.artifacts,
+        events: &server.events,
+        task_id: &task.id,
+        run_id: Some(run_id),
+    }
+    .record(&observation)
+    .await
 }
 
 /// What one round's accounting needs. A struct because the fields would otherwise be seven
 /// positional parameters that all mean different things.
 pub(crate) struct RoundCtx<'a> {
+    pub(crate) tool_ctx: jeeves_tools::ToolCtx,
     pub(crate) task: Option<&'a TaskRow>,
     pub(crate) run_id: Option<&'a str>,
     pub(crate) acceptance: &'a [jeeves_agent::verify::Acceptance],
@@ -103,6 +177,7 @@ pub(crate) async fn account_round(
         Vec::new()
     } else {
         let commands = server.check_runner(
+            ctx.tool_ctx,
             ctx.verify_root.as_deref(),
             crate::task::worktree::owned(&server.settings().home, Some(task)),
         );

@@ -14,7 +14,7 @@ Directories: `runtime/crates/jeeves-provider/src/` and `runtime/crates/jeeves-lo
 - Besides `Text`, `ToolUse` and `ToolResult`, it carries `Image` (base64, no path), and continuation blocks that must be replayed verbatim: `Thinking` / `RedactedThinking` (Anthropic wire), `OpenAiReasoning` (Chat Completions `reasoning_content`), `ResponseItem` (Responses encrypted reasoning). A wire never sends another wire's continuation blocks; Anthropic and Chat Completions reject a `ResponseItem` or a Responses-tagged `ToolUse.extra`, and Anthropic rejects `OpenAiReasoning`, rather than silently dropping them.
 - `ToolUse.extra` is an opaque slot, skipped in serialization when `None`. Gemini thinking models attach a `thought_signature` to a tool call and require it back unchanged; on the Chat Completions wire it travels as `extra_content`.
 - `StopReason` has a `#[serde(other)]` catch-all so a new vendor value cannot crash a turn. `UncertainEffect` is set by the loop, never by a wire.
-- `Usage` keeps cache-read and cache-creation tokens beside input/output, and `prompt_tokens`, the whole prompt including cached parts on every wire (Anthropic's `input_tokens` excludes cache reads, OpenAI's includes them). `Usage::prompt_size()` is the number used to size the next request.
+- `Usage.input_tokens` counts full input. The Anthropic adapter adds fresh, cache-read and cache-creation tokens. OpenAI already includes cached input in its total. Cache details are recorded separately. Each model invocation retains its purpose, owner, termination and reported usage. Known full input plus output counts once toward the task budget. Interrupted requests without a provider measurement retain unknown usage.
 
 ## 3.2 The provider catalog
 
@@ -149,7 +149,7 @@ Per iteration, in order:
 5. Call the model, racing the interrupt. Add usage, emit `Llm`, push the assistant content.
 6. No tool uses: return. Otherwise write a checkpoint, run the tools, push one user message of `ToolResult` blocks, and write another checkpoint **before** the next model call, so a crash resumes at exactly that boundary without re-running finished tools. A checkpoint failure aborts the turn.
 
-Tools run in batches (`plan_segments`): consecutive read-only calls share a batch and run concurrently; an exclusive call (write, exec, subagent; `register_exclusive`) is its own batch and a barrier in both directions. Events, `tool_calls` and results are in request order whatever the completion order. A panicking tool becomes an `Error:` result so every `tool_use` still has its `tool_result`. If a tool reports an uncertain external effect, the loop stops after that batch with `StopReason::UncertainEffect` and keeps the pre-execution checkpoint for reconciliation.
+Independent reads run concurrently. The client can receive each result as soon as it is recorded. The model receives results in proposal order. Writes, commands and delegation each run exclusively. An uncertain external effect stops the loop with `StopReason::UncertainEffect` at a durable checkpoint for reconciliation.
 
 ## 3.13 Interruption
 
@@ -190,7 +190,7 @@ On a hit, only the text fed back to the model changes: a `[guard]` reminder is a
 
 `LoopResult` carries `stop_reason`, `reply`, `tool_calls` (`ToolOutcome`: id, name, output, duration), `iterations`, summed `usage`, the complete working `messages` (for the trace), `interrupted`, the guard report, and the estimated and measured input tokens.
 
-`ToolOutcome::ok()` is `!output.starts_with("Error:")`. It is the reading side of the "tool errors are text" convention whose writing side is `ToolRegistry::execute` ([04-tools](04-tools.md)); changing that prefix silently changes every tool's success statistics.
+When the first operation is admitted, remaining calls in its proposal are recorded as unexecuted. Each call records dispatch intent before execution and settles before its dependent action can start. Task steps use the [durable operation results](04-tools.md#the-registry-contract).
 
 Invariants:
 

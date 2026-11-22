@@ -8,8 +8,8 @@ use super::{
 use crate::Server;
 use jeeves_loop::{LoopEvent, LoopResult};
 use jeeves_protocol::{
-    codes, ErrorObject, ServerNotification, TextDeltaNotification, ToolDeltaNotification,
-    ToolStartedNotification,
+    codes, ErrorObject, ServerNotification, TextDeltaNotification, ToolCompletedNotification,
+    ToolDeltaNotification, ToolStartedNotification, ToolStatus,
 };
 use jeeves_provider::{Resolved, TextSink};
 
@@ -49,6 +49,23 @@ pub(crate) async fn full_turn(
             message: format!("Cannot resolve task execution identity: {error}"),
             data: None,
         })?;
+    let owner_run = run.as_ref().map(|r| r.id.as_str());
+    let execution = super::meter::metered(
+        &server.pool,
+        resolved,
+        session_id,
+        turn_id,
+        owner_run,
+        "execution",
+    );
+    let summary_model = super::meter::metered(
+        &server.pool,
+        resolved,
+        session_id,
+        turn_id,
+        owner_run,
+        "summary",
+    );
     let scoped_task = if let Some(run) = &run {
         jeeves_state::task_sources::get(&server.pool, &run.task_id)
             .await
@@ -123,7 +140,10 @@ pub(crate) async fn full_turn(
         crate::connector_settings::apply(&settings.home, &server.mcp.apply(&server.tools));
     let mut turn_tools = crate::enabled_tools(&current_tools, &settings)
         .session_view_with(server.activation_set(session_id));
-    if channel_chat {
+    let selected_watch = frame
+        .interaction_tool
+        .is_some_and(|t| t.name == crate::interaction::task_tool::SELECTED_WATCH);
+    if channel_chat || selected_watch {
         turn_tools = jeeves_tools::ToolRegistry::new();
     } else if scoped_task {
         for name in turn_tools
@@ -148,7 +168,7 @@ pub(crate) async fn full_turn(
         }
     }
     let main_chat = session_id == crate::interaction::MAIN_SESSION;
-    if chat_operations.unresolved || main_chat {
+    if chat_operations.unresolved || (main_chat && frame.interaction_tool.is_none()) {
         turn_tools.restrict_to_reads(!chat_operations.unresolved);
     }
     if chat_operations.unresolved {
@@ -189,7 +209,7 @@ pub(crate) async fn full_turn(
                     PRELOOP_TIMEOUT,
                     load_history(
                         &server.chat,
-                        resolved,
+                        &summary_model,
                         session_id,
                         settings.history_turns,
                         history_budget,
@@ -236,13 +256,15 @@ pub(crate) async fn full_turn(
     } else if scoped_task {
         Some("Work in this task's isolated directory. Report results for the chat that requested this work.".into())
     } else if main_chat && tools_available {
-        let note = if turn_tools
+        let note = if selected_watch {
+            "Handle only the selected watch. Preserve the source, product, shipping, currency and expiry. Report a change only after the watch tool confirms it."
+        } else if turn_tools
             .get(crate::interaction::task_tool::NAME)
             .is_some()
         {
             concat!(
                 "Answer conversation, advice and progress questions here. ",
-                "When the human asks you to deliver work, use task with the human's exact words. ",
+                "Deliver the requested result here using the enabled tools and per-action approval. Compare matching specifications, include sources, retrieval time, shipping and unknown costs. For work requiring restart-safe follow-up, its own workspace, or independent acceptance checks, use task with the human's exact words. ",
                 "A request to continue developing a project or add a feature is an assignment even when the human does not say 'task'. ",
                 "Delegate before planning the implementation in chat: a missing implementation choice does not block handoff. ",
                 "The worker can inspect the workspace, prepare reversible work and surface real blockers. ",
@@ -350,6 +372,7 @@ pub(crate) async fn full_turn(
     ctx.task_run_id = run.map(|run| run.id);
     ctx.edit_checks = Some(std::sync::Arc::new(crate::edit_check_host::HostEditChecks(
         server.clone(),
+        ctx.clone(),
     )));
     ctx.activate = Some(turn_tools.activator());
 
@@ -368,6 +391,29 @@ pub(crate) async fn full_turn(
                     tool: name,
                     args,
                 }));
+            }
+            LoopEvent::Tool {
+                tool_use_id,
+                name,
+                output,
+                success,
+                duration_ms,
+                ..
+            } => {
+                sink.notification(ServerNotification::ToolCompleted(
+                    ToolCompletedNotification {
+                        turn_id: turn_id.clone(),
+                        tool_use_id,
+                        tool: name,
+                        output,
+                        status: if success {
+                            ToolStatus::Ok
+                        } else {
+                            ToolStatus::Error
+                        },
+                        duration_ms: Some(crate::narrow(duration_ms)),
+                    },
+                ));
             }
             LoopEvent::ToolDelta { tool_use_id, chunk } => {
                 sink.notification(ServerNotification::ToolDelta(ToolDeltaNotification {
@@ -406,7 +452,7 @@ pub(crate) async fn full_turn(
             .max(1024);
         let attempt = jeeves_loop::run(jeeves_loop::Turn {
             system_prefix: Some(prompt.stable.clone()),
-            client: resolved.client.as_ref(),
+            client: execution.client.as_ref(),
             model: &resolved.model,
             system: prompt.tail.clone(),
             history: history.clone(),
@@ -440,7 +486,7 @@ pub(crate) async fn full_turn(
                     let _compact_guard = session_write_lock.lock().await;
                     load_history(
                         &server.chat,
-                        resolved,
+                        &summary_model,
                         session_id,
                         settings.history_turns,
                         0,

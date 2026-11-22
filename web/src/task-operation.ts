@@ -1,7 +1,19 @@
 import { el } from "./render";
 import { t } from "./i18n";
 import { reconcileTaskOperation, taskOperations, reconcileTurnOperation, turnOperations } from "./api";
-import type { AgentTaskView, TaskOperationsResponse, ToolOperationView } from "./protocol";
+import type { AgentTaskView, OperationResolution, OperationStatus, TaskOperationsResponse, ToolOperationView } from "./protocol";
+
+function outcomeLabel(status: OperationStatus): string {
+  switch (status) {
+    case "intent": return t("待核对操作");
+    case "succeeded": return t("执行成功");
+    case "failed": return t("执行失败");
+    case "reconciled_success": return t("已确认外部效果成功");
+    case "reconciled_failure": return t("已确认外部操作失败");
+    case "not_executed": return t("未执行");
+    case "historical_unverified": return t("历史结果待核实");
+  }
+}
 
 /** Human observations settle uncertainty; this form never resumes or executes work. */
 export function taskOperationForm(
@@ -26,7 +38,7 @@ export function chatOperationForm(
 
 function operationForm(
   target: { id: string; title: string; load: () => Promise<TaskOperationsResponse>;
-    reconcile: (operation: ToolOperationView, digest: string, resolution: string, evidence: string) => Promise<TaskOperationsResponse> },
+    reconcile: (operation: ToolOperationView, digest: string, resolution: OperationResolution, evidence: string) => Promise<TaskOperationsResponse> },
   onSaved: () => void, onClose: () => void, onDetachedError: (error: unknown) => void,
 ): HTMLFormElement {
   const id = `operations-${target.id}`;
@@ -79,9 +91,9 @@ function operationForm(
     fields.hidden = unknown.length === 0;
     save.disabled = unknown.length === 0 || !selectedDigest();
     status.textContent = unknown.length ? t("尚有 {count} 个操作需要核对", { count: unknown.length }) : t("没有待核对操作；继续仍需明确授权。");
-    receipts.replaceChildren(...next.operations.filter(operation => operation.evidence).map(operation =>
-      el("details", {}, el("summary", { text: `${operation.tool} · ${operation.status}` }),
-        el("pre", { class: "task-input-data", translate: "no", text: operation.evidence ?? "" }))));
+    receipts.replaceChildren(...next.operations.filter(operation => operation.status !== "intent").map(operation =>
+      el("details", {}, el("summary", { text: `${operation.tool} · ${outcomeLabel(operation.status)}` }),
+        el("pre", { class: "task-input-data", translate: "no", text: operation.evidence ?? operation.outputPreview ?? (operation.status === "historical_unverified" ? t("历史记录缺少执行结果凭据") : "") }))));
     selection.dispatchEvent(new Event("change"));
   }
   selection.addEventListener("change", () => {
@@ -132,7 +144,9 @@ function operationForm(
       showError(new Error("Provide 1 to 16384 bytes of reconciliation evidence")); evidence.focus(); return;
     }
     pending = true; freezeFields(true); save.disabled = true; reload.disabled = true; error.hidden = true;
-    void target.reconcile(operation, digest, resolution.value, evidence.value)
+    const verdict = resolution.value;
+    if (verdict !== "reconciled_success" && verdict !== "reconciled_failure" && verdict !== "not_executed") return;
+    void target.reconcile(operation, digest, verdict, evidence.value)
       .then(next => {
         if (!panel.isConnected) { onSaved(); return; }
         paint(next); resolution.value = ""; evidence.value = ""; onSaved();

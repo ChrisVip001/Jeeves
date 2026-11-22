@@ -136,7 +136,7 @@ impl Connection {
     }
 
     /// One try on the current transport.
-    async fn attempt(&self, tool: &str, args: &Value) -> Result<String, Failure> {
+    async fn attempt(&self, tool: &str, args: &Value) -> Result<jeeves_tools::ToolOutput, Failure> {
         let mut transport = self.transport.lock().await;
         match tokio::time::timeout(TIMEOUT, transport.call_tool(tool, args.clone())).await {
             Ok(Ok(text)) => Ok(text),
@@ -164,7 +164,9 @@ impl Connection {
     /// Call a tool. **Never returns Err** — the failure text is for the model to read,
     /// same rule as `ToolRegistry::execute`.
     pub async fn call(&self, tool: &str, args: Value) -> String {
-        self.call_with_notice(tool, args, None).await
+        self.call_with_notice(tool, args, None)
+            .await
+            .unwrap_or_else(|error| format!("Error: {error}"))
     }
 
     pub async fn call_with_notice(
@@ -172,11 +174,11 @@ impl Connection {
         tool: &str,
         args: Value,
         notice: Option<jeeves_tools::UncertainSink>,
-    ) -> String {
+    ) -> anyhow::Result<String> {
         let now = std::time::Instant::now();
         if let Some(remaining) = self.breaker.lock().await.blocked_for(now) {
-            return format!(
-                "Error: the MCP tool {}_{tool} was skipped: this server failed {} times in a row and \
+            anyhow::bail!(
+                "the MCP tool {}_{tool} was skipped: this server failed {} times in a row and \
                  the circuit breaker is still open ({} seconds left) — once it cools down one probe \
                  goes through by itself.",
                 self.name,
@@ -203,16 +205,14 @@ impl Connection {
         }
 
         let uncertain = outcome.is_err();
-        let (ok, text) = match outcome {
-            Ok(text) => (true, text),
-            Err(Failure::Transport(error)) => (
-                false,
-                format!("Error: the MCP call {}_{tool} failed: {error}", self.name),
-            ),
-            Err(Failure::Timeout) => (
-                false,
-                format!(
-                    "Error: the MCP call {}_{tool} failed: no reply in over {} seconds; outcome unknown — reconcile remote state before retrying",
+        let ok = outcome.is_ok();
+        let result = match outcome {
+            Ok(output) if output.success => Ok(output.text),
+            Ok(output) => Err(anyhow::Error::msg(output.text)),
+            Err(Failure::Transport(error)) => Err(anyhow::anyhow!("the MCP call {}_{tool} failed: {error}", self.name)),
+            Err(Failure::Timeout) => Err(
+                anyhow::anyhow!(
+                    "the MCP call {}_{tool} failed: no reply in over {} seconds; outcome unknown — reconcile remote state before retrying",
                     self.name,
                     TIMEOUT.as_secs()
                 ),
@@ -238,7 +238,7 @@ impl Connection {
                 ));
             }
         }
-        text
+        result
     }
 }
 
@@ -535,9 +535,9 @@ impl McpClient {
                                     )
                                     .await?;
                                 }
-                                Ok(connection
+                                connection
                                     .call_with_notice(&tname, args, ctx.on_uncertain)
-                                    .await)
+                                    .await
                             })
                         }),
                     },
@@ -550,9 +550,20 @@ impl McpClient {
 
     /// Direct call (tests and debugging; the normal path registers it as a tool for the model).
     pub async fn call(&self, server: &str, tool: &str, args: Value) -> String {
+        self.call_result(server, tool, args)
+            .await
+            .unwrap_or_else(|error| format!("Error: {error}"))
+    }
+
+    pub async fn call_result(
+        &self,
+        server: &str,
+        tool: &str,
+        args: Value,
+    ) -> anyhow::Result<String> {
         match self.servers.iter().find(|s| s.name == server) {
-            Some(found) => found.connection.call(tool, args).await,
-            None => format!("MCP server '{server}' is not connected."),
+            Some(found) => found.connection.call_with_notice(tool, args, None).await,
+            None => anyhow::bail!("MCP server '{server}' is not connected."),
         }
     }
 }

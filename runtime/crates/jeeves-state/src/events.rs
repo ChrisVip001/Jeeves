@@ -42,6 +42,22 @@ impl Events {
         kind: &str,
         detail: Option<&str>,
     ) -> Result<()> {
+        Self::append_on(
+            &mut *self.pool.acquire().await?,
+            task_id,
+            run_id,
+            kind,
+            detail,
+        )
+        .await
+    }
+    pub async fn append_on(
+        conn: &mut sqlx::SqliteConnection,
+        task_id: &str,
+        run_id: Option<&str>,
+        kind: &str,
+        detail: Option<&str>,
+    ) -> Result<()> {
         sqlx::query(
             "INSERT INTO task_events (task_id, run_id, seq, kind, detail)
              VALUES (?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM task_events WHERE task_id = ?), ?, ?)",
@@ -51,7 +67,7 @@ impl Events {
         .bind(task_id)
         .bind(kind)
         .bind(detail)
-        .execute(&self.pool)
+        .execute(conn)
         .await?;
         Ok(())
     }

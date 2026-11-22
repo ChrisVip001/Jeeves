@@ -75,6 +75,7 @@ async fn fixture() -> (tempfile::TempDir, Server, Arc<Mock>) {
                 round_no: Some(1),
             },
             &[jeeves_state::operations::OperationSnapshot {
+                proposed_only: false,
                 tool_use_id: "external-call".into(),
                 tool: "external_write".into(),
                 input_json: json!({"value":42}).to_string(),
@@ -109,7 +110,7 @@ async fn a_human_receipt_resolves_only_its_operation_and_requires_explicit_conti
         task_id: "task".into(),
         operation_id: original.operations[0].id.clone(),
         checkpoint_digest: original.checkpoint_digest.unwrap(),
-        resolution: "reconciled_success".into(),
+        resolution: jeeves_protocol::OperationResolution::ReconciledSuccess,
         evidence: "Verified external receipt tx-42; exactly one effect".into(),
     };
     let (sink, _receiver) = EventSink::channel();
@@ -128,7 +129,10 @@ async fn a_human_receipt_resolves_only_its_operation_and_requires_explicit_conti
     let settled = crate::task::operations::reconcile(&server, &sink, params.clone())
         .await
         .unwrap();
-    assert_eq!(settled.operations[0].status, "reconciled_success");
+    assert_eq!(
+        settled.operations[0].status,
+        jeeves_protocol::OperationStatus::ReconciledSuccess
+    );
     crate::task::operations::reconcile(&server, &sink, params)
         .await
         .unwrap();
@@ -191,7 +195,10 @@ async fn stopped_legacy_checkpoints_recover_only_labelled_operation_metadata() {
         .unwrap();
     assert_eq!(view.operations.len(), 1);
     assert_eq!(view.operations[0].origin, "recovered_checkpoint");
-    assert_eq!(view.operations[0].status, "intent");
+    assert_eq!(
+        view.operations[0].status,
+        jeeves_protocol::OperationStatus::Intent
+    );
     let after = server.checkpoints.get("turn").await.unwrap().unwrap();
     assert_eq!(before.messages_json, after.messages_json);
     assert_eq!(after.status, "suspended");
@@ -204,7 +211,7 @@ async fn stopped_legacy_checkpoints_recover_only_labelled_operation_metadata() {
             task_id: "task".into(),
             operation_id: view.operations[0].id.clone(),
             checkpoint_digest: view.checkpoint_digest.unwrap(),
-            resolution: "not_executed".into(),
+            resolution: jeeves_protocol::OperationResolution::NotExecuted,
             evidence: "Checked external service; no transaction exists".into(),
         },
     )

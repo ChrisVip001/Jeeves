@@ -73,7 +73,7 @@ async fn ordinary_sessions_keep_shared_writes_but_coding_commands_and_checks_sta
         .execute(ctx.clone(), "run_command", json!({"command":job_cmd}))
         .await;
     assert!(result.starts_with("Error:"), "{result}");
-    let runner = server.check_runner(Some(root), ctx.worktree.clone());
+    let runner = server.check_runner(ctx.clone(), Some(root), ctx.worktree.clone());
     assert!(
         matches!(runner.run(vec!["sh".into(), "-c".into(),job_cmd.clone()],root.into()).await, CommandOutcome::Ran {code,..} if code != 0)
     );
@@ -245,6 +245,13 @@ async fn parent_final_command_measures_the_integrated_files() {
         .unwrap();
         tokio::time::timeout(std::time::Duration::from_secs(12), async {
             loop {
+                let pending = rpc(&server, "approval/pending", json!({"sessionId":"jeeves-main"})).await.unwrap();
+                for ask in pending["approvals"].as_array().unwrap() {
+                    let request = &ask["request"];
+                    assert_eq!(request["tool"], "run_command");
+                    assert!(request["argsPreview"].as_str().unwrap().contains(required));
+                    rpc(&server,"approval/respond",json!({"turnId":request["turnId"],"requestId":request["requestId"],"version":request["version"],"approved":true,"remember":"once"})).await.unwrap();
+                }
                 let view = rpc(&server, "task/get", json!({"taskId":parent}))
                     .await
                     .unwrap();

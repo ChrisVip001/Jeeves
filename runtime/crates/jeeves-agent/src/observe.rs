@@ -1,21 +1,5 @@
-//! Observe what a round actually did — and catch the tool that says it wrote a file that is not
-//! there.
-//!
-//! The loop hands back a `LoopResult`: the reply, the tool outcomes (name + output only) and the
-//! whole working memory. `ToolOutcome` deliberately carries no arguments, so the arguments are
-//! read from the `ToolUse` blocks in `messages` and paired with their `ToolResult` by id. That
-//! keeps `jeeves-loop` untouched — the loop's job is to run tools, not to audit them.
-//!
-//! Three products, all cheap (a few `stat`s, one INSERT batch, no model call):
-//!
-//! * **steps** — one per tool call, with `<turn_id>:<seq>` as the idempotency key. A resumed
-//!   turn re-observes the same memory and writes the same keys: no duplicate rows, no replayed
-//!   side effects.
-//! * **artifacts** — files that really exist after the round, with their sizes.
-//! * **contradictions** — "the tool said it wrote X, X is not there". This is the only signal
-//!   that can stop a task from being marked done on a lie.
+//! Build task steps and artifact observations from settled operation records.
 
-use jeeves_provider::{ContentBlock, Message, Role};
 use jeeves_state::{Artifacts, Events, NewStep, Steps};
 
 /// Tools whose arguments name a file they claim to have written.
@@ -60,30 +44,6 @@ pub struct Observation {
 }
 
 impl Observation {
-    /// The next position in the round's step sequence (1-based, monotonically increasing).
-    pub fn next_seq(&self) -> i32 {
-        self.steps.last().map(|step| step.seq + 1).unwrap_or(1)
-    }
-
-    /// Append another observation's steps after this one's, renumbering them. Used when one
-    /// round is made of several loop passes (Stop-hook continuations) — the round keeps a single
-    /// continuous step order.
-    ///
-    /// The idempotency key is renumbered with the step: `<turn>:<seq>` must stay in step with
-    /// the row, otherwise two different steps could collide on one key (the whole point of the
-    /// key is that the same step is recognised as the same step).
-    pub fn absorb(&mut self, other: Observation) {
-        for (seq, mut step) in (self.next_seq()..).zip(other.steps) {
-            step.idempotency_key = match step.idempotency_key.rsplit_once(':') {
-                Some((turn, _)) => format!("{turn}:{seq}"),
-                None => step.idempotency_key,
-            };
-            step.seq = seq;
-            self.steps.push(step);
-        }
-        self.facts.extend(other.facts);
-    }
-
     /// Files that really exist, with their sizes.
     pub fn artifacts(&self) -> Vec<(&str, u64, Option<&str>)> {
         self.facts
@@ -122,72 +82,48 @@ impl Observation {
     }
 }
 
-/// Read one loop result into steps + facts. `base_seq` lets several passes of the same round
-/// share one continuous numbering.
+/// A settled tool call. Human reconciliation remains separate from an executor-confirmed success.
+pub struct SettledCall {
+    pub seq: i32,
+    pub tool: String,
+    pub input: serde_json::Value,
+    pub success: bool,
+    pub output: String,
+}
+
 pub fn observe(
-    messages: &[Message],
+    operations: &[SettledCall],
     turn_id: &str,
-    base_seq: i32,
     cwd: Option<&std::path::Path>,
 ) -> Observation {
-    let mut results: Vec<(String, String)> = Vec::new();
-    for message in messages {
-        for block in &message.content {
-            if let ContentBlock::ToolResult {
-                tool_use_id,
-                content,
-            } = block
-            {
-                results.push((tool_use_id.clone(), content.clone()));
-            }
-        }
-    }
-
     let mut observation = Observation::default();
-    let mut seq = base_seq.max(1);
-    for message in messages {
-        if message.role != Role::Assistant {
-            continue;
-        }
-        for block in &message.content {
-            let ContentBlock::ToolUse {
-                id, name, input, ..
-            } = block
-            else {
-                continue;
-            };
-            let output = results
-                .iter()
-                .find(|(use_id, _)| use_id == id)
-                .map(|(_, content)| content.as_str())
-                .unwrap_or("Error: no result: the turn ended before the tool returned");
-            let ok = !output.starts_with("Error:") && !output.starts_with("Human reconciliation:");
-
-            let step = StepDraft {
-                seq,
-                tool: name.clone(),
-                input_json: serde_json::to_string(input).ok(),
-                ok,
-                digest: digest(output),
-                idempotency_key: format!("{turn_id}:{seq}"),
-            };
-
-            if WRITE_TOOLS.contains(&name.as_str()) {
-                if let Some(path) = input.get("path").and_then(|value| value.as_str()) {
-                    let text = if name == "write_file" {
-                        input.get("content").and_then(|v| v.as_str())
-                    } else {
-                        None
-                    };
-                    observation
-                        .facts
-                        .push(check_written(path, ok, output, cwd, text));
-                }
+    for call in operations {
+        let seq = call.seq;
+        let input = &call.input;
+        if WRITE_TOOLS.contains(&call.tool.as_str()) {
+            if let Some(path) = input.get("path").and_then(|p| p.as_str()) {
+                let written = if call.tool == "write_file" {
+                    input["content"].as_str()
+                } else {
+                    None
+                };
+                observation.facts.push(check_written(
+                    path,
+                    call.success,
+                    &call.output,
+                    cwd,
+                    written,
+                ));
             }
-
-            observation.steps.push(step);
-            seq += 1;
         }
+        observation.steps.push(StepDraft {
+            seq,
+            tool: call.tool.clone(),
+            input_json: Some(input.to_string()),
+            ok: call.success,
+            digest: digest(&call.output),
+            idempotency_key: format!("{turn_id}:{seq}"),
+        });
     }
     observation
 }
@@ -209,7 +145,11 @@ fn check_written(
             path: full.display().to_string(),
             bytes: meta.len(),
             written_text: text
-                .filter(|s| s.len() <= 64 * 1024 && s.len() as u64 == meta.len())
+                .filter(|s| {
+                    s.len() <= 64 * 1024
+                        && s.len() as u64 == meta.len()
+                        && std::fs::read(&full).is_ok_and(|bytes| bytes == s.as_bytes())
+                })
                 .map(str::to_owned),
         },
         _ if !ok => Fact::Missing {

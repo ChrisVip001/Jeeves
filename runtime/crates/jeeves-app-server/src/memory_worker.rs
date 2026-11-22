@@ -39,6 +39,7 @@ const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 /// Everything the worker touches. Handles only — no `Server`, so the worker cannot drift
 /// into "and also run turns".
 pub struct Deps {
+    pub pool: sqlx::SqlitePool,
     pub chat: Chat,
     pub facts: Facts,
     pub episodes: Episodes,
@@ -148,7 +149,16 @@ async fn run_once(
             .resolved
             .read()
             .expect("the resolved lock should not be poisoned");
-        guard.clone()
+        guard.as_ref().map(|model| {
+            crate::turn::meter::metered(
+                &deps.pool,
+                model,
+                "workspace-memory",
+                &crate::turn::new_turn_id(),
+                None,
+                "memory",
+            )
+        })
     };
     let settings = {
         let guard = deps

@@ -176,7 +176,7 @@ installation started with `just local-up`, use the assigned loopback port from
 ## Task API (`POST /api/run`)
 
 "One turn in, one JSON answer out" for programs: the body is `TurnStartParams`
-(the same shape as `/api/turn`), no streaming, and it returns when the turn ends:
+(`TurnStartParams`), no streaming, and it returns when the turn ends:
 
 ```bash
 curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \

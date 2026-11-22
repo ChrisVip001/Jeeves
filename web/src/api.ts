@@ -26,7 +26,6 @@ import type {
   TaskEnvelope,
   TurnInterruptParams,
   TurnInterruptResponse,
-  TurnStartParams,
   InteractionStartParams,
   TurnSteerParams,
   TurnSteerResponse,
@@ -192,33 +191,6 @@ export async function fetchTurns(
   return (await response.json()) as TurnListResponse;
 }
 
-/**
- * Say one thing, streaming out this turn's notifications one by one.
- *
- * Uses `fetch` + reading the body manually instead of `EventSource`: EventSource can only send
- * GET, while this request must carry a message. SSE's frame format is simple enough not to
- * pull in a library — blank-line separated, with the payload after `data:`.
- *
- * Always pass `stream: true`: `textDelta` is only sent when streaming (scripts default off,
- * where word-by-word isn't needed).
- */
-export async function* talk(
-  params: TurnStartParams,
-): AsyncGenerator<ServerNotification> {
-  const response = await apiFetch("/api/turn", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      accept: "text/event-stream",
-    },
-    body: JSON.stringify(params),
-  });
-  if (!response.ok || response.body === null)
-    throw new ApiError(await errorOf(response));
-
-  yield* jsonEvents<ServerNotification>(response.body);
-}
-
 /** Main human entry. Routing and task creation are owned by the runtime. */
 export async function* interact(
   params: InteractionStartParams,
@@ -258,7 +230,7 @@ export interface EventPing {
  * The cross-device channel: GET /api/events, one ping per meaningful change elsewhere.
  *
  * EventSource can't carry the Bearer header, so this is a fetch + manual reader — the
- * same frames talk() speaks, quieter content.
+ * same frames interact() speaks, quieter content.
  */
 export async function* followEvents(): AsyncGenerator<EventPing> {
   const response = await apiFetch("/api/events", {

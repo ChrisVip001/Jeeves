@@ -15,6 +15,20 @@ pub(crate) async fn replay(
     if receipt.input_json != input {
         return Err(invalid("Message identity was reused with different input"));
     }
+    if receipt.state == "claimed" {
+        let rows: Vec<(String,String)> = sqlx::query_as("SELECT t.id,t.title FROM conversation_handoffs h JOIN agent_tasks t ON t.id=h.task_id WHERE h.session_id=? AND h.message_id=? UNION ALL SELECT t.id,t.title FROM task_amendments a JOIN agent_tasks t ON t.id=a.task_id WHERE t.session_id=? AND a.message_id=?")
+            .bind(session).bind(key).bind(session).bind(key).fetch_all(&server.pool).await.map_err(internal)?;
+        if !rows.is_empty() {
+            let p: InteractionStartParams = serde_json::from_str(input).map_err(internal)?;
+            let tasks = rows
+                .iter()
+                .map(|(id, title)| format!("{title} ({id})"))
+                .collect::<Vec<_>>()
+                .join("、");
+            let reply = format!("已找回这条消息提交到的事项：{tasks}。请在原事项查看进度。");
+            return acknowledge(server, &p, id, sink, reply, Instant::now()).await;
+        }
+    }
     if receipt.state != "completed" {
         return Err(invalid(receipt.error.unwrap_or_else(|| {
             "Previous submission is unfinished; inspect task progress before resubmitting".into()

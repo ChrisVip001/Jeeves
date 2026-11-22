@@ -38,7 +38,7 @@ just desktop-build     # 可选，打包 Mac 开发版
 just desktop-open      # 已运行时回到原窗口
 ```
 
-在主对话交办任务。从「我的事项」查看执行结果、逐行审阅文件，或继续任务。[上手指南](docs/guide.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
+在主对话里发截图提问、比较带出处的价格，或预览并批准本次操作。比完价可以接着请 Jeeves 盯住其中一款，在手机上修改提醒阈值。从「我的事项」查看哪项验收失败、修正后是否通过，逐行审阅文件，或继续任务。[上手指南](docs/guide.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
 
 ## Jeeves 能做什么
 
@@ -98,7 +98,7 @@ Runtime 会按模型目录和上下文余量调整每次模型请求的输出额
 | [docs/architecture.zh.md](docs/architecture.zh.md) | 原则、crate 依赖图、turn 数据流、设计决策 |
 | [docs/protocol.zh.md](docs/protocol.zh.md) | JSON-RPC 方法、会话列表与详情响应、人工责任控制与带来源的飞书周报、通知序列与错误码 |
 | [docs/configuration.zh.md](docs/configuration.zh.md) | 运行设置、模型密钥轮换与故障恢复、全部 `JEEVES_*` 变量 |
-| [docs/operations.zh.md](docs/operations.zh.md) | 运行手册：各种运行形态、备份、故障排查 |
+| [docs/operations.zh.md](docs/operations.zh.md) | 运行手册：各种运行形态、备份、旧版数据库迁移演练、故障排查 |
 | [docs/limitations.zh.md](docs/limitations.zh.md) | 已知边界，每条都指出下一步该打开哪个文件 |
 | [docs/internals/](docs/internals/README.zh.md) | 实现原理教程，一层一章 |
 | [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md) | 贡献指南：工程纪律与提交规则 |

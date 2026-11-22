@@ -151,7 +151,7 @@ Calibration: at wrap-up the turn stores the last request's provider-measured inp
 - Read-only refuses everything that is not a proven read; standard asks once per operation (arguments redacted, preview capped at 8 KB); full access still obeys enabled capabilities, roots and sandbox. Delegation is refused unless full access.
 - Raising to full access needs explicit confirmation; writes use an expected revision, so a stale client is rejected. A policy change pauses the owner's browsers, voids the owner's pending approvals, and broadcasts `permissionChanged`; in-flight effects are not rolled back.
 - A task's worker session is bound to its owning conversation: the owner's policy applies, changes are made only through the owner, and the binding is restored at boot.
-- The main conversation (`jeeves-main`) executes proven reads and the `task` hand-off only.
+- Private main-chat actions follow [tool authorization](04-tools.md#authorization).
 - Unreadable stored policy blocks tool execution instead of defaulting open.
 
 ## Subagents

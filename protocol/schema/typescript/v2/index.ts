@@ -209,6 +209,8 @@ export type * from "./TaskCreateParams";
 export type * from "./CodeCheckSpec";
 export type * from "./TaskStartParams";
 export type * from "./TaskOperationsResponse";
+export type * from "./OperationStatus";
+export type * from "./OperationResolution";
 export type * from "./ToolOperationView";
 export type * from "./TaskReconcileParams";
 export type * from "./TaskWaitParams";

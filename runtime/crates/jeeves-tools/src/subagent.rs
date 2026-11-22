@@ -45,8 +45,7 @@ pub trait SubagentRunner: Send + Sync {
         &self,
         task: String,
         result_schema: Option<Value>,
-        parent_cwd: Option<std::path::PathBuf>,
-        worktree: Option<std::path::PathBuf>,
+        parent: crate::ToolCtx,
         readonly: bool,
     ) -> BoxFut;
 }
@@ -83,7 +82,7 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
             let runner = runner.clone();
             Box::pin(async move {
                 let result_schema = args.get("result_schema").cloned().filter(|v| !v.is_null());
-                let cwd = _ctx.cwd.clone();
+
 
                 let tasks: Vec<String> = match args.get("tasks") {
                     Some(Value::Array(items)) if !items.is_empty() => items
@@ -111,11 +110,11 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
                 if tasks.len() == 1 {
                     let task = tasks.into_iter().next().expect("just confirmed there is one");
                     return match runner
-                        .run(task, result_schema, cwd, _ctx.worktree, false)
+                        .run(task, result_schema, _ctx, false)
                         .await
                     {
                         Ok(summary) => Ok(crate::report::as_report(&summary)),
-                        Err(why) => Ok(format!("Error: the subagent did not run: {why}")),
+                        Err(why) => Err(anyhow::anyhow!("the subagent did not run: {why}")),
                     };
                 }
 
@@ -124,8 +123,7 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
                     let fut = runner.run(
                         task.clone(),
                         result_schema.clone(),
-                        cwd.clone(),
-                        _ctx.worktree.clone(),
+                        _ctx.clone(),
                         true,
                     );
                     set.spawn(async move { (index, fut.await) });

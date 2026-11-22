@@ -244,6 +244,8 @@ macro_rules! protocol_types {
             CodeCheckSpec,
             TaskStartParams,
             TaskOperationsResponse,
+            OperationStatus,
+            OperationResolution,
             ToolOperationView,
             TaskReconcileParams,
             TaskWaitParams,

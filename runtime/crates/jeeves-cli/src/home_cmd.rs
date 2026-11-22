@@ -83,7 +83,7 @@ async fn import(home: &Path, bundle: &Path) -> Result<()> {
         .filter(|v| *v >= 0)
         .context("export manifest requires a nonnegative integer schema")?;
     let known = jeeves_state::db::known_schema_version();
-    if schema > known {
+    if schema > known && !matches!(schema, 24 | 25) {
         bail!("the export has schema {schema}, newer than this jeeves knows ({known}); upgrade jeeves first");
     }
     let db = bundle.join("state.db");

@@ -3,12 +3,35 @@ use crate::checkpoints::CHAT_OWNER;
 use anyhow::{ensure, Result};
 use sqlx::{FromRow, Sqlite, SqlitePool, Transaction};
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ToolOutput {
+    pub success: bool,
+    pub text: String,
+}
+
+impl ToolOutput {
+    pub fn success(text: String) -> Self {
+        Self {
+            success: true,
+            text,
+        }
+    }
+
+    pub fn failure(text: String) -> Self {
+        Self {
+            success: false,
+            text,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OperationSnapshot {
+    pub proposed_only: bool,
     pub tool_use_id: String,
     pub tool: String,
     pub input_json: String,
-    pub output: Option<String>,
+    pub output: Option<ToolOutput>,
 }
 #[derive(Debug, Clone, FromRow)]
 pub struct OperationRow {
@@ -25,10 +48,21 @@ pub struct OperationRow {
     pub origin: String,
     pub status: String,
     pub output_digest: Option<String>,
+    pub output_preview: Option<String>,
     pub evidence: Option<String>,
     pub started_at: String,
     pub settled_at: Option<String>,
 }
+
+impl OperationRow {
+    pub fn evidence_status(&self) -> &str {
+        match self.status.as_str() {
+            "succeeded" | "failed" if self.output_preview.is_none() => "historical_unverified",
+            status => status,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum OperationOwner<'a> {
     Task(&'a str),
@@ -226,9 +260,9 @@ pub(crate) async fn checkpoint(
         let digest = crate::ledger::digest_of(input_json.as_bytes());
         let identity = serde_json::to_vec(&(turn_id, round_id, &operation.tool_use_id))?;
         let id = crate::ledger::digest_of(&identity);
-        sqlx::query("INSERT INTO tool_operations(id,task_id,run_id,turn_id,session_id,round_id,tool_use_id,tool,input_json,input_digest,origin) VALUES(?,(SELECT task_id FROM task_runs WHERE id=?),?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING")
+        sqlx::query("INSERT INTO tool_operations(id,task_id,run_id,turn_id,session_id,round_id,tool_use_id,tool,input_json,input_digest,origin,status) VALUES(?,(SELECT task_id FROM task_runs WHERE id=?),?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING")
             .bind(&id).bind(run_id).bind(run_id).bind(turn_id).bind(session_id).bind(round_id)
-            .bind(&operation.tool_use_id).bind(&operation.tool).bind(&input_json).bind(&digest).bind(origin)
+            .bind(&operation.tool_use_id).bind(&operation.tool).bind(&input_json).bind(&digest).bind(origin).bind(if operation.proposed_only { "not_executed" } else { "intent" })
             .execute(&mut **tx).await?;
         let existing: (Option<String>, String, String, String) = sqlx::query_as(
             "SELECT run_id,tool,input_digest,status FROM tool_operations WHERE id=?",
@@ -240,6 +274,25 @@ pub(crate) async fn checkpoint(
             existing.0.as_deref() == run_id && existing.1 == operation.tool && existing.2 == digest,
             "Operation identity was reused with different execution or arguments"
         );
+        if origin == "recovered_checkpoint" {
+            continue;
+        }
+        if operation.proposed_only {
+            ensure!(
+                existing.3 == "not_executed",
+                "Previously admitted operation cannot be proposed again"
+            );
+            continue;
+        }
+        if existing.3 == "not_executed" && operation.output.is_none() {
+            let admitted = sqlx::query("UPDATE tool_operations SET status='intent' WHERE id=? AND status='not_executed' AND settled_at IS NULL AND evidence IS NULL")
+                .bind(&id).execute(&mut **tx).await?.rows_affected();
+            ensure!(
+                admitted == 1,
+                "A reconciled operation must not be admitted again"
+            );
+            continue;
+        }
         if operation.output.is_none() {
             ensure!(
                 existing.3 == "intent",
@@ -247,14 +300,14 @@ pub(crate) async fn checkpoint(
             );
         }
         if let Some(output) = &operation.output {
-            let status = if output.starts_with("Error:") {
-                "failed"
-            } else {
+            let status = if output.success {
                 "succeeded"
+            } else {
+                "failed"
             };
-            let output_digest = crate::ledger::digest_of(output.as_bytes());
-            let changed = sqlx::query("UPDATE tool_operations SET status=?,output_digest=?,settled_at=datetime('now') WHERE id=? AND status='intent'")
-                .bind(status).bind(&output_digest).bind(&id).execute(&mut **tx).await?.rows_affected();
+            let output_digest = crate::ledger::digest_of(output.text.as_bytes());
+            let changed = sqlx::query("UPDATE tool_operations SET status=?,output_digest=?,output_preview=?,settled_at=datetime('now') WHERE id=? AND status='intent'")
+                .bind(status).bind(&output_digest).bind(output.text.chars().take(512).collect::<String>()).bind(&id).execute(&mut **tx).await?.rows_affected();
             if changed == 0 {
                 let original: (String, Option<String>) =
                     sqlx::query_as("SELECT status,output_digest FROM tool_operations WHERE id=?")

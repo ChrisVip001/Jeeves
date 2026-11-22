@@ -14,7 +14,7 @@ pub(super) fn reply(is_main: bool, message: &str) -> Option<CreateResponse> {
                 "task",
                 json!({
                     "action":"create", "items":[{"title":TITLE,"instruction":REQUEST,
-                        "file_checks":[{"path":path,"contains":"12 次事件"}]}]
+                        "acceptance":[{"kind":"fileContains","path":path,"pattern":"12 次事件"}]}]
                 }),
             )
         };

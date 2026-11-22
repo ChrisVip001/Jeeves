@@ -4,8 +4,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
 
-const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const envFile = fileURLToPath(new URL("../../../../.env", import.meta.url));
+const root = fileURLToPath(new URL("../../../", import.meta.url));
+const envFile = fileURLToPath(new URL("../../../.env", import.meta.url));
 if (existsSync(envFile)) loadEnvFile(envFile);
 
 const token = process.env["TELEGRAM_BOT_TOKEN"]?.trim();

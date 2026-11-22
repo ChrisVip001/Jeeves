@@ -6,7 +6,7 @@
 //! ```text
 //!   GET  /api/data     the four read methods → one screen of data (DashboardData)
 //!   GET  /api/session  session/messages → what one session said (one page)
-//!   POST /api/turn     turn/start → one SSE stream (JSON of ServerNotification)
+//!   POST /api/interaction     interaction/start → one SSE stream (JSON of ServerNotification)
 //! ```
 //!
 //! The dashboard reads runtime-owned state through the protocol. It must not create a
@@ -321,7 +321,6 @@ pub fn router(gate: Gate) -> Router {
         .route("/api/session/meta", get(api::session_meta))
         .route("/api/session/update", post(api::session_update))
         .route("/api/turns", get(api::turns))
-        .route("/api/turn", post(api::turn))
         .route("/api/turn/steer", post(api::steer))
         .route("/api/turn/follow-up", post(api::follow_up))
         .route("/api/approval", post(api::approval))

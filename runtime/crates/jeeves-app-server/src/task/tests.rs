@@ -1259,16 +1259,15 @@ async fn observation_write_failures_stop_before_continuation_and_keep_known_spen
             completed, 0,
             "Unrecorded work must not advertise completion"
         );
-        let (turn_id, round_id, messages): (String, String, String) = sqlx::query_as(
-            "SELECT turn_id, round_id, messages_json FROM turn_checkpoints WHERE session_id = 'recording'",
-        ).fetch_one(&server.pool).await.unwrap();
-        let messages: Vec<Message> = serde_json::from_str(&messages).unwrap();
-        let observation = jeeves_agent::observe::observe(
-            &messages,
-            &format!("{turn_id}:{round_id}"),
-            1,
-            Some(&work),
-        );
+        let (turn_id, round_id): (String, String) = sqlx::query_as(
+            "SELECT turn_id, round_id FROM turn_checkpoints WHERE session_id='recording'",
+        )
+        .fetch_one(&server.pool)
+        .await
+        .unwrap();
+        let observation = crate::turn::observe_round(&server, &turn_id, &round_id, Some(&work))
+            .await
+            .unwrap();
         assert_eq!(observation.steps.len(), 1);
         sqlx::query("DROP TRIGGER fail_observation")
             .execute(&server.pool)
@@ -1330,21 +1329,37 @@ async fn failed_model_round_charges_checkpoint_once_and_retains_accounting_fault
             &sink,
         )
         .await;
-        assert!(result
-            .unwrap_err()
-            .message
-            .contains("Injected provider failure"));
+        let error = result.unwrap_err().message;
+        assert!(
+            error.contains(if fail_accounting {
+                "Cannot charge reported model usage"
+            } else {
+                "Injected provider failure"
+            }),
+            "{error}"
+        );
         let task = server.tasks.get(&created.task.id).await.unwrap().unwrap();
         let turn_id: String = sqlx::query_scalar("SELECT turn_id FROM task_runs WHERE task_id=? ORDER BY started_at DESC,rowid DESC LIMIT 1").bind(&created.task.id).fetch_one(&server.pool).await.unwrap();
         let turn = turn_id.as_str();
         let row = server.checkpoints.get(turn).await.unwrap().unwrap();
         let usage = crate::task::contract::checkpoint_usage(&row.usage_json).unwrap();
-        let known = usage.input_tokens + usage.output_tokens;
+        let known: i64 = sqlx::query_scalar(
+            "SELECT SUM(input_tokens+output_tokens) FROM model_requests WHERE turn_id=?",
+        )
+        .bind(turn)
+        .fetch_one(&server.pool)
+        .await
+        .unwrap();
         assert!(known > 0);
-        assert_eq!(
-            std::fs::read_to_string(work.join("report.md")).unwrap(),
-            "Completed before provider failure."
-        );
+        if fail_accounting {
+            assert!(!work.join("report.md").exists());
+        } else {
+            assert_eq!(known, usage.input_tokens + usage.output_tokens);
+            assert_eq!(
+                std::fs::read_to_string(work.join("report.md")).unwrap(),
+                "Completed before provider failure."
+            );
+        }
         if fail_accounting {
             assert_eq!(task.status, jeeves_state::TaskStatus::NeedsAttention);
             assert_eq!(row.status, "suspended");
@@ -1373,7 +1388,10 @@ async fn failed_model_round_charges_checkpoint_once_and_retains_accounting_fault
         assert_eq!(task.spent_tokens, known);
         let run = server.runs.for_turn(turn).await.unwrap().unwrap();
         assert_eq!(run.tokens_in + run.tokens_out, known);
-        assert_eq!(mock.received.lock().unwrap().len(), 2);
+        assert_eq!(
+            mock.received.lock().unwrap().len(),
+            if fail_accounting { 1 } else { 2 }
+        );
     }
 }
 

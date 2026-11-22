@@ -201,6 +201,14 @@ pub(crate) async fn create(
     server: &Server,
     params: TaskCreateParams,
 ) -> Result<TaskEnvelope, ErrorObject> {
+    create_with_handoff(server, params, None).await
+}
+
+pub(crate) async fn create_with_handoff(
+    server: &Server,
+    params: TaskCreateParams,
+    handoff: Option<&crate::interaction::handoff::Assignment<'_>>,
+) -> Result<TaskEnvelope, ErrorObject> {
     let title = params.title.trim();
     if title.is_empty() {
         return Err(invalid("a task needs a name"));
@@ -262,31 +270,31 @@ pub(crate) async fn create(
         (None, None) => Some(workspace::allocate(server, &id, title).await?),
     };
     let cwd_text = cwd_path.as_ref().map(|path| path.display().to_string());
+    let task = jeeves_state::NewTask {
+        id: &id,
+        session_id: session,
+        title,
+        goal_condition: goal,
+        acceptance_json: &acceptance_json,
+        budget_json: &budget_json,
+        cwd: cwd_text.as_deref(),
+        max_rounds,
+        tier: tier.as_deref(),
+    };
+    let mut tx = server.pool.begin().await.map_err(internal)?;
+    jeeves_state::Tasks::insert(&mut tx, task, parent)
+        .await
+        .map_err(internal)?;
+    if let Some(handoff) = handoff {
+        handoff.commit(&mut tx, &id).await.map_err(internal)?;
+    }
+    tx.commit().await.map_err(internal)?;
     if let Some(path) = &cwd_path {
         jeeves_config::workspaces::record_workspace(
             &server.settings().home,
             &path.display().to_string(),
         );
     }
-
-    server
-        .tasks
-        .create_with_parent(
-            jeeves_state::NewTask {
-                id: &id,
-                session_id: session,
-                title,
-                goal_condition: goal,
-                acceptance_json: &acceptance_json,
-                budget_json: &budget_json,
-                cwd: cwd_text.as_deref(),
-                max_rounds,
-                tier: tier.as_deref(),
-            },
-            parent,
-        )
-        .await
-        .map_err(|e| invalid(format!("the task was not created: {e}")))?;
 
     if repo.is_some() {
         let path = cwd_path.as_deref().expect("Git task worktree");

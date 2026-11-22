@@ -370,6 +370,7 @@ async fn a_timeout_does_not_prove_that_prior_effects_were_rolled_back() {
     .await;
     assert!(noticed.load(std::sync::atomic::Ordering::Acquire));
     assert_eq!(std::fs::read_to_string(marker).unwrap(), "committed");
+    let result = result.unwrap_err().to_string();
     assert!(result.contains("outcome is unknown"), "{result}");
 }
 

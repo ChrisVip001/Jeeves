@@ -4341,6 +4341,27 @@
       "title": "ModelSaveResponse",
       "type": "object"
     },
+    "OperationResolution": {
+      "enum": [
+        "reconciled_success",
+        "reconciled_failure",
+        "not_executed"
+      ],
+      "type": "string"
+    },
+    "OperationStatus": {
+      "description": "A historical label without executor evidence cannot certify a delivery.",
+      "enum": [
+        "intent",
+        "succeeded",
+        "failed",
+        "reconciled_success",
+        "reconciled_failure",
+        "not_executed",
+        "historical_unverified"
+      ],
+      "type": "string"
+    },
     "PendingApprovalView": {
       "properties": {
         "ownerSessionId": {
@@ -6628,8 +6649,12 @@
           "type": "string"
         },
         "resolution": {
-          "description": "reconciled_success / reconciled_failure / not_executed.",
-          "type": "string"
+          "allOf": [
+            {
+              "$ref": "#/definitions/OperationResolution"
+            }
+          ],
+          "description": "reconciled_success / reconciled_failure / not_executed."
         },
         "taskId": {
           "type": "string"
@@ -7168,6 +7193,12 @@
             "null"
           ]
         },
+        "outputPreview": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "replayPolicy": {
           "description": "Automatic replay policy; this journal grants no provider idempotency guarantees.",
           "type": "string"
@@ -7191,7 +7222,7 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "$ref": "#/definitions/OperationStatus"
         },
         "tool": {
           "type": "string"
@@ -7541,7 +7572,7 @@
           "type": "string"
         },
         "resolution": {
-          "type": "string"
+          "$ref": "#/definitions/OperationResolution"
         },
         "sessionId": {
           "type": "string"

@@ -152,7 +152,7 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
 ## 任务 API（`POST /api/run`）
 
 程序用的「一轮进、一段 JSON 出」：请求体就是 `TurnStartParams`
-（与 `/api/turn` 同一个形状），不流式，等这一轮结束才返回：
+（`TurnStartParams`），不流式，等这一轮结束才返回：
 
 ```bash
 curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \

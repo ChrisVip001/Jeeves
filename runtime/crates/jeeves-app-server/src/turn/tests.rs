@@ -1749,6 +1749,7 @@ async fn without_an_interrupt_the_step_just_runs() {
 
 fn outcome(name: &str, output: &str) -> jeeves_loop::ToolOutcome {
     jeeves_loop::ToolOutcome {
+        success: true,
         tool_use_id: format!("tu-{name}"),
         name: name.to_string(),
         output: output.to_string(),

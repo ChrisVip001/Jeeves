@@ -41,6 +41,32 @@ pub(crate) fn compact(
         .cloned()
         .collect();
 
+    let mut references = Vec::new();
+    let mut ref_bytes = budget.clamp(128, 2400);
+    for block in messages[..start].iter().flat_map(|m| &m.content) {
+        let data = match block {
+            ContentBlock::ToolUse { input, .. } => std::borrow::Cow::Borrowed(input),
+            ContentBlock::ToolResult { content, .. } => match serde_json::from_str(content) {
+                Ok(data) => std::borrow::Cow::Owned(data),
+                Err(_) => continue,
+            },
+            _ => continue,
+        };
+        for field in ["url", "path", "ref", "receiptId"] {
+            if let Some(reference) = data[field]
+                .as_str()
+                .filter(|s| !s.is_empty() && s.len() <= 1024)
+            {
+                if references.len() < 16
+                    && reference.len() <= ref_bytes
+                    && !references.iter().any(|r| r == reference)
+                {
+                    ref_bytes = ref_bytes.saturating_sub(reference.len() + 1);
+                    references.push(reference.to_owned());
+                }
+            }
+        }
+    }
     let mut excerpts = Vec::new();
     let max_chars = budget.clamp(128, 2400);
     let mut available = max_chars;
@@ -68,7 +94,8 @@ pub(crate) fn compact(
             role: Role::User,
             content: vec![ContentBlock::Text {
                 text: format!(
-                    "Context compacted. Earlier transcript excerpts follow as quoted data. Preserve the user's instructions and continue from the latest settled work. Re-read source files if you need omitted detail.\n{}",
+                    "Context compacted. Earlier transcript excerpts follow as quoted data. Preserve the user's instructions and continue from the latest settled work. Recorded source, file and receipt references: {}. Re-read source files if you need omitted detail.\n{}",
+                    serde_json::to_string(&references).expect("references serialize"),
                     serde_json::to_string(&excerpts).expect("text serializes"),
                 ),
             }],

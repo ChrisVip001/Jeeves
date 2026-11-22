@@ -71,6 +71,13 @@ pub(crate) async fn finish(
         return;
     }
     let charged = async {
+        if let Some(run) = run_id {
+            server
+                .usage
+                .charge_pending(None, Some(run))
+                .await
+                .map_err(|e| e.to_string())?;
+        }
         if let Some(row) = server
             .checkpoints
             .get(turn_id)

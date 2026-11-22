@@ -22,6 +22,7 @@ impl Server {
             return;
         }
         let worker = memory_worker::MemoryWorker::spawn(memory_worker::Deps {
+            pool: self.pool.clone(),
             chat: self.chat.clone(),
             facts: self.facts.clone(),
             episodes: self.episodes.clone(),
@@ -50,6 +51,14 @@ impl Server {
         mut settings: Settings,
         execution_owner: Option<Arc<lock::DaemonLock>>,
     ) -> Self {
+        if let Err(error) = sqlx::query(
+            "UPDATE model_requests SET termination='interrupted' WHERE termination='in_flight'",
+        )
+        .execute(&pool)
+        .await
+        {
+            eprintln!("(jeeves) interrupted model requests could not be closed: {error}");
+        }
         let secrets = models::new_secrets();
         if let Err(error) = crate::browser::downloads::recover(&pool, &settings.home).await {
             eprintln!("(jeeves) browser artifact recovery failed: {error}");

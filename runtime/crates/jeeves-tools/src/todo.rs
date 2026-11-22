@@ -201,22 +201,22 @@ pub fn todo_write(board: std::sync::Arc<TodoBoard>) -> Tool {
                     });
                 };
                 let Some(array) = raw.as_array() else {
-                    return Ok("Error: todos must be an array (each item with content and status)".to_string());
+                    return Err(anyhow::anyhow!("todos must be an array (each item with content and status)"));
                 };
 
                 let mut items = Vec::with_capacity(array.len());
                 for (index, raw) in array.iter().enumerate() {
                     let at = index + 1;
                     let Some(content) = raw.get("content").and_then(Value::as_str) else {
-                        return Ok(format!("Error: item {at} has no content"));
+                        return Err(anyhow::anyhow!("item {at} has no content"));
                     };
                     let status = raw
                         .get("status")
                         .and_then(Value::as_str)
                         .unwrap_or("pending");
                     let Some(status) = TodoStatus::parse(status) else {
-                        return Ok(format!(
-                            "Error: unknown status for item {at}: '{status}' (only pending / in_progress / completed / cancelled)"
+                        return Err(anyhow::anyhow!(
+                            "unknown status for item {at}: '{status}' (only pending / in_progress / completed / cancelled)"
                         ));
                     };
                     items.push(TodoItem {
@@ -227,7 +227,7 @@ pub fn todo_write(board: std::sync::Arc<TodoBoard>) -> Tool {
 
                 match board.write(&ctx.session_id, items) {
                     Ok(list) => Ok(format!("{} ({})", list.render(), list.summary())),
-                    Err(why) => Ok(format!("Error: {why}")),
+                    Err(why) => Err(anyhow::anyhow!("{why}")),
                 }
             })
         }),

@@ -99,7 +99,7 @@ app-server are passed back verbatim as the protocol's `ErrorObject`.
 | Sync | `GET /api/events` (SSE of pings: kind, turn id, session id), `GET /api/notifications` (full notification SSE) |
 | Connections | `GET/POST /api/connections/lark`, `POST /api/connections/lark/claim`, `POST /api/gateway/rpc` |
 
-`/api/turn` subscribes before sending `turn/start`, so no early notification is lost. SSE is one-way server to browser; sending a
+`/api/interaction` subscribes before sending `interaction/start`, so no early notification is lost. SSE is one-way server to browser; sending a
 message is an ordinary POST. A refused human action (`/api/task`, the capability writes) is answered with status 200 and
 an `ErrorObject` body so the page shows the sentence verbatim.
 

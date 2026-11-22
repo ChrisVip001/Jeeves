@@ -53,15 +53,32 @@ impl TaskDispatch {
         attachments: &str,
         origin_message_id: Option<&str>,
     ) -> Result<DispatchRow> {
+        Self::enqueue_on(
+            &mut *self.pool.acquire().await?,
+            task_id,
+            message,
+            attachments,
+            origin_message_id,
+        )
+        .await
+    }
+
+    pub async fn enqueue_on(
+        conn: &mut sqlx::SqliteConnection,
+        task_id: &str,
+        message: &str,
+        attachments: &str,
+        origin_message_id: Option<&str>,
+    ) -> Result<DispatchRow> {
         ensure!(
             !message.trim().is_empty() && message.len() <= 64_000,
             "task message must contain 1 to 64000 bytes"
         );
         let row=sqlx::query_as::<_,DispatchRow>("INSERT INTO task_dispatch(task_id,session_id,turn_id,message,attachments_json,origin_message_id)
             SELECT id, 'task-work:' || lower(hex(randomblob(16))), 'task-turn:' || lower(hex(randomblob(16))), ?, ?, ?
-            FROM agent_tasks WHERE id=? AND status='pending' AND current_turn_id IS NULL
+            FROM agent_tasks WHERE id=? AND status='pending' AND current_turn_id IS NULL AND NOT EXISTS(SELECT 1 FROM price_watches WHERE task_id=agent_tasks.id)
             RETURNING task_id,session_id,turn_id,message,state,attachments_json")
-            .bind(message).bind(attachments).bind(origin_message_id).bind(task_id).fetch_optional(&self.pool).await?;
+            .bind(message).bind(attachments).bind(origin_message_id).bind(task_id).fetch_optional(conn).await?;
         row.ok_or_else(|| {
             anyhow::anyhow!("only a pending task without an execution can be started")
         })
@@ -144,6 +161,7 @@ impl TaskDispatch {
         task_id: &str,
         message: &str,
         attachments: &str,
+        message_id: &str,
     ) -> Result<()> {
         ensure!(
             !message.trim().is_empty() && message.len() <= 64_000,
@@ -165,18 +183,44 @@ impl TaskDispatch {
         ensure!(changed==1,"Only a completed conversational task can accept a new follow-up; inspect other task states first");
         sqlx::query("UPDATE task_dispatch SET message=?,attachments_json=?,turn_id='task-turn:'||lower(hex(randomblob(16))),state='pending' WHERE task_id=? AND state='finished'")
             .bind(message).bind(attachments).bind(task_id).execute(&mut *tx).await?;
+        Self::record_amendment(&mut tx, task_id, message_id, message).await?;
         tx.commit().await?;
         Ok(())
     }
-    pub async fn append_pending(&self, task_id: &str, message: &str) -> Result<bool> {
-        Ok(sqlx::query("UPDATE task_dispatch SET message=message||char(10)||char(10)||? WHERE task_id=? AND state='pending' AND length(message)+length(?)<=64000")
-            .bind(message).bind(task_id).bind(message).execute(&self.pool).await?.rows_affected()==1)
+    pub async fn record_amendment(
+        conn: &mut sqlx::SqliteConnection,
+        task_id: &str,
+        message_id: &str,
+        instruction: &str,
+    ) -> Result<()> {
+        sqlx::query("INSERT INTO task_amendments(task_id,message_id,instruction) VALUES(?,?,?)")
+            .bind(task_id)
+            .bind(message_id)
+            .bind(instruction)
+            .execute(conn)
+            .await?;
+        Ok(())
+    }
+    pub async fn append_pending(
+        &self,
+        task_id: &str,
+        message: &str,
+        message_id: &str,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let changed=sqlx::query("UPDATE task_dispatch SET message=message||char(10)||char(10)||? WHERE task_id=? AND state='pending' AND length(message)+length(?)<=64000")
+            .bind(message).bind(task_id).bind(message).execute(&mut *tx).await?.rows_affected()==1;
+        if changed {
+            Self::record_amendment(&mut tx, task_id, message_id, message).await?;
+        }
+        tx.commit().await?;
+        Ok(changed)
     }
     /// Bounded, owner-scoped progress without exposing another task's working transcript.
     pub async fn progress(&self, owner_session: &str) -> Result<Vec<serde_json::Value>> {
         let rows: Vec<ProgressRow> = sqlx::query_as(
             "SELECT t.id,t.title,t.status,t.last_stop_reason,t.acceptance_json
-             FROM agent_tasks t JOIN task_dispatch d ON d.task_id=t.id WHERE t.session_id=? ORDER BY d.rowid DESC LIMIT 5")
+             FROM agent_tasks t WHERE t.session_id=? AND (EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=t.id) OR EXISTS(SELECT 1 FROM price_watches w WHERE w.task_id=t.id)) ORDER BY t.rowid DESC LIMIT 5")
             .bind(owner_session).fetch_all(&self.pool).await?;
         Ok(rows
             .into_iter()

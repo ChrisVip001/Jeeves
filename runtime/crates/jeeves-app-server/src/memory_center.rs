@@ -282,6 +282,21 @@ pub async fn compact_session(
             "Compaction costs one model call, but no model is configured yet (model/save first, or set JEEVES_PROVIDER)".to_string(),
         ));
     };
+    let owner = server
+        .active_turns(Some(&p.session_id))
+        .into_iter()
+        .next()
+        .map(|(turn, _, _)| turn);
+    let turn = owner.unwrap_or_else(crate::turn::new_turn_id);
+    let run = server.runs.for_turn(&turn).await.map_err(internal)?;
+    let resolved = crate::turn::meter::metered(
+        &server.pool,
+        &resolved,
+        &p.session_id,
+        &turn,
+        run.as_ref().map(|r| r.id.as_str()),
+        "summary",
+    );
     let (covered_now, summary) = jeeves_memory::compaction::roll_forward_with(
         resolved.client.as_ref(),
         &resolved.model,

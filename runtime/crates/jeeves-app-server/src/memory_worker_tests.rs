@@ -41,6 +41,7 @@ async fn fixtures(
     })));
 
     let deps = Deps {
+        pool: pool.clone(),
         chat: jeeves_state::Chat::new(pool.clone()),
         facts: jeeves_state::Facts::new(pool.clone()),
         episodes: jeeves_state::Episodes::new(pool),

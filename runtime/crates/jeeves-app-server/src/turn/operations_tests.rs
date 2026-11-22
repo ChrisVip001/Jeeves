@@ -48,6 +48,7 @@ async fn fixture() -> (tempfile::TempDir, tempfile::TempDir, Server) {
                 round_no: Some(1),
             },
             &[jeeves_state::operations::OperationSnapshot {
+                proposed_only: false,
                 tool_use_id: "external-call".into(),
                 tool: "external_write".into(),
                 input_json: input.to_string(),
@@ -274,4 +275,29 @@ async fn unclaimed_open_chat_uncertainty_is_not_a_startup_bypass() {
             .status,
         "suspended"
     );
+}
+
+#[tokio::test]
+async fn historical_labels_without_executor_evidence_stay_unverified() {
+    let (_home, _workspace, server) = fixture().await;
+    for (label, expected) in [
+        ("succeeded", "historical_unverified"),
+        ("failed", "historical_unverified"),
+        ("not_executed", "not_executed"),
+    ] {
+        sqlx::query("UPDATE tool_operations SET status=?,output_digest='old-digest',output_preview=NULL WHERE turn_id='unknown-old'")
+            .bind(label).execute(&server.pool).await.unwrap();
+        let view = crate::input_wake_tests::rpc(
+            &server,
+            "turn/operations",
+            json!({"turnId":"unknown-old","sessionId":"chat"}),
+        )
+        .await
+        .unwrap();
+        let operation = &view["operations"][0];
+        assert_eq!(operation["status"], expected);
+        assert_eq!(operation["outputDigest"], "old-digest");
+        assert!(operation["outputPreview"].is_null());
+        assert_eq!(operation["replayPolicy"], "never");
+    }
 }

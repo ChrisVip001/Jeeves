@@ -43,6 +43,7 @@ pub(crate) fn checkpoint_outlet(
                 .operations
                 .into_iter()
                 .map(|operation| jeeves_state::operations::OperationSnapshot {
+                    proposed_only: operation.proposed_only,
                     tool_use_id: operation.tool_use_id,
                     tool: operation.tool,
                     input_json: operation.input.to_string(),
@@ -251,7 +252,7 @@ pub(crate) async fn fail_turn(
     crate::turn::failure::finish(server, sink, turn_id, run_id, task_id, message).await;
 }
 
-pub(super) fn new_turn_id() -> String {
+pub(crate) fn new_turn_id() -> String {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_nanos())

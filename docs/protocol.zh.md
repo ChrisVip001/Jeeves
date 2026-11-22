@@ -229,6 +229,8 @@ MCP OAuth token 报 `file`）。飞书收件人白名单为空时报 `blockedByP
 
 核对不会执行工具、清除人工暂停或恢复任务。全部未决调用核对后仍须明确调用 `task/resume`。人工确认不是实际观察到的工具成功返回，不满足 `toolsOk`；原产物验收和预算仍适用。近期操作证据会独立于滚动摘要重建到持久化交接中。这些方法是鉴权的人工或宿主控制入口，不是模型工具。
 
+`ToolOperationView.status` 区分准备分发、已执行、经人工核对、未执行和历史证据不足。旧记录只有成功或失败标签、没有执行器输出预览时，返回 `historical_unverified`。界面可展示原摘要；验收和自动恢复不以该标签为成功证据。人工核对只接受 `reconciled_success`、`reconciled_failure` 或 `not_executed`。
+
 `ToolOperationView.origin` 区分与执行检查点共同提交的意图（`checkpoint`）和从未变化、已停止的旧检查点重建的未决元数据（`recovered_checkpoint`）。两者都不证明已经发送。人工暂停会将任务围栏、持久等待取消及可恢复检查点暂停作为同一事务提交；提交失败保留原等待。
 
 ## 版本化验收证据
@@ -311,7 +313,7 @@ SHA-256 一致；助手文本或不匹配的引文被拒绝。到期时间从原
 
 `receiptConfirmed` 只有在存在该类型、ref 以 `refPrefix` 开头且状态为 `confirmed` 的回执时才通过；只有 `claimed`
 则不通过，详情会写明。`commandSucceeds` 在任务目录或其子目录里运行 `argv`（参数列表，逐项加引号，绝不是 shell 字符串），
-走与 `run_command` 相同的放行表、沙箱和网络设置。它无人值守，放行表之外的命令一律不批准。退出码 0 通过，其他退出码
+沿用 `run_command` 的会话权限、命令放行规则、沙箱和网络设置。当前策略要求审批时，会向用户展示本次命令。退出码 0 通过，其他退出码
 不通过并附输出末尾。exec 关闭、没有沙箱、命令被拒绝或结果未知时，检查不通过，详情以 `skipped:` 开头（如
 `skipped: exec off`）。跳过从不算通过。输出保存在任务目录的 `checks/` 下。任一条件缺字段会报错并带该条件的序号。
 
@@ -352,11 +354,13 @@ SHA-256 一致；助手文本或不匹配的引文被拒绝。到期时间从原
 
 ## 主交互入口
 
+可持续监测的报价来自私人对话中已成功执行的只读工具。其 JSON 结果提供 `url`、`model`、`spec`、`currency`、`price` 和 `shipping`。金额为最多两位小数的非负数，运费为 null 时，到手价仍待确认。
+
 `session/main`（无参数）幂等打开 `jeeves-main`，返回 `SessionNewResponse`；仅首次创建初始化标准权限。`interaction/start` 使用生成的 `InteractionStartParams`：`sessionId`、稳定 `messageId`、人的 `message`，可选 `taskId`、`cwd`、图片 `attachments`。返回 `TurnStartResponse` 与既有通知。Web 对应鉴权的 `GET /api/session/main` 与 `POST /api/interaction`（SSE）。驾驶舱和网关 HTTP 客户端支持跨网络分块的多行 SSE 事件，兼容 LF、CRLF 和 CR 换行。
 
 查询会话失败时，客户端可用 `session/main` 重新取得主会话 ID。
 
-主模型在主聊天里应答和澄清，可通过本次交互的 `task` 工具一次创建最多四项独立委托，或续办属于这条会话的任务。两种操作都使用当前用户消息中的原文片段。同一交互中，已经用于续办的片段不能再次建任务。新任务附带文档引用和有界主会话背景。显式 `taskId` 检查归属后跳过路由。排队任务追加要求，执行中任务在下次模型边界接收补充；已结束且无验收条件的单回合任务在原目录/上下文中以新运行续做，其他状态使用既有恢复/核对入口。排队/执行中的新增图片明确拒绝。
+主模型在主聊天里应答和澄清，可通过本次交互的 `task` 工具一次创建最多四项独立委托，或续办属于这条会话的任务。两种操作都使用当前用户消息中的原文片段。同一交互中，已经用于续办的片段不能再次建任务。新任务附带文档引用和有界主会话背景。显式 `taskId` 经归属检查后选定事项。选中盯价事项时，本次交互只能查询该事项、修改阈值或取消监测。排队任务追加要求，执行中任务在下次模型边界接收补充；已结束且无验收条件的单回合任务在原目录/上下文中以新运行续做，其他状态使用既有恢复/核对入口。排队/执行中的新增图片明确拒绝。
 
 任务在执行边界核对累计 token、工具调用次数和耗时。旧检查点所属的回合能关联到任务，但缺少执行标识时，恢复流程会将其挂起待核对。工具结果已记录的普通对话检查点仍可续跑。
 
@@ -364,7 +368,7 @@ SHA-256 一致；助手文本或不匹配的引文被拒绝。到期时间从原
 
 持久 `(sessionId,messageId)` 回执回放相同的已完成提交；修改输入、失败和未完成提交均拒绝重复派发。部分创建/启动失败逐项说明。连接中断导致结果不明时，先检查任务进展。`task/create` 未指定 `cwd` 时分配独立托管目录，主动绑定已有项目仍受支持。给了 `repo`（人选定的 git 仓库绝对路径）时，任务改为在自己的 worktree `<home>/worktrees/<task-id>`、分支 `jeeves/<task-id>` 里运行，那是它唯一的工作目录；`task/view` 和 `task/get` 报告 `worktreePath` 和 `branch`。`task/create` 还接受 `codeChecks: [{name, argv, after}]`：`after: "final"` 变成 `commandSucceeds` 验收条件；`after: "edit"` 在每次 `edit` / `apply_patch` 之后于任务目录运行（走 exec 门和沙箱，每条 60 秒），最多 4 KB 输出追加到该工具的结果；exec 关闭时结果写明 `[check <name>] not run: exec off`。worktree 在 `task/create` 时建立，已存在则复用，从不自动删除；`repo` 不是 git 仓库、或 `repo` 与 `cwd` 同时给出，都以文本错误拒绝。`task/start` 接受可选图片。
 
-`GET /api/notifications` 在单次提交之外推送鉴权的 `ServerNotification`，用于工作者进度与审批。`POST /api/task` 的 `{action:"artifacts",taskId}` 转接 `task/artifacts`。`session/list` 只返回 `jeeves-main`，事项检查可读取内部执行记录。私聊改稿按用户绑定的任务限定候选动作。回指可使用紧邻的上一条已完成私聊交互中的任务绑定、主题或动作 ID；多个候选时请用户选择。任务工具按创建时间列出当前会话最近的 20 项任务。渠道只可查看同一聊天和发送者交办的事项。主模型可见经核验的只读工具。混合工具只展示读取动作（记忆的 search/list，后台作业的 output/list）。允许派发的交互在两种工具加载模式下都从首个请求起展示本轮专属的任务委派工具。此前聊天有待核对的操作时，工具表收窄到无条件只读工具，直至人工核对。任务会话中，只读模式拒绝记忆修改，标准模式要求审批，完全访问模式使用已启用的工具。外部记忆 MCP 客户端通过单独启用的记忆服务读写。`turn/start` 进入同一个主交互。同一核心仍运行时可以恢复实时待确认问题；缺失/过期确认不会放行操作。详见 [internals/06-app-server.md](internals/06-app-server.zh.md)。
+`GET /api/notifications` 在单次提交之外推送鉴权的 `ServerNotification`，用于工作者进度与审批。`POST /api/task` 的 `{action:"artifacts",taskId}` 转接 `task/artifacts`。`session/list` 只返回 `jeeves-main`，事项检查可读取内部执行记录。私聊改稿按用户绑定的任务限定候选动作。回指可使用紧邻的上一条已完成私聊交互中的任务绑定、主题或动作 ID；多个候选时请用户选择。任务工具按创建时间列出当前会话最近的 20 项任务。渠道只可查看同一聊天和发送者交办的事项。私人主对话通过当前会话的工具和审批策略执行当场交办。允许派发的交互在两种工具加载模式下都从首个请求起展示本轮专属的任务委派工具。此前聊天有待核对的操作时，工具表收窄到无条件只读工具，直至人工核对。任务会话中，只读模式拒绝记忆修改，标准模式要求审批，完全访问模式使用已启用的工具。外部记忆 MCP 客户端通过单独启用的记忆服务读写。`turn/start` 进入同一个主交互。同一核心仍运行时可以恢复实时待确认问题；缺失/过期确认不会放行操作。详见 [internals/06-app-server.md](internals/06-app-server.zh.md)。
 
 ### 实时待确认快照
 

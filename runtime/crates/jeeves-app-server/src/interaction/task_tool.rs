@@ -5,67 +5,60 @@
 //! conversation does not come here. The tool exists only for the human interaction that owns it,
 //! and it cannot invent work: every instruction must be a verbatim span of the human's current message.
 use crate::{EventSink, Server};
-use jeeves_protocol::{
-    AcceptanceView, InteractionStartParams, TaskActionParams, TaskCreateParams, TaskStartParams,
-};
+use jeeves_protocol::{AcceptanceView, InteractionStartParams, TaskActionParams, TaskCreateParams};
 use jeeves_tools::Tool;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 
 pub(crate) const NAME: &str = "task";
+pub(crate) const SELECTED_WATCH: &str = "selected_price_watch";
 const MAX_ITEMS: usize = 4;
 
 const DESCRIPTION: &str = "Open a durable task thread for a goal that must survive this conversation: it needs its own working directory, runs across restarts, or is measured against checks that remain on record. A task thread is one way to carry out a goal, not the default for everything the person asks. \
 Handle casual conversation, general questions, advice and progress inquiries directly. Work that needs a few tools, outside sources or an approval can also be carried out inside the conversation without opening a task. Use a task when the work itself needs to persist, not merely because the request is phrased as 'do something'. \
 Summarize the intended outcome from the conversation and keep the human's constraints. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
 create: one item per independent goal that needs persistence (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
-Include file_checks for explicitly named output files. Copy each path from the instruction. Add contains only for literal text the human requires in that file. \
+Use acceptance for objectively verifiable deliverables. Use the shared task criteria. Copy file paths, required literal text and test commands from the human instruction. \
 continue: pass a follow-up to the existing task (task_id from list). Use its words once. If the target is unclear, ask which task the human means. \
 draft_email: when the human asks to change a previously requested send to a draft, use this instead of continue or create. The runtime resolves the target from the human message. \
 cancel: stop a task the human asked to stop. \
-list: show the 20 newest tasks in this conversation.";
+For a price watch, create a single item with price_watch containing the exact previous quote URL, model and spec, below amount in the quoted currency and duration in days. The clock checks the delivered price including known shipping, with no purchase. Use amend_price with task_id and below to change only its threshold. list: show the 20 newest tasks in this conversation.";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Item {
     title: String,
     instruction: String,
+    price_watch: Option<super::price_watch::Request>,
     #[serde(default)]
-    file_checks: Vec<FileCheck>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct FileCheck {
-    path: String,
-    contains: Option<String>,
+    acceptance: Vec<AcceptanceView>,
 }
 
 impl Item {
     fn acceptance(&self) -> Result<Vec<AcceptanceView>, String> {
-        let quoted = |text: &str| !text.trim().is_empty() && self.instruction.contains(text);
-        let mut acceptance = Vec::with_capacity(self.file_checks.len());
-        for check in &self.file_checks {
-            if !quoted(&check.path) || check.contains.as_deref().is_some_and(|text| !quoted(text)) {
-                return Err(
-                    "file check paths and required text must be copied from the task instruction"
-                        .into(),
-                );
-            }
-            acceptance.push(AcceptanceView {
-                kind: if check.contains.is_some() {
-                    "fileContains"
-                } else {
-                    "fileExists"
+        for check in &self.acceptance {
+            jeeves_agent::verify::Acceptance::from_view(check)?;
+            for literal in [&check.path, &check.pattern, &check.cwd]
+                .into_iter()
+                .flatten()
+            {
+                if !self.instruction.contains(literal) {
+                    return Err(
+                        "Acceptance paths and literal text must come from the human instruction"
+                            .into(),
+                    );
                 }
-                .into(),
-                path: Some(check.path.clone()),
-                pattern: check.contains.clone(),
-                ..Default::default()
-            });
+            }
+            if let Some(argv) = &check.argv {
+                if !self.instruction.contains(&argv.join(" ")) {
+                    return Err(
+                        "An acceptance command must be named in the human instruction".into(),
+                    );
+                }
+            }
         }
-        Ok(acceptance)
+        Ok(self.acceptance.clone())
     }
 }
 
@@ -82,6 +75,10 @@ enum Call {
     Cancel {
         task_id: String,
     },
+    AmendPrice {
+        task_id: String,
+        below: serde_json::Number,
+    },
     DraftEmail,
     List,
 }
@@ -90,12 +87,24 @@ enum Call {
 pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) -> Tool {
     let spans: Arc<Mutex<Vec<(usize, usize)>>> = Arc::default();
     Tool {
-        name: NAME.into(),
-        description: DESCRIPTION.into(),
-        input_schema: json!({
+        name: if p.task_id.is_some() { SELECTED_WATCH } else { NAME }.into(),
+        description: match &p.task_id {
+            Some(id) => format!("Selected price watch {id}. For a threshold change call amend_price with task_id {id} and below in the original currency. For a status question use list. Cancel only on an explicit request."),
+            None => DESCRIPTION.into(),
+        },
+        input_schema: if let Some(task_id) = &p.task_id {
+            json!({
+                "type":"object", "additionalProperties":false, "required":["action"],
+                "properties":{
+                    "action":{"type":"string","enum":["amend_price","cancel","list"]},
+                    "task_id":{"type":"string","const":task_id},
+                    "below":{"type":"number","exclusiveMinimum":0}
+                }
+            })
+        } else { json!({
             "type": "object",
             "properties": {
-                "action": {"type": "string", "enum": ["create", "continue", "cancel", "list", "draft_email"]},
+                "action": {"type": "string", "enum": ["create", "continue", "cancel", "list", "draft_email", "amend_price"]},
                 "items": {
                     "type": "array",
                     "items": {
@@ -103,34 +112,37 @@ pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) 
                         "properties": {
                             "title": {"type": "string", "description": "Short summary of the requested outcome in the human's language"},
                             "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"},
-                            "file_checks": {
-                                "type": "array", "description": "Explicit output files named in this instruction",
-                                "items": {
-                                    "type": "object", "properties": {
-                                        "path": {"type": "string", "description": "Output path as written by the human"},
-                                        "contains": {"type": "string", "description": "Exact text the human requires in this file"}
-                                    }, "required": ["path"], "additionalProperties": false
-                                }
+                            "price_watch": {"type":"object","required":["url","model","spec","below","days"],"properties":{"url":{"type":"string"},"model":{"type":"string"},"spec":{"type":"string"},"below":{"type":"number","exclusiveMinimum":0},"days":{"type":"integer","minimum":1}}},
+                            "acceptance": {
+                                "type":"array", "items":{"type":"object","required":["kind"],"additionalProperties":false,
+                                    "properties":{
+                                        "kind":{"type":"string","enum":["fileExists","fileContains","jsonEquals","sourceSupports","commandSucceeds","toolsOk","receiptConfirmed"]},
+                                        "path":{"type":"string"},"pattern":{"type":"string"},"min":{"type":"integer"},
+                                        "pointer":{"type":"string"},"expectedJson":{"type":"string"},
+                                        "argv":{"type":"array","items":{"type":"string"}},"cwd":{"type":"string"},
+                                        "tool":{"type":"string"},"receiptKind":{"type":"string"},"refPrefix":{"type":"string"},"label":{"type":"string"}
+                                    }}
                             }
                         },
                         "required": ["title", "instruction"]
                     }
                 },
                 "task_id": {"type": "string"},
+                "below":{"type":"number","exclusiveMinimum":0},
                 "instruction": {"type": "string", "description": "continue only: exact substring of the human's message; omit to pass the whole message"}
             },
             "required": ["action"]
-        }),
-        handler: Arc::new(move |_ctx, args: Value| {
+        }) },
+        handler: Arc::new(move |ctx, args: Value| {
             let (server, p, sink, spans) = (server.clone(), p.clone(), sink.clone(), spans.clone());
             Box::pin(async move {
                 let call: Call = match serde_json::from_value(args) {
                     Ok(call) => call,
-                    Err(e) => return Ok(format!("Error: invalid task call ({e})")),
+                    Err(e) => anyhow::bail!("invalid task call ({e})"),
                 };
-                Ok(run(&server, &p, &sink, &spans, call)
+                run(&server, &p, &sink, &spans, call, ctx.invocation_id.as_deref())
                     .await
-                    .unwrap_or_else(|e| format!("Error: {e}")))
+                    .map_err(anyhow::Error::msg)
             })
         }),
     }
@@ -142,8 +154,22 @@ async fn run(
     sink: &EventSink,
     spans: &Mutex<Vec<(usize, usize)>>,
     call: Call,
+    invocation: Option<&str>,
 ) -> Result<String, String> {
+    if let Some(selected) = &p.task_id {
+        match &call {
+            Call::AmendPrice { task_id, .. } | Call::Cancel { task_id } if task_id == selected => {}
+            Call::List => {}
+            _ => return Err("Use the selected watch for amendments or cancellation".into()),
+        }
+    }
     match call {
+        Call::AmendPrice { task_id, below } => {
+            owned_task(server, p, &task_id).await?;
+            super::price_watch::amend(server, p, &task_id, &below, invocation)
+                .await
+                .map_err(|e| e.to_string())
+        }
         Call::DraftEmail => {
             if p.source.is_some() {
                 return Err("Use the private main chat to review a mail envelope".into());
@@ -162,6 +188,11 @@ async fn run(
             Ok(reply)
         }
         Call::List => {
+            if let Some(id) = &p.task_id {
+                return super::price_watch::summary(server, id)
+                    .await
+                    .map_err(|e| e.to_string());
+            }
             let rows = if let Some(source) = &p.source {
                 let ids: Vec<String> = sqlx::query_scalar(
                     "SELECT t.id FROM agent_tasks t JOIN task_sources s ON s.task_id = t.id
@@ -222,10 +253,15 @@ async fn run(
             } else {
                 String::new()
             };
-            spans.lock().expect("span lock").extend(fresh);
+            if items.iter().any(|item| item.price_watch.is_some()) && items.len() != 1 {
+                return Err("Submit a price watch as an independent handoff".into());
+            }
             let mut lines = Vec::new();
-            for (item, acceptance) in items.iter().zip(checks) {
-                lines.push(start_one(server, p, sink, &context, item, acceptance).await);
+            for ((item, acceptance), span) in items.iter().zip(checks).zip(fresh) {
+                lines.push(
+                    start_one(server, p, sink, &context, item, acceptance, invocation).await?,
+                );
+                spans.lock().expect("span lock").push(span);
             }
             Ok(lines.join("\n"))
         }
@@ -292,9 +328,30 @@ async fn start_one(
     sink: &EventSink,
     context: &str,
     item: &Item,
-    acceptance: Vec<AcceptanceView>,
-) -> String {
-    let envelope = match crate::task::create(
+    mut acceptance: Vec<AcceptanceView>,
+    invocation: Option<&str>,
+) -> Result<String, String> {
+    let watch = if let Some(request) = &item.price_watch {
+        if !acceptance.is_empty() {
+            return Err("A price watch has its own quote receipt check".into());
+        }
+        let watch = super::price_watch::prepare(server, p, request)
+            .await
+            .map_err(|e| e.to_string())?;
+        acceptance.push(watch.acceptance());
+        Some(watch)
+    } else {
+        None
+    };
+    let packet = super::handoff::Assignment {
+        request: p,
+        invocation,
+        instruction: &item.instruction,
+        context,
+        message: task_input(context, &p.message, &item.instruction),
+        watch: watch.as_ref(),
+    };
+    let task = crate::task::create_with_handoff(
         server,
         TaskCreateParams {
             session_id: Some(p.session_id.clone()),
@@ -303,55 +360,30 @@ async fn start_one(
             max_rounds: None,
             tier: None,
             acceptance,
-            budget: None,
+            budget: watch.as_ref().map(|w| w.budget()),
             cwd: p.cwd.clone(),
             repo: None,
             parent_task_id: None,
             code_checks: vec![],
         },
+        Some(&packet),
     )
     .await
-    {
-        Ok(task) => task,
-        Err(e) => return format!("• {}: not created ({})", item.title, e.message),
-    };
-    if let Some(source) = &p.source {
-        let row = jeeves_state::task_sources::TaskSource {
-            channel: source.channel.clone(),
-            chat_id: source.chat_id.clone(),
-            message_id: source.message_id.clone(),
-            sender_id: source.sender_id.clone(),
-        };
-        if let Err(error) =
-            jeeves_state::task_sources::set(&server.pool, &envelope.task.id, &row).await
-        {
-            return format!(
-                "• {}: not created (cannot record its source: {error})",
-                item.title
-            );
-        }
+    .map_err(|e| e.message)?
+    .task;
+    if let Some(watch) = watch {
+        return Ok(format!(
+            "• {} ({}): {}",
+            item.title,
+            task.id,
+            watch.description()
+        ));
     }
-    match crate::task::start_with_origin(
-        server,
-        sink,
-        TaskStartParams {
-            task_id: envelope.task.id.clone(),
-            message: task_input(context, &p.message, &item.instruction),
-            attachments: p.attachments.clone(),
-        },
-        Some(&p.message_id),
-    )
-    .await
-    {
-        Ok(_) => format!("• {} ({}): queued", item.title, envelope.task.id),
-        Err(e) => format!(
-            "• {} ({}): not started ({})",
-            item.title, envelope.task.id, e.message
-        ),
-    }
+    crate::task::dispatch::kick(server.clone(), sink.clone());
+    Ok(format!("• {} ({}): queued", item.title, task.id))
 }
 
-async fn owned_task(
+pub(super) async fn owned_task(
     server: &Server,
     p: &InteractionStartParams,
     task_id: &str,
@@ -405,16 +437,30 @@ pub(super) async fn continue_task(
                 .await
                 .map_err(|e| e.to_string())?
                 .ok_or("task has no execution context")?;
+            let mut tx = server
+                .pool
+                .begin_with("BEGIN IMMEDIATE")
+                .await
+                .map_err(|e| e.to_string())?;
+            jeeves_state::dispatch::TaskDispatch::record_amendment(
+                &mut tx,
+                task_id,
+                &p.message_id,
+                text,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
             server
                 .steer(&execution.session_id, text)
                 .map_err(|_| "task stopped before this follow-up was accepted")?;
+            tx.commit().await.map_err(|e| e.to_string())?;
         }
         jeeves_state::TaskStatus::Pending => {
             if has_attachments {
                 return Err("wait for the queued task before adding new images".into());
             }
             if !queue
-                .append_pending(task_id, text)
+                .append_pending(task_id, text, &p.message_id)
                 .await
                 .map_err(|e| e.to_string())?
             {
@@ -425,7 +471,7 @@ pub(super) async fn continue_task(
             let attachments = serde_json::to_string(&p.attachments.clone().unwrap_or_default())
                 .map_err(|e| e.to_string())?;
             queue
-                .continue_finished(task_id, text, &attachments)
+                .continue_finished(task_id, text, &attachments, &p.message_id)
                 .await
                 .map_err(|e| e.to_string())?;
             crate::task::dispatch::kick(server.clone(), sink.clone());

@@ -73,7 +73,11 @@ impl Provider for Model {
                 } else if message == "整理下周例会议题" {
                     Some(json!([{"title":"下周例会议题","instruction":message}]))
                 } else if message == mail::INSTRUCTION {
-                    Some(json!([{"title":"会议邮件","instruction":message}]))
+                    return Ok(jeeves_provider::mock::Mock::tool_use(
+                        "draft",
+                        "email_send",
+                        json!({"to":["lin@example.test"],"subject":"会议","body":"周一见。"}),
+                    ));
                 } else if message.contains("invent") {
                     Some(json!([{"title":"x","instruction":"delete everything"}]))
                 } else {
@@ -96,13 +100,6 @@ impl Provider for Model {
                 return Ok(jeeves_provider::mock::Mock::text("文件已生成。"));
             }
             let text = r.messages.last().map(|m| m.text()).unwrap_or_default();
-            if text.contains(mail::INSTRUCTION) && r.tools.iter().any(|t| t.name == "email_send") {
-                return Ok(jeeves_provider::mock::Mock::tool_use(
-                    "draft",
-                    "email_send",
-                    json!({"to":["lin@example.test"],"subject":"会议","body":"周一见。"}),
-                ));
-            }
             if text.contains("生成alpha") || text.contains("生成beta") || text.contains("补充alpha")
             {
                 return Ok(jeeves_provider::mock::Mock::tool_use(

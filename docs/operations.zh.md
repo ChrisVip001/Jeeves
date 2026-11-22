@@ -224,9 +224,9 @@ Runtime 得在运行。删是 `cancel_schedule`，列是 `list_schedules`。
 2. **migrate**：在代码里回填，且可重复执行。
 3. **contract**：旧结构在没有任何读取之后，至少再晚一个版本才删除。
 
-启动时，如果数据库已应用的 schema 比本二进制所知的更新，Jeeves 拒绝启动，并打印两个版本号和备份路径。
-对已存在的数据库迁移前，会把 `state.db` 复制为 `state.db.pre-<version>`（`<version>` 为目标 schema）并打印路径。
-备份只做一次；新建的数据库不备份。
+在预发布版本切换时，Runtime 校验旧增量 v24 或 v25 的完整迁移历史，归档该历史后应用当前基线及后续迁移。版本号相同但校验和不符时拒绝迁移。升级已有存储前用 SQLite 快照保留一次 `state.db.pre-<目标版本>`。从旧版打开 v24 时还会归档已有的会话来源。
+
+在仓库根目录运行 `cargo build -p jeeves-cli`，再运行 `python3 scripts/smoke-storage-cutover.py <旧版state.db> <网关accounts.sqlite>`。脚本以只读方式复制两个库，导入并重新导出临时 Runtime，在原列上比对事项、产物、回执和用量，并核对独立网关账号记录。正式升级前先在副本上演练。
 
 ## 故障排查
 

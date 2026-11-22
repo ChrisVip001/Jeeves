@@ -101,10 +101,10 @@ echo "  first screen: $(head -c 160 "$WORK/data1.json")"
 echo "  ✓ four read methods → one JSON screen"
 
 # ---- Say one thing: turn/start → SSE ----------------------------------------------
-curl -sS -N -X POST "$BASE/api/turn" \
+curl -sS -N -X POST "$BASE/api/interaction" \
   -H 'content-type: application/json' \
-  -d '{"sessionId":"jeeves-main","message":"hello","stream":true}' \
-  --max-time 20 >"$WORK/turn.sse" || fail "POST /api/turn did not go through"
+  -d '{"sessionId":"jeeves-main","message":"hello","messageId":"dashboard-smoke"}' \
+  --max-time 20 >"$WORK/turn.sse" || fail "POST /api/interaction did not go through"
 
 echo "  this turn arrived as:"
 sed 's/^/    /' "$WORK/turn.sse" | head -n 12
@@ -114,7 +114,7 @@ grep -q '"type":"textDelta"'          "$WORK/turn.sse" || fail "no textDelta —
 grep -q '"delta":"hello"'             "$WORK/turn.sse" || fail "the delta content is wrong"
 grep -q '"reply":"hello, world"'      "$WORK/turn.sse" || fail "the closing full reply is wrong"
 grep -q '"type":"turnCompleted"'      "$WORK/turn.sse" || fail "no turnCompleted — the front end would spin forever"
-echo "  ✓ turn/start → SSE frames (the lines the browser parses)"
+echo "  ✓ interaction/start → SSE frames (the lines the browser parses)"
 
 # ---- After speaking, the panel has content ------------------------------------------------
 # That's "dashboard" vs "reading logs": the message must become something visible on screen one.

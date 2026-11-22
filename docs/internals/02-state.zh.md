@@ -33,7 +33,7 @@ schema 变更只以 `migrations/` 里带编号的文件存在；当前结构就�
 | `agent_tasks`、`task_*`、`task_runs`、`run_*`、`turn_checkpoints`、`jobs`、`job_*` | 长任务、运行、可续跑的轮次状态、后台作业 |
 | `tool_operations`、`approval_log`、`interaction_receipts`、`browser_sessions` | 操作、审批与交互记录 |
 | `schedule_jobs`、`schedule_state`、`schedule_completions` | 定时任务声明与运行状态 |
-| `usage_ledger` | token 用量 |
+| `model_requests`、`historical_turn_usage` | 逐请求计量及旧版逐回合汇总 |
 
 ### 事实与情景
 

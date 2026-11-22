@@ -67,6 +67,22 @@ pub(crate) async fn drive_task(
             round,
         ))
     };
+    let planner = super::meter::metered(
+        &server.pool,
+        resolved,
+        &session_id,
+        &turn_id,
+        run_id.as_deref(),
+        "planning",
+    );
+    let judge = super::meter::metered(
+        &server.pool,
+        resolved,
+        &session_id,
+        &turn_id,
+        run_id.as_deref(),
+        "evaluation",
+    );
     let task_id = task.as_ref().map(|task| task.id.clone());
     let goal_condition = task.as_ref().and_then(|task| task.goal_condition.clone());
     let acceptance = match task
@@ -89,7 +105,17 @@ pub(crate) async fn drive_task(
     }
     let mut round_started = started;
     let (decision, goal_status) = loop {
-        let observation = observe_round(&full.result, &turn_id, turn_cwd.as_deref());
+        let observation =
+            match observe_round(server, &turn_id, &full.result.round_id, turn_cwd.as_deref()).await
+            {
+                Ok(value) => value,
+                Err(reason) => {
+                    break (
+                        TaskDecision::NeedsAttention(reason),
+                        Some("accounting-failed".into()),
+                    )
+                }
+            };
         let goal_rounds = round_no;
         if let Some(id) = &task_id {
             if let Err(e) = server.tasks.record_round(id, round_no).await {
@@ -103,6 +129,11 @@ pub(crate) async fn drive_task(
         let checks = match account_round(
             server,
             RoundCtx {
+                tool_ctx: server.tool_ctx(
+                    &session_id,
+                    turn_cwd.clone(),
+                    server.session_approval(&session_id, &turn_id, sink),
+                ),
                 task: task.as_ref(),
                 run_id: run_id.as_deref(),
                 acceptance: &acceptance,
@@ -289,7 +320,7 @@ pub(crate) async fn drive_task(
             frame.checkpoint = checkpoint_for_round(round_no);
             round_started = std::time::Instant::now();
             wall_offset_ms = 0;
-            plan = revise_plan(server, resolved, task.as_ref(), &acceptance, plan, &reason).await;
+            plan = revise_plan(server, &planner, task.as_ref(), &acceptance, plan, &reason).await;
             let correction = next_round_message(
                 assignment,
                 &format!("Acceptance did not pass: {reason}"),
@@ -347,7 +378,7 @@ pub(crate) async fn drive_task(
         };
 
         let transcript = judge_transcript(server, &session_id, &full.result.reply).await;
-        let judgement = match crate::goal::judge(resolved, condition, &transcript).await {
+        let judgement = match crate::goal::judge(&judge, condition, &transcript).await {
             Ok(judgement) => judgement,
             Err(why) => {
                 notify_goal(sink, &turn_id, goal_rounds, max_rounds, "blocked", &why);

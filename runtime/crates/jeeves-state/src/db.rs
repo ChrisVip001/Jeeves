@@ -36,7 +36,17 @@ pub async fn open(path: &Path) -> Result<SqlitePool> {
         .await
         .with_context(|| format!("could not open database {}", absolute.display()))?;
 
-    guard_and_backup(&pool, &absolute, known_schema_version()).await?;
+    let applied = applied_version(&pool).await?;
+    let target = known_schema_version();
+    if applied > target && !matches!(applied, 24 | 25) {
+        anyhow::bail!("database schema {applied} is newer than supported schema {target}");
+    }
+    if applied > 0 && applied != target {
+        backup_before_upgrade(&pool, &absolute, target).await?;
+    }
+    if matches!(applied, 24 | 25) {
+        adopt_incremental_baseline(&pool).await?;
+    }
     MIGRATOR.run(&pool).await.context("migrations failed")?;
     Ok(pool)
 }
@@ -48,34 +58,75 @@ pub fn backup_path(db: &Path, version: i64) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// The schema is now a single squashed baseline (version 1). A database created by the old
-/// incremental migrations has a different version-1 script, so its stored checksum will not
-/// match this baseline. Reopening a database written by this build is fine; an old one is refused
-/// with an export/import path instead of a cryptic sqlx checksum error.
-pub(crate) async fn guard_and_backup(pool: &SqlitePool, db: &Path, _known: i64) -> Result<()> {
-    let applied = applied_version(pool).await?;
-    if applied == 0 {
+async fn backup_before_upgrade(pool: &SqlitePool, db: &Path, target: i64) -> Result<()> {
+    let dest = backup_path(db, target);
+    if dest.try_exists()? {
         return Ok(());
     }
-    let expected: &[u8] = MIGRATOR
+    let staging =
+        tempfile::NamedTempFile::new_in(db.parent().context("missing database directory")?)?;
+    snapshot(pool, staging.path()).await?;
+    match staging.persist_noclobber(&dest) {
+        Ok(_) => eprintln!(
+            "(jeeves) pre-migration snapshot saved at {}",
+            dest.display()
+        ),
+        Err(err) if err.error.kind() == std::io::ErrorKind::AlreadyExists => (),
+        Err(err) => return Err(err.into()),
+    }
+    Ok(())
+}
+
+/// Adopt the two released incremental histories whose final schema matches the squashed baseline.
+async fn adopt_incremental_baseline(pool: &SqlitePool) -> Result<()> {
+    use sha2::{Digest, Sha256};
+    let baseline = MIGRATOR
         .iter()
         .find(|m| m.version == 1)
-        .map(|m| m.checksum.as_ref())
-        .unwrap_or_default();
-    let stored: Option<Vec<u8>> =
-        sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations WHERE version = 1")
-            .fetch_optional(pool)
+        .context("missing baseline")?;
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+    let rows: Vec<(i64, bool, Vec<u8>)> =
+        sqlx::query_as("SELECT version,success,checksum FROM _sqlx_migrations ORDER BY version")
+            .fetch_all(&mut *tx)
             .await?;
-    if stored.as_deref() == Some(expected) {
+    if rows.first().is_some_and(|(v, ok, hash)| {
+        *v == 1 && *ok && hash.as_slice() == baseline.checksum.as_ref()
+    }) {
+        tx.commit().await?;
         return Ok(());
     }
-    anyhow::bail!(
-        "{} was created with the old incremental schema (version {applied}); this build uses \
-         a single squashed baseline and cannot migrate it in place. Preserve it with \
-         `jeeves home export <dir>`, move the old home aside, then start Jeeves with a fresh \
-         home and `jeeves home import <dir>`. The old file is left untouched.",
-        db.display()
-    );
+    let mut digest = Sha256::new();
+    for (i, (version, ok, checksum)) in rows.iter().enumerate() {
+        anyhow::ensure!(
+            *version == i as i64 + 1 && *ok && checksum.len() == 48,
+            "Incomplete incremental migration history"
+        );
+        digest.update(checksum);
+    }
+    let fingerprint = format!("{:x}", digest.finalize());
+    anyhow::ensure!(matches!((rows.len(),fingerprint.as_str()),
+        (24,"ac39a792c93e6ad22d026cd7adf213840c40ee7456406c0ae17fde6dd30f3509") |
+        (25,"489d2a9dafb6c1b1a667ad705ed8d26f0d8ac0bcc2acfca966d9a11f2ce39bb4")
+    ), "Unrecognized incremental schema history; preserve this database and use the matching Jeeves release");
+    if rows.len() == 24 {
+        sqlx::query("CREATE TABLE historical_session_origins AS SELECT id,forked_from FROM sessions WHERE forked_from IS NOT NULL").execute(&mut *tx).await?;
+        sqlx::query("ALTER TABLE sessions DROP COLUMN forked_from")
+            .execute(&mut *tx)
+            .await?;
+    }
+    sqlx::query("CREATE TABLE historical_schema_migrations AS SELECT * FROM _sqlx_migrations")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM _sqlx_migrations WHERE version<>1")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("UPDATE _sqlx_migrations SET checksum=?,description=? WHERE version=1")
+        .bind(baseline.checksum.as_ref())
+        .bind(baseline.description.as_ref())
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
 }
 
 /// Newest applied migration, or 0 when the migrations table does not exist yet.

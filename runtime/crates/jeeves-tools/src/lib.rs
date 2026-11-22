@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use jeeves_provider::ToolSchema;
+pub use jeeves_state::operations::ToolOutput;
 use jeeves_state::{Chat, Episodes, Facts};
 use serde_json::Value;
 
@@ -446,71 +447,75 @@ impl ToolRegistry {
             .collect()
     }
 
+    /// Apply the current session policy and writer permit to a tool or a host-run acceptance check.
+    pub async fn admit_call(
+        &self,
+        ctx: &mut ToolCtx,
+        name: &str,
+        args: &Value,
+    ) -> Result<(), String> {
+        let ticket = if let Some(policy) = &self.policy {
+            Some(
+                policy
+                    .authorize(
+                        ctx.clone(),
+                        name.to_owned(),
+                        self.effect(name),
+                        args.clone(),
+                    )
+                    .await?,
+            )
+        } else {
+            None
+        };
+        if ticket.as_ref().is_some_and(|ticket| ticket.approved) {
+            ctx.approval = Some(Arc::new(permissions::ApprovedInvocation));
+        }
+        let steering = name == "task" && args["action"] == "continue";
+        if ctx.resource_lease.is_none()
+            && self.is_exclusive(name)
+            && name != "delegate_task"
+            && !steering
+        {
+            if let Some(resources) = &self.resources {
+                ctx.resource_lease = Some(resources.acquire(name, ctx.worktree.as_deref()).await?);
+            }
+        }
+        if let (Some(policy), Some(ticket)) = (&self.policy, ticket) {
+            policy.validate(&ctx.session_id, ticket.revision)?;
+        }
+        Ok(())
+    }
+
     /// Run one call. **Never returns Err** — errors become text the model can read.
     /// Unknown tools too; the model can correct itself.
-    pub async fn execute(&self, mut ctx: ToolCtx, name: &str, args: Value) -> String {
+    pub async fn execute(&self, ctx: ToolCtx, name: &str, args: Value) -> String {
+        self.execute_result(ctx, name, args).await.text
+    }
+
+    pub async fn execute_result(&self, mut ctx: ToolCtx, name: &str, args: Value) -> ToolOutput {
         let Some(tool) = self.tools.get(name) else {
-            return format!(
+            return ToolOutput::failure(format!(
                 "Error: no tool named '{name}'. Available: {}",
                 self.names().join(", ")
-            );
+            ));
         };
 
         if let Some(Some(validator)) = self.validators.get(name) {
             if let Err(why) = describe_violations(validator, &args) {
-                return format!(
+                return ToolOutput::failure(format!(
                     "Error: the arguments do not match the {name} schema — {why}. Rewrite the input to satisfy the schema."
-                );
+                ));
             }
         }
 
-        let authorization = if let Some(policy) = &self.policy {
-            match policy
-                .authorize(
-                    ctx.clone(),
-                    name.to_string(),
-                    self.effect(name),
-                    args.clone(),
-                )
-                .await
-            {
-                Ok(ticket) => Some(ticket),
-                Err(error) => return format!("Error: {error}"),
-            }
-        } else {
-            None
-        };
-        if authorization.as_ref().is_some_and(|ticket| ticket.approved) {
-            ctx.approval = Some(Arc::new(permissions::ApprovedInvocation));
+        if let Err(reason) = self.admit_call(&mut ctx, name, &args).await {
+            return ToolOutput::failure(format!("Error: {reason}"));
         }
-
-        let steering = name == "task" && args["action"] == "continue";
-        if self.is_exclusive(name) && name != "delegate_task" && !steering {
-            if let Some(resources) = &self.resources {
-                match resources.acquire(name, ctx.worktree.as_deref()).await {
-                    Ok(lease) => ctx.resource_lease = Some(lease),
-                    Err(error) => return format!("Error: {error}"),
-                }
-            }
+        match (tool.handler)(ctx, args).await {
+            Ok(text) => ToolOutput::success(text),
+            Err(e) => ToolOutput::failure(format!("Error: {name} failed: {e}")),
         }
-
-        if let (Some(policy), Some(ticket)) = (&self.policy, &authorization) {
-            if let Err(error) = policy.validate(&ctx.session_id, ticket.revision) {
-                return format!("Error: {error}");
-            }
-        }
-
-        if let (Some(policy), Some(ticket)) = (&self.policy, &authorization) {
-            if let Err(error) = policy.validate(&ctx.session_id, ticket.revision) {
-                return format!("Error: {error}");
-            }
-        }
-        let output = match (tool.handler)(ctx.clone(), args).await {
-            Ok(output) => output,
-            Err(e) => format!("Error: {name} failed: {e}"),
-        };
-
-        output
     }
 }
 

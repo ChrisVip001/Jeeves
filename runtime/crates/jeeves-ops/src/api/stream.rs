@@ -150,62 +150,9 @@ pub async fn events(Extension(app): Extension<Arc<AppServer>>) -> Response {
         .into_response()
 }
 
-/// `POST /api/turn` — say a sentence, watch what comes back.
-///
-/// The payload is the protocol's `TurnStartParams` (**no second shape**); the
-/// response is an SSE stream: `data:` followed by the JSON of a
-/// `ServerNotification`, the same thing received over stdio.
-///
-/// Why SSE and not WebSocket: this path has one direction only, "server → browser", and
-/// sending a message is already an ordinary POST. Duplex would drag in useless state
-/// management, and the browser-native EventSource only does GET — it cannot send this POST.
-pub async fn turn(
-    Extension(app): Extension<Arc<AppServer>>,
-    Json(mut params): Json<TurnStartParams>,
-) -> Response {
-    if params.message.trim().is_empty() {
-        return failed(
-            StatusCode::BAD_REQUEST,
-            ErrorObject {
-                code: codes::INVALID_PARAMS,
-                message: "the message is empty".to_string(),
-                data: None,
-            },
-        );
-    }
-
-    let session_id = params
-        .session_id
-        .clone()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "jeeves-main".to_string());
-
-    let key = prepare_public_turn(&mut params);
-    let events = app.subscribe();
-    let stopping = app.stopping();
-    let (tx, rx) = mpsc::channel::<ServerNotification>(TURN_BUFFER);
-
-    let payload = serde_json::to_value(&params).expect("TurnStartParams always serialises");
-    tokio::spawn(async move {
-        forward_method(
-            &app,
-            payload,
-            (session_id, key),
-            tx,
-            events,
-            methods::TURN_START,
-        )
-        .await;
-    });
-
-    Sse::new(bytes_stream(rx).take_until(stopping))
-        .keep_alive(KeepAlive::default())
-        .into_response()
-}
-
 /// `POST /api/run` — **the task API**: one turn in, one answer out, plain JSON.
 ///
-/// Same body as `/api/turn` (`TurnStartParams`, no second shape), but no SSE: a program (CI,
+/// Accepts `TurnStartParams`, but no SSE: a program (CI,
 /// cron, another agent) wants the reply, not a typewriter. The dashboard keeps SSE because a
 /// person wants to watch the words arrive; this endpoint exists for callers that don't.
 pub async fn run(

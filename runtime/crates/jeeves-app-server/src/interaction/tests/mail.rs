@@ -20,34 +20,8 @@ fn configure_mail(home: &Path) {
     .unwrap();
 }
 
-fn assert_main_tools(request: &CreateRequest) {
-    let names: Vec<_> = request.tools.iter().map(|t| t.name.as_str()).collect();
-    assert!(names.contains(&"task"), "{names:?}");
-    assert!(names.contains(&"read_file"), "{names:?}");
-    assert!(!names.contains(&"email_send"), "{names:?}");
-    assert!(!names.contains(&"write_file"), "{names:?}");
-    assert_read_actions(request, "memory", &["search", "list"]);
-    let prompt = request.system_text().unwrap();
-    assert!(
-        prompt.contains("Human session policy: standard"),
-        "{prompt}"
-    );
-    assert!(prompt.contains("use task"), "{prompt}");
-}
-
-fn assert_read_actions(request: &CreateRequest, name: &str, expected: &[&str]) {
-    let tool = request.tools.iter().find(|tool| tool.name == name).unwrap();
-    let actions = tool.input_schema["properties"]["action"]["enum"]
-        .as_array()
-        .unwrap();
-    assert_eq!(actions.len(), expected.len(), "{actions:?}");
-    for action in expected {
-        assert!(actions.contains(&json!(action)), "{actions:?}");
-    }
-}
-
 #[tokio::test]
-async fn main_mail_request_reaches_one_task_and_writes_one_local_draft() {
+async fn main_mail_request_writes_one_local_draft_without_creating_a_task() {
     let (home, server, model) = setup_with_settings(jeeves_config::Settings {
         exec_enabled: true,
         ..Default::default()
@@ -57,14 +31,16 @@ async fn main_mail_request_reaches_one_task_and_writes_one_local_draft() {
     send(&server, INSTRUCTION, "draft", None).await.unwrap();
     {
         let received = model.calls.lock().unwrap();
-        assert_main_tools(&received[0]);
-        assert_read_actions(&received[0], "job", &["list", "output"]);
+        for tool in ["task", "email_send", "write_file"] {
+            assert!(received[0].tools.iter().any(|t| t.name == tool));
+        }
+        assert!(received[0]
+            .system_text()
+            .unwrap()
+            .contains("Deliver the requested result here"));
     }
     send(&server, INSTRUCTION, "draft", None).await.unwrap();
-    let rows = server.tasks.list(10).await.unwrap();
-    assert_eq!(rows.len(), 1);
-    wait(&server, &rows[0].id).await;
-    assert_eq!(server.runs.count_by_task(&rows[0].id).await.unwrap(), 1);
+    assert!(server.tasks.list(10).await.unwrap().is_empty());
     let drafts: Vec<_> = fs::read_dir(home.path().join("outbox"))
         .unwrap()
         .map(|entry| entry.unwrap().path())
@@ -83,7 +59,7 @@ async fn main_mail_request_reaches_one_task_and_writes_one_local_draft() {
 }
 
 #[tokio::test]
-async fn deferred_main_discovery_keeps_worker_tools_out_of_the_catalogue() {
+async fn deferred_main_discovery_exposes_the_discovered_mail_tool() {
     let (home, server, _) = setup_with_settings(jeeves_config::Settings {
         tool_policy: "deferred".into(),
         ..Default::default()
@@ -108,7 +84,9 @@ async fn deferred_main_discovery_keeps_worker_tools_out_of_the_catalogue() {
         .unwrap();
     let received = model.received.lock().unwrap();
     assert_eq!(received.len(), 3);
-    for request in received.iter() {
-        assert_main_tools(request);
-    }
+    assert!(received
+        .iter()
+        .all(|r| r.tools.iter().any(|t| t.name == "task")));
+    assert!(!received[0].tools.iter().any(|t| t.name == "email_send"));
+    assert!(received[2].tools.iter().any(|t| t.name == "email_send"));
 }

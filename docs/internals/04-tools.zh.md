@@ -47,9 +47,9 @@
 | 未知名称 | `Error: no tool named '{name}'. Available: …` |
 | 参数不符合 schema | `Error: the arguments do not match the {name} schema — …`（最多三条违规，各带字段路径） |
 | handler 返回 `Err` | `Error: {name} failed: {e}` |
-| 拒绝或业务失败 | handler 自己返回 `Error: …` 文本 |
+| 拒绝或业务失败 | handler 返回失败原因，由注册表生成可读文本 |
 
-成败靠 `Error:` 前缀判断。可预见的失败（id 不存在、技能重名）由 handler 以文本返回；`Err` 只留给真正的意外（IO、数据库）。
+执行循环使用 `execute_result`，把授权、参数校验和处理函数给出的状态与正文一起读取。成功正文可以以 `Error:` 开头。
 
 `register` 用 `jsonschema` 预编译 `input_schema`；`execute` 先校验，校验失败绝不进入 handler。
 无法编译的 schema 跳过校验，并在 stderr 打一行日志。`require_str` 会去空白，并拒绝缺失、非字符串和空值；`opt_u32` 拒绝负数。
@@ -92,7 +92,7 @@
 `ExecutionPolicy` 由 `jeeves-app-server/src/permissions.rs` 实现；每个会话有一个 `PermissionMode`
 （`readOnly` / `standard` / `fullAccess`），按会话连同版本号存储。
 
-- **主对话**：拒绝一切不是已证明只读的调用，`task` 交接除外。
+- 私人主对话按当前会话策略调用已启用的工具。飞书交互仍使用来源限定的工具表。
 - **`readOnly`**：拒绝所有不是已证明只读的调用。
 - **`standard`**：每个非只读调用经审批代理询问一次（120 秒；预览会对 `token`、`password`、`authorization` 等键脱敏，并限制在 8192 字节内）。
   批准后，该次调用中 handler 自己发起的审批请求都按“是”回答（`ApprovedInvocation`）；硬门仍然生效。
@@ -166,7 +166,7 @@ MCP 工具和未知工具永远不算已证明只读。
 根在写入规则前会先规范化。
 
 执行：stdin 为空，stdout 与 stderr 并发读取，受 `JEEVES_EXEC_TIMEOUT`（默认 30 秒，1–3600）约束；有观察者时 stdout 以增量形式推送。
-结果：`exit code N` 后接 stdout；非零退出为 `Error: exit code N`；stderr 非空时追加 `--- stderr ---` 段。
+结果包含退出码与标准输出。非零退出会将调用记为失败。有标准错误输出时，正文在 `--- stderr ---` 下列出。
 超时、管道读不出或没有退出码时返回 `Error: … outcome is unknown. Reconcile any committed effects …` 并通知宿主（`on_uncertain`）。
 超过 8000 字符的输出被替换为由完整首尾行组成的摘要；完整文本先写入
 `<home>/spill/<日期>/command-<时间>-<pid>.txt`，摘要中指明路径。落盘失败时摘要不带路径。
