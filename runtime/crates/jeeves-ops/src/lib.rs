@@ -378,6 +378,10 @@ pub fn router(gate: Gate) -> Router {
             get(api::responsibilities::list).post(api::responsibilities::register),
         )
         .route(
+            "/api/responsibilities/amend",
+            post(api::responsibilities::amend),
+        )
+        .route(
             "/api/responsibilities/prepare",
             post(api::responsibilities::prepare),
         )

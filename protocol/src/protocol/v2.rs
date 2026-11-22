@@ -158,6 +158,7 @@ pub mod methods {
     /// Delete one stored job (a skill-owned job is refused with the way out).
     pub const SCHEDULE_REMOVE: &str = "schedule/remove";
     pub const RESPONSIBILITY_PREPARE: &str = "responsibility/prepare";
+    pub const RESPONSIBILITY_AMEND: &str = "responsibility/amend";
     pub const RESPONSIBILITY_REGISTER: &str = "responsibility/register";
     pub const RESPONSIBILITY_REPORTS: &str = "responsibility/reports";
     pub const RESPONSIBILITY_LIST: &str = "responsibility/list";
@@ -466,6 +467,14 @@ pub struct ResponsibilityContract {
     pub weekly_report: Option<FeishuWeeklyReport>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct ResponsibilityAmendParams {
+    pub expected_revision: i32,
+    pub contract: ResponsibilityContract,
+}
+
 /// Deliver a verified research digest to this allowlisted Feishu recipient.
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -535,6 +544,7 @@ pub enum ResponsibilityStatus {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct ResponsibilityView {
+    pub revision: i32,
     pub contract: ResponsibilityContract,
     pub status: ResponsibilityStatus,
     pub last_due_at: Option<String>,

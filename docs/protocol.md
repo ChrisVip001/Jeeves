@@ -80,6 +80,7 @@ before the response). Every type is defined in
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | the usage ledger: per-model aggregates + totals. **Accounting only, no enforcement** |
 | `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | last 50 reports, delivery states and live approval cards |
 | `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | validate and normalize the proposed definition for review |
+| `responsibility/amend` | `ResponsibilityAmendParams` → `ResponsibilityView` | replace a duty at its expected revision and hold outstanding wakes for review |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | human registration of a recurring duty |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | list contracts, stop state and last due minute |
 | `responsibility/setPaused` | `ResponsibilitySetPausedParams` → `ResponsibilityView` | pause or resume an unexpired duty |

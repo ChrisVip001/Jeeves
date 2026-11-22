@@ -3,6 +3,7 @@ import type { ResponsibilityContract } from "./ResponsibilityContract";
 import type { ResponsibilityStatus } from "./ResponsibilityStatus";
 
 export type ResponsibilityView = {
+  revision: number;
   contract: ResponsibilityContract;
   status: ResponsibilityStatus;
   lastDueAt: string | null;

@@ -4471,6 +4471,24 @@
       "description": "Request id: JSON-RPC allows a number or a string.\n\nThe number arm is `i32`, not `u64`: ts-rs maps `u64` to TypeScript `bigint`, while `JSON.parse` yields `number` — the client receives `1` typed as `bigint`: the kind of bug that never errors but only fails at runtime. Only `i32` crosses language boundaries — the same rule as v2.rs.",
       "title": "RequestId"
     },
+    "ResponsibilityAmendParams": {
+      "additionalProperties": false,
+      "properties": {
+        "contract": {
+          "$ref": "#/definitions/ResponsibilityContract"
+        },
+        "expectedRevision": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "contract",
+        "expectedRevision"
+      ],
+      "title": "ResponsibilityAmendParams",
+      "type": "object"
+    },
     "ResponsibilityContract": {
       "additionalProperties": false,
       "description": "A recurring duty registered by a human. Sources identify evidence, never tool grants.",
@@ -4623,12 +4641,17 @@
             "null"
           ]
         },
+        "revision": {
+          "format": "int32",
+          "type": "integer"
+        },
         "status": {
           "$ref": "#/definitions/ResponsibilityStatus"
         }
       },
       "required": [
         "contract",
+        "revision",
         "status"
       ],
       "title": "ResponsibilityView",

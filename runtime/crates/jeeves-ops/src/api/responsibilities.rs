@@ -18,6 +18,10 @@ pub async fn prepare(
         .await
 }
 
+pub async fn amend(Extension(app): Extension<Arc<AppServer>>, Json(body): Json<Value>) -> Response {
+    relay::<ResponsibilityView>(&app, methods::RESPONSIBILITY_AMEND, body).await
+}
+
 pub async fn register(
     Extension(app): Extension<Arc<AppServer>>,
     Json(body): Json<Value>,

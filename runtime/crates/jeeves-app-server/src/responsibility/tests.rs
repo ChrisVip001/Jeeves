@@ -234,3 +234,35 @@ async fn failed_wake_insert_rolls_back_the_claim_for_retry() {
         1
     );
 }
+
+#[tokio::test]
+async fn editing_fences_the_old_clock_and_preserves_each_claimed_revision() {
+    let home = tempfile::tempdir().unwrap();
+    let server = boot(&home, Default::default()).await;
+    let now = start();
+    let first = register(&server, contract(), now).await.unwrap();
+    tick(&server, now).await.unwrap();
+    let mut changed = first.contract;
+    changed.purpose = "New purpose".into();
+    let edit = jeeves_protocol::ResponsibilityAmendParams {
+        expected_revision: first.revision,
+        contract: changed,
+    };
+    let (a, b) = tokio::join!(amend(&server, edit.clone(), now), amend(&server, edit, now));
+    assert_ne!(a.is_ok(), b.is_ok());
+    let later = now + Duration::minutes(1);
+    assert!(!Responsibilities(&server.pool)
+        .claim("weekly", 1, later.timestamp_millis())
+        .await
+        .unwrap());
+    tick(&server, later).await.unwrap();
+    let rows:Vec<(String,i32,String)>=sqlx::query_as("SELECT w.state,h.revision,json_extract(h.definition,'$.purpose') FROM wake_inbox w JOIN responsibility_revisions h ON w.target_task='responsibility:' || h.responsibility_id AND w.responsibility_revision=h.revision ORDER BY w.rowid")
+        .fetch_all(&server.pool).await.unwrap();
+    assert_eq!(
+        rows,
+        vec![
+            ("reconcile".into(), 1, contract().purpose),
+            ("pending".into(), 2, "New purpose".into())
+        ]
+    );
+}

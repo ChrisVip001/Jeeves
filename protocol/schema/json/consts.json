@@ -64,6 +64,7 @@
     "MODEL_ROUTES": "model/routes",
     "MODEL_ROUTES_SAVE": "model/routes/save",
     "MODEL_SAVE": "model/save",
+    "RESPONSIBILITY_AMEND": "responsibility/amend",
     "RESPONSIBILITY_LIST": "responsibility/list",
     "RESPONSIBILITY_PREPARE": "responsibility/prepare",
     "RESPONSIBILITY_REGISTER": "responsibility/register",

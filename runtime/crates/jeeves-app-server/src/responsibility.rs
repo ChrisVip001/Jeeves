@@ -32,6 +32,7 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
         _ => return Err(internal("invalid stored responsibility status")),
     };
     Ok(ResponsibilityView {
+        revision: row.revision,
         status,
         last_due_at: row
             .last_slot
@@ -117,6 +118,7 @@ fn validated_row(
         }
     }
     Ok(ResponsibilityRow {
+        revision: 1,
         id: id.into(),
         purpose: purpose.into(),
         sources_json: serde_json::to_string(&sources).map_err(internal)?,
@@ -155,6 +157,20 @@ pub(crate) async fn register(
         return Err(invalid("responsibility ID already registered"));
     }
     view(row)
+}
+
+pub(crate) async fn amend(
+    server: &Server,
+    p: jeeves_protocol::ResponsibilityAmendParams,
+    now: DateTime<Utc>,
+) -> Result<ResponsibilityView, ErrorObject> {
+    let row = validated_row(p.contract, now)?;
+    let changed = Responsibilities(&server.pool)
+        .amend(&row, p.expected_revision, now.timestamp_millis())
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| invalid("Responsibility changed or expired. Review its latest version."))?;
+    view(changed)
 }
 
 fn stop_notice(server: &Server, id: &str, status: &str) {
@@ -218,9 +234,9 @@ pub(crate) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx
     expire(server, now).await?;
     let rows = Responsibilities(&server.pool);
     let local = now.with_timezone(&Local).naive_local();
-    for (id, cron) in rows.candidates(now.timestamp_millis()).await? {
+    for (id, cron, revision) in rows.candidates(now.timestamp_millis()).await? {
         if jeeves_agent::cron::matches(&cron, local)
-            && rows.claim(&id, now.timestamp_millis()).await?
+            && rows.claim(&id, revision, now.timestamp_millis()).await?
         {
             eprintln!("(jeeves) responsibility {id} due at {now}; wake recorded");
         }

@@ -3,6 +3,7 @@ use sqlx::{FromRow, SqlitePool};
 
 #[derive(Debug, FromRow)]
 pub struct ResponsibilityRow {
+    pub revision: i32,
     pub id: String,
     pub purpose: String,
     pub sources_json: String,
@@ -37,15 +38,35 @@ impl Responsibilities<'_> {
         Ok(result.rows_affected() == 1)
     }
 
+    pub async fn amend(
+        &self,
+        row: &ResponsibilityRow,
+        expected: i32,
+        now: i64,
+    ) -> sqlx::Result<Option<ResponsibilityRow>> {
+        let mut tx = self.0.begin().await?;
+        let updated = sqlx::query_as(
+            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,weekly_report_json=?,
+             revision=revision+1,enabled_ms=? WHERE id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
+        ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
+         .bind(&row.budget_json).bind(&row.weekly_report_json).bind(now).bind(&row.id)
+         .bind(expected).bind(now).fetch_optional(&mut *tx).await?;
+        if updated.is_some() {
+            Self::stop_wakes(&mut tx, &row.id).await?;
+        }
+        tx.commit().await?;
+        Ok(updated)
+    }
+
     pub async fn list(&self) -> sqlx::Result<Vec<ResponsibilityRow>> {
         sqlx::query_as("SELECT * FROM responsibilities ORDER BY id")
             .fetch_all(self.0)
             .await
     }
 
-    pub async fn candidates(&self, now: i64) -> sqlx::Result<Vec<(String, String)>> {
+    pub async fn candidates(&self, now: i64) -> sqlx::Result<Vec<(String, String, i32)>> {
         sqlx::query_as(
-            "SELECT id, cron FROM responsibilities
+            "SELECT id, cron, revision FROM responsibilities
              WHERE status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
              ORDER BY id",
         )
@@ -79,7 +100,7 @@ impl Responsibilities<'_> {
         }
         let mut tx = self.0.begin().await?;
         let ids: Vec<String> = sqlx::query_scalar(
-            "UPDATE responsibilities SET status='expired'
+            "UPDATE responsibilities SET status='expired',revision=revision+1
              WHERE status!='expired' AND expires_ms<=? RETURNING id",
         )
         .bind(now)
@@ -101,7 +122,7 @@ impl Responsibilities<'_> {
         let mut tx = self.0.begin().await?;
         let state = if paused { "paused" } else { "active" };
         let result = sqlx::query(
-            "UPDATE responsibilities SET status=?, enabled_ms=?
+            "UPDATE responsibilities SET status=?, revision=revision+1, enabled_ms=?
              WHERE id=? AND expires_ms>? AND status!=? AND status!='expired'",
         )
         .bind(state)
@@ -123,16 +144,17 @@ impl Responsibilities<'_> {
         Ok(row.map(|row| (row, changed)))
     }
 
-    pub async fn claim(&self, id: &str, now: i64) -> sqlx::Result<bool> {
+    pub async fn claim(&self, id: &str, revision: i32, now: i64) -> sqlx::Result<bool> {
         let slot = now.div_euclid(60_000);
         let mut tx = self.0.begin().await?;
         let purpose: Option<String> = sqlx::query_scalar(
             "UPDATE responsibilities SET last_slot=?
-             WHERE id=? AND status='active' AND enabled_ms<=? AND expires_ms>?
+             WHERE id=? AND revision=? AND status='active' AND enabled_ms<=? AND expires_ms>?
              AND (last_slot IS NULL OR last_slot<?) RETURNING purpose",
         )
         .bind(slot)
         .bind(id)
+        .bind(revision)
         .bind(now)
         .bind(now)
         .bind(slot)
@@ -140,10 +162,11 @@ impl Responsibilities<'_> {
         .await?;
         if let Some(purpose) = &purpose {
             let target = format!("responsibility:{id}");
-            sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload) VALUES(?,?,?)")
+            sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload,responsibility_revision) VALUES(?,?,?,?)")
                 .bind(format!("{target}:{slot}"))
                 .bind(target)
                 .bind(purpose)
+                .bind(revision)
                 .execute(&mut *tx)
                 .await?;
         }

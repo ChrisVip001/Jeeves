@@ -78,6 +78,7 @@
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | 用量台账：per-model 聚合 + 总数。**只记账不强制** —— 没有配额、没有限速 |
 | `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | 最近 50 次周报、投递状态和待答审批 |
 | `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | 校验并规范化待核对的委托定义 |
+| `responsibility/amend` | `ResponsibilityAmendParams` → `ResponsibilityView` | 按期望版本修改委托，未结唤醒转入核对 |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | 由人登记周期性责任 |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | 列出契约、状态与上次认领的分钟 |
 | `responsibility/setPaused` | `ResponsibilitySetPausedParams` → `ResponsibilityView` | 暂停或恢复尚未到期的责任 |

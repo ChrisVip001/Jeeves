@@ -94,6 +94,7 @@ export const METHODS = {
   APPROVAL_LOG: "approval/log",
   SCHEDULE_LIST: "schedule/list",
   RESPONSIBILITY_PREPARE: "responsibility/prepare",
+  RESPONSIBILITY_AMEND: "responsibility/amend",
   RESPONSIBILITY_REGISTER: "responsibility/register",
   RESPONSIBILITY_REPORTS: "responsibility/reports",
   RESPONSIBILITY_LIST: "responsibility/list",
