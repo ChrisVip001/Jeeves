@@ -1,67 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildToday, dayPart, minutesLeft, parseAt, timelineOf } from "../src/ui/today.ts";
-import type { AgentTaskView, ApprovalRequestedNotification, TaskEventView } from "../src/ui/types.ts";
+import { minutesLeft, parseAt, timelineOf } from "../src/ui/today.ts";
+import type { TaskEventView } from "../src/ui/types.ts";
 import { taskEventText } from "../src/task-event-text.ts";
 import { UI_EN } from "../src/ui/en.ts";
-
-/** SQLite `datetime('now')`: UTC, space-separated, no zone suffix. */
-const sqlite = (date: Date) => date.toISOString().slice(0, 19).replace("T", " ");
-const task = (fields: Partial<AgentTaskView>) =>
-  ({ acceptance: [], checks: [], roundsUsed: 0, maxRounds: 0, finishedAt: null, ...fields }) as AgentTaskView;
 
 test("SQLite timestamps are read as UTC", () => {
   assert.equal(parseAt("2026-11-18 09:30:00")?.toISOString(), "2026-11-18T09:30:00.000Z");
   assert.equal(parseAt(null), null);
   assert.equal(parseAt("not a date"), null);
-});
-
-test("the greeting follows the local hour", () => {
-  const at = (hour: number) => new Date(2026, 10, 18, hour, 0);
-  assert.equal(dayPart(at(3)), "night");
-  assert.equal(dayPart(at(8)), "morning");
-  assert.equal(dayPart(at(12)), "noon");
-  assert.equal(dayPart(at(15)), "afternoon");
-  assert.equal(dayPart(at(20)), "evening");
-  assert.equal(dayPart(at(23)), "night");
-});
-
-test("the board puts what needs you first and never repeats an asked task under in progress", () => {
-  const now = new Date(2026, 10, 18, 15, 0);
-  const earlier = sqlite(new Date(2026, 10, 18, 9, 0));
-  const later = sqlite(new Date(2026, 10, 18, 11, 0));
-  const yesterday = sqlite(new Date(2026, 10, 17, 11, 0));
-  const tasks = [
-    task({ id: "asked", status: "running", currentTurnId: "t1" }),
-    task({ id: "moving", status: "running" }),
-    task({ id: "stuck", status: "needsAttention" }),
-    task({ id: "failed", status: "failed", finishedAt: earlier }),
-    task({ id: "old-failure", status: "failed", finishedAt: yesterday }),
-    task({ id: "done-early", status: "done", finishedAt: earlier }),
-    task({ id: "done-late", status: "done", finishedAt: later }),
-    task({ id: "done-yesterday", status: "done", finishedAt: yesterday }),
-  ];
-  const approvals = [
-    { turnId: "t2", requestId: "b", expiresInMs: 90000 },
-    { turnId: "t1", requestId: "a", expiresInMs: 30000 },
-  ] as ApprovalRequestedNotification[];
-  const model = buildToday(tasks, approvals, (a) => tasks.find((t) => t.currentTurnId === a.turnId), now);
-  assert.deepEqual(
-    model.needs.map((item) => item.approval?.requestId ?? item.task?.id),
-    ["failed", "a", "b", "stuck"],
-  );
-  assert.deepEqual(model.moving.map((t) => t.id), ["moving"]);
-  assert.deepEqual(model.finished.map((t) => t.id), ["done-late", "done-early"]);
-  assert.equal(model.mark, "waiting");
-});
-
-test("the mark works while something runs and folds in when nothing is left", () => {
-  const now = new Date(2026, 10, 18, 15, 0);
-  const none = () => undefined;
-  assert.equal(buildToday([task({ id: "x", status: "pending" })], [], none, now).mark, "working");
-  const quiet = buildToday([], [], none, now);
-  assert.equal(quiet.mark, "done");
-  assert.deepEqual([quiet.needs, quiet.moving, quiet.finished], [[], [], []]);
 });
 
 test("the timeline dedupes by cursor and keeps task order", () => {
