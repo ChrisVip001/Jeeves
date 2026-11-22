@@ -27,9 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.100
+      - uses: dtolnay/rust-toolchain@1.100.0
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace
+      - run: rustc +1.100.0 -V
+      - run: cargo +1.100.0 check --workspace --locked
 
   rust-coverage:
     # A trend gate, not a target. The threshold follows the **measured baseline**: one local
