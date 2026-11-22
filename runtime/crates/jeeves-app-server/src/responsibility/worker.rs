@@ -1,21 +1,14 @@
 //! Consume scheduled research wakes without granting a model access to a connector.
-use super::action;
+use super::{action, feishu};
 use crate::{narrow, EventSink, Server};
 use anyhow::{ensure, Context, Result};
 use chrono::{DateTime, Utc};
-use jeeves_connector::{
-    config,
-    feishu::{self, Delivery, TokenCache},
-};
 use jeeves_protocol::{
     BudgetView, ResponsibilityDelivery, ResponsibilityPlan, ResponsibilityReportsResponse,
     WeeklyReportView,
 };
 use jeeves_state::responsibility_runs::{self as store, Work};
-use std::{
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 pub(crate) async fn reports(server: &Server, id: &str) -> Result<ResponsibilityReportsResponse> {
     let rows = store::list(&server.pool, id).await?;
@@ -145,7 +138,7 @@ async fn execute(
 ) -> Result<(&'static str, String)> {
     if let Some(json) = &work.plan_json {
         let plan = serde_json::from_str(json)?;
-        return execute_plan(server, work, &plan, budget, deadline).await;
+        return execute_plan(server, sink, work, &plan, budget, deadline).await;
     }
     if let Some(options) = &work.digest_json {
         let instant = DateTime::from_timestamp(
@@ -177,97 +170,12 @@ async fn execute(
         );
         return Ok(("confirmed", "Delivered in main chat".into()));
     }
-    let task_id = work
-        .research_task_id
-        .as_ref()
-        .context("Missing research workspace")?;
-    let recipient = work
-        .feishu_recipient
-        .as_ref()
-        .context("Missing delivery recipient")?;
-    let sources: Vec<String> = serde_json::from_str(&work.sources_json)?;
-    let root = server
-        .tasks
-        .get(task_id)
-        .await?
-        .and_then(|task| task.cwd)
-        .context("Research task or its workspace is unavailable")?;
-    let at: DateTime<Utc> = work.created_at.parse()?;
-    let body = tokio::task::spawn_blocking(move || {
-        jeeves_agent::verify_sources::weekly_report(&PathBuf::from(root), &sources, at)
-    })
-    .await?
-    .map_err(anyhow::Error::msg)?;
-    store::proposal(&server.pool, &work.wake_key, &body).await?;
-    let home = server.settings().home;
-    let Some(conf) = config::load(&home)?.feishu else {
-        return Ok((
-            "draft",
-            "Verified proposal saved; Feishu is not configured".into(),
-        ));
-    };
-    ensure!(
-        conf.permits(recipient),
-        "The weekly recipient is outside the Feishu allowlist"
-    );
-    if !conf.live {
-        return Ok((
-            "draft",
-            "Verified proposal saved; Feishu is in draft mode".into(),
-        ));
-    }
-    ensure!(
-        budget.tools.is_none_or(|limit| limit >= 2),
-        "Tool budget covers research but not a Feishu send"
-    );
-    let approval = server.approval_bridge(&work.wake_key, sink);
-    let ctx = server.tool_ctx(&work.wake_key, None, approval);
-    let outcome = feishu::send_with_receipt(
-        &ctx,
-        &conf,
-        &TokenCache::default(),
-        recipient,
-        &body,
-        Some(&work.wake_key),
-        || async {
-            let latest = config::load(&home)?
-                .feishu
-                .context("Feishu was disconnected")?;
-            ensure!(
-                latest.live
-                    && latest.permits(recipient)
-                    && latest.app_id == conf.app_id
-                    && latest.base_url == conf.base_url
-                    && latest.identity() == conf.identity()
-                    && latest.receive_id_type == conf.receive_id_type,
-                "Feishu scope changed after proposal"
-            );
-            ensure!(
-                Instant::now() < deadline,
-                "Weekly report wall budget exhausted"
-            );
-            ensure!(
-                store::admit_send(&server.pool, &work.wake_key, Utc::now().timestamp_millis())
-                    .await?,
-                "This responsibility or wake is no longer active"
-            );
-            Ok(())
-        },
-    )
-    .await?;
-    Ok(match outcome {
-        Delivery::Denied => ("denied", "No send approval was granted".into()),
-        Delivery::Sent {
-            confirmed: true,
-            receipt,
-            ..
-        } => ("confirmed", receipt),
-        Delivery::Sent { receipt, .. } => ("review", receipt),
-    })
+    anyhow::bail!("Responsibility has no executable action")
 }
 
 async fn execute_plan(
     server: &Server,
+    sink: &EventSink,
     work: &Work,
     plan: &ResponsibilityPlan,
     budget: &BudgetView,
@@ -292,10 +200,12 @@ async fn execute_plan(
             return Ok(("blocked", error.to_string()));
         }
     };
-    let at = work
-        .due_ms
-        .and_then(DateTime::from_timestamp_millis)
-        .context("Occurrence has no timestamp")?;
+    let at = match work.due_ms {
+        Some(due) => {
+            DateTime::from_timestamp_millis(due).context("Invalid occurrence timestamp")?
+        }
+        None => work.created_at.parse()?,
+    };
     let result = (adapter.run)(
         action::Input {
             server,
@@ -308,6 +218,20 @@ async fn execute_plan(
     )
     .await?;
     ensure!(Instant::now() < deadline, "Responsibility deadline reached");
+    if let (Some(body), ResponsibilityDelivery::Feishu { recipient }) =
+        (&result.body, &plan.delivery)
+    {
+        return feishu::deliver(
+            server,
+            sink,
+            &work.wake_key,
+            recipient,
+            body,
+            budget,
+            deadline,
+        )
+        .await;
+    }
     if let Some(body) = result
         .body
         .as_deref()

@@ -10,9 +10,11 @@ use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 pub(crate) mod action;
 pub(crate) mod digest;
 pub(crate) mod events;
+mod feishu;
 #[cfg(test)]
 mod plans_tests;
 pub(crate) mod price;
+mod research;
 pub(crate) mod reviews;
 #[cfg(test)]
 mod tests;
@@ -59,7 +61,11 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
                     .and_then(timestamp)
             })
             .transpose()?,
-        presentation: plan(&row)?.as_ref().map(action::presentation),
+        presentation: if row.research_task_id.is_some() {
+            None
+        } else {
+            plan(&row)?.as_ref().map(action::presentation)
+        },
         contract: contract(row)?,
     })
 }
@@ -76,7 +82,11 @@ fn plan(
 
 fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObject> {
     Ok(ResponsibilityContract {
-        plan: plan(&row)?,
+        plan: if row.research_task_id.is_some() {
+            None
+        } else {
+            plan(&row)?
+        },
         id: row.id,
         purpose: row.purpose,
         digest: row
@@ -159,20 +169,9 @@ fn validated_row(
                 "weeklyReport needs a research taskId and a Feishu recipient",
             ));
         }
-        if sources.len() > 20
-            || sources.iter().any(|source| {
-                source.len() > 2048
-                    || reqwest::Url::parse(source).map_or(true, |url| {
-                        !matches!(url.scheme(), "http" | "https")
-                            || url.host_str().is_none()
-                            || !url.username().is_empty()
-                            || url.password().is_some()
-                    })
-            })
-        {
-            return Err(invalid("weekly report sources must be at most 20 HTTP(S) evidence URLs without credentials"));
-        }
+        validate_research_sources(sources.iter().copied()).map_err(invalid)?;
     }
+
     if let Some(plan) = &p.plan {
         if p.digest.is_some() || p.weekly_report.is_some() {
             return Err(invalid("Use either a plan or the legacy definition"));
@@ -209,6 +208,25 @@ fn validated_row(
     })
 }
 
+fn validate_research_sources<'a>(sources: impl Iterator<Item = &'a str>) -> anyhow::Result<()> {
+    let sources: Vec<_> = sources.collect();
+    anyhow::ensure!(
+        !sources.is_empty()
+            && sources.len() <= 20
+            && sources.iter().all(|source| {
+                source.len() <= 2048
+                    && reqwest::Url::parse(source).is_ok_and(|url| {
+                        matches!(url.scheme(), "http" | "https")
+                            && url.host_str().is_some()
+                            && url.username().is_empty()
+                            && url.password().is_none()
+                    })
+            }),
+        "Select up to 20 HTTP(S) evidence URLs without credentials"
+    );
+    Ok(())
+}
+
 fn activate(
     mut contract: ResponsibilityContract,
     now: DateTime<Utc>,
@@ -219,6 +237,12 @@ fn activate(
     let mut row = validated_row(contract, now)?;
     if let Some(plan) = plan(&row)? {
         row.next_due_ms = trigger::first(&plan.trigger, now).map_err(invalid)?;
+    } else if let (Some(task), Some(recipient)) = (&row.research_task_id, &row.feishu_recipient) {
+        row.plan_json = Some(serde_json::json!({
+            "trigger":{"kind":"cron","expression":row.cron,"timeZone":"UTC"},
+            "action":{"kind":"researchDigest","version":1,"config":{"taskId":task,"sources":serde_json::from_str::<serde_json::Value>(&row.sources_json).map_err(internal)?}},
+            "delivery":{"kind":"feishu","recipient":recipient}
+        }).to_string());
     }
     Ok(row)
 }

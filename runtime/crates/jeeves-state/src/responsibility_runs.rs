@@ -9,8 +9,6 @@ pub struct Work {
     pub due_ms: Option<i64>,
     pub responsibility_id: String,
     pub sources_json: String,
-    pub research_task_id: Option<String>,
-    pub feishu_recipient: Option<String>,
     pub digest_json: Option<String>,
     pub slot: i64,
     pub budget_json: String,
@@ -41,7 +39,7 @@ pub async fn take(pool: &SqlitePool, now_ms: i64) -> sqlx::Result<Option<Work>> 
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let candidate: Option<Work> = sqlx::query_as(
         "SELECT w.source_key AS wake_key, r.id AS responsibility_id, r.sources_json,
-                r.research_task_id,r.feishu_recipient,r.digest_json,
+                r.digest_json,
                 r.plan_json,w.event_json,w.due_ms,
                 CAST(substr(w.source_key,length(w.target_task)+2) AS INTEGER) AS slot,r.budget_json,r.expires_ms,w.created_at
          FROM wake_inbox w JOIN responsibilities r ON w.target_task='responsibility:' || r.id
@@ -59,7 +57,7 @@ pub async fn take(pool: &SqlitePool, now_ms: i64) -> sqlx::Result<Option<Work>> 
             "INSERT INTO responsibility_runs(wake_key,responsibility_id,status,tools_used,lease_until_ms,progress_ms)
              VALUES(?,?,'preparing',?,?,?)",
         ).bind(&work.wake_key).bind(&work.responsibility_id)
-            .bind(i32::from(work.plan_json.is_none())).bind(now_ms + LEASE_MS).bind(now_ms)
+            .bind(i32::from(work.plan_json.is_none() || (work.due_ms.is_none() && work.event_json.is_none()))).bind(now_ms + LEASE_MS).bind(now_ms)
             .execute(&mut *tx).await?;
     }
     tx.commit().await?;

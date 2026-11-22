@@ -96,7 +96,7 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Vec<(String, String, i32, Option<String>)>> {
         sqlx::query_as(
             "SELECT id, cron, revision, json_extract(digest_json,'$.timeZone') FROM responsibilities
-             WHERE clock_owner='cron' AND plan_json IS NULL AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
+             WHERE clock_owner='cron' AND (plan_json IS NULL OR research_task_id IS NOT NULL) AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
              ORDER BY id",
         )
         .bind(now)

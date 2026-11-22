@@ -184,7 +184,7 @@ const MODEL: Adapter = Adapter {
 };
 
 fn adapters() -> &'static [Adapter] {
-    &[REMINDER, DIGEST, MODEL]
+    &[REMINDER, DIGEST, MODEL, super::research::ADAPTER]
 }
 
 pub(super) fn find(action: &ResponsibilityAction) -> Result<&'static Adapter> {
@@ -227,9 +227,16 @@ pub(super) fn validate(plan: &ResponsibilityPlan, budget: &BudgetView) -> Result
         );
     }
     ensure!(
-        !matches!(plan.delivery, ResponsibilityDelivery::Feishu { .. }),
+        !matches!(plan.delivery, ResponsibilityDelivery::Feishu { .. })
+            || adapter.kind == "researchDigest",
         "This action does not support external delivery"
     );
+    if let ResponsibilityDelivery::Feishu { recipient } = &plan.delivery {
+        ensure!(
+            !recipient.trim().is_empty() && recipient.len() <= 256,
+            "Select a valid recipient"
+        );
+    }
     Ok(())
 }
 
