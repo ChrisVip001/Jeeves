@@ -289,7 +289,7 @@ export const UI_EN: Record<string, string> = {
   恢复自动工作区: "Use automatic workspaces",
   执行失败: "Execution failed",
   "把要做的事告诉 Jeeves，任务会出现在这里。":
-    "Tell Jeeves what to do. Tasks will appear here.",
+    "Tell Jeeves what you need. Delivered work will appear here.",
   暂停任务: "Pause task",
   查看结果与文件: "View results and files",
   正在执行: "Running",

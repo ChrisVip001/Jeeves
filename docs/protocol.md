@@ -104,7 +104,7 @@ camelCase; integers are `i32` only (`i64` maps to ts-rs `bigint` while
 
 ### Using the goal loop
 
-A goal is **not an object of its own**: it is a column on the task row (`goalCondition`), which is why there is no `goal/set` / `goal/view` method — a human writes it through
+A goal is a clarified outcome, not necessarily a persisted object. A goal that runs inside the conversation never reaches this protocol. Only a goal that needs a durable task thread is stored as `goalCondition` on the task row, which is why there is no `goal/set` / `goal/view` method — a human writes it through
 `/goal` or `task/create {goalCondition}`, and the loop reads the same row. The only protocol
 surface left is the `GoalRound` notification (one per judgement):
 
