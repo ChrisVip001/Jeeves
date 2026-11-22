@@ -53,7 +53,7 @@ export const UI_EN: Record<string, string> = {
   "执行记录": "Execution details",
   "正在读取任务…": "Loading tasks…",
   "已结束": "Finished",
-  "交办的事会出现在这里。": "Work you hand over will appear here.",
+  "交办的事，结果会出现在这里。": "The results of what you hand over will appear here.",
   "回到对话": "Back to chat",
   "主导航": "Main navigation",
   "待确认（{count}）": "Pending decisions ({count})",
@@ -288,7 +288,7 @@ export const UI_EN: Record<string, string> = {
   "已生成，待验收": "Produced, awaiting acceptance",
   恢复自动工作区: "Use automatic workspaces",
   执行失败: "Execution failed",
-  "把要做的事告诉 Jeeves，任务会出现在这里。":
+  "把要做的事告诉 Jeeves，结果会出现在这里。":
     "Tell Jeeves what you need. Delivered work will appear here.",
   暂停任务: "Pause task",
   查看结果与文件: "View results and files",

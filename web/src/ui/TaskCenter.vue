@@ -67,7 +67,7 @@ function label(status: string, verified: boolean) {
     </p>
     <div class="jeeves-task-list">
       <p v-if="!center.state.tasks.length" class="task-empty">
-        {{ t("把要做的事告诉 Jeeves，任务会出现在这里。") }}
+        {{ t("把要做的事告诉 Jeeves，结果会出现在这里。") }}
       </p>
       <template v-if="readOnly">
         <section v-for="group in groups" :key="group.title" class="phone-task-group">

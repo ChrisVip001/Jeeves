@@ -53,7 +53,7 @@ const sections = computed(() => {
     <p v-if="center.state.error" role="alert">{{ center.state.error }} <button type="button" class="today-btn" @click="center.retry">{{ t("重试") }}</button></p>
     <p v-else-if="!center.state.loadedOwner || center.state.loadedOwner !== center.state.owner" role="status">{{ t("正在读取任务…") }}</p>
     <div v-else-if="!center.state.tasks.length && !chatRequests.length" class="activity-empty">
-      <p>{{ t("交办的事会出现在这里。") }}</p>
+      <p>{{ t("交办的事，结果会出现在这里。") }}</p>
       <button type="button" class="today-btn" @click="$emit('chat')">{{ t("回到对话") }}</button>
     </div>
     <template v-for="section in sections" :key="section.label">
