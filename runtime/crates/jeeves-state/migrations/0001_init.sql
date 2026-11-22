@@ -1,11 +1,10 @@
--- Jeeves state.db schema (squashed baseline).
--- Created by folding the original 0001..0050 incremental migrations into one
--- final-schema snapshot. All statements are idempotent (IF NOT EXISTS).
--- Historical data migrations (dedup/backfill) are intentionally omitted: they
--- only ever applied to pre-existing rows during the original rollout.
+-- Jeeves state.db schema — single baseline.
+-- This is the final schema produced by the former 0001..0025 incremental migrations,
+-- captured from a freshly migrated database. Historical data migrations (dedup/backfill/
+-- column drops) are intentionally absent: they only mattered to databases created before
+-- the squash. See AGENTS.md for the compatibility policy on pre-existing state.db files.
 
--- table: agent_tasks
-CREATE TABLE IF NOT EXISTS agent_tasks (
+CREATE TABLE agent_tasks (
     id               TEXT PRIMARY KEY,
     -- NULL = 这个任务不挂在任何会话上（任务独立存在）。
     session_id       TEXT,
@@ -38,10 +37,8 @@ CREATE TABLE IF NOT EXISTS agent_tasks (
     created_at       TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
     finished_at      TEXT
-, completion_notify_requested INTEGER NOT NULL DEFAULT 0, completion_notify_target TEXT);
-
--- table: approval_log
-CREATE TABLE IF NOT EXISTS approval_log (
+, completion_notify_requested INTEGER NOT NULL DEFAULT 0, completion_notify_target TEXT, parent_task_id TEXT REFERENCES agent_tasks(id), integrated_commit TEXT);
+CREATE TABLE approval_log (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     turn_id      TEXT NOT NULL,
     request_id   TEXT NOT NULL,
@@ -52,8 +49,7 @@ CREATE TABLE IF NOT EXISTS approval_log (
     decided_at   TEXT NOT NULL DEFAULT (datetime('now'))
 , actor TEXT NOT NULL DEFAULT '');
 
--- table: browser_sessions
-CREATE TABLE IF NOT EXISTS browser_sessions (
+CREATE TABLE browser_sessions (
  id TEXT PRIMARY KEY NOT NULL,
  task_id TEXT NOT NULL UNIQUE REFERENCES agent_tasks(id),
  owner_session_id TEXT NOT NULL,
@@ -67,9 +63,7 @@ CREATE TABLE IF NOT EXISTS browser_sessions (
  created_at TEXT NOT NULL DEFAULT (datetime('now')),
  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: chat_log
-CREATE TABLE IF NOT EXISTS chat_log (
+CREATE TABLE chat_log (
     id           INTEGER PRIMARY KEY,
     role         TEXT NOT NULL,        -- 'user' | 'assistant'
     content      TEXT NOT NULL,
@@ -78,45 +72,35 @@ CREATE TABLE IF NOT EXISTS chat_log (
     source       TEXT NOT NULL DEFAULT 'cli',  -- cli / voice / telegram / dashboard
     meta         TEXT,                 -- 一轮的遥测 JSON（gate/graph/iterations/…）
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-, consolidation_tries INTEGER NOT NULL DEFAULT 0, consolidation_next_at TEXT, task_id TEXT, consolidation_batch TEXT, consolidation_claimed_at TEXT);
-
--- table: context_rollups
-CREATE TABLE IF NOT EXISTS context_rollups (
+, consolidation_tries INTEGER NOT NULL DEFAULT 0, consolidation_next_at TEXT, task_id TEXT, consolidation_batch TEXT, consolidation_claimed_at TEXT, notice_key TEXT);
+CREATE TABLE context_rollups (
     session_id    TEXT PRIMARY KEY,
     covered_turns INTEGER NOT NULL,
     summary       TEXT NOT NULL,
     updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: episodes
-CREATE TABLE IF NOT EXISTS episodes (
+CREATE TABLE episodes (
     id          INTEGER PRIMARY KEY,
     happened_at TEXT NOT NULL,         -- ISO 8601 日期
     summary     TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: episodes_fts
-CREATE VIRTUAL TABLE IF NOT EXISTS episodes_fts USING fts5(
+CREATE VIRTUAL TABLE episodes_fts USING fts5(
     summary, content='episodes', content_rowid='id', tokenize='trigram'
-);
-
--- table: facts
-CREATE TABLE IF NOT EXISTS facts (
+)
+/* episodes_fts(summary) */;
+CREATE TABLE facts (
     id         INTEGER PRIMARY KEY,
     subject    TEXT NOT NULL,          -- 这条事实关于谁/什么，如 'alex'
     content    TEXT NOT NULL,          -- 事实本身
     source     TEXT NOT NULL DEFAULT 'user',  -- 'user' 直接告诉它 / 'consolidation' 提炼
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 , embedding TEXT, kind TEXT NOT NULL DEFAULT 'fact', page_path TEXT, digest TEXT, last_confirmed_at TEXT, confirm_count INTEGER NOT NULL DEFAULT 0);
-
--- table: facts_fts
-CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(
+CREATE VIRTUAL TABLE facts_fts USING fts5(
     subject, content, content='facts', content_rowid='id', tokenize='trigram'
-);
-
--- table: interaction_receipts
-CREATE TABLE IF NOT EXISTS interaction_receipts (
+)
+/* facts_fts(subject,content) */;
+CREATE TABLE interaction_receipts (
     session_id TEXT NOT NULL,
     message_id TEXT NOT NULL,
     input_json TEXT NOT NULL,
@@ -127,16 +111,12 @@ CREATE TABLE IF NOT EXISTS interaction_receipts (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY(session_id, message_id)
 );
-
--- table: job_completions
-CREATE TABLE IF NOT EXISTS job_completions (
+CREATE TABLE job_completions (
     job_id TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
     notification_enqueued INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: jobs
-CREATE TABLE IF NOT EXISTS jobs (
+CREATE TABLE jobs (
     id          TEXT PRIMARY KEY,
     owner       TEXT NOT NULL,
     command     TEXT NOT NULL,
@@ -146,9 +126,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     started_at  TEXT NOT NULL DEFAULT (datetime('now')),
     finished_at TEXT
 , run_id TEXT, task_id TEXT, notify_requested INTEGER NOT NULL DEFAULT 0, notify_target TEXT);
-
--- table: ledger
-CREATE TABLE IF NOT EXISTS ledger (
+CREATE TABLE ledger (
     seq        INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
     turn_id    TEXT NOT NULL,
@@ -158,9 +136,7 @@ CREATE TABLE IF NOT EXISTS ledger (
     fidelity   TEXT NOT NULL DEFAULT 'exact', -- exact | folded
     at         TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: ledger_turns
-CREATE TABLE IF NOT EXISTS ledger_turns (
+CREATE TABLE ledger_turns (
     session_id            TEXT NOT NULL,
     turn_id               TEXT NOT NULL,
     turn_digest           TEXT NOT NULL,        -- 有序行摘要的摘要：轮级篡改证据
@@ -173,43 +149,33 @@ CREATE TABLE IF NOT EXISTS ledger_turns (
     consolidation_next_at TEXT,
     PRIMARY KEY (session_id, turn_id)
 );
-
--- table: memory_episode_contexts
-CREATE TABLE IF NOT EXISTS memory_episode_contexts (
+CREATE TABLE memory_episode_contexts (
     context_digest TEXT PRIMARY KEY,
     source_refs_json TEXT NOT NULL,
     episode_id INTEGER REFERENCES episodes(id) ON DELETE SET NULL
 );
-
--- table: memory_observations
-CREATE TABLE IF NOT EXISTS memory_observations (
+CREATE TABLE memory_observations (
     fact_id INTEGER NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
     context_digest TEXT NOT NULL,
     source_refs_json TEXT NOT NULL,
     observed_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY(fact_id, context_digest)
 );
-
--- table: memory_suppressions
-CREATE TABLE IF NOT EXISTS memory_suppressions (
+CREATE TABLE memory_suppressions (
     key TEXT PRIMARY KEY,
     scope TEXT NOT NULL CHECK(scope IN ('fact','subject')),
     reason TEXT NOT NULL CHECK(reason IN ('deleted','corrected','forgotten_subject')),
     replacement_id INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: memory_transient_assessments
-CREATE TABLE IF NOT EXISTS memory_transient_assessments (
+CREATE TABLE memory_transient_assessments (
     fact_id INTEGER NOT NULL,
     context_digest TEXT NOT NULL,
     assessment_json TEXT NOT NULL,
     PRIMARY KEY(fact_id,context_digest),
     FOREIGN KEY(fact_id,context_digest) REFERENCES memory_observations(fact_id,context_digest) ON DELETE CASCADE
 );
-
--- table: memory_validity
-CREATE TABLE IF NOT EXISTS memory_validity (
+CREATE TABLE memory_validity (
     fact_id INTEGER PRIMARY KEY REFERENCES facts(id) ON DELETE CASCADE,
     valid_from TEXT,
     valid_until TEXT,
@@ -219,9 +185,7 @@ CREATE TABLE IF NOT EXISTS memory_validity (
     CHECK(valid_until IS NULL OR julianday(valid_until) IS NOT NULL),
     CHECK(valid_from IS NULL OR valid_until IS NULL OR julianday(valid_from)<julianday(valid_until))
 );
-
--- table: run_round_accounts
-CREATE TABLE IF NOT EXISTS run_round_accounts (
+CREATE TABLE run_round_accounts (
     run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
     round_id TEXT NOT NULL,
     tokens_in INTEGER NOT NULL DEFAULT 0,
@@ -231,9 +195,7 @@ CREATE TABLE IF NOT EXISTS run_round_accounts (
     wall_ms INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (run_id, round_id)
 );
-
--- table: schedule_completions
-CREATE TABLE IF NOT EXISTS schedule_completions (
+CREATE TABLE schedule_completions (
     name TEXT NOT NULL,
     minute TEXT NOT NULL,
     status TEXT NOT NULL CHECK(status IN ('produced','empty','needs_attention','reviewed')),
@@ -249,9 +211,7 @@ CREATE TABLE IF NOT EXISTS schedule_completions (
     reviewed_at TEXT,
     PRIMARY KEY(name,minute)
 );
-
--- table: schedule_jobs
-CREATE TABLE IF NOT EXISTS schedule_jobs (
+CREATE TABLE schedule_jobs (
     name TEXT PRIMARY KEY,
     cron TEXT NOT NULL,
     prompt TEXT NOT NULL,
@@ -259,9 +219,7 @@ CREATE TABLE IF NOT EXISTS schedule_jobs (
     catch_up INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
-
--- table: schedule_state
-CREATE TABLE IF NOT EXISTS schedule_state (
+CREATE TABLE schedule_state (
     name TEXT PRIMARY KEY,
     last_fired_minute TEXT,
     claimed_minute TEXT,
@@ -271,32 +229,24 @@ CREATE TABLE IF NOT EXISTS schedule_state (
     delivery TEXT NOT NULL DEFAULT 'outbox',
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
-
--- table: session_context
-CREATE TABLE IF NOT EXISTS session_context (
+CREATE TABLE session_context (
     session_id TEXT PRIMARY KEY,
     observed_input_tokens INTEGER NOT NULL,
     estimated_input_tokens INTEGER NOT NULL,
     updated_at TEXT NOT NULL
 );
-
--- table: session_permissions
-CREATE TABLE IF NOT EXISTS session_permissions (
+CREATE TABLE session_permissions (
     session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
     mode TEXT NOT NULL CHECK(mode IN ('readOnly', 'standard', 'fullAccess')),
     revision INTEGER NOT NULL CHECK(revision > 0 AND revision <= 2147483647)
 );
-
--- table: session_queue
-CREATE TABLE IF NOT EXISTS session_queue (
+CREATE TABLE session_queue (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
     message    TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 , status TEXT NOT NULL DEFAULT 'pending');
-
--- table: sessions
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE sessions (
     id         TEXT PRIMARY KEY,
     -- 人起的名字；NULL 时读取侧回退「第一条用户消息」，与 0018 之前的行为一致。
     title      TEXT,
@@ -304,21 +254,17 @@ CREATE TABLE IF NOT EXISTS sessions (
     cwd        TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_at    TEXT
-, forked_from TEXT);
-
--- table: task_artifacts
-CREATE TABLE IF NOT EXISTS task_artifacts (
+);
+CREATE TABLE task_artifacts (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL,
     run_id  TEXT,
     path    TEXT NOT NULL,
     bytes   INTEGER NOT NULL DEFAULT 0,
-    at      TEXT NOT NULL DEFAULT (datetime('now')),
+    at      TEXT NOT NULL DEFAULT (datetime('now')), written_text TEXT,
     UNIQUE(task_id, path)
 );
-
--- table: task_completions
-CREATE TABLE IF NOT EXISTS task_completions (
+CREATE TABLE task_completions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id TEXT NOT NULL,
     run_id TEXT,
@@ -331,10 +277,8 @@ CREATE TABLE IF NOT EXISTS task_completions (
     notify_target TEXT,
     created_at TEXT NOT NULL DEFAULT(datetime('now')),
     enqueued_at TEXT
-, verification_id TEXT REFERENCES task_verifications(id));
-
--- table: task_dispatch
-CREATE TABLE IF NOT EXISTS task_dispatch (
+, verification_id TEXT REFERENCES task_verifications(id), summary TEXT);
+CREATE TABLE task_dispatch (
     task_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL UNIQUE,
     turn_id TEXT NOT NULL UNIQUE,
@@ -342,10 +286,8 @@ CREATE TABLE IF NOT EXISTS task_dispatch (
     state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','claimed','finished','interrupted')),
     created_at TEXT NOT NULL DEFAULT(datetime('now')),
     finished_at TEXT
-, attachments_json TEXT NOT NULL DEFAULT '[]');
-
--- table: task_events
-CREATE TABLE IF NOT EXISTS task_events (
+, attachments_json TEXT NOT NULL DEFAULT '[]', origin_message_id TEXT);
+CREATE TABLE task_events (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id  TEXT NOT NULL,
     run_id   TEXT,
@@ -354,9 +296,7 @@ CREATE TABLE IF NOT EXISTS task_events (
     detail   TEXT,
     at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: task_input_conditions
-CREATE TABLE IF NOT EXISTS task_input_conditions (
+CREATE TABLE task_input_conditions (
     condition_id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL UNIQUE,
     source TEXT NOT NULL,
@@ -369,9 +309,7 @@ CREATE TABLE IF NOT EXISTS task_input_conditions (
     consumed_run_id TEXT,
     created_at TEXT NOT NULL DEFAULT(datetime('now'))
 );
-
--- table: task_input_events
-CREATE TABLE IF NOT EXISTS task_input_events (
+CREATE TABLE task_input_events (
     source TEXT NOT NULL,
     event_id TEXT NOT NULL,
     condition_id TEXT NOT NULL,
@@ -379,9 +317,7 @@ CREATE TABLE IF NOT EXISTS task_input_events (
     received_at TEXT NOT NULL DEFAULT(datetime('now')),
     PRIMARY KEY(source,event_id)
 );
-
--- table: task_input_waits
-CREATE TABLE IF NOT EXISTS task_input_waits (
+CREATE TABLE task_input_waits (
     task_id TEXT PRIMARY KEY,
     condition_id TEXT NOT NULL,
     run_id TEXT NOT NULL,
@@ -390,16 +326,12 @@ CREATE TABLE IF NOT EXISTS task_input_waits (
     state TEXT NOT NULL DEFAULT 'waiting' CHECK(state IN ('waiting','claimed','cancelled')),
     created_at TEXT NOT NULL DEFAULT(datetime('now'))
 );
-
--- table: task_job_wait_members
-CREATE TABLE IF NOT EXISTS task_job_wait_members (
+CREATE TABLE task_job_wait_members (
     task_id TEXT NOT NULL REFERENCES task_job_waits(task_id) ON DELETE CASCADE,
     job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
     PRIMARY KEY (task_id, job_id)
 );
-
--- table: task_job_waits
-CREATE TABLE IF NOT EXISTS task_job_waits (
+CREATE TABLE task_job_waits (
     task_id TEXT PRIMARY KEY REFERENCES agent_tasks(id) ON DELETE CASCADE,
     run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
     turn_id TEXT NOT NULL,
@@ -407,24 +339,18 @@ CREATE TABLE IF NOT EXISTS task_job_waits (
     state TEXT NOT NULL DEFAULT 'waiting',
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: task_pause_fences
-CREATE TABLE IF NOT EXISTS task_pause_fences (
+CREATE TABLE task_pause_fences (
     task_id TEXT PRIMARY KEY REFERENCES agent_tasks(id) ON DELETE CASCADE,
     paused_at TEXT NOT NULL DEFAULT(datetime('now'))
 );
-
--- table: task_plan_snapshots
-CREATE TABLE IF NOT EXISTS task_plan_snapshots (
+CREATE TABLE task_plan_snapshots (
     task_id TEXT NOT NULL,
     version INTEGER NOT NULL CHECK (version > 0),
     steps_json TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (task_id, version)
 );
-
--- table: task_runs
-CREATE TABLE IF NOT EXISTS task_runs (
+CREATE TABLE task_runs (
     id           TEXT PRIMARY KEY,
     task_id      TEXT NOT NULL,
     session_id   TEXT,
@@ -439,9 +365,7 @@ CREATE TABLE IF NOT EXISTS task_runs (
     started_at   TEXT NOT NULL DEFAULT (datetime('now')),
     ended_at     TEXT
 );
-
--- table: task_sources
-CREATE TABLE IF NOT EXISTS task_sources (
+CREATE TABLE task_sources (
     task_id     TEXT PRIMARY KEY,
     channel     TEXT NOT NULL,
     chat_id     TEXT NOT NULL,
@@ -449,9 +373,7 @@ CREATE TABLE IF NOT EXISTS task_sources (
     sender_id   TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: task_steps
-CREATE TABLE IF NOT EXISTS task_steps (
+CREATE TABLE task_steps (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id         TEXT NOT NULL,
     run_id          TEXT,
@@ -466,9 +388,7 @@ CREATE TABLE IF NOT EXISTS task_steps (
     started_at      TEXT NOT NULL DEFAULT (datetime('now')),
     ended_at        TEXT
 );
-
--- table: task_verifications
-CREATE TABLE IF NOT EXISTS task_verifications (
+CREATE TABLE task_verifications (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL REFERENCES agent_tasks(id),
     run_id TEXT NOT NULL REFERENCES task_runs(id),
@@ -479,9 +399,7 @@ CREATE TABLE IF NOT EXISTS task_verifications (
     previous_id TEXT REFERENCES task_verifications(id),
     measured_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- table: tool_operations
-CREATE TABLE IF NOT EXISTS tool_operations (
+CREATE TABLE tool_operations (
     id TEXT PRIMARY KEY,
     task_id TEXT REFERENCES agent_tasks(id),
     run_id TEXT REFERENCES task_runs(id),
@@ -500,9 +418,7 @@ CREATE TABLE IF NOT EXISTS tool_operations (
     settled_at TEXT,
     UNIQUE(turn_id,round_id,tool_use_id)
 );
-
--- table: turn_checkpoints
-CREATE TABLE IF NOT EXISTS turn_checkpoints (
+CREATE TABLE turn_checkpoints (
     turn_id      TEXT PRIMARY KEY,
     session_id   TEXT NOT NULL,
     user_message TEXT NOT NULL,
@@ -512,9 +428,7 @@ CREATE TABLE IF NOT EXISTS turn_checkpoints (
     status       TEXT NOT NULL DEFAULT 'open',
     updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 , run_id TEXT, step_seq INTEGER NOT NULL DEFAULT 0, plan_version INTEGER, round_id TEXT, round_no INTEGER CHECK(round_no > 0));
-
--- table: usage_ledger
-CREATE TABLE IF NOT EXISTS usage_ledger (
+CREATE TABLE usage_ledger (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id    TEXT NOT NULL,
     provider      TEXT NOT NULL,
@@ -523,151 +437,67 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
     output_tokens INTEGER NOT NULL,
     created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
--- view: active_facts
-CREATE VIEW IF NOT EXISTS active_facts AS SELECT f.* FROM facts f LEFT JOIN memory_validity v ON v.fact_id=f.id
+CREATE VIEW active_facts AS SELECT f.* FROM facts f LEFT JOIN memory_validity v ON v.fact_id=f.id
 WHERE (v.valid_from IS NULL OR julianday(v.valid_from)<=julianday('now'))
-AND (v.valid_until IS NULL OR julianday(v.valid_until)>julianday('now'));
-
--- view: durable_facts
-CREATE VIEW IF NOT EXISTS durable_facts AS SELECT f.* FROM active_facts f LEFT JOIN memory_validity v ON v.fact_id=f.id
-WHERE v.valid_from IS NULL AND v.valid_until IS NULL;
-
--- index: browser_owner
-CREATE INDEX IF NOT EXISTS browser_owner ON browser_sessions(owner_session_id);
-
--- index: chat_log_consolidated_idx
-CREATE INDEX IF NOT EXISTS chat_log_consolidated_idx ON chat_log (consolidated);
-
--- index: chat_log_consolidation_batches
-CREATE INDEX IF NOT EXISTS chat_log_consolidation_batches ON chat_log(consolidated,consolidation_batch,consolidation_next_at);
-
--- index: chat_log_session_idx
-CREATE INDEX IF NOT EXISTS chat_log_session_idx ON chat_log (session_id);
-
--- index: chat_log_task_idx
-CREATE INDEX IF NOT EXISTS chat_log_task_idx ON chat_log (task_id);
-
--- index: facts_subject_content_unique
-CREATE UNIQUE INDEX IF NOT EXISTS facts_subject_content_unique
+AND (v.valid_until IS NULL OR julianday(v.valid_until)>julianday('now'))
+/* active_facts(id,subject,content,source,created_at,embedding,kind,page_path,digest,last_confirmed_at,confirm_count) */;
+CREATE VIEW durable_facts AS SELECT f.* FROM active_facts f LEFT JOIN memory_validity v ON v.fact_id=f.id
+WHERE v.valid_from IS NULL AND v.valid_until IS NULL
+/* durable_facts(id,subject,content,source,created_at,embedding,kind,page_path,digest,last_confirmed_at,confirm_count) */;
+CREATE INDEX browser_owner ON browser_sessions(owner_session_id);
+CREATE INDEX chat_log_consolidated_idx ON chat_log (consolidated);
+CREATE INDEX chat_log_consolidation_batches ON chat_log(consolidated,consolidation_batch,consolidation_next_at);
+CREATE INDEX chat_log_session_idx ON chat_log (session_id);
+CREATE INDEX chat_log_task_idx ON chat_log (task_id);
+CREATE UNIQUE INDEX facts_subject_content_unique
     ON facts (subject, lower(trim(content)));
-
--- index: idx_agent_tasks_session_created
-CREATE INDEX IF NOT EXISTS idx_agent_tasks_session_created ON agent_tasks(session_id, created_at DESC);
-
--- index: idx_agent_tasks_status
-CREATE INDEX IF NOT EXISTS idx_agent_tasks_status ON agent_tasks(status, created_at ASC);
-
--- index: idx_approval_log_turn
-CREATE INDEX IF NOT EXISTS idx_approval_log_turn ON approval_log(turn_id, decided_at DESC);
-
--- index: idx_jobs_owner_started
-CREATE INDEX IF NOT EXISTS idx_jobs_owner_started ON jobs(owner, started_at DESC);
-
--- index: idx_task_artifacts_task
-CREATE INDEX IF NOT EXISTS idx_task_artifacts_task ON task_artifacts(task_id, id);
-
--- index: idx_task_events_task
-CREATE INDEX IF NOT EXISTS idx_task_events_task ON task_events(task_id, id);
-
--- index: idx_task_runs_status
-CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status, started_at ASC);
-
--- index: idx_task_runs_task
-CREATE INDEX IF NOT EXISTS idx_task_runs_task ON task_runs(task_id, started_at DESC);
-
--- index: idx_task_runs_turn
-CREATE INDEX IF NOT EXISTS idx_task_runs_turn ON task_runs(turn_id);
-
--- index: idx_task_steps_key
-CREATE UNIQUE INDEX IF NOT EXISTS idx_task_steps_key ON task_steps(idempotency_key)
+CREATE INDEX idx_agent_tasks_session_created ON agent_tasks(session_id, created_at DESC);
+CREATE INDEX idx_agent_tasks_status ON agent_tasks(status, created_at ASC);
+CREATE INDEX idx_approval_log_turn ON approval_log(turn_id, decided_at DESC);
+CREATE INDEX idx_jobs_owner_started ON jobs(owner, started_at DESC);
+CREATE INDEX idx_task_artifacts_task ON task_artifacts(task_id, id);
+CREATE INDEX idx_task_events_task ON task_events(task_id, id);
+CREATE INDEX idx_task_runs_status ON task_runs(status, started_at ASC);
+CREATE INDEX idx_task_runs_task ON task_runs(task_id, started_at DESC);
+CREATE INDEX idx_task_runs_turn ON task_runs(turn_id);
+CREATE UNIQUE INDEX idx_task_steps_key ON task_steps(idempotency_key)
     WHERE idempotency_key IS NOT NULL;
-
--- index: idx_task_steps_run
-CREATE INDEX IF NOT EXISTS idx_task_steps_run ON task_steps(run_id, seq);
-
--- index: idx_task_steps_task
-CREATE INDEX IF NOT EXISTS idx_task_steps_task ON task_steps(task_id, id);
-
--- index: idx_turn_checkpoints_status
-CREATE INDEX IF NOT EXISTS idx_turn_checkpoints_status ON turn_checkpoints(status, updated_at DESC);
-
--- index: idx_usage_model
-CREATE INDEX IF NOT EXISTS idx_usage_model ON usage_ledger(model, created_at DESC);
-
--- index: idx_usage_session
-CREATE INDEX IF NOT EXISTS idx_usage_session ON usage_ledger(session_id, created_at DESC);
-
--- index: jobs_run
-CREATE INDEX IF NOT EXISTS jobs_run ON jobs(run_id);
-
--- index: jobs_task
-CREATE INDEX IF NOT EXISTS jobs_task ON jobs(task_id);
-
--- index: ledger_session_idx
-CREATE INDEX IF NOT EXISTS ledger_session_idx ON ledger (session_id, seq);
-
--- index: ledger_turn_idx
-CREATE INDEX IF NOT EXISTS ledger_turn_idx ON ledger (session_id, turn_id, seq);
-
--- index: ledger_turns_pending
-CREATE INDEX IF NOT EXISTS ledger_turns_pending ON ledger_turns (consolidated, at);
-
--- index: schedule_completions_pending
-CREATE INDEX IF NOT EXISTS schedule_completions_pending ON schedule_completions(notify_requested,enqueued_at);
-
--- index: session_queue_fifo
-CREATE INDEX IF NOT EXISTS session_queue_fifo ON session_queue (session_id, id);
-
--- index: session_queue_one_claim
-CREATE UNIQUE INDEX IF NOT EXISTS session_queue_one_claim ON session_queue(session_id) WHERE status = 'claimed';
-
--- index: sessions_recent
-CREATE INDEX IF NOT EXISTS sessions_recent ON sessions(last_at DESC);
-
--- index: task_completions_pending
-CREATE INDEX IF NOT EXISTS task_completions_pending ON task_completions(notify_requested,enqueued_at);
-
--- index: task_dispatch_pending
-CREATE INDEX IF NOT EXISTS task_dispatch_pending ON task_dispatch(state, created_at);
-
--- index: task_input_waits_pending
-CREATE INDEX IF NOT EXISTS task_input_waits_pending ON task_input_waits(state,created_at);
-
--- index: task_verifications_latest
-CREATE INDEX IF NOT EXISTS task_verifications_latest ON task_verifications(task_id,run_id,measured_at);
-
--- index: tool_operations_task
-CREATE INDEX IF NOT EXISTS tool_operations_task ON tool_operations(task_id,started_at);
-
--- trigger: episodes_ad
-CREATE TRIGGER IF NOT EXISTS episodes_ad AFTER DELETE ON episodes BEGIN
+CREATE INDEX idx_task_steps_run ON task_steps(run_id, seq);
+CREATE INDEX idx_task_steps_task ON task_steps(task_id, id);
+CREATE INDEX idx_turn_checkpoints_status ON turn_checkpoints(status, updated_at DESC);
+CREATE INDEX idx_usage_model ON usage_ledger(model, created_at DESC);
+CREATE INDEX idx_usage_session ON usage_ledger(session_id, created_at DESC);
+CREATE INDEX jobs_run ON jobs(run_id);
+CREATE INDEX jobs_task ON jobs(task_id);
+CREATE INDEX ledger_session_idx ON ledger (session_id, seq);
+CREATE INDEX ledger_turn_idx ON ledger (session_id, turn_id, seq);
+CREATE INDEX ledger_turns_pending ON ledger_turns (consolidated, at);
+CREATE INDEX schedule_completions_pending ON schedule_completions(notify_requested,enqueued_at);
+CREATE INDEX session_queue_fifo ON session_queue (session_id, id);
+CREATE UNIQUE INDEX session_queue_one_claim ON session_queue(session_id) WHERE status = 'claimed';
+CREATE INDEX sessions_recent ON sessions(last_at DESC);
+CREATE INDEX task_completions_pending ON task_completions(notify_requested,enqueued_at);
+CREATE INDEX task_dispatch_pending ON task_dispatch(state, created_at);
+CREATE INDEX task_input_waits_pending ON task_input_waits(state,created_at);
+CREATE INDEX task_verifications_latest ON task_verifications(task_id,run_id,measured_at);
+CREATE INDEX tool_operations_task ON tool_operations(task_id,started_at);
+CREATE TRIGGER episodes_ad AFTER DELETE ON episodes BEGIN
     INSERT INTO episodes_fts(episodes_fts, rowid, summary) VALUES ('delete', old.id, old.summary);
 END;
-
--- trigger: episodes_ai
-CREATE TRIGGER IF NOT EXISTS episodes_ai AFTER INSERT ON episodes BEGIN
+CREATE TRIGGER episodes_ai AFTER INSERT ON episodes BEGIN
     INSERT INTO episodes_fts(rowid, summary) VALUES (new.id, new.summary);
 END;
-
--- trigger: facts_ad
-CREATE TRIGGER IF NOT EXISTS facts_ad AFTER DELETE ON facts BEGIN
+CREATE TRIGGER facts_ad AFTER DELETE ON facts BEGIN
     INSERT INTO facts_fts(facts_fts, rowid, subject, content) VALUES ('delete', old.id, old.subject, old.content);
 END;
-
--- trigger: facts_ai
-CREATE TRIGGER IF NOT EXISTS facts_ai AFTER INSERT ON facts BEGIN
+CREATE TRIGGER facts_ai AFTER INSERT ON facts BEGIN
     INSERT INTO facts_fts(rowid, subject, content) VALUES (new.id, new.subject, new.content);
 END;
-
--- trigger: facts_au
-CREATE TRIGGER IF NOT EXISTS facts_au AFTER UPDATE ON facts BEGIN
+CREATE TRIGGER facts_au AFTER UPDATE ON facts BEGIN
     INSERT INTO facts_fts(facts_fts, rowid, subject, content) VALUES ('delete', old.id, old.subject, old.content);
     INSERT INTO facts_fts(rowid, subject, content) VALUES (new.id, new.subject, new.content);
 END;
-
--- trigger: task_completion_committed
-CREATE TRIGGER IF NOT EXISTS task_completion_committed AFTER UPDATE OF status ON agent_tasks
+CREATE TRIGGER task_completion_committed AFTER UPDATE OF status ON agent_tasks
 WHEN NEW.status<>OLD.status AND NEW.status IN ('done','failed','cancelled','suspended','needs_attention')
 BEGIN
     INSERT INTO task_completions(task_id,run_id,session_id,title,is_goal,status,reason,notify_requested,notify_target)
@@ -684,16 +514,12 @@ BEGIN
         END,
         NEW.completion_notify_requested,NEW.completion_notify_target);
 END;
-
--- trigger: task_completion_unverified_goal
-CREATE TRIGGER IF NOT EXISTS task_completion_unverified_goal AFTER INSERT ON task_completions
+CREATE TRIGGER task_completion_unverified_goal AFTER INSERT ON task_completions
 WHEN NEW.status='done' AND EXISTS(SELECT 1 FROM agent_tasks WHERE id=NEW.task_id AND acceptance_json='[]')
 BEGIN
     UPDATE task_completions SET status='produced_unverified',verification_id=NULL WHERE id=NEW.id;
 END;
-
--- trigger: task_completion_verification
-CREATE TRIGGER IF NOT EXISTS task_completion_verification AFTER INSERT ON task_completions
+CREATE TRIGGER task_completion_verification AFTER INSERT ON task_completions
 WHEN NEW.status='done'
 BEGIN
     UPDATE task_completions SET verification_id=(SELECT id FROM task_verifications
@@ -702,3 +528,192 @@ BEGIN
         AND checks_json=(SELECT checks_json FROM agent_tasks WHERE id=NEW.task_id) ORDER BY rowid DESC LIMIT 1)
         WHERE id=NEW.id;
 END;
+CREATE INDEX idx_task_events_task_seq ON task_events(task_id, seq);
+CREATE TABLE action_grants (
+    id TEXT PRIMARY KEY,
+    account TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    action TEXT NOT NULL,
+    destination TEXT NOT NULL,
+    content_hash TEXT,
+    scope TEXT NOT NULL CHECK (scope IN ('once', 'session', 'day', 'always')),
+    expires_at INTEGER,
+    revoked_version INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_action_grants_lookup ON action_grants(account, resource, action);
+CREATE TABLE pending_approvals (
+    turn_id TEXT NOT NULL,
+    request_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    args_preview TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (turn_id, request_id)
+);
+CREATE TABLE receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    run_id TEXT,
+    kind TEXT NOT NULL,
+    ref TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('claimed', 'confirmed', 'failed')),
+    evidence_path TEXT,
+    observed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+CREATE INDEX idx_receipts_task ON receipts(task_id, kind);
+CREATE TABLE wake_inbox (
+    source_key TEXT PRIMARY KEY,
+    target_task TEXT NOT NULL,
+    payload TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'delivered', 'reconcile')),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    settled_at TEXT
+);
+CREATE INDEX idx_wake_inbox_state ON wake_inbox(state);
+CREATE TABLE task_edit_checks (
+    task_id TEXT PRIMARY KEY,
+    checks_json TEXT NOT NULL
+);
+CREATE TABLE task_leases (
+    task_id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+CREATE TABLE browser_holds (
+    task_id TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    origins_json TEXT NOT NULL DEFAULT '[]',
+    since TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE connector_wait_cursor (
+    condition_id TEXT PRIMARY KEY,
+    account_digest TEXT NOT NULL,
+    uid_validity INTEGER NOT NULL,
+    first_uid INTEGER NOT NULL
+);
+CREATE TABLE task_git_checkpoint_policies (
+    task_id TEXT PRIMARY KEY,
+    paths_json TEXT NOT NULL
+);
+CREATE TABLE task_git_checkpoint_boundaries (
+    task_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    boundary_digest TEXT NOT NULL,
+    commit_sha TEXT NOT NULL,
+    PRIMARY KEY (task_id, turn_id, boundary_digest)
+);
+CREATE TABLE responsibilities (
+    id TEXT PRIMARY KEY NOT NULL,
+    purpose TEXT NOT NULL,
+    sources_json TEXT NOT NULL,
+    cron TEXT NOT NULL,
+    expires_ms INTEGER NOT NULL,
+    budget_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'expired')),
+    enabled_ms INTEGER NOT NULL,
+    last_slot INTEGER
+, weekly_report_json TEXT);
+CREATE INDEX responsibilities_expiry ON responsibilities(expires_ms) WHERE status != 'expired';
+CREATE TABLE weekly_reports (
+    wake_key TEXT PRIMARY KEY REFERENCES wake_inbox(source_key),
+    responsibility_id TEXT NOT NULL REFERENCES responsibilities(id),
+    status TEXT NOT NULL CHECK(status IN ('preparing','draft','awaiting','sending','confirmed','review','denied')),
+    body TEXT,
+    detail TEXT NOT NULL DEFAULT '',
+    tools_used INTEGER NOT NULL DEFAULT 0,
+    wall_ms INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX weekly_reports_by_duty ON weekly_reports(responsibility_id);
+CREATE INDEX task_children_by_parent ON agent_tasks(parent_task_id) WHERE parent_task_id IS NOT NULL;
+CREATE TABLE device_grants (
+    device_id TEXT PRIMARY KEY NOT NULL,
+    grant_id TEXT NOT NULL,
+    generation INTEGER NOT NULL CHECK (generation BETWEEN 1 AND 2147483647),
+    capabilities TEXT NOT NULL,
+    revoked INTEGER NOT NULL DEFAULT 0,
+    last_sequence INTEGER NOT NULL DEFAULT 0
+, push_sequence INTEGER);
+CREATE TABLE executor_control (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    stopped BOOLEAN NOT NULL,
+    generation INTEGER NOT NULL CHECK (generation BETWEEN 0 AND 2147483647)
+);
+INSERT INTO executor_control VALUES (1, FALSE, 0);
+CREATE TABLE browser_downloads (
+    session_id TEXT NOT NULL,
+    download_id TEXT NOT NULL,
+    task_id TEXT NOT NULL REFERENCES agent_tasks(id),
+    name TEXT NOT NULL,
+    body BLOB,
+    PRIMARY KEY (session_id, download_id)
+);
+CREATE TABLE desktop_receipts (
+    id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL REFERENCES agent_tasks(id),
+    action TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('unknown','confirmed','rejected'))
+);
+CREATE INDEX desktop_task_receipts ON desktop_receipts(task_id);
+CREATE TABLE desktop_model (id INTEGER PRIMARY KEY CHECK(id=1), profile_id TEXT);
+INSERT INTO desktop_model VALUES(1,NULL);
+CREATE TABLE approval_push_attempts (
+  grant_id TEXT NOT NULL, task_id TEXT NOT NULL, turn_id TEXT NOT NULL, request_id TEXT NOT NULL, version INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL, PRIMARY KEY (grant_id,turn_id,request_id,version)
+);
+CREATE INDEX approval_push_expiry ON approval_push_attempts(expires_at);
+CREATE UNIQUE INDEX chat_task_notice ON chat_log(session_id,source,task_id,notice_key)
+WHERE notice_key IS NOT NULL;
+CREATE TRIGGER main_task_completion AFTER INSERT ON task_completions
+WHEN NEW.session_id='jeeves-main' AND NEW.status IN ('done','produced_unverified','failed','cancelled')
+BEGIN
+    INSERT INTO chat_log(role,session_id,source,task_id,notice_key,content)
+    VALUES('assistant',NEW.session_id,'task_completion',NEW.task_id,CAST(NEW.id AS TEXT),
+        NEW.title || ' · ' || NEW.task_id || char(10) || NEW.status || ' · ' || NEW.reason);
+END;
+CREATE TRIGGER main_task_decision AFTER INSERT ON pending_approvals
+BEGIN
+    INSERT OR IGNORE INTO chat_log(role,session_id,source,task_id,notice_key,content)
+    SELECT 'assistant',t.session_id,'task_decision',t.id,NEW.request_id||':'||NEW.version,
+        t.title || ' · ' || t.id || char(10) || NEW.args_preview || char(10) ||
+        '批准 / Approve: approve ' || NEW.request_id || ' v' || NEW.version || char(10) ||
+        '拒绝 / Deny: deny ' || NEW.request_id || ' v' || NEW.version
+    FROM task_runs r JOIN agent_tasks t ON t.id=r.task_id
+    WHERE r.turn_id=NEW.turn_id AND t.session_id='jeeves-main';
+END;
+CREATE TRIGGER main_task_decision_restored AFTER UPDATE OF version ON pending_approvals
+WHEN NEW.version <> OLD.version
+BEGIN
+    INSERT INTO chat_log(role,session_id,source,task_id,notice_key,content)
+    SELECT 'assistant',session_id,'task_decision',task_id,NEW.request_id||':'||NEW.version,
+        NEW.args_preview || char(10) || 'Approve: approve ' || NEW.request_id || ' v' || NEW.version ||
+        char(10) || 'Deny: deny ' || NEW.request_id || ' v' || NEW.version
+    FROM chat_log WHERE source='task_decision' AND session_id='jeeves-main'
+        AND notice_key=OLD.request_id||':'||OLD.version;
+END;
+CREATE TABLE IF NOT EXISTS "mail_actions" (
+    id TEXT PRIMARY KEY,
+    task_id TEXT REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    session_id TEXT,
+    account TEXT NOT NULL,
+    envelope TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('queued','started','confirmed','rejected','unknown','draft','unapproved')),
+    CHECK ((task_id IS NULL) <> (session_id IS NULL))
+);
+CREATE INDEX mail_actions_task ON mail_actions(task_id);
+CREATE INDEX mail_actions_open_session ON mail_actions(session_id,account)
+    WHERE state IN ('queued','started','unknown') AND session_id IS NOT NULL;
+CREATE INDEX task_delivery_latest ON task_completions(task_id, id DESC);
+CREATE TABLE task_review_bases (
+    task_id TEXT PRIMARY KEY REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    base_commit TEXT NOT NULL
+);
+CREATE TABLE task_reviews (
+    task_id TEXT NOT NULL REFERENCES agent_tasks(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL,
+    review_json TEXT NOT NULL,
+    PRIMARY KEY (task_id, run_id)
+);

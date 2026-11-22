@@ -48,37 +48,34 @@ pub fn backup_path(db: &Path, version: i64) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// For a database that already existed: refuse one written by a newer binary, and copy one
-/// that is about to be migrated (once per target version) so an upgrade can be undone.
-pub(crate) async fn guard_and_backup(pool: &SqlitePool, db: &Path, known: i64) -> Result<()> {
+/// The schema is now a single squashed baseline (version 1). A database created by the old
+/// incremental migrations has a different version-1 script, so its stored checksum will not
+/// match this baseline. Reopening a database written by this build is fine; an old one is refused
+/// with an export/import path instead of a cryptic sqlx checksum error.
+pub(crate) async fn guard_and_backup(pool: &SqlitePool, db: &Path, _known: i64) -> Result<()> {
     let applied = applied_version(pool).await?;
-    if applied > known {
-        let backup = backup_path(db, applied);
-        anyhow::bail!(
-            "{} is at schema version {applied}, newer than this binary's {known}; \
-             upgrade Jeeves, or restore the backup the newer version took: {}",
-            db.display(),
-            backup.display()
-        );
-    }
-    if applied == 0 || applied == known {
+    if applied == 0 {
         return Ok(());
     }
-    let backup = backup_path(db, known);
-    if backup.exists() {
+    let expected: &[u8] = MIGRATOR
+        .iter()
+        .find(|m| m.version == 1)
+        .map(|m| m.checksum.as_ref())
+        .unwrap_or_default();
+    let stored: Option<Vec<u8>> =
+        sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations WHERE version = 1")
+            .fetch_optional(pool)
+            .await?;
+    if stored.as_deref() == Some(expected) {
         return Ok(());
     }
-    sqlx::query("VACUUM INTO ?")
-        .bind(backup.to_string_lossy().to_string())
-        .execute(pool)
-        .await
-        .with_context(|| format!("could not back up the database to {}", backup.display()))?;
-    eprintln!(
-        "jeeves: backed up {} (schema {applied}) to {} before migrating to {known}",
-        db.display(),
-        backup.display()
+    anyhow::bail!(
+        "{} was created with the old incremental schema (version {applied}); this build uses \
+         a single squashed baseline and cannot migrate it in place. Preserve it with \
+         `jeeves home export <dir>`, move the old home aside, then start Jeeves with a fresh \
+         home and `jeeves home import <dir>`. The old file is left untouched.",
+        db.display()
     );
-    Ok(())
 }
 
 /// Newest applied migration, or 0 when the migrations table does not exist yet.

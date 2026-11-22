@@ -929,7 +929,28 @@ async fn backfilling_marks_history_as_folded() {
 }
 
 #[tokio::test]
-async fn session_metadata_survives_the_v24_upgrade() -> anyhow::Result<()> {
+async fn fresh_home_creates_the_full_baseline_schema() -> anyhow::Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("state.db");
+    let pool = crate::open(&path).await?;
+    let tables: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sqlx%'",
+    ).fetch_one(&pool).await?;
+    assert!(
+        tables > 60,
+        "the single baseline must create the full schema, got {tables} tables"
+    );
+    let forked: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'forked_from'",
+    )
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(forked, 0);
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_old_incremental_database_is_refused_not_migrated_in_place() -> anyhow::Result<()> {
     use sqlx::{migrate::Migrate, sqlite::SqliteConnectOptions, Connection, SqliteConnection};
 
     let dir = tempfile::tempdir()?;
@@ -939,26 +960,25 @@ async fn session_metadata_survives_the_v24_upgrade() -> anyhow::Result<()> {
         .create_if_missing(true);
     let mut conn = SqliteConnection::connect_with(&options).await?;
     conn.ensure_migrations_table().await?;
-    for migration in sqlx::migrate!().iter().take_while(|m| m.version <= 24) {
-        conn.apply(migration).await?;
+
+    let mut version = 1i64;
+    loop {
+        sqlx::query("INSERT OR IGNORE INTO _sqlx_migrations (version, description, installed_on, success, checksum, execution_time) VALUES (?, '', datetime('now'), 1, x'', 0)")
+            .bind(version)
+            .execute(&mut conn)
+            .await?;
+        if version == 25 {
+            break;
+        }
+        version += 1;
     }
-    sqlx::query("INSERT INTO sessions (id, title, cwd, forked_from) VALUES ('work', 'Notes', '/project', 'parent')")
-        .execute(&mut conn)
-        .await?;
     conn.close().await?;
 
-    let pool = crate::open(&path).await?;
-    let old_column: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'forked_from'",
-    )
-    .fetch_one(&pool)
-    .await?;
-    assert_eq!(old_column, 0);
-    let chat = Chat::new(pool);
-    let session = chat.session("work").await?.expect("migrated session");
-    assert_eq!(session.title, "Notes");
-    assert_eq!(session.cwd.as_deref(), Some("/project"));
-    assert_eq!(chat.sessions().await?, [session]);
+    let err = crate::open(&path).await.unwrap_err();
+    assert!(
+        err.to_string().contains("home export"),
+        "an old database must point the owner to the export/import path: {err}"
+    );
     Ok(())
 }
 
@@ -1305,58 +1325,14 @@ async fn durable_job_waits_roll_back_bad_dependencies_and_honor_human_pause() {
     assert_eq!(checkpoint.messages_json, resumed_memory);
 }
 
-async fn raw_pool(path: &std::path::Path) -> SqlitePool {
-    let opts = sqlx::sqlite::SqliteConnectOptions::new().filename(path);
-    SqlitePool::connect_with(opts).await.expect("connect")
-}
-
 #[tokio::test]
-async fn a_database_from_a_newer_binary_is_refused() {
+async fn a_baseline_database_can_be_reopened() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("state.db");
     crate::open(&path).await.unwrap();
-    let pool = raw_pool(&path).await;
-    sqlx::query(
-        "INSERT INTO _sqlx_migrations (version, description, success, checksum, execution_time) \
-         VALUES (9999, 'future', 1, x'00', 0)",
-    )
-    .execute(&pool)
-    .await
-    .unwrap();
-    pool.close().await;
-    let err = crate::open(&path)
+    crate::open(&path)
         .await
-        .expect_err("must refuse")
-        .to_string();
-    assert!(err.contains("9999") && err.contains(".pre-9999"), "{err}");
-}
-
-#[tokio::test]
-async fn an_older_database_is_backed_up_once_and_a_new_one_is_not() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("state.db");
-    crate::open(&path).await.unwrap();
-    let target = crate::db::known_schema_version() + 1;
-    assert!(
-        !crate::db::backup_path(&path, target).exists(),
-        "fresh db: no backup"
-    );
-
-    let pool = raw_pool(&path).await;
-    let backup = crate::db::backup_path(&path, target);
-    crate::db::guard_and_backup(&pool, &path, target)
-        .await
-        .unwrap();
-    assert!(backup.exists(), "older db is backed up before migrating");
-    std::fs::write(&backup, b"first").unwrap();
-    crate::db::guard_and_backup(&pool, &path, target)
-        .await
-        .unwrap();
-    assert_eq!(
-        std::fs::read(&backup).unwrap(),
-        b"first",
-        "backup is taken only once"
-    );
+        .expect("a database written by the same baseline opens again");
 }
 
 #[tokio::test]
