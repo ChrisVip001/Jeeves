@@ -14,9 +14,9 @@ While the cloud workspace starts, you can draft your request. Reloading the tab 
 
 The composer shows the working directory and the selected task for follow-ups. When an action needs approval, the conversation shows its scope and preview for the user to decide. Operators configure model routing, runtime limits and permission policies through the Runtime management interfaces. See the [guide](../guide.md) for personal deployment setup.
 
-## 2. Design references
+## 2. Design principles
 
-Grok allows people to reopen an automation run and continue its conversation. A dot takes assignments in chat, works between conversations and brings decisions back to its owner. Each Jeeves assignment therefore has a return address and opens on the latest outcome, decisions and files. [Grok automations](https://x.ai/news/grok-automations) · [Working with a dot](https://help.openai.com/en/articles/20001530-getting-started-with-your-dot)
+An assignment is a continuous thread: work begun in chat continues in the background, and decisions return to the person who asked. Every assignment therefore has a return address that opens on its latest outcome, pending decisions and deliverable files.
 
 ## 3. From assignment to delivery
 
