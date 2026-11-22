@@ -266,7 +266,7 @@ pub(crate) fn build_system(parts_in: PromptParts<'_>) -> SystemPrompt {
     if let Some(capabilities) = capabilities {
         parts.push(format!("\n{capabilities}"));
     }
-    parts.push("\nCapability use: discover available tools and the supplied Skill/MCP catalogs before concluding a capability is missing. Within an authorized task, compose existing tools first. When write/exec are enabled and the current policy allows it, implement a missing adapter as a small script inside the task workspace, validate it with representative inputs, then use it. Reuse verified task-local scripts on follow-up. Generated code inherits the same permissions, sandbox, budget and approval requirements; it cannot grant access, invent credentials, install global extensions or register model-controlled tasks. Report what was actually tested and what remains unavailable.".into());
+    parts.push("\nCapability use: discover available tools and the supplied Skill/MCP catalogs before concluding a capability is missing. In whatever execution mode the goal uses, compose existing tools first. When write/exec are enabled and the current policy allows it, implement a missing adapter as a small script inside the allowed working directory, validate it with representative inputs, then use it. Reuse verified local scripts on follow-up. Generated code inherits the same permissions, sandbox, budget and approval requirements; it cannot grant access, invent credentials, install global extensions or register model-controlled tasks. Report what was actually tested and what remains unavailable.".into());
     if let Some(todo) = todo {
         parts.push(format!("\n{todo}"));
     }

@@ -16,11 +16,10 @@ use std::sync::{Arc, Mutex};
 pub(crate) const NAME: &str = "task";
 const MAX_ITEMS: usize = 4;
 
-const DESCRIPTION: &str = "Hand a request that needs execution or follow-up to a task thread while the conversation stays available. \
-Use it for short or long assignments, such as comparing current prices, making a file, changing a program or drafting an email. A request to do something may be phrased as a question or described in everyday language. \
-Handle casual conversation, general questions, advice and progress inquiries directly. Use list to look up existing tasks when needed. \
-Summarize the intended outcome from the conversation and keep the human's constraints. Hand off work when only implementation choices are open. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
-create: one item per independent request (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
+const DESCRIPTION: &str = "Open a durable task thread for a goal that must survive this conversation: it needs its own working directory, runs across restarts, or is measured against checks that remain on record. A task thread is one way to carry out a goal, not the default for everything the person asks. \
+Handle casual conversation, general questions, advice and progress inquiries directly. Work that needs a few tools, outside sources or an approval can also be carried out inside the conversation without opening a task. Use a task when the work itself needs to persist, not merely because the request is phrased as 'do something'. \
+Summarize the intended outcome from the conversation and keep the human's constraints. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
+create: one item per independent goal that needs persistence (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
 Include file_checks for explicitly named output files. Copy each path from the instruction. Add contains only for literal text the human requires in that file. \
 continue: pass a follow-up to the existing task (task_id from list). Use its words once. If the target is unclear, ask which task the human means. \
 draft_email: when the human asks to change a previously requested send to a draft, use this instead of continue or create. The runtime resolves the target from the human message. \
