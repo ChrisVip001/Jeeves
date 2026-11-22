@@ -15,13 +15,11 @@ import {
   TaskCenter,
   SettingsPanel,
   SetupWizard,
-  ModelPicker,
-  PermissionPicker,
   WorkspacePicker,
   TaskDetail,
 } from "./ui/index.ts";
 import { uiTranslatorKey } from "./ui/index.ts";
-import type { AgentTaskView, PermissionMode } from "./ui/types.ts";
+import type { AgentTaskView } from "./ui/types.ts";
 import { t } from "./i18n";
 import { phoneLayout } from "./phone";
 import { closeMobileNavigation } from "./navigation";
@@ -30,8 +28,6 @@ import {
   workspaceActions,
   refreshConnections,
   refreshPolicy,
-  setPermission,
-  activateModel,
   saveWorkspace,
   settingsActions,
   remember,
@@ -171,8 +167,8 @@ function closeNotice() {
   history.replaceState(history.state, "", url);
 }
 const open = ref(false);
-const tab = ref("general");
-function settings(value = "general") {
+const tab = ref<"notifications" | "connections">("notifications");
+function settings(value: "notifications" | "connections" = "notifications") {
   closeMobileNavigation();
   tab.value = value;
   open.value = true;
@@ -186,21 +182,18 @@ function manageMcp() {
 const SETUP_KEY = "jeeves.setup.dismissed";
 const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
 const needsSetup = computed(
-  () => state.connected && !state.managed && !state.profiles.length && !setupDismissed.value,
+  () => state.connected && !state.managed && state.profiles?.length === 0 && !setupDismissed.value,
 );
 function endSetup() {
   setupDismissed.value = true;
   localStorage.setItem(accountKey(SETUP_KEY), "1");
-  void changed();
-}
-function chooseMode(mode: PermissionMode) {
-  if (state.policy && state.policy.mode !== mode) void setPermission(mode, false);
+  void workspaceActions.refresh();
 }
 const unavailable = computed(() => state.busy || !state.connected);
 watch(
   () => state.connected,
   (ready) => {
-    if (ready)
+    if (ready && !state.managed && !setupDismissed.value)
       void refreshConnections().catch(
         (error: unknown) => (state.message = String(error)),
       );
@@ -214,11 +207,6 @@ watch(
     void refreshPolicy();
   },
 );
-async function changed() {
-  await refreshPolicy();
-  await refreshConnections();
-  await workspaceActions.refresh();
-}
 </script>
 <template>
   <Teleport to="#primary-navigation">
@@ -260,6 +248,7 @@ async function changed() {
   </Teleport>
   <Teleport to="#connections-entry">
     <a href="/account/" class="cap-entry">{{ t("个人中心") }}</a>
+    <a href="/account/#devices" class="cap-entry">{{ t("设备管理") }}</a>
     <button class="cap-entry" type="button" @click="settings('connections')"><span class="cap-entry-name">{{ t('连接管理') }}</span></button>
   </Teleport>
   <Teleport to="#settings-entry"
@@ -276,24 +265,6 @@ async function changed() {
       can-browse
       @save="saveWorkspace"
       @browse="workspaceActions.browse()" /></Teleport>
-  <Teleport to="#composer-context"><PermissionPicker
-      :policy="state.policy"
-      :disabled="!state.connected"
-      :loading="state.policyLoading"
-      :error="state.policyError"
-      :saving="state.policySaving"
-      @change="setPermission"
-      @retry="refreshPolicy()"
-      @manage="settings('permissions')"
-  /></Teleport>
-  <Teleport to="#composer-model"
-    ><ModelPicker
-      :profiles="state.profiles"
-      :fallback="state.config?.model"
-      :busy="unavailable"
-      @select="activateModel"
-      @manage="settings('models')"
-  /></Teleport>
   <Teleport to="#composer-target">
     <div v-if="followingTask" class="task-following">
       {{ t("补充要求") }}：{{ followingTask.title
@@ -311,10 +282,8 @@ async function changed() {
     <SetupWizard
       v-if="needsSetup && !noticeOpen"
       :models="state.models"
-      :has-model="false"
       :actions="settingsActions"
       :remember="remember"
-      @permission="chooseMode"
       @skip="endSetup"
       @done="endSetup"
     />
@@ -342,21 +311,16 @@ async function changed() {
     <ExecutorStop v-if="!webTasks.state.open && !detailTask" v-bind="executorProps" v-on="executorActions" />
     <SettingsPanel
       v-if="open"
-      :profiles="state.profiles"
-      :models="state.models"
-      :config="state.config"
-      :policy="state.policy"
       :busy="unavailable"
       :actions="settingsActions"
       :initial-tab="tab"
       @close="open = false"
-      @changed="changed"
       @mcp="manageMcp"
     >
       <template #approval-notifications><ApprovalPushSettings /></template>
     </SettingsPanel>
-    <div v-if="state.message" class="web-notice" role="status">
-      <CircleAlert :size="16" /><span>{{ state.message }}</span
+    <div v-if="state.message || state.policyError" class="web-notice" role="status">
+      <CircleAlert :size="16" /><span>{{ state.message || state.policyError }}</span
       ><button
         v-if="!state.connected"
         type="button"
@@ -366,7 +330,7 @@ async function changed() {
       ><button
         type="button"
         :aria-label="t('关闭')"
-        @click="state.message = ''"
+        @click="state.message ? (state.message = '') : (state.policyError = '')"
       >
         ×
       </button>

@@ -446,9 +446,6 @@ code {
   gap: 5px;
   min-width: 0;
 }
-#composer-model {
-  min-width: 0;
-}
 .toolbar-spacer {
   flex: 1;
 }
@@ -645,12 +642,6 @@ body.sidebar-closed .mobile-menu {
     padding: 5px;
     font-size: 10px;
   }
-  .model-trigger {
-    max-width: 125px;
-  }
-  #composer-model {
-    margin-left: auto;
-  }
   .panels {
     inset: 0;
     width: 100%;
@@ -701,18 +692,8 @@ body.sidebar-closed .mobile-menu {
 }
 
 @media (max-width: 640px) {
-  #composer-context {
-    flex: 1 1 calc(100% - 36px);
-  }
   #composer-context > div {
     min-width: 0;
-  }
-  #composer-model {
-    flex: 1 1 auto;
-    margin-left: 0;
-  }
-  #composer-model .model-trigger {
-    max-width: 200px;
   }
   #send {
     margin-left: auto;
@@ -743,8 +724,6 @@ body.sidebar-closed .mobile-menu {
 .workspace-dialog h3 {
   margin: 0;
   font-size: 16px;
-}
-@media (max-width: 640px) {
 }
 
 #executor-entry { flex: none; }
@@ -820,34 +799,11 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
   flex: none;
 }
 .chat-decisions { padding: 8px 12px; border-inline-start: 3px solid var(--accent); }
-.chat-decisions summary, .compose-options summary, .task-notice summary { cursor: pointer; }
+.chat-decisions summary, .task-notice summary { cursor: pointer; }
 .chat-decisions .today-card { margin-top: 8px; }
 .task-notice .today-btn { margin: 7px 7px 0 0; }
-.compose-options { position: relative; }
 #composer-target .workspace-picker { max-width: 100%; width: fit-content; }
 #composer-target .context-button { max-width: 100%; overflow-wrap: anywhere; }
-.compose-options > summary {
-  min-height: 32px;
-  padding: 5px 8px;
-  color: var(--text-2);
-  font-size: 12px;
-}
-.compose-settings {
-  position: absolute;
-  z-index: 6;
-  inset: auto auto calc(100% + 8px) -35px;
-  width: max-content;
-  max-width: calc(100vw - 36px);
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--shadow-overlay);
-}
-.compose-settings #composer-context { flex-wrap: wrap; }
-.compose-settings #composer-model { margin: 0; }
 #activity-view { flex: 1; min-height: 0; overflow-y: auto; }
 body.view-activity main.chat > :is(#messages, #status, .composer-wrap),
 body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; }
@@ -882,7 +838,6 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
   .chat .bar #executor-entry button { font-size: 0; gap: 0; min-width: 44px; min-height: 44px; }
   .activity-task { gap: 8px; }
   .activity-task small { max-width: 8em; }
-  .compose-options > summary { min-height: 44px; display: flex; align-items: center; }
 }
 .execution-details { margin: 24px 0; }
 .execution-details > summary { cursor: pointer; color: var(--text-2); padding: 8px 0; }

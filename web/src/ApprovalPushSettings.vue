@@ -41,8 +41,7 @@ async function configure(step: "key" | "pair" | "enable") {
 }
 </script>
 <template>
-  <section aria-labelledby="approval-push-heading" class="approval-push">
-    <h3 id="approval-push-heading">{{ t("审批通知") }}</h3>
+  <section :aria-label="t('审批通知')" class="approval-push">
     <p class="settings-footnote">{{ t("通知在这台设备上提醒你回到任务中核对操作。") }}</p>
     <button v-if="!deviceId" type="button" class="quiet-button" :disabled="busy" @click="configure('key')">
       {{ t("显示本机配对公钥") }}
@@ -67,8 +66,6 @@ async function configure(step: "key" | "pair" | "enable") {
   </section>
 </template>
 <style scoped>
-.approval-push { margin-top: 28px; }
-.approval-push h3 { margin-bottom: 8px; }
 .approval-push button { min-height: 44px; }
 .push-key { display: grid; gap: 6px; color: var(--text-2); }
 .push-key input { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 14px; }

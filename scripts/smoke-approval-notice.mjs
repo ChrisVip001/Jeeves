@@ -247,9 +247,13 @@ async function captureViews(browser, { origin, workspace, cookie }) {
       await page.keyboard.press("Escape");
       await sheet.waitFor({state: "detached"});
       await page.waitForURL(url => !url.searchParams.has("approvalRequestId"));
+      const composer = page.locator("#composer");
+      await composer.locator(".workspace-picker button").first().waitFor({state:"visible"});
+      assert.equal(await composer.locator(".model-picker, .permissions").count(), 0);
       if (!await page.locator("#settings-entry button").isVisible()) await page.locator(".mobile-menu").click();
+      assert.ok(await page.locator('a[href="/account/"]').isVisible());
+      assert.ok(await page.locator('a[href="/account/#devices"]').isVisible());
       await page.locator("#settings-entry button").click();
-      await page.getByRole("button", {name:label("权限与安全", "Permissions and security")}).click();
       const push = page.getByRole("region", {name:label("审批通知", "Approval notifications")});
       await push.getByRole("button", {name:label("显示本机配对公钥", "Show device pairing key")}).scrollIntoViewIfNeeded();
       await push.getByRole("button", {name:label("显示本机配对公钥", "Show device pairing key")}).click();

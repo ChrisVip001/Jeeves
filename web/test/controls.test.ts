@@ -28,7 +28,6 @@ test("an older server leaves an actionable permission error and can recover on r
   globalThis.fetch = async () => new Response("Not Found", { status: 404 });
   await refreshPolicy();
   assert.equal(webState.policy, undefined);
-  assert.equal(webState.policyLoading, false);
   assert.match(webState.policyError, /重启/);
 
   globalThis.fetch = async () =>

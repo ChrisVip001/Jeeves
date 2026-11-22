@@ -46,6 +46,7 @@
           </button>
           <button class="nav-entry" id="progress" type="button" data-i18n="概览">概览</button>
           <button class="nav-entry" id="chat-operations" type="button" data-i18n="核对聊天操作">核对聊天操作</button>
+          <button type="button" id="save-skill" class="nav-entry" data-i18n="存为技能" data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿">存为技能</button>
         </nav>
           <div class="capabilities">
           <button class="cap-entry" id="cap-skills" type="button">
@@ -139,14 +140,7 @@
             ></textarea>
             <div class="composer-toolbar">
               <div id="composer-attachments"></div>
-              <details class="compose-options">
-                <summary data-i18n="对话选项">对话选项</summary>
-                <div class="compose-settings">
-                  <div id="composer-model"></div>
-                  <div id="composer-context"></div>
-                  <button type="button" id="save-skill" class="ghost" data-i18n="存为技能" data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿">存为技能</button>
-                </div>
-              </details>
+              <div id="composer-context"></div>
               <div class="toolbar-spacer"></div>
               <button
                 class="ghost queue-toggle"

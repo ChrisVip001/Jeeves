@@ -144,11 +144,10 @@ Vue and Vite build the workbench and account pages into `web/dist/`. The Go gate
 | `sync.ts` | Holds `/api/events` open, coalesces pings within 500 ms into one refresh, reconnects forever; a 15 s poll (`POLL_MS`) backs it up |
 | `render.ts`, `timeline.ts`, `tasks.ts` | DOM construction without HTML strings |
 | `markdown.ts` | Hand-written Markdown renderer that builds DOM nodes for model replies; no third-party parser |
-| `ui/` | Shared components: `SetupWizard`, `SettingsPanel`, `TaskCenter`, `BrowserPanel`, `ModelPicker`, `PermissionPicker`, `WorkspacePicker`, `AttachmentPicker`, with composables `useTasks` and `useBrowsers` |
+| `ui/` | Shared components: `SetupWizard`, `SettingsPanel`, `TaskCenter`, `BrowserPanel`, `WorkspacePicker`, `AttachmentPicker`, with composables `useTasks` and `useBrowsers` |
 | `sw.js`, `manifest.webmanifest` | PWA support with network-first pages and no API cache. The build stamps the entry and cache version together. |
 
-The **setup wizard** (`SetupWizard.vue`) starts at the model step (provider, model, API key, base URL) when no model is
-configured, then asks for a permission mode and optional notes about the user, saved with `remember`.
+See the [guide](../guide.md) for personal deployment setup and menu entries.
 
 **Language.** The Chinese string is the dictionary key: `t("还没有会话")`, with `{n}` placeholders; `i18n.ts` holds the
 English table. Static markup uses `data-i18n`, `data-i18n-title`, `data-i18n-placeholder`, `data-i18n-aria`. The language comes from

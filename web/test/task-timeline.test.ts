@@ -32,6 +32,7 @@ test("ordinary task timeline and approval decisions are bilingual, including the
         await page.keyboard.press("Enter");
         const dialog = page.getByRole("dialog");
         await dialog.waitFor();
+        await dialog.locator(".execution-details > summary").click();
         assert.deepEqual(await dialog.locator(".tl-kind").allTextContents(), [labels[0], labels[1], labels[2], labels[2], labels[3], labels[0]]);
         assert.deepEqual(await dialog.locator(".tl-text").allTextContents(), lang === "zh"
           ? ["email_send · ap-fixture", "email_send · 已拒绝 · fixture-person", "email_send · 已超时", "本次执行完成"]
@@ -56,6 +57,7 @@ test("ordinary task timeline and approval decisions are bilingual, including the
           const active = await browser.newPage();
           await active.goto(`http://127.0.0.1:${address.port}/ui-fixtures/connections/task-timeline.html?checkpoint=${checkpoint}&lang=${lang}`);
           await active.locator(".row-open").click();
+          await active.locator(".execution-details > summary").click();
           const section = active.locator(".td-checkpoint");
           await section.waitFor();
           await section.locator(".checkpoint-policy-status").waitFor();
@@ -65,6 +67,7 @@ test("ordinary task timeline and approval decisions are bilingual, including the
         const idle = await browser.newPage({ viewport: { width: 390, height: 844 }, colorScheme: "dark", reducedMotion: "reduce" });
         await idle.goto(`http://127.0.0.1:${address.port}/ui-fixtures/connections/task-timeline.html?checkpoint=idle&lang=${lang}`);
         await idle.locator(".row-open").click();
+        await idle.locator(".execution-details > summary").click();
         const section = idle.locator(".td-checkpoint");
         await section.locator(".checkpoint-head button").focus();
         await idle.keyboard.press("Enter");
@@ -162,6 +165,7 @@ test("ordinary task timeline and approval decisions are bilingual, including the
         const failed = await browser.newPage();
         await failed.goto(`http://127.0.0.1:${address.port}/ui-fixtures/connections/task-timeline.html?checkpoint=idle&failPolicy&lang=${lang}`);
         await failed.locator(".row-open").click();
+        await failed.locator(".execution-details > summary").click();
         await failed.locator(".checkpoint-policy").getByRole("alert").waitFor();
         assert.equal(await failed.locator(".checkpoint-policy button[data-policy=enable]").count(), 0);
         assert.deepEqual(await failed.evaluate(() => (window as unknown as { fixturePolicyWrites: unknown[] }).fixturePolicyWrites), []);

@@ -3,20 +3,18 @@ import { useUiText } from "./translate";
 const t = useUiText();
 import { onMounted, reactive, ref } from "vue";
 import JeevesLogo from "./JeevesLogo.vue";
-import type { ModelInfo, PermissionMode, SettingsActions } from "./types";
+import type { ModelInfo, SettingsActions } from "./types";
 const props = defineProps<{
   models: ModelInfo[];
-  hasModel: boolean;
   actions: SettingsActions;
   remember: (subject: string, content: string) => Promise<unknown>;
 }>();
 const emit = defineEmits<{
   done: [];
   skip: [];
-  permission: [mode: PermissionMode];
 }>();
 const dialog = ref<HTMLDialogElement>();
-const step = ref(props.hasModel ? 2 : 1);
+const step = ref(1);
 const saving = ref(false);
 const error = ref("");
 const form = reactive({
@@ -25,16 +23,7 @@ const form = reactive({
   apiKey: "",
   baseUrl: "",
 });
-const mode = ref<PermissionMode>("standard");
 const about = reactive({ name: "", cares: "" });
-const modes: { id: PermissionMode; name: string; hint: string }[] = [
-  { id: "readOnly", name: t("只读"), hint: t("只能查看，不改文件、不执行命令") },
-  {
-    id: "standard",
-    name: t("标准"),
-    hint: t("读写在工作目录内，其余操作先问你"),
-  },
-];
 async function saveModel() {
   saving.value = true;
   error.value = "";
@@ -62,7 +51,6 @@ async function finish() {
   saving.value = true;
   error.value = "";
   try {
-    emit("permission", mode.value);
     if (about.name.trim())
       await props.remember(t("用户的称呼"), about.name.trim());
     if (about.cares.trim())
@@ -81,7 +69,6 @@ onMounted(() => dialog.value?.showModal());
     <div class="preferences-content">
       <JeevesLogo :size="28" />
       <h2>{{ t("欢迎使用 Jeeves") }}</h2>
-      <p>{{ t("三步完成设置：{n} / 3", { n: step }) }}</p>
       <form v-if="step === 1" @submit.prevent="saveModel">
         <h3>{{ t("连接一个模型") }}</h3>
         <label
@@ -112,19 +99,6 @@ onMounted(() => dialog.value?.showModal());
           ><button class="primary-button" :disabled="saving">
             {{ saving ? t("保存中…") : t("下一步") }}
           </button>
-        </div>
-      </form>
-      <form v-else-if="step === 2" @submit.prevent="step = 3">
-        <h3>{{ t("选择权限") }}</h3>
-        <label v-for="m in modes" :key="m.id" class="wizard-choice"
-          ><input type="radio" v-model="mode" :value="m.id" /><span
-            ><strong>{{ m.name }}</strong
-            ><small>{{ m.hint }}</small></span
-          ></label
-        >
-        <small>{{ t("完全访问可在设置的“权限与安全”里开启。") }}</small>
-        <div class="form-footer">
-          <button class="primary-button">{{ t("下一步") }}</button>
         </div>
       </form>
       <form v-else @submit.prevent="finish">

@@ -394,7 +394,7 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 
 ### 任务审批通知
 
-在 iPhone 上，将可信 HTTPS 地址的驾驶舱添加到主屏幕并从图标打开。在 Mac 上使用 Safari。先在 Runtime 设置 [Web Push 联系地址](configuration.zh.md)。在「设置 → 权限与安全」显示本机公钥，在可信驾驶舱核对这串公钥并授予 `approvalReview`。回到接收设备，先核对配对状态，再点击启用按钮申请系统通知权限。本机的 Ed25519 签名私钥保存在 IndexedDB 中且不可导出。Runtime 在显式设置时生成 VAPID 签名密钥，连同订阅凭据存入凭据库。接收地址须为 Apple 推送服务的 HTTPS 端点。[Apple 平台要求](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
+在 iPhone 上，将可信 HTTPS 地址的驾驶舱添加到主屏幕并从图标打开。在 Mac 上使用 Safari。先在 Runtime 设置 [Web Push 联系地址](configuration.zh.md)。在「设置 → 审批通知」显示本机公钥，在可信驾驶舱核对这串公钥并授予 `approvalReview`。回到接收设备，先核对配对状态，再点击启用按钮申请系统通知权限。本机的 Ed25519 签名私钥保存在 IndexedDB 中且不可导出。Runtime 在显式设置时生成 VAPID 签名密钥，连同订阅凭据存入凭据库。接收地址须为 Apple 推送服务的 HTTPS 端点。[Apple 平台要求](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/)
 
 锁屏通知打开原任务的审批。在已配对的设备上核对动作、目标和影响范围，再选择允许一次或拒绝。离线、审批过期、已处理或设备授权已撤销时无法提交。撤销时已经发出的通知仍可能出现；打开通知和提交决定时，驾驶舱都会重新核验设备代际和待处理请求。推送服务回执丢失时保留尝试记录，不自动重发。仍可在驾驶舱查看待处理审批。
 

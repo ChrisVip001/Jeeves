@@ -16,9 +16,7 @@ const server = await createServer({
 after(() => server.close());
 
 for (const name of [
-  "PermissionPicker",
   "WorkspacePicker",
-  "ModelPicker",
   "AttachmentPicker",
 ]) {
   test(`${name} never submits the surrounding chat composer`, async () => {
@@ -27,7 +25,7 @@ for (const name of [
     );
     const html = await renderToString(
       createApp({
-        render: () => h("form", [h(component, { profiles: [], busy: false })]),
+        render: () => h("form", [h(component, { busy: false })]),
       }),
     );
     const buttons = html.match(/<button\b[^>]*>/g) ?? [];

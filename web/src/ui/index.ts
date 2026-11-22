@@ -1,15 +1,9 @@
 export { default as AttachmentPicker } from "./AttachmentPicker.vue";
 export { default as SettingsPanel } from "./SettingsPanel.vue";
-export { default as ModelPicker } from "./ModelPicker.vue";
 export { default as WorkspacePicker } from "./WorkspacePicker.vue";
-export { default as PermissionPicker } from "./PermissionPicker.vue";
 export { default as SetupWizard } from "./SetupWizard.vue";
 export { default as JeevesLogo } from "./JeevesLogo.vue";
-export type {
-  SettingsActions,
-  PermissionMode,
-  SessionPermissionResponse,
-} from "./types";
+export type { SettingsActions } from "./types";
 
 export { uiTranslatorKey } from "./translate";
 export type { UiTranslator } from "./translate";

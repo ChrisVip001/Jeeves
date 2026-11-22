@@ -12,11 +12,7 @@ import type {
   ModelProfilesResponse,
   ModelSaveParams,
   ModelSaveResponse,
-  ConfigWriteParams,
-  ConfigWriteResponse,
-  SettingsView,
   SessionPermissionResponse,
-  PermissionMode,
   CapabilityListResponse,
   CapabilityProbeResponse,
   ConnectorSettingsResponse,
@@ -33,13 +29,10 @@ export const webState = reactive<{
   cwd?: string;
   busy: boolean;
   connected: boolean;
-  config?: SettingsView;
-  profiles: ModelProfileView[];
+  profiles?: ModelProfileView[];
   managed: boolean;
   models: ModelInfo[];
   policy?: SessionPermissionResponse;
-  policySaving: boolean;
-  policyLoading: boolean;
   policyError: string;
   message: string;
   /** The selected shell view is presentation state, independent of running tasks. */
@@ -49,11 +42,8 @@ export const webState = reactive<{
   mainSessionId: "",
   busy: true,
   connected: false,
-  profiles: [],
   managed: false,
   models: [],
-  policySaving: false,
-  policyLoading: false,
   policyError: "",
   message: "",
   view: "chat",
@@ -77,7 +67,6 @@ export const workspaceActions: {
   main: async () => {},
 };
 export function updateControls(data: DashboardData, sessionId: string): void {
-  webState.config = data.config;
   webState.connected = true;
   if (data.sessions.some((s) => s.id === sessionId))
     webState.sessionId = sessionId;
@@ -94,7 +83,6 @@ export async function refreshPolicy(
   session = webState.sessionId,
 ): Promise<void> {
   if (!session) return;
-  webState.policyLoading = true;
   try {
     const policy = await preferenceRequest<SessionPermissionResponse>(
       `/api/session/permission?sessionId=${encodeURIComponent(session)}`,
@@ -111,37 +99,6 @@ export async function refreshPolicy(
           ? t("当前 Jeeves 服务不支持权限管理，请重启更新后的服务，再重新读取。")
           : t("权限读取失败：{error}", { error: String(error) });
     }
-  } finally {
-    if (webState.sessionId === session) webState.policyLoading = false;
-  }
-}
-export async function setPermission(
-  mode: PermissionMode,
-  confirmed: boolean,
-): Promise<void> {
-  const policy = webState.policy;
-  if (!policy || webState.policySaving) return;
-  webState.policySaving = true;
-  try {
-    const saved = await preferenceRequest<SessionPermissionResponse>(
-      "/api/session/permission",
-      {
-        sessionId: policy.sessionId,
-        mode,
-        expectedRevision: policy.revision,
-        confirmFullAccess: confirmed,
-      },
-    );
-    if (webState.sessionId === saved.sessionId) webState.policy = saved;
-    document
-      .querySelectorAll<HTMLButtonElement>(".approval-card button")
-      .forEach((button) => (button.disabled = true));
-    webState.message = t("权限已更新，待审批操作已失效。");
-  } catch (error) {
-    webState.message = String(error);
-    await refreshPolicy(policy.sessionId);
-  } finally {
-    webState.policySaving = false;
   }
 }
 export function remember(subject: string, content: string): Promise<unknown> {
@@ -176,28 +133,7 @@ export const settingsActions = {
     preferenceRequest<LarkStatus>("/api/connections/lark/claim", { openId }),
   saveModel: (params: ModelSaveParams) =>
     preferenceRequest<ModelSaveResponse>("/api/model/save", params),
-  saveConfig: (params: ConfigWriteParams) =>
-    preferenceRequest<ConfigWriteResponse>("/api/config", params),
 };
-export async function activateModel(id: string): Promise<void> {
-  try {
-    await settingsActions.saveModel({
-      id,
-      makeActive: true,
-      provider: null,
-      model: null,
-      smallModel: null,
-      baseUrl: null,
-      apiKey: null,
-      keyEnv: null,
-      vision: null,
-    });
-    await refreshConnections();
-    await workspaceActions.refresh();
-  } catch (error) {
-    webState.message = String(error);
-  }
-}
 export async function saveWorkspace(
   cwd: string,
   sessionId = webState.sessionId,

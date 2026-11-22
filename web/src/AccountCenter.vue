@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import { ArrowRight, Laptop, Smartphone, Monitor } from "lucide-vue-next";
 import FactorSettings from "./FactorSettings.vue";
 import JeevesLogo from "./ui/JeevesLogo.vue";
@@ -87,6 +87,8 @@ const ready = ref(false);
 const busy = ref(false);
 const error = ref("");
 const lang = getLang();
+const deviceHeading = ref<HTMLElement>();
+const showDevices = location.hash === "#devices";
 const deviceLogin = new URLSearchParams(location.search).get("next") === "/device/";
 const date = (value: string | number) => new Date(value).toLocaleString(lang);
 const app = computed(() => {
@@ -268,6 +270,10 @@ onMounted(() => {
   window.addEventListener("hashchange", openMailLink);
   void act(async () => {
     await refresh();
+    if (showDevices) {
+      await nextTick();
+      deviceHeading.value?.focus();
+    }
     if (profile.value && mode.value === "login" && new URLSearchParams(location.search).has("next")) {
       location.replace(app.value);
     }
@@ -292,7 +298,7 @@ onUnmounted(() => {
     <a id="account-workspace" class="primary" :href="app"
       >{{ t("打开我的助理") }} <ArrowRight :size="16"
     /></a>
-    <details class="account-security" @toggle="readSecurity"><summary>{{ t("账号与安全") }}</summary>
+    <details class="account-security" :open="showDevices" @toggle="readSecurity"><summary>{{ t("账号与安全") }}</summary>
     <dl>
       <div>
         <dt>{{ t("注册时间") }}</dt>
@@ -315,7 +321,7 @@ onUnmounted(() => {
     <form v-if="profile.oidc && profile.passwordSet" method="post" action="/api/oidc/start">
       <button class="quiet" type="submit">{{ t("绑定第三方账号") }}</button>
     </form>
-    <h2>{{ t("登录会话") }}</h2>
+    <h2 id="devices" ref="deviceHeading" tabindex="-1">{{ t("登录会话") }}</h2>
     <ul>
       <li v-for="s in profile.sessions" :key="s.id">
         <component

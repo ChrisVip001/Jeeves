@@ -133,11 +133,10 @@ Vue 和 Vite 将工作台及账号页面构建到 `web/dist/`。Go 网关在通�
 | `sync.ts` | 保持 `/api/events` 打开，把 500 ms 内的 ping 合并为一次刷新，永远重连；15 秒轮询（`POLL_MS`）作为后备 |
 | `render.ts`、`timeline.ts`、`tasks.ts` | 不拼 HTML 字符串，直接构建 DOM |
 | `markdown.ts` | 手写的 Markdown 渲染器，为模型回复构建 DOM 节点；不用第三方解析器 |
-| `ui/` | 共享组件：`SetupWizard`、`SettingsPanel`、`TaskCenter`、`BrowserPanel`、`ModelPicker`、`PermissionPicker`、`WorkspacePicker`、`AttachmentPicker`，以及组合式函数 `useTasks`、`useBrowsers` |
+| `ui/` | 共享组件：`SetupWizard`、`SettingsPanel`、`TaskCenter`、`BrowserPanel`、`WorkspacePicker`、`AttachmentPicker`，以及组合式函数 `useTasks`、`useBrowsers` |
 | `sw.js`、`manifest.webmanifest` | PWA 页面优先请求网络，API 响应不缓存。构建为入口与缓存生成同一版本标记。 |
 
-**设置向导**（`SetupWizard.vue`）在没有配置模型时从模型步骤开始（提供商、模型、API 密钥、基础 URL），
-然后询问权限模式和关于用户的可选备注，备注通过 `remember` 保存。
+单机部署的首次设置和菜单入口见[上手指南](../guide.zh.md)。
 
 **语言。** 中文字符串就是词典的键：`t("还没有会话")`，占位符写作 `{n}`；`i18n.ts` 持有英文表。静态标记使用 `data-i18n`、
 `data-i18n-title`、`data-i18n-placeholder`、`data-i18n-aria`。语言取自 `localStorage` 的 `jeeves.lang`，否则取 `navigator.language`

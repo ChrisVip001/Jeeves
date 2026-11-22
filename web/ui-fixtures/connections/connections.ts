@@ -56,7 +56,7 @@ const policies: Record<string, ConnectorToolsResponse> = {
 let failInboxOnce = new URLSearchParams(location.search).has("failInbox");
 Object.assign(window, { fixtureWrites, fixtureAuth, fixtureMcp, fixtureToolChanges });
 const app = createApp(SettingsPanel, {
-  profiles: [], models: [], busy: false, initialTab: "connections",
+  busy: false, initialTab: "connections",
   actions: {
     capabilityList: async () => ({ cards: structuredClone(cards) }),
     capabilityProbe: async (id: string) => ({ card: { ...cards.find(c => c.id === id)!, state: "ready" } }),

@@ -78,10 +78,11 @@ try {
         await page.unroute(meta);
         await page.reload();
       }
-      assert.equal(await page.locator("#composer-model").isVisible(), false);
-      await page.locator(".compose-options summary").click();
-      await page.locator("#composer-model").waitFor();
-      await page.locator(".compose-options summary").click();
+      const folder = page.locator("#composer .workspace-picker").getByRole("button", { name: "自动工作区", exact: true });
+      await folder.click();
+      await page.getByRole("dialog", { name: "当前工作目录" }).getByRole("button", { name: "选择已有项目" }).waitFor();
+      await folder.press("Escape");
+      assert.equal(await page.locator("#composer .model-picker, #composer .permissions").count(), 0);
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       if (decisionId) {
         const decision = page.locator(".chat-decisions");

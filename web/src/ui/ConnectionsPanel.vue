@@ -11,7 +11,7 @@ import "./connections.css";
 
 const t = useUiText();
 const props = defineProps<{ actions: Pick<SettingsActions, "capabilityList" | "capabilityProbe" | "connectorSettings" | "saveConnectorSettings" | "startConnectorOAuth" | "connectorCatalog" | "connectorTools" | "setConnectorTool" | "saveMcpServer">; vaultNames: string[] }>();
-const emit = defineEmits<{ manage: [target: "models" | "permissions" | "lark" | "mcp", card: CapabilityCard] }>();
+const emit = defineEmits<{ manage: [target: "lark" | "mcp"] }>();
 const cards = ref<CapabilityCard[]>([]);
 const loading = ref(false);
 const pending = ref<string | null>(null);
@@ -89,9 +89,7 @@ function isProbe(card: CapabilityCard) {
   return ["ready", "offline", "unknown"].includes(card.state);
 }
 function manageTarget(card: CapabilityCard) {
-  if (card.state === "blockedByPolicy") return card.kind === "executor" ? "permissions" : null;
   if (card.state !== "unauthorized") return null;
-  if (card.kind === "model") return "models";
   if (card.id === "channel:lark") return "lark";
   if (card.kind === "mcp" && card.secretPointer !== "file") return "mcp";
   return null;
@@ -105,6 +103,7 @@ function instruction(card: CapabilityCard) {
     if (card.kind === "mcp" && card.secretPointer === "file") return t("在服务的授权设置中核对需要的权限，再在 Jeeves 所在设备运行 jeeves mcp login <连接器名> 重新授权。完成后检查连接。");
     return t("在服务的授权设置中核对所需权限，然后重新检查连接。");
   }
+  if (card.kind === "model") return t("请在 Runtime 的 Jeeves CLI 中使用 /model 检查模型和凭据，然后重新检查连接。");
   if (card.kind === "mcp") {
     if (card.state === "expired" || card.secretPointer === "file") return t("在 Jeeves 所在设备的终端运行 jeeves mcp login <连接器名>，在浏览器完成授权后重新检查。此处不会显示授权令牌。");
     return t("在 MCP 连接器中核对认证方式与凭据来源，保存后重新检查。");
@@ -167,7 +166,7 @@ async function act(card: CapabilityCard) {
     }
   } else {
     const target = manageTarget(card);
-    if (target) emit("manage", target, card);
+    if (target) emit("manage", target);
     else expanded.value = expanded.value === card.id ? null : card.id;
   }
 }
@@ -188,7 +187,7 @@ onMounted(load);
     </div>
     <p v-if="error" class="connection-message" role="alert">{{ t('读取连接状态失败。请确认 Jeeves 服务已更新并重试。') }}</p>
     <p v-else-if="loading && !loaded" class="connection-message" role="status">{{ t('正在读取连接状态…') }}</p>
-    <p v-else-if="loaded && !cards.length" class="connection-message">{{ t('尚无已配置的能力。你可以在下方或模型设置中添加连接。') }}</p>
+    <p v-else-if="loaded && !cards.length" class="connection-message">{{ t('尚无已配置的连接。') }}</p>
     <ConnectorSettings ref="connectorSettingsPanel" v-model="connectorEditor" :actions="actions" :vault-names="vaultNames" @saved="load" />
     <ConnectorCatalog :actions="actions" :existing-names="existingNames" :can-add="loaded && !loading && !error" @saved="load" />
     <div v-if="cards.length" class="capability-list">

@@ -172,69 +172,6 @@
   font-size: 10px;
   color: var(--text-3);
 }
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-.section-heading h3 {
-  margin: 0;
-}
-.section-heading h3 span {
-  margin-left: 5px;
-  font-size: 10px;
-}
-.model-connection {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 15px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  color: var(--text);
-}
-.connection-icon {
-  width: 35px;
-  height: 35px;
-  display: grid;
-  place-items: center;
-  background: var(--bg-panel);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  color: var(--text-3);
-  flex: none;
-}
-.connection-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.connection-details strong {
-  font-size: 12px;
-  font-weight: 550;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.connection-details > span,
-.connection-details small {
-  font-size: 10px;
-  color: var(--text-3);
-}
-.connection-details small {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-.connection-edit {
-  margin-left: auto;
-  color: var(--text-3);
-  font-size: 10px;
-}
 .soft-badge {
   font-size: 9px;
   font-weight: 400;
@@ -250,33 +187,6 @@
   line-height: 1.8;
   margin: 16px 0;
 }
-.settings-empty {
-  text-align: center;
-  padding: 35px 0 25px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 13px;
-  color: var(--text-3);
-}
-.settings-empty strong {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-2);
-}
-.settings-empty p {
-  font-size: 11px;
-  color: var(--text-3);
-  line-height: 1.8;
-  margin: 0 0 5px;
-}
-.connection-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-.connection-form > label,
-.advanced-fields label,
 .workspace-popover label {
   display: flex;
   flex-direction: column;
@@ -296,28 +206,6 @@
   font-size: 12px;
   min-width: 0;
 }
-.connection-form small {
-  font-size: 10px;
-  color: var(--text-3);
-  line-height: 1.5;
-}
-.connection-form > .text-button:first-child {
-  margin-bottom: 4px;
-}
-.advanced-toggle {
-  justify-content: space-between;
-  margin-top: 4px;
-}
-.rotated {
-  transform: rotate(180deg);
-}
-.advanced-fields {
-  border-left: 2px solid var(--line);
-  padding-left: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
 .preferences-notice {
   font-size: 11px;
   line-height: 1.7;
@@ -331,57 +219,8 @@
   background: var(--bg-panel);
   color: var(--bad);
 }
-.permission-summary {
-  display: flex;
-  gap: 12px;
-  padding: 15px;
-  background: var(--bg-panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--text-2);
-}
-.permission-summary strong {
-  font-size: 12px;
-}
-.permission-summary p {
-  font-size: 11px;
-  color: var(--text-3);
-  line-height: 1.7;
-  margin: 6px 0 0;
-}
-.planned-permission {
-  display: flex;
-  gap: 6px;
-}
-.planned-permission span {
-  font-size: 11px;
-  color: var(--text-3);
-  border: 1px dashed var(--line);
-  border-radius: 5px;
-  padding: 7px 12px;
-}
-.path-value {
-  overflow-wrap: anywhere;
-}
-.model-picker,
 .workspace-picker {
   position: relative;
-}
-.model-trigger {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 0;
-  background: transparent;
-  color: var(--text-2);
-  padding: 6px 4px;
-  font-size: 11px;
-  max-width: 160px;
-}
-.model-trigger span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .popover-dismiss {
   position: fixed;
@@ -391,9 +230,7 @@
   border: 0;
   cursor: default;
 }
-.model-popover,
-.workspace-popover,
-.permissions-popover {
+.workspace-popover {
   position: absolute;
   bottom: 41px;
   z-index: 21;
@@ -403,95 +240,6 @@
   box-shadow: var(--shadow-overlay);
   color: var(--text-2);
   overflow: hidden;
-}
-.model-popover {
-  width: 300px;
-  right: 0;
-}
-.picker-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 9px;
-  padding: 7px 8px;
-  background: var(--bg-panel);
-  color: var(--text-3);
-  border-radius: 6px;
-}
-.picker-search input {
-  border: 0;
-  background: none;
-  outline: 0;
-  width: 100%;
-  font-size: 11px;
-  color: var(--text-2);
-}
-.popover-label {
-  font-size: 10px;
-  color: var(--text-3);
-  margin: 12px 15px 8px;
-}
-.picker-list {
-  max-height: 240px;
-  overflow: auto;
-  padding: 0 6px 6px;
-}
-.model-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  width: 100%;
-  padding: 10px;
-  text-align: left;
-  color: var(--text-3);
-}
-.model-option:hover {
-  background: var(--bg-panel);
-}
-.model-option > span {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1;
-}
-.model-option strong {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-2);
-}
-.model-option small {
-  font-size: 10px;
-  color: var(--text-3);
-}
-.model-popover footer,
-.permissions-popover footer {
-  border-top: 1px solid var(--line);
-  padding: 11px 14px;
-}
-.model-popover footer > span {
-  font-size: 9px;
-  color: var(--text-3);
-  display: block;
-  margin-bottom: 9px;
-}
-.model-popover footer button,
-.permissions-popover footer button {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 0;
-  background: none;
-  padding: 0;
-  color: var(--text-2);
-  font-size: 11px;
-}
-.picker-empty {
-  padding: 14px 9px;
-  color: var(--text-3);
-  font-size: 11px;
 }
 .workspace-popover {
   width: 310px;
@@ -514,69 +262,12 @@
   gap: 16px;
   margin-top: 16px;
 }
-.permissions-popover {
-  width: 290px;
-  left: 0;
-}
-.current-permission {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 15px;
-  color: var(--text-3);
-}
-.current-permission > span {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.current-permission strong {
-  font-size: 12px;
-  font-weight: 550;
-  color: var(--text-2);
-}
-.current-permission small,
-.preset-options small {
-  font-size: 10px;
-  color: var(--text-3);
-}
-.preset-options {
-  padding: 6px 15px;
-  border-top: 1px solid var(--line);
-}
-.preset-options > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  color: var(--text-3);
-}
-.preset-options > div > span {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.preset-options strong {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--text-3);
-}
-.permissions-popover footer p {
-  font-size: 10px;
-  color: var(--text-3);
-  line-height: 1.6;
-  margin: 0 0 10px;
-}
 @media (max-width: 900px) {
   .preferences[open] {
     grid-template-columns: 160px 1fr;
   }
   .preferences-page {
     padding: 28px 24px;
-  }
-  .model-trigger {
-    max-width: 125px;
   }
   .context-button {
     max-width: 135px;
@@ -594,8 +285,6 @@
 }
 :where(
   .preferences,
-  .model-picker,
-  .permissions,
   .workspace-picker,
   .attachment-picker
 ) {
@@ -604,8 +293,6 @@
 }
 :where(
     .preferences,
-    .model-picker,
-    .permissions,
     .workspace-picker,
     .attachment-picker
   )
@@ -615,8 +302,6 @@
 }
 :where(
     .preferences,
-    .model-picker,
-    .permissions,
     .workspace-picker,
     .attachment-picker
   )
@@ -626,8 +311,6 @@
 }
 :where(
     .preferences,
-    .model-picker,
-    .permissions,
     .workspace-picker,
     .attachment-picker
   )
@@ -709,15 +392,6 @@
     max-width: 150px;
     line-height: 1.6;
   }
-  .model-popover {
-    width: min(300px, 90vw);
-  }
-  .permissions-popover {
-    width: min(290px, 90vw);
-  }
-}
-.permissions {
-  position: relative;
 }
 /* Readable supporting text on all hosts. */
 .preferences-nav > button {
@@ -736,62 +410,17 @@
   font-size: 12px;
   color: var(--text-3);
 }
-.connection-form > label,
-.advanced-fields label,
 .workspace-popover label {
   font-size: 12px;
 }
-.connection-form small,
 .form-footer > span {
   font-size: 11px;
   color: var(--text-3);
 }
-.connection-details > span,
-.connection-details small,
-.current-permission small,
-.preset-options small,
-.permissions-popover footer p {
-  font-size: 11px;
-  color: var(--text-3);
-}
-.permission-confirm {
-  max-width: 420px;
-  border: 1px solid var(--jeeves-line);
-  border-radius: 12px;
-  padding: 26px;
-  color: var(--jeeves-text);
-  background: var(--jeeves-surface);
-  box-shadow: var(--shadow-overlay);
-  font-family: var(--jeeves-font);
-}
-.permission-confirm::backdrop {
-  background: var(--scrim);
-}
-.permission-confirm > svg {
-  color: var(--jeeves-accent);
-}
-.permission-confirm h3 {
-  font-size: 17px;
-  font-weight: 600;
-  margin: 15px 0;
-}
-.permission-confirm p {
-  font-size: 12px;
-  line-height: 1.8;
-  color: var(--text-3);
-}
-.permission-confirm footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 22px;
-}
 
 /* Touch menus stay inside the viewport regardless of their toolbar anchor. */
 @media (max-width: 640px) {
-  .model-popover,
-  .workspace-popover,
-  .permissions-popover {
+  .workspace-popover {
     position: fixed;
     left: 12px;
     right: 12px;
@@ -800,15 +429,6 @@
     max-height: min(65dvh, 440px);
     overflow: auto;
   }
-}
-
-.permission-status {
-  padding: 12px 15px;
-  font-size: 12px;
-  line-height: 1.7;
-}
-.permission-status p {
-  margin: 0 0 10px;
 }
 
 .attachment-trigger {

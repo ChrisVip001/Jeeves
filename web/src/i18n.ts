@@ -17,7 +17,6 @@ const DICT: Record<string, string> = {
   "向 Jeeves 说说你的想法…": "Share your thoughts with Jeeves…",
   "展开侧栏": "Expand sidebar",
   "收起侧栏": "Collapse sidebar",
-  "权限已更新，待审批操作已失效。": "Permissions updated. Pending approvals have been invalidated.",
   "核验时的文件版本：{hash}": "File version measured at verification: {hash}",
   "由旧检查点重建；无法确认是否已发送。": "Recovered from an earlier checkpoint; transmission is unknown.",
   "执行前已保存意图；这不证明外部操作已完成。": "Intent was saved before execution; this does not prove the external effect completed.",

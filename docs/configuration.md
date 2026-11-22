@@ -4,13 +4,7 @@ English | [简体中文](configuration.zh.md)
 
 ## Two layers
 
-**Most people never touch this page.** Everything an ordinary user needs is a screen in the
-dashboard: the first-run wizard (model, permissions, who you are), Settings → Models, Permissions
-(including the command / file / delegation switches) and Connections (Lark). Those choices are saved
-under `<home>` and apply from the next request.
-
-**Everything below is advanced:** environment variables for operators, containers and tests. A variable
-sets the default; where Settings has a switch for the same thing, the saved switch wins.
+The cockpit menu provides account, device and service connection management. Operators configure models, runtime limits and tool permissions through the CLI or Runtime management interfaces.
 
 Environment variables supply startup defaults. `jeeves-config`
 reads them once at process start and never again. Jeeves **does not read any
@@ -29,15 +23,14 @@ Providers are **pre-adapted in code** (`PROVIDERS` in `jeeves-provider`; the lis
 /model use ds                switch (no need to retype the key)
 ```
 
-The dashboard adds and switches profiles under Settings → Models and connections; the REPL's `/model` and
-`<home>/models.json` are the same thing over the same `model/*` protocol methods. Keys go to the OS keychain first, falling back to
+Use `/model` in the REPL to manage profiles in `<home>/models.json`. Management clients use the `model/*` protocol. Keys go to the OS keychain first, falling back to
 `<home>/secrets.json` (0600); `--env VAR` reads the environment and stores
 nothing. `model/save` reports **where the key actually landed** (`keychain` /
 `file` / `env:VAR`). Switching takes effect immediately: it rewrites Settings and
 re-resolves the provider. Removing the active profile restores the model configuration
 from startup. A custom endpoint uses a provider from the model catalog so the runtime
 knows its wire protocol. Repair unreadable profile, settings or vault files before
-editing them through the cockpit. Startup can still use its defaults.
+saving changes. Startup can still use its defaults.
 
 **Can this model see images? Declare it when you add the profile**, instead of
 being told by an error later:
@@ -104,9 +97,7 @@ actually happened; the dashboard footer prints it.
 - A task's declared tier is stored on the task row and every round of that task
   reuses it — no need to repeat it per turn;
 - A mistyped tier is an error on the spot, never a silent `chat` (that would put
-  the bill on the wrong model);
-- The dashboard's model panel has a tier block: an auto switch plus three
-  "tier ↔ profile" rows, writing the same `model-routes.json` as REPL `/route`.
+  the bill on the wrong model).
 
 ## Inbound webhooks (`<home>/webhooks.json`)
 
@@ -326,7 +317,7 @@ and the context keeps the head and tail — **complete lines only** — plus
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JEEVES_EXEC` | `0` | enable the `run_command` tool (off = the model never sees it). Also a switch in Settings → Permissions; a saved switch overrides the variable and applies from the next request |
+| `JEEVES_EXEC` | `0` | enable the `run_command` tool (off = the model never sees it). A switch saved with `config/write` overrides the variable and applies from the next request |
 | `JEEVES_WRITE` | `0` (`1` in the dashboard) | enable the `write_file` / `edit` / `apply_patch` tools (off = the model never sees them). Writable boundary: **only** this turn's chosen working directory plus `JEEVES_EXEC_WRITABLE_ROOTS`; with no folder chosen nothing can be written |
 | `JEEVES_DELEGATE` | `0` | enable the `delegate_task` tool (a subagent gets its own context; it cannot delegate again). Also a Settings switch, same override rule |
 | `JEEVES_EXEC_ALLOW` | — | allowlist, comma separated, trailing `*` wildcards (`cargo test,git status,ls *`). Empty = deny everything |
@@ -409,8 +400,8 @@ existing id** (any subset of fields) or **adds a new provider** (`wire`,
 ]
 ```
 
-The file is read **once at boot** and merged into the catalog; `/model`, the
-dashboard's Model panel and `model/list` all see the merged result, and
+The file is read **once at boot** and merged into the catalog; `/model` and
+`model/list` see the merged result, and
 `model/save` validates against it. Unknown fields are rejected (a typo that
 silently does nothing is worse than an error); a broken file or row costs one
 stderr line and keeps the built-in table — it never blocks boot. Restart the

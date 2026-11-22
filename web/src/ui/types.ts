@@ -1,9 +1,5 @@
 import type * as V2 from "../../../protocol/schema/typescript/v2/index";
-export type {
-  ModelInfo,
-  ModelProfileView,
-  SettingsView,
-} from "../../../protocol/schema/typescript/v2/index";
+export type { ModelInfo } from "../../../protocol/schema/typescript/v2/index";
 export interface LarkConfig {
   enabled: boolean;
   appId: string;
@@ -43,13 +39,7 @@ export interface SettingsActions {
   saveLark(config: LarkConfig, appSecret: string | null): Promise<LarkStatus>;
   claimLark(openId: string): Promise<LarkStatus>;
   saveModel(params: V2.ModelSaveParams): Promise<V2.ModelSaveResponse>;
-  saveConfig(params: V2.ConfigWriteParams): Promise<V2.ConfigWriteResponse>;
 }
-
-export type {
-  PermissionMode,
-  SessionPermissionResponse,
-} from "../../../protocol/schema/typescript/v2/index";
 
 export type {
   AgentTaskView,

@@ -6,13 +6,13 @@ English | [简体中文](main-entry.zh.md)
 
 Talk to Jeeves in your own words. It can answer a question in place or take responsibility for an outcome, from a quick comparison to work that takes several days. You can describe the situation before you know exactly what to ask for.
 
-The Web and iOS workspaces share one Runtime conversation. Feishu retains its verified chat and sender and can follow up on work assigned from that origin. The paired Mac device grants access to selected windows when an assignment needs it. Chat and My work are the everyday entry points. The menu holds the account, tools and settings. Messages lead with the request and reply. The timestamp reveals the execution details.
+The Web and iOS workspaces share one Runtime conversation. Feishu retains its verified chat and sender and can follow up on work assigned from that origin. The paired Mac device grants access to selected windows when an assignment needs it. Chat and My work are the everyday entry points. The menu provides account, device and connection management. Messages lead with the request and reply. The timestamp reveals the execution details.
 
 While the cloud workspace starts, you can draft your request. Reloading the tab keeps that draft, and Send becomes available when the conversation opens.
 
 ### Interface boundary
 
-The intended shape is a restrained workbench: the goal sits at the top, and the conversation is where a person states an outcome, sees decisions and takes delivery. Configuration — models, permissions, schedules, usage and audit — belongs in the CLI, `models.json`, `model-routes.json` and the `/api/*` surface, not in cockpit panels. Approval cards belong inside the conversation. The current build still ships Settings, model/permission pickers and a capability centre as an interim step toward that boundary; treat them as transitional, not as the target to extend.
+The composer shows the working directory and the selected task for follow-ups. When an action needs approval, the conversation shows its scope and preview for the user to decide. Operators configure model routing, runtime limits and permission policies through the Runtime management interfaces. See the [guide](../guide.md) for personal deployment setup.
 
 ## 2. Design references
 

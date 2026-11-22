@@ -2,7 +2,7 @@
 
 English | [简体中文](guide.zh.md)
 
-Sign in at your installation's address to ask a question, delegate work or follow up across devices. The settings below are in the account's workbench. [Using the main conversation](design/main-entry.md)
+Sign in at your installation's address to ask a question, delegate work or follow up across devices. [Using the main conversation](design/main-entry.md)
 
 ## 1. Install
 
@@ -17,16 +17,13 @@ Sign in at your installation's address to ask a question, delegate work or follo
 A personal deployment opens the wizard after sign-in when no model is connected:
 
 1. **Connect a model.** Pick a provider and paste its key. The key goes to the system keychain; Ollama needs no key.
-2. **Choose permissions.** *Read-only* looks but never touches files or runs commands. *Standard* reads and writes inside your workspace and asks before anything else.
-3. **Let Jeeves get to know you.** Your name and what you care about lately are saved as memory you can open and edit.
+2. **Let Jeeves get to know you.** Your name and what you care about lately are saved as memory you can open and edit.
 
 Then say something. A good first message: "Summarize the files in my Downloads folder and propose how to tidy them."
 
 ## 3. Models
 
-Settings → **Models and connections** adds, switches and removes model profiles; switching applies at once, no restart. A profile is a provider, a model name and a key source. Keys go to the OS keychain, falling back to `<home>/secrets.json` (0600, plaintext) when no keychain is usable; a profile can instead name an environment variable (`env:VAR`), which is read but never copied. The save response says where the key landed.
-
-The terminal does the same:
+Use `/model` in the Jeeves CLI to manage profiles. Changes take effect on the next request. A profile is a provider, a model name and a key source. Keys go to the OS keychain, falling back to `<home>/secrets.json` (0600, plaintext) when no keychain is usable; a profile can instead name an environment variable (`env:VAR`), which is read but never copied. The save response says where the key landed.
 
 ```
 /model                                       list profiles (★ = active)
@@ -38,13 +35,7 @@ Declare image support when you add a profile (`--vision` / `--no-vision`), other
 
 ## 4. Permissions
 
-Settings → **Permissions and security** holds the switches for running commands, writing files and delegating to subagents. They are off until you turn them on (the dashboard turns file writing on by default) and apply from the next request. Each conversation also has a mode in the composer:
-
-- **Read-only**: no file changes, no commands.
-- **Standard**: works inside the chosen working directory and asks before anything else. An approval card offers Deny, Allow once, Always allow this session, or Remember this.
-- **Full access**: a separate, confirmed switch; it still respects the sandbox and the hard deny list.
-
-Commands always run in a sandbox with no network unless you allow it. The full model is in [SECURITY](../SECURITY.md).
+Review the action, working directory and preview on the approval card in the conversation, then allow it once or deny it. The operator manages the Runtime switches for commands, file writes and delegation. See the [protocol](protocol.md) for session modes and [security](../SECURITY.md) for sandbox boundaries.
 
 ## 5. Channels: Lark and WeChat Official Account
 
@@ -65,7 +56,7 @@ Lark uses a long connection, so no public address is needed. In the developer co
 3. Choose the **long connection** delivery method, not "push to your server".
 4. For approval cards, also subscribe to the callback `card.action.trigger`.
 
-Missing any of the first three produces "connected, forever silent" with no error. Then open Settings → **Connections**, enter the App ID and App Secret (the secret goes to the keychain), and turn the gateway on. The Runtime starts it, shows its state and last log lines, and restarts it with the Runtime; Node.js must be installed. Leave the allowlist empty and the gateway answers nobody: the first person who writes appears as a candidate, and one click confirms them as the owner. For the international Lark, set the domain to Lark.
+Missing any of the first three produces "connected, forever silent" with no error. Then open Menu → **Connections**, enter the App ID and App Secret (the secret goes to the keychain), and turn the gateway on. The Runtime starts it, shows its state and last log lines, and restarts it with the Runtime; Node.js must be installed. Leave the allowlist empty and the gateway answers nobody: the first person who writes appears as a candidate, and one click confirms them as the owner. For the international Lark, set the domain to Lark.
 
 Allowlist entries are **open_ids** (`ou_…`), not App IDs. If logs say `outside the allowlist`, the sender's open_id did not match; open_ids differ between applications. In groups the bot only answers when mentioned.
 
@@ -164,7 +155,7 @@ Ask in chat: "run the morning-briefing skill every weekday at 8". Jeeves stores 
 
 ## 9. Credentials
 
-Settings → **Connections** → **Credentials** stores a password or token under an uppercase name (letters, digits, underscore). Jeeves's commands can use it but never read it: the model writes `$JEEVES_SECRET_GITHUB_TOKEN` in a command, the Runtime injects the value into that one process and scrubs it from the output. Values live in the keychain; listing shows names only. This covers `run_command` only; see [limitations](limitations.md#credential-vault-covers-commands-only).
+Menu → **Connections** → **Credentials** stores a password or token under an uppercase name (letters, digits, underscore). Jeeves's commands can use it but never read it: the model writes `$JEEVES_SECRET_GITHUB_TOKEN` in a command, the Runtime injects the value into that one process and scrubs it from the output. Values live in the keychain; listing shows names only. This covers `run_command` only; see [limitations](limitations.md#credential-vault-covers-commands-only).
 
 ## 10. Inbox
 
