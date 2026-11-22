@@ -10,7 +10,7 @@
 
 # ---- Build -----------------------------------------------------------------
 # Builder and runtime share one Debian release (trixie), so the binary's glibc matches.
-FROM rust:1.98-slim-trixie AS builder
+FROM rust:1.100-slim-trixie AS builder
 WORKDIR /src
 # Manifests first, with stub sources: the dependency layer is cached by Docker, so a code
 # change does not rebuild every dependency.

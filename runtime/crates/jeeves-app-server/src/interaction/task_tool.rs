@@ -16,11 +16,11 @@ use std::sync::{Arc, Mutex};
 pub(crate) const NAME: &str = "task";
 const MAX_ITEMS: usize = 4;
 
-const DESCRIPTION: &str = "Hand real work to a task thread that runs on its own while the conversation stays free. \
-Use it when the human explicitly asks you to do work: draft or send email, change files, build something, run a multi-step job. \
-Create the handoff even when implementation choices are open; the worker can inspect and make safe progress before requesting a material decision. \
-Do not use it for chat, questions, advice or progress inquiries; answer those yourself. \
-create: one item per independent request (at most 4). `instruction` must be copied word for word from the human's current message, never reworded or invented. \
+const DESCRIPTION: &str = "Hand a request that needs execution or follow-up to a task thread while the conversation stays available. \
+Use it for short or long assignments, such as comparing current prices, making a file, changing a program or drafting an email. A request to do something may be phrased as a question or described in everyday language. \
+Handle casual conversation, general questions, advice and progress inquiries directly. Use list to look up existing tasks when needed. \
+Summarize the intended outcome from the conversation and keep the human's constraints. Hand off work when only implementation choices are open. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
+create: one item per independent request (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
 Include file_checks for explicitly named output files. Copy each path from the instruction. Add contains only for literal text the human requires in that file. \
 continue: pass a follow-up to the existing task (task_id from list). Use its words once. If the target is unclear, ask which task the human means. \
 draft_email: when the human asks to change a previously requested send to a draft, use this instead of continue or create. The runtime resolves the target from the human message. \
@@ -102,7 +102,7 @@ pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) 
                     "items": {
                         "type": "object",
                         "properties": {
-                            "title": {"type": "string", "description": "Short title in the human's language"},
+                            "title": {"type": "string", "description": "Short summary of the requested outcome in the human's language"},
                             "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"},
                             "file_checks": {
                                 "type": "array", "description": "Explicit output files named in this instruction",

@@ -5,7 +5,7 @@ English | [简体中文](CONTRIBUTING.zh.md)
 ## Development environment
 
 ```bash
-just build                       # cargo build --workspace at the workspace root (Rust >= 1.85)
+just build                       # cargo build --workspace at the workspace root (Rust >= 1.100)
 just ts-install
 ```
 

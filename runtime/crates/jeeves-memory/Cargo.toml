@@ -1,6 +1,7 @@
 [package]
 name = "jeeves-memory"
 version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Two agents that manage memory: the retrieval gate (should it look?) and consolidation (what to keep)."

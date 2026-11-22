@@ -154,52 +154,6 @@ impl Chat {
         Ok(())
     }
 
-    /// Copy the last `turns` exchanges of `from` into a brand-new session `to`.
-    ///
-    /// This is "try another path without losing this one": the branch continues from a copy
-    /// while the original keeps going untouched. What is copied is deliberately narrow —
-    ///
-    /// * the metadata row: `cwd` is inherited (a branch works in the same folder; otherwise
-    ///   its writable boundary would silently change), the title gets a suffix;
-    /// * the last N **pairs** of `chat_log` rows — a turn is user+assistant, so copying by
-    ///   row count would cut a pair in half and leave an answer without its question;
-    /// * **not** the rollup (compaction summary): its watermark points at the source's
-    ///   `chat_log` ids, so a copied summary would describe text this session never had.
-    ///
-    /// Returns how many messages were copied. An unknown source is an error, not an empty
-    /// branch: a session that looks successful but has no context is worse than a refusal.
-    pub async fn fork_session(&self, from: &str, to: &str, turns: usize) -> Result<i64> {
-        let limit = turns.clamp(1, 200) as i64 * 2;
-        let mut tx = self.pool.begin().await?;
-        let inserted = sqlx::query(
-            "INSERT INTO sessions (id, title, cwd, forked_from)\n             SELECT ?, COALESCE(NULLIF(TRIM(title), '') || ' · branch', 'branch'), cwd, id\n               FROM sessions WHERE id = ?",
-        )
-        .bind(to)
-        .bind(from)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
-        if inserted == 0 {
-            tx.rollback().await?;
-            anyhow::bail!("session {from} does not exist");
-        }
-        let copied = sqlx::query(
-            "INSERT INTO chat_log (session_id, role, content, source, created_at)
-             SELECT ?, role, content, source, created_at FROM (
-                 SELECT role, content, source, created_at, id FROM chat_log
-                  WHERE session_id = ? ORDER BY id DESC LIMIT ?
-             ) ORDER BY id",
-        )
-        .bind(to)
-        .bind(from)
-        .bind(limit)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected() as i64;
-        tx.commit().await?;
-        Ok(copied)
-    }
-
     /// Rows pending distillation (in time order). Consolidation's input and threshold check.
     pub async fn unconsolidated(&self) -> Result<Vec<(i64, String, String)>> {
         let rows = sqlx::query_as::<_, (i64, String, String)>(

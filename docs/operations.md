@@ -124,7 +124,7 @@ Ctrl-C and SIGTERM close SSE and let active turns drain for up to 25 seconds. Un
 
 ### CLI releases
 
-Set the Rust workspace version in `Cargo.toml`, update both changelogs, and add `.github/release-notes/v<version>.md`. Run `just check` and `just release-package` on the release commit. The [release workflow](../.github/workflows/release.yml) can be dispatched on a branch to build and verify all four CLI archives. Push the matching `v<version>` tag to publish the macOS and Linux archives for arm64 and x86-64 with their `SHA256SUMS`. Follow the hosted deployment and Mac build instructions for those artifacts.
+Set the Rust workspace version in `Cargo.toml` and add `.github/release-notes/v<version>.md`. Run `just check` and `just release-package` on the release commit. The [release workflow](../.github/workflows/release.yml) can be dispatched on a branch to build and verify all four CLI archives. Push the matching `v<version>` tag to publish the macOS and Linux archives for arm64 and x86-64 with their `SHA256SUMS`. Follow the hosted deployment and Mac build instructions for those artifacts.
 
 ## Keeping it running
 

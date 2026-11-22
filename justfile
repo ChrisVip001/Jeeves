@@ -1,4 +1,4 @@
-# Jeeves — task entrypoint for the three-language repo.
+# Jeeves — task entrypoint for the layered repo (Rust runtime, Go services, web shells).
 #
 # Install just:  brew install just      (or cargo install just)
 #

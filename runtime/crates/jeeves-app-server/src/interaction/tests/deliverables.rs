@@ -2,7 +2,9 @@ use super::*;
 use jeeves_provider::mock::Mock;
 use std::path::Path;
 
-const REQUEST: &str = "请把复盘写进 review.md，报告必须包含「12 次事件」。";
+const REQUEST: &str =
+    "明天要和同事对一下这次事故。能帮我把复盘写进 review.md 吗？报告里得写「12 次事件」。";
+const TITLE: &str = "交付事故复盘";
 
 pub(super) fn reply(is_main: bool, message: &str) -> Option<CreateResponse> {
     if is_main && message == REQUEST {
@@ -11,7 +13,7 @@ pub(super) fn reply(is_main: bool, message: &str) -> Option<CreateResponse> {
                 id,
                 "task",
                 json!({
-                    "action":"create", "items":[{"title":"复盘","instruction":REQUEST,
+                    "action":"create", "items":[{"title":TITLE,"instruction":REQUEST,
                         "file_checks":[{"path":path,"contains":"12 次事件"}]}]
                 }),
             )
@@ -63,6 +65,7 @@ async fn a_main_chat_deliverable_is_checked_and_repaired_in_the_same_task() {
         1,
         "the valid handoff must create exactly one task"
     );
+    assert_eq!(tasks[0].title, TITLE);
     let mut rejected_path = false;
     let approval = tokio::time::timeout(Duration::from_secs(5), async {
         while let Some(frame) = frames.recv().await {

@@ -2,7 +2,7 @@
 
 English | [简体中文](architecture.zh.md)
 
-Jeeves runs complex, long-lived assignments on one Runtime per task store. Its `JEEVES_HOME` holds persistent task state on the chosen host. The Runtime calls configured model providers and routes tool operations to their executors. This document describes the
+One Runtime per task store handles everyday conversations and delegated work, including assignments that span multiple runs. Its `JEEVES_HOME` holds persistent task state on the chosen host. The Runtime calls configured model providers and routes tool operations to their executors. This document describes the
 software structure; running and configuring it live in
 [operations.md](operations.md) and [configuration.md](configuration.md). The
 per-layer implementation tutorial is under `docs/internals/`.
@@ -21,6 +21,15 @@ per-layer implementation tutorial is under `docs/internals/`.
    private HTTP endpoint (`/api/gateway/rpc`). Native CLI commands embed the same
    runtime in-process. A runtime takes an OS advisory lock on the canonical database path
    before recovery, so a second execution runtime on the same database fails visibly.
+
+Platform differences live only in the shell/adapter: no `#[cfg(target_os = …)]`, capability
+checks or state in the engine, and no shell importing another shell. The only engine
+exceptions are the two OS-capability adapters allowlisted by `check_architecture` (credential
+storage in `jeeves-config` and the OAuth browser in `jeeves-connector`); adding another needs
+a reason in AGENTS.md. All WebView frontends live under `web/` and share the dashboard's
+`src/ui` components and generated protocol types. Native mobile shells will reuse the same
+engine and contract through FFI, not the Vue components: adding a platform adds a shell, never
+a second engine.
 
 ## Multi-tenancy
 

@@ -2,7 +2,7 @@ use chrono::Local;
 
 /// The thin soul: for models that already know how to be an assistant. The same text as
 /// `docs/design/voice.zh.md` §6 — change one, change both.
-pub(super) const THIN_SOUL: &str = r#"你是 Jeeves，负责完成复杂长任务的超级个人助理。把用户的目标、约束和交付物贯穿计划、执行和恢复；用可核验的结果说明完成情况。
+pub(super) const THIN_SOUL: &str = r#"你是 Jeeves，用户的超级个人助理，可以处理咨询、日常事务和复杂长任务。能直接回答的问题就当场回答。把用户的委托整理成要达成的结果，保留已有约束。能可靠推进的先做。只有缺失的信息会实质改变结果、成本或授权，并且无法从已有信息判断时，才问一个具体的问题。按需求交付结论、文件、代码、比较或已确认的操作回执。
 
 ## 怎么说话
 
@@ -27,7 +27,7 @@ pub(super) const THIN_SOUL: &str = r#"你是 Jeeves，负责完成复杂长任�
 
 /// The full soul: the thin one plus a short addendum for local models that need things spelled
 /// out. Every line of the thin text still applies; the addendum only adds habits.
-pub(super) const DEFAULT_SOUL: &str = r#"你是 Jeeves，负责完成复杂长任务的超级个人助理。把用户的目标、约束和交付物贯穿计划、执行和恢复；用可核验的结果说明完成情况。
+pub(super) const DEFAULT_SOUL: &str = r#"你是 Jeeves，用户的超级个人助理，可以处理咨询、日常事务和复杂长任务。能直接回答的问题就当场回答。把用户的委托整理成要达成的结果，保留已有约束。能可靠推进的先做。只有缺失的信息会实质改变结果、成本或授权，并且无法从已有信息判断时，才问一个具体的问题。按需求交付结论、文件、代码、比较或已确认的操作回执。
 
 ## 怎么说话
 
@@ -54,15 +54,16 @@ pub(super) const DEFAULT_SOUL: &str = r#"你是 Jeeves，负责完成复杂长�
 
 - 不确定就说不确定，不要编造过去发生的事；只有在已提供的历史或检索到的记忆里能找到依据时，才说"你之前提过"。
 - 对方只是想倾诉时，先听，不要急着给计划或建议。
-- 动手前想清楚目标和完成的标准；做完后对照标准检查，再汇报。
-- 遇到对方没说清楚、又会影响结果的地方，先问一个问题，不要猜。"#;
+- 动手前想清楚目标和完成的标准。做完后对照标准检查，再汇报。"#;
 
 /// SHA-256 of each retired built-in persona after trimming its outer whitespace.
-const RETIRED_SOUL_DIGESTS: [&str; 4] = [
+const RETIRED_SOUL_DIGESTS: [&str; 6] = [
     "513d631ba91678cdb6a28acf48ed3f74942048c6b1c10f0c36a2092a5eb912be",
     "d371da4f43a9e08c228afa9d646e26074ab5cccaaefb7f668828960b2857d116",
     "ab4802fa419453377ca049c0908945fa97a13e871c101e6587560eb24ab0a352",
     "eeb3a0b7ff659d2b31db996a529bea76289ed83c0262d0b2cd6b02c3c5e80be5",
+    "3e313ad75f2fef4eb785030da3b4298979291c11245fb8eff6259007f38f340d",
+    "d196bd250ecbf5b7fce9527046052c9d482fd9eeb0c0f5836c2807a98a83ef4b",
 ];
 
 pub(super) const CONVERSATION_RULES: &str = "Conversation grounding:
@@ -253,7 +254,7 @@ pub(crate) fn build_system(parts_in: PromptParts<'_>) -> SystemPrompt {
     } = parts_in;
     let now = Local::now();
     let stable = format!(
-"{soul}\nYour model: you are running on '{model}' via the '{provider}' provider, inside Jeeves, an open-source personal assistant for complex, long-running tasks.\n{CONVERSATION_RULES}"
+"{soul}\nYour model: you are running on '{model}' via the '{provider}' provider, inside Jeeves, an open-source personal assistant.\n{CONVERSATION_RULES}"
     );
 
     let mut parts = vec![format!(

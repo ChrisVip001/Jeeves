@@ -16,7 +16,7 @@ const HELP: &str = "\nCommands:\n  /memory [term]  see what was remembered recen
 
 /// Enters the terminal conversation. Receives an already-assembled Server.
 pub async fn run(server: Server) -> Result<()> {
-    println!("Jeeves — a personal assistant for complex, long-running tasks. /help for commands, /quit to leave.");
+    println!("Jeeves — your personal assistant. /help for commands, /quit to leave.");
     println!();
 
     let session_id = MAIN_SESSION;

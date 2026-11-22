@@ -21,13 +21,13 @@ members = [
 [workspace.package]
 version = "0.18.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.100"
 license = "MIT"
 
 [workspace.dependencies]
 # ---- Runtime dependencies: deliberately tiny ---------------------------------
 anyhow = "1"
-# Kernel-backed runtime ownership, compatible with the workspace Rust 1.85 minimum.
+# Kernel-backed runtime ownership, compatible with the workspace Rust 1.100 minimum.
 fs2 = "0.4.3"
 thiserror = "2"
 chrono = { version = "0.4", features = ["clock"] }

@@ -1494,6 +1494,10 @@ fn the_thin_soul_trades_scaffolding_for_tokens_and_a_user_edit_wins() {
 
     assert!(full.contains("复杂长任务"));
     assert!(thin.contains("复杂长任务"));
+    for seed in [&thin, &full] {
+        assert!(seed.contains("日常事务"));
+        assert!(seed.contains("整理成要达成的结果"));
+    }
     assert_eq!(crate::turn::load_soul(&home, true), thin);
     assert_eq!(std::fs::read_to_string(home.join("SOUL.md")).unwrap(), thin);
 
@@ -1507,6 +1511,32 @@ fn the_thin_soul_trades_scaffolding_for_tokens_and_a_user_edit_wins() {
         crate::turn::load_soul(&home, false),
         "Call me captain and nothing else."
     );
+}
+
+#[test]
+fn both_previous_default_souls_upgrade_without_overwriting_edits() {
+    use super::prompt::{DEFAULT_SOUL, THIN_SOUL};
+
+    let home = tempfile::tempdir().unwrap();
+    let path = home.path().join("SOUL.md");
+    let old_intro = "你是 Jeeves，负责完成复杂长任务的超级个人助理。把用户的目标、约束和交付物贯穿计划、执行和恢复；用可核验的结果说明完成情况。";
+    for (thin, seed) in [(true, THIN_SOUL), (false, DEFAULT_SOUL)] {
+        let (_, body) = seed.split_once("\n\n").unwrap();
+        let old_body = body.replace(
+            "动手前想清楚目标和完成的标准。做完后对照标准检查，再汇报。",
+            "动手前想清楚目标和完成的标准；做完后对照标准检查，再汇报。\n- 遇到对方没说清楚、又会影响结果的地方，先问一个问题，不要猜。",
+        );
+        let retired = format!("{old_intro}\n\n{old_body}");
+        assert_ne!(retired, seed);
+
+        let edited = format!("{retired}\n\n称呼我为船长。");
+        std::fs::write(&path, &edited).unwrap();
+        assert_eq!(crate::turn::load_soul(home.path(), thin), edited);
+
+        std::fs::write(&path, retired).unwrap();
+        assert_eq!(crate::turn::load_soul(home.path(), thin), seed);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), seed);
+    }
 }
 
 #[test]

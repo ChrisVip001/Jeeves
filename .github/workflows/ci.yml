@@ -19,6 +19,18 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
 
+  rust-msrv:
+    # The declared rust-version is only a promise until something checks it. Build the whole
+    # workspace on the MSRV itself so a dependency or API that needs a newer compiler fails here
+    # instead of on a contributor's machine.
+    name: Rust (MSRV 1.100)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@1.100
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace
+
   rust-coverage:
     # A trend gate, not a target. The threshold follows the **measured baseline**: one local
     # `cargo llvm-cov --workspace --summary-only` came out at 65.9% line coverage, so the gate

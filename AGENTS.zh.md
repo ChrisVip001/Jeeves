@@ -2,14 +2,11 @@
 
 [English](AGENTS.md) | 简体中文
 
-Jeeves 是面向复杂长任务的超级个人助理，可按需要部署。Rust 持有助理逻辑与状态。
-Go 负责统一网关和云控制面，TypeScript 负责浏览器与渠道适配。改 `runtime/` 前先读
-[docs/architecture.md](docs/architecture.md)；本文件是 AI 编码助手与人类
-贡献者共用的仓库工作规范。
+Jeeves 是能处理日常事务和复杂委托的通用个人助理。Rust 持有助理逻辑与状态，Go 负责网关与控制面，TypeScript 负责浏览器与渠道适配。改 `runtime/` 前先读 [docs/architecture.md](docs/architecture.zh.md)。本文件是 AI 助手与贡献者共用的仓库规范。
 
 ## 如何选择下一项 agent 改进
 
-本机存在路线图时，从 docs/planning/ 选择工作。公开的[主会话与任务设计](docs/design/main-entry.zh.md)说明任务流程。从用户委托、约束和可接受的证据出发，沿着规划、执行、中断、恢复到交付检查实际结果。个人电脑、服务器与托管部署共用引擎契约。脚本回归、真实模型表现与部署验收分别记录。
+以[主会话与任务设计](docs/design/main-entry.zh.md)为准，从每次请求要达成的结果、用户约束和验收证据出发；指令模糊时，Jeeves 先把它总结澄清成明确目标，再交付结果。改进周期事务、中断恢复或交付核验时，参考[长任务路线图](docs/planning/long-task-roadmap.zh.md)。托管和自托管部署共用引擎契约。脚本回归、真实模型表现与部署验收分别记录。可选能力由用户配置开启，Shell 命令在沙箱内执行。
 
 ## 仓库布局
 
@@ -38,11 +35,15 @@ scripts/                协议生成、仓库检查和端到端冒烟测试
 ```sh
 just check                    # 全部门禁：fmt + schema 漂移 + 工具/配置/i18n 文档漂移
                               # + ts-check + eval + 回放 eval + clippy -D warnings + cargo test
-just check-tool-docs          # 06-tools §6.0 与 README 的工具表 vs. 代码里的工具名单
+just check-tool-docs          # internals/04-tools.md 的工具表 vs. 代码里的工具名单
 just check-i18n               # 驾驶舱 t("…") 的文案 vs. i18n.ts 里的英文表
 just eval / just judge        # 确定性 eval（exit 0 = 可发布）/ judge 出分
 just write-app-server-schema  # 改协议后必跑；just check-app-server-schema 为 CI 漂移检查
 just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # 端到端冒烟
+
+# 日常 Rust 循环：按 crate 构建和测试，不用 --workspace --all-targets
+cargo build -p jeeves-cli              # CLI / 驾驶舱入口
+cargo test -p jeeves-app-server        # 改动 crate 的引擎测试
 ```
 
 ## 不可违反的不变量
@@ -63,15 +64,7 @@ just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # 端到端�
 - **扩展一律注入**：工具层只认 trait（`SubagentRunner` / `ApprovalBroker` /
   `HookRunner` / `JobRegistry`），实现全在 app-server，`ToolCtx` 只加字段。
   工具层不认识 app-server —— 依赖方向反过来就会成环。
-- **一个引擎、多个外壳**：Rust `app-server` 独占逻辑、状态与权限判定，
-  `jeeves-protocol` 是唯一契约。Web 与桌面端只是适配器（渲染 + 传输 + 原生能力），
-  不得各自实现一遍 agent 行为；平台差异只允许出现在壳与适配层，引擎里不许有
-  `#[cfg(target_os = …)]`、能力判断或状态，壳之间也不许互相 import。引擎里唯一的例外是
-  OS 能力适配——凭证存储（`jeeves-config/src/models.rs`）与打开 OAuth 浏览器
-  （`jeeves-connector/src/feishu_oauth.rs`）；`check_architecture` 只放行这两个文件，
-  新增例外必须在此写明理由。所有 WebView
-  前端都放在 `web/` 下，共用 dashboard 的 `src/ui` 组件与生成的协议类型；将来的原生移动端
-  通过 FFI 复用同一个引擎与契约，而不是复用 Vue 组件。增加平台只增加壳，不增加引擎。
+- **一个引擎、多个外壳**：Rust `app-server` 独占逻辑、状态与权限判定，`jeeves-protocol` 是唯一契约。外壳只是适配器，不得各自实现 agent 行为。平台边界与两个 OS 适配例外详见[架构文档](docs/architecture.zh.md#设计原则)，由 `check_architecture` 强制。
 - **能力默认值**见[配置](docs/configuration.zh.md)。命令与子代理需要开启；交互式驾驶舱默认开启文件工具并按需审批。
 - **人工授权**：审批决定与目标启动由人发起。主聊天可将用户消息中的原文片段派给任务。记忆工具依照本轮权限维护事实和技能；启用外部记忆 MCP 后，接入的客户端也可保存和遗忘事实。
 - **不静默**：重试、熔断、跳过重复写入、目标续轮、后台作业结束、钩子被信任哈希

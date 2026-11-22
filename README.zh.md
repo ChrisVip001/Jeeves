@@ -1,12 +1,12 @@
 [English](README.md) | 简体中文
 
-# Jeeves — 面向复杂长任务的超级个人助理
+# Jeeves — 你的超级个人助理
 
 [![CI](https://github.com/ChrisVip001/Jeeves/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisVip001/Jeeves/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/ChrisVip001/Jeeves)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/ChrisVip001/Jeeves)](https://github.com/ChrisVip001/Jeeves/releases/latest)
 
-把要交付的结果告诉 Jeeves。例如，交办一次事故复盘，可以要求整理证据、核对数字并写出可供复核的报告。在主聊天里可以指定报告文件名、写明正文必须包含的原文。执行任务可以据此检查文件、补交缺少的内容，再把结果带回主聊天。从回执可以打开原任务继续跟进。[主聊天与任务会话](docs/design/main-entry.zh.md)
+像平常说话一样，把想办的事告诉 Jeeves。它可以回答问题、查价比较、改进程序，也能接手持续多天的复杂工作。你可以先说清情况，Jeeves 会提炼要达成的结果，再把带出处的比较、文件、经过测试的代码或已获授权操作的回执交回对话。[从对话到交付](docs/design/main-entry.zh.md)
 
 云端用户经统一网关登录。新工作区启动期间可以先写下要交办的事。Rust Runtime 按租户隔离任务与数据。源码可通过 `just local-up` 在本机浏览器使用。[架构](docs/architecture.zh.md) · [统一网关](gateway/README.zh.md) · [云端部署](control-plane/README.zh.md)
 
@@ -39,6 +39,8 @@ just desktop-open      # 已运行时回到原窗口
 在主对话交办任务。从「我的事项」查看执行结果、逐行审阅文件，或继续任务。[上手指南](docs/guide.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
 
 ## Jeeves 能做什么
+
+用你自己的话告诉 Jeeves 需要什么——哪怕请求还不清楚。它会把模糊的目标整理明确，再在对话里交付结果。交办的工作可以覆盖信息检索（互联网、内网和本地来源）、文档（幻灯片、表格、Markdown）、音视频内容、编写或改进程序、比价，以及通过已配置渠道下单。[对话如何变成工作](docs/design/main-entry.zh.md)
 
 - **对话**：可通过终端、网页驾驶舱或聊天网关使用。[飞书对话和审批卡](docs/guide.zh.md#飞书--lark)
 - **使用飞书业务能力**：官方 CLI 配合 `feishu-cli` 技能（`just install-feishu-cli`），复用现有命令执行权限和审批
@@ -97,7 +99,6 @@ just desktop-open      # 已运行时回到原窗口
 | [docs/internals/](docs/internals/README.zh.md) | 实现原理教程，一层一章 |
 | [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md) | 贡献指南：工程纪律与提交规则 |
 | [SECURITY.zh.md](SECURITY.zh.md) | 安全模型：凭证、能力边界、OAuth |
-| [CHANGELOG.zh.md](CHANGELOG.zh.md) | 更新日志 |
 
 ## 命名
 

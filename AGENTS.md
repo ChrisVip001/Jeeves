@@ -2,15 +2,11 @@
 
 English | [简体中文](AGENTS.zh.md)
 
-Jeeves is a personal assistant built to complete complex, long-running tasks across deployments. Rust owns agent logic and state.
-Go owns the unified gateway and cloud control plane. TypeScript covers the browser and the channel adapters.
-Read [docs/architecture.md](docs/architecture.md) before changing `runtime/`;
-this file is the working standard for AI coding assistants and human
-contributors alike.
+Jeeves is a general-purpose personal assistant for everyday requests and complex assignments. Rust owns agent logic and state. Go owns the gateway and control plane. TypeScript covers the browser and channel adapters. Read [docs/architecture.md](docs/architecture.md) before changing `runtime/`. This file is the working standard for AI assistants and contributors.
 
 ## Choosing the next agent improvement
 
-Use the local long-task roadmap under docs/planning/ when present. The published [main conversation and task design](docs/design/main-entry.md) describes the workflow. Start with an assignment, its constraints and the evidence the user will accept. Follow it across planning, execution, interruption, recovery and delivery. Preserve the same engine contract on personal machines, servers and hosted installations. Record scripted regressions, real-model performance and deployment tests separately.
+Start with the [main conversation and task design](docs/design/main-entry.md). For each user request, identify the intended outcome, the constraints and the evidence of completion; when the instruction is vague, Jeeves summarises and clarifies it into a concrete goal before delivering a result. For improvements to recurring work, interruption recovery or delivery verification, use the [long-task roadmap](docs/planning/long-task-roadmap.md). Preserve the same engine contract across hosted and self-hosted installations. Record scripted regressions, real-model performance and deployment tests separately. Enable optional capabilities through human configuration and run shell commands within the sandbox.
 
 ## Repository layout
 
@@ -40,12 +36,16 @@ explain which requirement the existing workflow cannot meet.
 ```sh
 just check                    # every gate: fmt + schema drift + tool/config/i18n docs drift
                               # + ts-check + eval + replay eval + clippy -D warnings + cargo test
-just check-tool-docs          # tool table in 06-tools §6.0 / READMEs vs. the code's tool list
+just check-tool-docs          # tool table in internals/04-tools.md vs. the code's tool list
 just check-i18n               # every dashboard t("…") string vs. the English table in i18n.ts
 just eval / just judge        # deterministic eval (exit 0 = releasable) / judge scores
 just write-app-server-schema  # required after any protocol change;
                               # just check-app-server-schema is the CI drift check
 just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # end-to-end smokes
+
+# Daily Rust loop — build and test per crate, not --workspace --all-targets
+cargo build -p jeeves-cli              # CLI / dashboard entry
+cargo test -p jeeves-app-server        # engine tests for the crate you changed
 ```
 
 ## Non-negotiable invariants
@@ -69,19 +69,7 @@ just smoke smoke-recovery smoke-web smoke-gateway smoke-dashboard   # end-to-end
   `ApprovalBroker`, `HookRunner`, `JobRegistry`); every implementation lives in
   app-server and `ToolCtx` only gains fields. The dependency points one way — the
   other way is a cycle.
-- **One engine, many shells**: the Rust `app-server` owns logic, state and
-  permission decisions; `jeeves-protocol` is the only contract. Web and desktop
-  are adapters (render + transport + native capabilities) and never re-implement
-  agent behaviour.   Platform differences live in the shell/adapter only: no
-  `#[cfg(target_os = …)]`, capability checks or state in the engine, and no
-  shell importing another shell. The only engine exceptions are OS-capability
-  adapters — credential storage (`jeeves-config/src/models.rs`) and opening the
-  OAuth browser (`jeeves-connector/src/feishu_oauth.rs`); `check_architecture`
-  allowlists exactly those two files, and adding another needs a reason here.
-  All WebView frontends live under `web/` and
-  share the dashboard's `src/ui` components plus the generated protocol types; native mobile shells will
-  share the same engine and contract through FFI, not the Vue components.
-  Adding a platform adds a shell, never a second engine.
+- **One engine, many shells**: the Rust `app-server` owns logic, state and permission decisions; `jeeves-protocol` is the only contract. Shells are adapters and never re-implement agent behaviour. Platform boundaries and the two OS-adapter exceptions are detailed in [architecture.md](docs/architecture.md#design-principles) and enforced by `check_architecture`.
 - **Capability defaults** follow [configuration](docs/configuration.md). Exec and subagents are opt-in. The interactive dashboard enables file tools with on-request approval by default.
 - **Human authority**: approval decisions and goal activation belong to the user. The main chat may delegate spans of a human message. The memory tool can maintain facts and skills within the turn’s permissions. Enabling the external memory MCP also gives its clients explicit remember and forget operations.
 - **Never silent**: retries, circuit breaking, skipped duplicate writes, goal

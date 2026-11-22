@@ -117,7 +117,7 @@ Ctrl-C 和 SIGTERM 会结束 SSE 并让正在执行的回合收尾。超过 25 �
 
 ### CLI 发布
 
-在 `Cargo.toml` 更新 Rust workspace 版本，同步中英文更新日志，并添加 `.github/release-notes/v<版本>.md`。在发布提交上运行 `just check` 和 `just release-package`。可在分支上手动运行[发布流水线](../.github/workflows/release.yml)，构建并验证四个平台的 CLI 压缩包。推送对应的 `v<版本>` 标签后，流水线会发布 macOS 和 Linux 的 arm64、x86-64 CLI 压缩包与 `SHA256SUMS`。云端镜像和 Mac 应用分别按各自的构建说明打包。
+在 `Cargo.toml` 更新 Rust workspace 版本，并添加 `.github/release-notes/v<版本>.md`。在发布提交上运行 `just check` 和 `just release-package`。可在分支上手动运行[发布流水线](../.github/workflows/release.yml)，构建并验证四个平台的 CLI 压缩包。推送对应的 `v<版本>` 标签后，流水线会发布 macOS 和 Linux 的 arm64、x86-64 CLI 压缩包与 `SHA256SUMS`。云端镜像和 Mac 应用分别按各自的构建说明打包。
 
 ## 保持常驻
 

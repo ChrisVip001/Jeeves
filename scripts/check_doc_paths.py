@@ -19,7 +19,7 @@ def main() -> int:
     bad = []
     files = [*ROOT.glob("*.md"), *ROOT.glob("docs/**/*.md")]
     for doc in sorted(files):
-        if any(part in doc.parts for part in SKIP) or doc.name.startswith("CHANGELOG"):
+        if any(part in doc.parts for part in SKIP):
             continue
         for n, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
             for path in PATH_RE.findall(line):

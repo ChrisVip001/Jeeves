@@ -2,7 +2,7 @@
 
 [English](architecture.md) | 简体中文
 
-Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状态持久保存在所选宿主的 `JEEVES_HOME` 中；Runtime 调用已配置的模型服务，并把工具操作交给对应的执行器。
+每个任务库有独立的 Runtime，处理日常对话与委托，包括需要分多次执行的任务。任务状态持久保存在所选宿主的 `JEEVES_HOME` 中。Runtime 调用已配置的模型服务，并把工具操作交给对应的执行器。
 本文描述软件结构；运行与配置见 [operations.md](operations.zh.md) 和
 [configuration.md](configuration.zh.md)。逐层的实现教程在 `docs/internals/` 下。
 
@@ -16,6 +16,12 @@ Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状�
    聊天网关通过 Runtime 的私网 HTTP 端点（`/api/gateway/rpc`）接入；原生 CLI 命令在进程内嵌入
    同一个运行时。运行时在恢复前先对规范化的数据库路径加 OS 建议锁，所以同一数据库上的
    第二个执行运行时会明确失败。
+
+平台差异只允许出现在壳与适配层：引擎里不许有 `#[cfg(target_os = …)]`、能力判断或状态，
+壳之间也不许互相 import。引擎里唯一的例外是 `check_architecture` 放行的两个 OS 能力适配
+（`jeeves-config` 的凭证存储与 `jeeves-connector` 的 OAuth 浏览器）；新增例外需在 AGENTS.md 写明理由。
+所有 WebView 前端放在 `web/` 下，共用 dashboard 的 `src/ui` 组件与生成的协议类型。将来的原生
+移动端通过 FFI 复用同一个引擎与契约，而不是 Vue 组件：增加平台只增加壳，不增加引擎。
 
 ## 多租户
 

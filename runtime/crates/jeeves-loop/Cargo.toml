@@ -1,6 +1,7 @@
 [package]
 name = "jeeves-loop"
 version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "THE LOOP — observe → reason → act → repeat. The core mechanism of the whole agent."

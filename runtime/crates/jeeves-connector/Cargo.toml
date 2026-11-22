@@ -1,6 +1,7 @@
 [package]
 name = "jeeves-connector"
 version.workspace = true
+rust-version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Connectors: let Jeeves act in the outside world on a human's behalf, one nod at a time."
@@ -26,7 +27,7 @@ jeeves-state = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 futures-util = { workspace = true }
-# M2-06: pinned to releases compatible with the workspace Rust 1.85 MSRV.
+# M2-06: pinned to releases compatible with the workspace Rust 1.100 MSRV.
 async-imap = { version = "=0.11.2", default-features = false, features = ["runtime-tokio"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls"] }
 mailparse = "=0.18.0"

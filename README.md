@@ -1,12 +1,12 @@
 English | [简体中文](README.zh.md)
 
-# Jeeves — a personal assistant for complex, long-running tasks
+# Jeeves — your personal assistant
 
 [![CI](https://github.com/ChrisVip001/Jeeves/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisVip001/Jeeves/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/ChrisVip001/Jeeves)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/ChrisVip001/Jeeves)](https://github.com/ChrisVip001/Jeeves/releases/latest)
 
-Give Jeeves an outcome to deliver. For an incident review, that might mean gathering evidence, checking the figures and producing a report another person can verify. In main chat you can name an output file and quote text it must contain. The task can check the file, correct a missing result and bring the outcome back to the conversation. Open the original task from its receipt to follow up. [Main chat and task threads](docs/design/main-entry.md)
+Tell Jeeves what you need in your own words. It can answer a quick question, compare current prices, improve a program or take on an assignment that runs for days. It can turn an informal request into a clear outcome and bring back the result in the conversation, whether that's a sourced comparison, a file, tested code or a receipt for an authorized action. [How conversation becomes work](docs/design/main-entry.md)
 
 Cloud users sign in through one Go gateway. A new workspace can start while you draft the first assignment. Rust Runtimes isolate tasks and data per tenant. Run a source installation in your local browser with `just local-up`. [Architecture](docs/architecture.md) · [Unified gateway](gateway/README.md) · [Hosted deployment](control-plane/README.md)
 
@@ -39,6 +39,8 @@ just desktop-open      # return to the original window if already running
 Delegate in Chat. Open **My work** to see results, review changed lines and continue the task. [Getting started](docs/guide.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
 
 ## What Jeeves can do
+
+Tell Jeeves what you need in your own words — even if the request is still vague. It turns an informal goal into a clear one, then delivers the result in the conversation. The kind of work spans information retrieval (web, internal and local sources), documents (slides, spreadsheets, Markdown), audio and video content, writing or improving programs, comparing prices and placing supported orders. [How conversation becomes work](docs/design/main-entry.md)
 
 - **Converse** in the terminal, the dashboard, or a connected chat. See [Feishu chat and approval cards](docs/guide.md#lark--feishu).
 - **Use Feishu business capabilities** through the official CLI and the `feishu-cli` skill (`just install-feishu-cli`); existing exec permissions and approvals apply
@@ -97,7 +99,6 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 | [docs/internals/](docs/internals/README.md) | the implementation tutorial, one chapter per layer |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | engineering discipline and commit rules |
 | [SECURITY.md](SECURITY.md) | the security model: credentials, capability boundaries, OAuth |
-| [CHANGELOG.md](CHANGELOG.md) | changelog |
 
 ## Naming
 

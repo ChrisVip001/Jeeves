@@ -2,7 +2,7 @@
 
 English | [简体中文](guide.zh.md)
 
-Jeeves carries long-running assignments across devices. Sign in at your installation's address to delegate work. The settings below are in the account's workbench.
+Sign in at your installation's address to ask a question, delegate work or follow up across devices. The settings below are in the account's workbench. [Using the main conversation](design/main-entry.md)
 
 ## 1. Install
 

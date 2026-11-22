@@ -53,7 +53,7 @@ desktop/src-tauri/gen/
 .claude/
 
 # Working notes stay local only — never in the repository.
-docs/planning/
+# docs/planning/
 
 # AOCI local cognition index and runtime (rebuilt via aoci init/scan + MCP).
 .aoci/
