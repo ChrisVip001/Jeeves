@@ -1,0 +1,153 @@
+{
+  "budgetCny": 2.0,
+  "cases": [
+    {
+      "history": {
+        "data": [
+          {
+            "at": "2026-11-22T20:49:06Z",
+            "content": "已按你的条件建好一条待你确认的提醒规则（尚未生效，等你点头）。\n\n- 触发：已连接的报销邮箱收到新邮件（mail.received）\n- 过滤：发件人等于 `finance@example.test`，且附件类型包含 `application/pdf`，两条同时满足才提醒\n- 提醒内容：主聊天一条消息，附邮件主题 + 原邮件来源引用（形如 `mail://connected-mailbox/msg-…`）\n- 有效期：一年，到 2027-11-23 04:49（+08:00）自动到期\n\n一点提醒：原邮件来源我只能给到邮件引用号，给不了邮件正文或 PDF 内容本身；需要正文的话得另有取件动作。\n\n确认按这个激活吗？\n[tools used: recurring_work(3497 chars, full output at spill/20261123/fold-044906.594-77236.txt; first line: {\"actions\":[{\"configSchema\":{\"additionalProperties\":false,\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"],\"type\":\"object\"},\"kind\":\"reminder\",\"label\"…); recurring_work(2 chars: []); recurring_work(194 chars: Error: the arguments do not match the recurring_work schema — the arguments themselves: Additional properties are not allowed ('purpose' was unexpected). Rewrit…); recurring_work(53 chars: Error: recurring_work failed: missing field `version`); recurring_work(1174 chars: {\"action\":\"create\",\"contract\":{\"budget\":{\"tokens\":4096,\"tools\":3,\"wallMs\":90000},\"cron\":\"\",\"expiresAt\":\"2027-11-22T20:49:04.035+00:00\",\"id\":\"reimbursement-mail-…)]",
+            "id": 2,
+            "meta": {
+              "goalRounds": 1,
+              "goalStatus": null,
+              "guardHits": 0,
+              "guardNote": null,
+              "interrupted": false,
+              "iterations": 5,
+              "latencyMs": 15554,
+              "model": "deepseek-flash",
+              "provider": "deepseek",
+              "retries": 0,
+              "routeReason": null,
+              "tools": [
+                {
+                  "durationMs": 3,
+                  "status": "ok",
+                  "tool": "recurring_work"
+                },
+                {
+                  "durationMs": 0,
+                  "status": "ok",
+                  "tool": "recurring_work"
+                },
+                {
+                  "durationMs": 0,
+                  "status": "error",
+                  "tool": "recurring_work"
+                },
+                {
+                  "durationMs": 2,
+                  "status": "error",
+                  "tool": "recurring_work"
+                },
+                {
+                  "durationMs": 2,
+                  "status": "ok",
+                  "tool": "recurring_work"
+                }
+              ],
+              "usage": {
+                "inputTokens": 24136,
+                "outputTokens": 1906
+              }
+            },
+            "role": "assistant"
+          },
+          {
+            "at": "2026-11-22T20:49:06Z",
+            "content": "已连接的报销邮箱收到新邮件时，只有发件人是 finance@example.test 并且有 PDF 附件才在主聊天提醒我。附邮件主题和原邮件来源。先给我确认。",
+            "id": 1,
+            "meta": null,
+            "role": "user"
+          }
+        ],
+        "nextCursor": null
+      },
+      "id": "recurring-event",
+      "latencyMs": 15661,
+      "passed": true,
+      "request": "已连接的报销邮箱收到新邮件时，只有发件人是 finance@example.test 并且有 PDF 附件才在主聊天提醒我。附邮件主题和原邮件来源。先给我确认。",
+      "reviews": [
+        {
+          "action": "create",
+          "contract": {
+            "budget": {
+              "tokens": 4096,
+              "tools": 3,
+              "wallMs": 90000
+            },
+            "cron": "",
+            "expiresAt": "2027-11-22T20:49:04.035+00:00",
+            "id": "reimbursement-mail-alert",
+            "plan": {
+              "action": {
+                "config": {
+                  "all": [
+                    {
+                      "field": "sender",
+                      "op": "eq",
+                      "value": "finance@example.test"
+                    },
+                    {
+                      "field": "attachmentTypes",
+                      "op": "contains",
+                      "value": "application/pdf"
+                    }
+                  ],
+                  "include": [
+                    "subject",
+                    "messageRef"
+                  ],
+                  "message": "报销邮箱收到符合条件的新邮件（发件人 finance@example.test，含 PDF 附件）："
+                },
+                "kind": "records.evaluate",
+                "version": 1
+              },
+              "delivery": {
+                "kind": "chat"
+              },
+              "trigger": {
+                "eventType": "mail.received",
+                "kind": "event",
+                "source": "connected-mailbox"
+              }
+            },
+            "purpose": "在已连接报销邮箱收到发件人为 finance@example.test 且带 PDF 附件的新邮件时，于主聊天提醒，并附邮件主题和原邮件来源。",
+            "sources": []
+          },
+          "expectedRevision": 0,
+          "id": "interaction-held-out-mail",
+          "presentation": {
+            "action": "Check conditions on source records",
+            "blocked": null,
+            "delivery": "Main chat",
+            "details": [
+              "报销邮箱收到符合条件的新邮件（发件人 finance@example.test，含 PDF 附件）：",
+              "sender equals \"finance@example.test\"",
+              "attachmentTypes contains \"application/pdf\"",
+              "Show: subject, messageRef"
+            ],
+            "trigger": "connected-mailbox · mail.received",
+            "usesModel": false
+          },
+          "request": "已连接的报销邮箱收到新邮件时，只有发件人是 finance@example.test 并且有 PDF 附件才在主聊天提醒我。附邮件主题和原邮件来源。先给我确认。"
+        }
+      ],
+      "unconfirmed": {
+        "responsibilities": []
+      }
+    }
+  ],
+  "model": "deepseek-flash",
+  "peakRateEstimateCny": 0.06352,
+  "pricingSource": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+  "profile": "ds-flash",
+  "provider": "deepseek",
+  "reportedInputTokens": 24136,
+  "reportedOutputTokens": 1906,
+  "requests": 5,
+  "requestsWithoutUsage": 0,
+  "reservedUpperCny": 0.740016,
+  "suite": "recurring"
+}

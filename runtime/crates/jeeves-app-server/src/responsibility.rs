@@ -11,6 +11,7 @@ pub(crate) mod action;
 pub(crate) mod digest;
 pub(crate) mod events;
 mod feishu;
+mod model;
 mod morning;
 #[cfg(test)]
 mod plans_tests;

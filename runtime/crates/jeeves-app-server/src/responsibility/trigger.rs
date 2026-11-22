@@ -235,7 +235,7 @@ pub(super) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx
     for (id, revision, due, json, enabled) in rows {
         let plan: ResponsibilityPlan =
             serde_json::from_str(&json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
-        let window = super::action::catch_up_window(&plan).unwrap_or(CATCH_UP_MS);
+        let window = CATCH_UP_MS;
         let (selected, next) = slot(&plan.trigger, due, now, window)
             .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let recent = selected >= enabled && ms - selected <= window;
@@ -277,30 +277,19 @@ async fn claim(
     .rows_affected()
         == 1;
     if changed {
-        let target = format!("responsibility:{id}");
-        let key = format!("{target}:time:{selected}");
-        let state = if recent { "pending" } else { "delivered" };
-        let inserted = sqlx::query(
-            "INSERT INTO wake_inbox(source_key,target_task,responsibility_revision,due_ms,state)
-             VALUES(?,?,?,?,?) ON CONFLICT(source_key) DO NOTHING",
+        use jeeves_state::responsibility_runs::{admit_on, Occurrence};
+        admit_on(
+            &mut tx,
+            Occurrence {
+                id,
+                key: &format!("responsibility:{id}:time:{selected}"),
+                revision,
+                due_ms: Some(selected),
+                data: None,
+                skip: (!recent).then_some("Outside the catch-up window or paused at this slot"),
+            },
         )
-        .bind(&key)
-        .bind(&target)
-        .bind(revision)
-        .bind(selected)
-        .bind(state)
-        .execute(&mut *tx)
         .await?;
-        if !recent && inserted.rows_affected() == 1 {
-            sqlx::query(
-                "INSERT INTO responsibility_runs(wake_key,responsibility_id,status,outcome,detail)
-                VALUES(?,?,'draft','skipped','Outside the catch-up window or paused at this slot')",
-            )
-            .bind(&key)
-            .bind(id)
-            .execute(&mut *tx)
-            .await?;
-        }
     }
     tx.commit().await?;
     Ok(changed)

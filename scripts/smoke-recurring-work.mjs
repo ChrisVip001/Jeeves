@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { chromium } from "../node_modules/playwright/index.mjs";
 
-const [workspace, cookie, action, message, database] = process.argv.slice(2);
+const [workspace, cookie, step, message, database] = process.argv.slice(2);
+const isEvent = step.startsWith("event-");
+const action = step.replace(/^event-/, "");
 const browser = await chromium.launch({channel:"chrome"});
 try {
   const context = await browser.newContext({serviceWorkers:"block", ignoreHTTPSErrors:workspace.startsWith("https://127.0.0.1:")});
@@ -16,8 +18,8 @@ try {
   await page.goto(workspace);
   await page.locator("#composer .workspace-picker button").first().waitFor();
   if (action === "amend" || action === "pause") {
-    const delivered = page.locator("#messages [data-notice-id]").filter({hasText:"(calendar meeting-"});
-    await delivered.nth(action === "amend" ? 0 : 1).waitFor();
+    const delivered = page.locator("#messages [data-notice-id]").filter({hasText:isEvent?"mail://fixture/3":"(calendar meeting-"});
+    await delivered.nth(isEvent || action === "amend" ? 0 : 1).waitFor();
   }
   await page.locator("#input").fill(message);
   const stream = page.waitForResponse(r => r.url().endsWith("/api/interaction") && r.request().method()==="POST");
@@ -65,7 +67,7 @@ try {
     const duty = page.locator(".duty-cards article").filter({hasText:review.contract.purpose});
     await duty.getByText(/已暂停/).waitFor();
     await duty.getByRole("button",{name:"运行记录"}).click();
-    await duty.locator("pre").getByText(/meeting-/).waitFor();
+    await duty.locator("pre").getByText(isEvent?/message-3/:/meeting-/).waitFor();
   }
   const history = await (await context.request.get(workspace+"api/session?sessionId=jeeves-main")).json();
   const storedReply = history.data.find(m=>m.role==="assistant" && m.content.includes("请核对这张委托卡"));

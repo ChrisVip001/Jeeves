@@ -121,3 +121,44 @@ async fn event_admission_preserves_the_cursor_when_a_wake_cannot_commit() {
             .duplicate
     );
 }
+
+#[tokio::test]
+async fn unavailable_model_blocks_a_due_plan_before_any_provider_request() {
+    let home = tempfile::tempdir().unwrap();
+    let server = test_server(&home).await;
+    let now = Utc::now();
+    register(
+        &server,
+        serde_json::from_value(json!({
+            "id":"model-draft","purpose":"Produce a private draft",
+            "expiresAt":(now+chrono::Duration::hours(1)).to_rfc3339(),
+            "budget":{"tokens":500},
+            "plan":{
+                "trigger":{"kind":"at","at":now.to_rfc3339()},
+                "action":{"kind":"model","version":1,"config":{"text":"Summarize"}},
+                "delivery":{"kind":"draft"}
+            }
+        }))
+        .unwrap(),
+        now,
+    )
+    .await
+    .unwrap();
+    tick(&server, now).await.unwrap();
+    let work = jeeves_state::responsibility_runs::take(&server.pool, now.timestamp_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let (sink, _rx) = crate::EventSink::channel();
+    worker::process(&server, &sink, &work).await.unwrap();
+    let runs = jeeves_state::responsibility_runs::list(&server.pool, "model-draft")
+        .await
+        .unwrap();
+    assert_eq!(runs[0].status, "blocked");
+    assert!(runs[0].detail.contains("Set up a model"));
+    let requests: i64 = sqlx::query_scalar("SELECT count(*) FROM model_requests")
+        .fetch_one(&server.pool)
+        .await
+        .unwrap();
+    assert_eq!(requests, 0);
+}

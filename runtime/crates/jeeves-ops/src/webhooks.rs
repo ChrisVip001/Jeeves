@@ -61,6 +61,10 @@ pub struct Hook {
     #[serde(default)]
     pub prompt: String,
     pub event_type: Option<String>,
+    #[serde(default, rename = "event_fields")]
+    _event_fields: std::collections::BTreeMap<String, String>,
+    #[serde(default, rename = "event_field_examples")]
+    _event_field_examples: std::collections::BTreeMap<String, Value>,
     /// Model tier pin (`fast` / `chat` / `reasoning`). A typo fails the turn loudly instead of
     /// quietly costing the wrong model.
     #[serde(default)]
@@ -291,7 +295,7 @@ pub fn admit(
                 "X-Jeeves-Timestamp must be an integer number of seconds",
             ));
         };
-        if (now_epoch - stamp).abs() > SIGNATURE_WINDOW {
+        if now_epoch.abs_diff(stamp) > SIGNATURE_WINDOW as u64 {
             return Err(Refusal::Unauthorized(
                 "the timestamp is outside the window (±300 seconds): old requests may not be replayed",
             ));
@@ -300,17 +304,19 @@ pub fn admit(
         if !crate::constant_time_eq(expected.as_bytes(), signature.as_bytes()) {
             return Err(Refusal::Unauthorized("the signature is wrong"));
         }
-        let mut guard = lock(admissions);
-        guard.prune(now);
-        if guard.seen.contains_key(&signature) {
-            return Err(Refusal::Replay);
+        if hook.event_type.is_none() {
+            let mut guard = lock(admissions);
+            guard.prune(now);
+            if guard.seen.contains_key(&signature) {
+                return Err(Refusal::Replay);
+            }
+            guard.seen.insert(signature, now);
         }
-        guard.seen.insert(signature, now);
     } else if !crate::constant_time_eq(credential.secret.as_bytes(), secret.as_bytes()) {
         return Err(Refusal::Unauthorized("X-Jeeves-Secret is wrong"));
     }
 
-    if let Some(limit) = hook.limit {
+    if let Some(limit) = hook.limit.or_else(|| hook.event_type.as_ref().map(|_| 30)) {
         lock(admissions)
             .rate(&hook.name, limit, now)
             .map_err(Refusal::TooFast)?;
@@ -370,6 +376,8 @@ mod webhooks_tests {
             secret: "env:JEEVES_TEST_HOOK_SECRET".to_string(),
             prompt: "handle this deployment event:\n{{payload}}".to_string(),
             event_type: None,
+            _event_fields: Default::default(),
+            _event_field_examples: Default::default(),
             tier: Some("fast".to_string()),
             enabled: None,
             signature: None,

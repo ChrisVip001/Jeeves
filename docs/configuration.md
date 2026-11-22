@@ -139,6 +139,16 @@ Set `RUNTIME_ORIGIN` in the following examples to the private Runtime origin. On
 installation started with `just local-up`, use the assigned loopback port from
 `<home>/runtime-endpoint.json`. On Kubernetes, use the tenant's private Runtime Service.
 
+For a signed connector feeding recurring work, declare `event_type` instead of the prompt,
+enable `signature` and use `event_fields` to declare the names and types made available for
+review and filtering. Supported types are `string`, `integer`, `boolean` and `stringArray`.
+For example, a connector can publish a message reference and a list of attachment media types.
+The signature uses the same headers. The JSON body contains `eventId`, `occurredAt` (ISO time
+with offset), `previousCursor` (null for the first event), `cursor` and `fields`.
+A 202 acknowledgement is sent after the inbox and cursor transaction. A 409 means the
+producer must check its previous cursor or event identity. Downstream callbacks and prompt
+execution are unavailable in event mode.
+
 ### Three optional fences
 
 - **`signature: true` — no replays.** The request must carry `X-Jeeves-Timestamp`

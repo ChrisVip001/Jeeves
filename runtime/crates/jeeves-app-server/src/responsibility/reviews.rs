@@ -19,7 +19,7 @@ struct Change {
 pub(crate) fn tool(server: Server, turn: String, message: String) -> Tool {
     Tool {
         name:"recurring_work".into(),
-        description:format!("Propose an owner's recurring responsibility. Local time {}. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
+        description:format!("Propose an owner's recurring responsibility. Local time {}. For a new trigger or action call capabilities first. Compare the exact field values shown by the source, including media types and units. Static action messages have no placeholder interpolation. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
         input_schema:json!({"type":"object","required":["action"],"additionalProperties":false,"properties":{
             "action":{"type":"string","enum":["list","capabilities","create","amend","pause","resume"]},"id":{"type":"string","description":"Stable lowercase ASCII slug; list existing duties to find an id."},"expectedRevision":{"type":"integer"},
             "fields":{"type":"object","description":"On amendment supply changed top-level fields only. For a weekly Feishu research report use existing research taskId, permitted evidence URLs and recipient instead of digest.","additionalProperties":false,"properties":{
@@ -54,6 +54,10 @@ async fn propose(
     }
     let id = c.id.as_deref().ok_or_else(|| invalid("Choose a duty id"))?;
     let existing = duties.into_iter().find(|r| r.contract.id == id);
+    let original_action = existing
+        .as_ref()
+        .and_then(|row| row.contract.plan.as_ref())
+        .map(|plan| plan.action.clone());
     let (mut body, revision) = match (c.action.as_str(), existing) {
         ("create", None) => (
             json!({"id":id,"budget":{"tools":3,"wallMs":90000,"tokens":4096},"expiresAt":(now+chrono::Duration::days(365)).to_rfc3339()}),
@@ -99,7 +103,18 @@ async fn propose(
             body[k] = v.clone();
         }
     }
-    let contract = prepare(serde_json::from_value(body).map_err(invalid)?, now)?;
+    let mut requested: ResponsibilityContract = serde_json::from_value(body).map_err(invalid)?;
+    if matches!(c.action.as_str(), "create" | "amend") {
+        if let Some(plan) = &mut requested.plan {
+            super::model::pin(server, &mut plan.action, original_action.as_ref())
+                .map_err(invalid)?;
+        }
+    }
+    let contract = if c.action == "pause" {
+        requested
+    } else {
+        prepare(requested, now)?
+    };
     if matches!(c.action.as_str(), "create" | "amend")
         && contract.plan.is_none()
         && contract.digest.is_none()
@@ -174,19 +189,20 @@ pub(crate) async fn decide(
                 action::preflight(server, plan).map_err(invalid)?;
             }
         }
-        let row = if matches!(action.as_str(), "create" | "amend") {
-            activate(contract, now)?
-        } else {
-            validated_row(contract, now)?
-        };
         let changed = match action.as_str() {
-            "create" => Responsibilities::register_on(&mut tx, &row, now.timestamp_millis())
-                .await
-                .map_err(internal)?,
-            "amend" => Responsibilities::amend_on(&mut tx, &row, revision, now.timestamp_millis())
-                .await
-                .map_err(internal)?
-                .is_some(),
+            "create" => {
+                let row = activate(contract, now)?;
+                Responsibilities::register_on(&mut tx, &row, now.timestamp_millis())
+                    .await
+                    .map_err(internal)?
+            }
+            "amend" => {
+                let row = activate(contract, now)?;
+                Responsibilities::amend_on(&mut tx, &row, revision, now.timestamp_millis())
+                    .await
+                    .map_err(internal)?
+                    .is_some()
+            }
             "pause" | "resume" => Responsibilities::set_paused_on(
                 &mut tx,
                 &id,
@@ -223,6 +239,7 @@ fn catalog(server: &Server) -> Value {
         ],
         "actions":action::catalog(),
         "eventSources":super::events::catalog(server),
+        "skills":super::model::catalog(server),
         "deliveries":[{"kind":"chat"},{"kind":"draft"}]
     })
 }

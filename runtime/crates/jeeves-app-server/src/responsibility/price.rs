@@ -34,6 +34,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
     kind: "productQuote",
     label: "Verify the current delivered price",
     uses_model: false,
+    check_source: None,
     internal: true,
     schema: || json!({"type":"object","additionalProperties":false}),
     describe: |value| {

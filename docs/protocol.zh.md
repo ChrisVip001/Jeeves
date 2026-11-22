@@ -455,6 +455,8 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 
 调度器在有效时段匹配到 cron 时，用同一数据库事务记录待处理唤醒及其 UTC 分钟。重复轮询和重启都只能认领该分钟一次。停机期间错过的分钟不会补跑。暂停或到期会把待处理唤醒转入对账，并在每次状态转变时报告一次停止原因。恢复后，截止时间前的后续轮询可以继续认领。普通责任只记录到点工作。
 
+可组合的委托定义包含 `plan.trigger`、`plan.action` 和 `plan.delivery`。通过 `recurring_work` 的能力目录获取对应版本的动作参数。Runtime 返回供 Web 核对的 `presentation`，在确认和执行时重新检查条件。既有摘要和周报请求字段仍可读取。运行记录可以返回 `blocked` 或 `skipped` 及原因。签名 webhook 接收连接器事件，重复投递使用同一事件 ID。[使用和兼容说明](design/composable-responsibilities.zh.md)
+
 私人摘要可组合 `calendar`、`openTasks`、`unreadMail`，每种来源生成一段或一个列表。填写 `digest.timeZone`、`calendarWindow`（today、tomorrow、thisWeek、nextWeek）和 `layout`（paragraphs、list）。所有者通过 `POST /api/responsibilities/sample` 读取样例。正式执行在同一事务写入主聊天消息和送达记录。
 
 ### 飞书周报

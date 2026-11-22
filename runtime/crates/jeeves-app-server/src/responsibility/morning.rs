@@ -25,6 +25,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
     kind: "morningBriefing",
     label: "Configured morning briefing",
     uses_model: false,
+    check_source: None,
     internal: true,
     schema: || json!({"type":"object"}),
     describe: |value| {

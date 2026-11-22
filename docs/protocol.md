@@ -491,6 +491,8 @@ Registration requires a unique schedule-style ID, a purpose, named evidence sour
 
 While active, a matching scheduler tick records a pending wake and its UTC minute in a single database transaction. Another tick or restart cannot claim that minute twice. Minutes missed while the Runtime was offline are skipped. Pausing or reaching the expiry moves outstanding wakes to reconciliation and reports the stop once per transition. Resume permits future ticks until expiry. A generic responsibility only records due work.
 
+A composable definition can supply `plan.trigger`, `plan.action`, and `plan.delivery`. Use the versioned action schema from `recurring_work` capabilities. The Runtime returns a `presentation` for the Web review and revalidates it at confirmation and execution. The existing digest and weekly fields remain readable on legacy requests. Run history can return `blocked` or `skipped` with a reason. A connector event uses the signed webhook and can be redelivered with the same event ID. [Usage and compatibility](design/composable-responsibilities.md)
+
 For a private digest, select distinct `calendar`, `openTasks` or `unreadMail` sources and set `digest.timeZone`, `calendarWindow` (today, tomorrow, thisWeek or nextWeek) and `layout` (paragraphs or list). Each source becomes a section. The owner can sample the definition at `POST /api/responsibilities/sample`. A scheduled run records its main-chat message and delivery in the same transaction.
 
 ### Feishu weekly reports

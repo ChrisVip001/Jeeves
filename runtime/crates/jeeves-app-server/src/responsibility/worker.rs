@@ -47,7 +47,16 @@ pub(crate) async fn run(
     mut stop: tokio::sync::watch::Receiver<bool>,
 ) -> Result<()> {
     while !*stop.borrow() {
-        match store::take(&server.pool, Utc::now().timestamp_millis()).await {
+        let now = Utc::now().timestamp_millis();
+        match store::recover_before(&server.pool, Some(now)).await {
+            Ok(keys) => {
+                for key in keys {
+                    eprintln!("(jeeves) expired responsibility lease {key}; review required");
+                }
+            }
+            Err(error) => eprintln!("(jeeves) responsibility lease recovery failed: {error}"),
+        }
+        match store::take(&server.pool, now).await {
             Ok(Some(work)) => {
                 if let Err(error) = process(&server, &sink, &work).await {
                     eprintln!(
@@ -136,41 +145,12 @@ async fn execute(
     budget: &BudgetView,
     deadline: Instant,
 ) -> Result<(&'static str, String)> {
-    if let Some(json) = &work.plan_json {
-        let plan = serde_json::from_str(json)?;
-        return execute_plan(server, sink, work, &plan, budget, deadline).await;
-    }
-    if let Some(options) = &work.digest_json {
-        let instant = DateTime::from_timestamp(
-            work.slot
-                .checked_mul(60)
-                .context("Invalid scheduled slot")?,
-            0,
-        )
-        .context("Invalid scheduled time")?;
-        let sources: Vec<String> = serde_json::from_str(&work.sources_json)?;
-        let body = crate::responsibility::digest::render(
-            server,
-            &serde_json::from_str(options)?,
-            &sources,
-            instant,
-        )
-        .await?;
-        ensure!(Instant::now() < deadline, "Digest deadline reached");
-        ensure!(
-            store::deliver_chat(
-                &server.pool,
-                &work.wake_key,
-                &body,
-                sources.len() as i32,
-                Utc::now().timestamp_millis()
-            )
-            .await?,
-            "Digest was stopped or revised before delivery"
-        );
-        return Ok(("confirmed", "Delivered in main chat".into()));
-    }
-    anyhow::bail!("Responsibility has no executable action")
+    let plan = if let Some(json) = &work.plan_json {
+        serde_json::from_str(json)?
+    } else {
+        action::legacy_digest(work)?
+    };
+    execute_plan(server, sink, work, &plan, budget, deadline).await
 }
 
 async fn execute_plan(
@@ -181,10 +161,16 @@ async fn execute_plan(
     budget: &BudgetView,
     deadline: Instant,
 ) -> Result<(&'static str, String)> {
-    let preflight = action::validate(plan, budget).and_then(|()| {
+    let preflight = async {
+        action::validate(plan, budget)?;
         action::preflight(server, plan)?;
-        action::find(&plan.action)
-    });
+        let adapter = action::find(&plan.action)?;
+        if adapter.uses_model {
+            super::model::quota(server).await?;
+        }
+        anyhow::Ok(adapter)
+    }
+    .await;
     let adapter = match preflight {
         Ok(adapter) => adapter,
         Err(error) => {
@@ -206,6 +192,10 @@ async fn execute_plan(
         }
         None => work.created_at.parse()?,
     };
+    ensure!(
+        store::active(&server.pool, &work.wake_key, Utc::now().timestamp_millis()).await?,
+        "Responsibility changed or lost its lease before execution"
+    );
     let result = (adapter.run)(
         action::Input {
             server,

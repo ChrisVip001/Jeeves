@@ -121,6 +121,14 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
 以下示例的 `RUNTIME_ORIGIN` 指向私网 Runtime。在通过 `just local-up` 启动的源码部署中，
 从 `<home>/runtime-endpoint.json` 读取系统分配的回环端口。在 Kubernetes 中，使用租户的私网 Runtime Service。
 
+周期委托可接收签名连接器事件。配置 `event_type`、开启 `signature`，并用
+`event_fields` 声明可核对和筛选的字段名及类型。支持 `string`、`integer`、
+`boolean` 和 `stringArray`。例如来源可以提供原消息引用和附件媒体类型列表。
+沿用上述签名请求头。JSON 正文包含 `eventId`、`occurredAt`（带偏移的 ISO 时间）、
+`previousCursor`（首个事件为 null）、`cursor` 和 `fields`。唤醒和游标一同
+提交后返回 202。出现 409 时，来源应核对上一游标或事件标识。事件模式不会执行
+提示词或触发下游回调。
+
 ### 三个可选栅栏
 
 - **`signature: true` —— 防重放**。请求必须带 `X-Jeeves-Timestamp`（秒级整数）与

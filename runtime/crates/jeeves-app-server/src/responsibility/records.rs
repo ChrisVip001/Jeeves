@@ -98,16 +98,56 @@ pub(super) const ADAPTER: Adapter = Adapter {
     uses_model: false,
     internal: false,
     settle: None,
+    check_source: Some(|value, fields| {
+        use super::events::Field;
+        let fields = fields.context("Choose an event source for this record action")?;
+        let config = config(value)?;
+        for rule in config.all {
+            let field = fields
+                .get(&rule.field)
+                .with_context(|| format!("Source does not declare {}", rule.field))?;
+            let scalar = |value: &Value| match field {
+                Field::String | Field::StringArray => value.is_string(),
+                Field::Integer => value.as_i64().is_some(),
+                Field::Boolean => value.is_boolean(),
+            };
+            let valid = match rule.op {
+                Operator::Contains => *field == Field::StringArray && scalar(&rule.value),
+                Operator::Lt | Operator::Gt => *field == Field::Integer,
+                Operator::Eq => *field != Field::StringArray && scalar(&rule.value),
+                Operator::In => {
+                    *field != Field::StringArray
+                        && rule
+                            .value
+                            .as_array()
+                            .is_some_and(|items| items.iter().all(scalar))
+                }
+            };
+            ensure!(
+                valid,
+                "Comparison does not match the type of {}",
+                rule.field
+            );
+        }
+        ensure!(
+            config
+                .include
+                .iter()
+                .all(|field| fields.contains_key(field)),
+            "One or more output fields are unavailable"
+        );
+        Ok(())
+    }),
     schema: || {
         json!({
             "type":"object","required":["all","include","message"],"additionalProperties":false,
             "properties":{
                 "all":{"type":"array","minItems":1,"maxItems":8,"items":{
                     "type":"object","required":["field","op","value"],"additionalProperties":false,
-                    "properties":{"field":{"type":"string"},"op":{"enum":["eq","in","contains","lt","gt"]},"value":{}}
+                    "properties":{"field":{"type":"string"},"op":{"enum":["eq","in","contains","lt","gt"]},"value":{"description":"Literal comparison value in the source field format. Arrays for in; a scalar for contains."}}
                 }},
                 "include":{"type":"array","maxItems":8,"items":{"type":"string"}},
-                "message":{"type":"string"}
+                "message":{"type":"string","description":"Literal introduction. The selected include fields are added separately; do not use placeholders."}
             }
         })
     },

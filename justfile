@@ -381,7 +381,7 @@ eval-morning-briefing:
 
 # Advance a controlled clock over persisted responsibility contracts and reopen the same database.
 eval-responsibility:
-    cd {{ root }} && cargo test -p jeeves-app-server responsibility::tests
+    cd {{ root }} && cargo test -p jeeves-app-server responsibility::
 
 # ---- Run all checks in one command ----------------------------------------------
 # gate sits last: beyond green tests and lint, the deterministic eval must also pass 100%.

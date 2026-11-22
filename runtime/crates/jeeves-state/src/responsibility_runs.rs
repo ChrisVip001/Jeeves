@@ -10,7 +10,6 @@ pub struct Work {
     pub responsibility_id: String,
     pub sources_json: String,
     pub digest_json: Option<String>,
-    pub slot: i64,
     pub budget_json: String,
     pub expires_ms: i64,
     pub created_at: String,
@@ -48,8 +47,9 @@ pub async fn take_key(
     let candidate: Option<Work> = sqlx::query_as(
         "SELECT w.source_key AS wake_key, r.id AS responsibility_id, r.sources_json,
                 r.digest_json,
-                r.plan_json,w.event_json,w.due_ms,
-                CAST(substr(w.source_key,length(w.target_task)+2) AS INTEGER) AS slot,r.budget_json,r.expires_ms,w.created_at
+                r.plan_json,w.event_json,coalesce(w.due_ms,CASE WHEN r.digest_json IS NOT NULL
+                    THEN CAST(substr(w.source_key,length(w.target_task)+2) AS INTEGER)*60000 END) AS due_ms,
+                r.budget_json,r.expires_ms,w.created_at
          FROM wake_inbox w JOIN responsibilities r ON w.target_task='responsibility:' || r.id
          WHERE w.state='pending' AND (r.plan_json IS NOT NULL OR r.research_task_id IS NOT NULL OR r.digest_json IS NOT NULL)
            AND w.responsibility_revision=r.revision AND r.status='active' AND r.expires_ms>? AND (? IS NULL OR w.source_key=?)
@@ -74,6 +74,14 @@ pub async fn take_key(
 }
 
 const LEASE_MS: i64 = 30_000;
+
+pub async fn active(pool: &SqlitePool, key: &str, now: i64) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM responsibility_runs p JOIN wake_inbox w ON w.source_key=p.wake_key
+        JOIN responsibilities r ON r.id=p.responsibility_id
+        WHERE p.wake_key=? AND p.status='preparing' AND p.lease_until_ms>? AND w.state='pending'
+          AND r.status='active' AND r.revision=w.responsibility_revision AND r.expires_ms>?)")
+        .bind(key).bind(now).bind(now).fetch_one(pool).await
+}
 
 pub async fn heartbeat(pool: &SqlitePool, key: &str, now_ms: i64) -> sqlx::Result<bool> {
     let updated = sqlx::query(
@@ -115,6 +123,43 @@ pub async fn outcome(
     tx.commit().await
 }
 
+pub struct Occurrence<'a> {
+    pub id: &'a str,
+    pub key: &'a str,
+    pub revision: i32,
+    pub due_ms: Option<i64>,
+    pub data: Option<&'a str>,
+    pub skip: Option<&'a str>,
+}
+
+pub async fn admit_on(
+    conn: &mut sqlx::SqliteConnection,
+    wake: Occurrence<'_>,
+) -> sqlx::Result<bool> {
+    let state = if wake.skip.is_some() {
+        "delivered"
+    } else {
+        "pending"
+    };
+    let inserted = sqlx::query(
+        "INSERT INTO wake_inbox(source_key,target_task,responsibility_revision,due_ms,event_json,state)
+         VALUES(?,'responsibility:'||?,?,?,?,?) ON CONFLICT(source_key) DO NOTHING",
+    ).bind(wake.key).bind(wake.id).bind(wake.revision).bind(wake.due_ms)
+     .bind(wake.data).bind(state).execute(&mut *conn).await?.rows_affected() == 1;
+    if let Some(reason) = wake.skip.filter(|_| inserted) {
+        sqlx::query(
+            "INSERT INTO responsibility_runs(wake_key,responsibility_id,status,outcome,detail)
+                     VALUES(?,?,'draft','skipped',?)",
+        )
+        .bind(wake.key)
+        .bind(wake.id)
+        .bind(reason)
+        .execute(conn)
+        .await?;
+    }
+    Ok(inserted)
+}
+
 /// Store compatibility trigger observations for the same worker that claims timer and event wakes.
 pub async fn enqueue_bound(
     conn: &mut sqlx::SqliteConnection,
@@ -123,9 +168,28 @@ pub async fn enqueue_bound(
     slot_ms: i64,
     context: Option<&str>,
 ) -> sqlx::Result<()> {
-    sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload,responsibility_revision,due_ms,event_json)
-       SELECT ?, 'responsibility:'||id,purpose,revision,?,? FROM responsibilities WHERE id=? AND status='active'")
-        .bind(key).bind(slot_ms).bind(context).bind(id).execute(&mut *conn).await?;
+    let revision: i32 =
+        sqlx::query_scalar("SELECT revision FROM responsibilities WHERE id=? AND status='active'")
+            .bind(id)
+            .fetch_one(&mut *conn)
+            .await?;
+    if !admit_on(
+        conn,
+        Occurrence {
+            id,
+            key,
+            revision,
+            due_ms: Some(slot_ms),
+            data: context,
+            skip: None,
+        },
+    )
+    .await?
+    {
+        return Err(sqlx::Error::Protocol(
+            "Compatibility slot already exists".into(),
+        ));
+    }
     sqlx::query("UPDATE responsibilities SET last_slot=? WHERE id=?")
         .bind(slot_ms.div_euclid(60000))
         .bind(id)
@@ -146,7 +210,7 @@ pub async fn admit_send(pool: &SqlitePool, key: &str, now_ms: i64) -> sqlx::Resu
 }
 
 pub async fn current_send(pool: &SqlitePool, key: &str, now: i64) -> sqlx::Result<bool> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM responsibility_runs p JOIN wake_inbox w ON w.source_key=p.wake_key JOIN responsibilities r ON r.id=p.responsibility_id WHERE p.wake_key=? AND p.status='sending' AND w.state='pending' AND r.status='active' AND r.revision=w.responsibility_revision AND r.expires_ms>?)").bind(key).bind(now).fetch_one(pool).await
+    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM responsibility_runs p JOIN wake_inbox w ON w.source_key=p.wake_key JOIN responsibilities r ON r.id=p.responsibility_id WHERE p.wake_key=? AND p.status='sending' AND (p.lease_until_ms IS NULL OR p.lease_until_ms>?) AND w.state='pending' AND r.status='active' AND r.revision=w.responsibility_revision AND r.expires_ms>?)").bind(key).bind(now).bind(now).fetch_one(pool).await
 }
 
 pub async fn finish(
@@ -215,11 +279,15 @@ pub async fn deliver_chat(
 }
 
 pub async fn recover(pool: &SqlitePool) -> sqlx::Result<Vec<String>> {
-    let mut tx = pool.begin().await?;
+    recover_before(pool, None).await
+}
+
+pub async fn recover_before(pool: &SqlitePool, cutoff: Option<i64>) -> sqlx::Result<Vec<String>> {
+    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let keys: Vec<String> = sqlx::query_scalar(
         "UPDATE responsibility_runs SET status='review',detail='Interrupted attempt; verify before any further delivery'
-         WHERE status IN ('preparing','awaiting','sending') RETURNING wake_key")
-        .fetch_all(&mut *tx).await?;
+         WHERE status IN ('preparing','awaiting','sending') AND (? IS NULL OR lease_until_ms<=?) RETURNING wake_key")
+        .bind(cutoff).bind(cutoff).fetch_all(&mut *tx).await?;
     for key in &keys {
         sqlx::query("UPDATE responsibilities SET status='paused',revision=revision+1 WHERE clock_owner='price-watch' AND status='active' AND id=(SELECT responsibility_id FROM responsibility_runs WHERE wake_key=?)")
             .bind(key).execute(&mut *tx).await?;

@@ -4,6 +4,8 @@
 
 import argparse
 from datetime import datetime, timedelta, timezone
+import hashlib
+import hmac
 import importlib.util
 import json
 import os
@@ -14,6 +16,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+from urllib import error, request
 from zoneinfo import ZoneInfo
 
 from gateway_fixture import gateway
@@ -27,6 +30,12 @@ REQUEST = "每周五下午把下周会议和当前未完成任务整理成两段
 AMEND = "改到周四，其他时间不变，只保留会议。"
 PAUSE = "暂停刚才这项周期委托。"
 ALTERNATE = "再给我看一个不同的安排：每天列出今天的日历，先预览。"
+EVENT_REQUEST = "报销邮箱收到新邮件时，仅当发件人是财务组而且邮件有 PDF 附件，就在这里提醒我并附原邮件来源。"
+EVENT_PAUSE = "停用刚才的报销邮件提醒。"
+EVENT_MESSAGE = "收到一封待处理的报销邮件"
+EVENT_SOURCE = "expense-inbox"
+EVENT_TYPE = "mail.received"
+SENDER = "finance@example.test"
 OPEN, DONE = "Open fixture assignment", "Completed fixture assignment"
 
 
@@ -77,7 +86,39 @@ class Source(web.fixture.Provider):
                 m["content"] for m in reversed(body["messages"]) if m["role"] == "user"
             )
             args = {"id": "planning-digest"}
-            if ALTERNATE in user:
+            if EVENT_REQUEST in user:
+                args = dict(
+                    action="create",
+                    id="expense-alert",
+                    fields=dict(
+                        purpose="报销邮件提醒",
+                        plan=dict(
+                            trigger=dict(
+                                kind="event", source=EVENT_SOURCE, eventType=EVENT_TYPE
+                            ),
+                            action=dict(
+                                kind="records.evaluate",
+                                version=1,
+                                config=dict(
+                                    all=[
+                                        dict(field="sender", op="in", value=[SENDER]),
+                                        dict(
+                                            field="attachmentTypes",
+                                            op="contains",
+                                            value="application/pdf",
+                                        ),
+                                    ],
+                                    include=["subject", "messageRef"],
+                                    message=EVENT_MESSAGE,
+                                ),
+                            ),
+                            delivery=dict(kind="chat"),
+                        ),
+                    ),
+                )
+            elif EVENT_PAUSE in user:
+                args = dict(action="pause", id="expense-alert", expectedRevision=1)
+            elif ALTERNATE in user:
                 args.update(
                     action="create",
                     id="daily-agenda",
@@ -119,6 +160,190 @@ class Source(web.fixture.Provider):
                 self, body["tools"], [("recurring_work", args)]
             )
         self.wfile.write(b"data: [DONE]\n\n")
+
+
+def browser_action(home, workspace, cookie, action, message):
+    result = subprocess.run(
+        [
+            "node",
+            ROOT / "scripts/smoke-recurring-work.mjs",
+            workspace,
+            cookie,
+            action,
+            message,
+            home / "state.db",
+        ],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    return json.loads(result.stdout)
+
+
+def event_work(home, managed):
+    secret = "disposable-event-signing-key"
+    (home / "webhooks.json").write_text(
+        json.dumps(
+            {
+                "hooks": [
+                    dict(
+                        name=EVENT_SOURCE,
+                        event_type=EVENT_TYPE,
+                        signature=True,
+                        secret=secret,
+                        event_fields=dict(
+                            sender="string",
+                            attachmentTypes="stringArray",
+                            subject="string",
+                            messageRef="string",
+                        ),
+                    )
+                ]
+            }
+        )
+    )
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    web.fixture.Provider = Source
+    provider, runtime = web.start(home, port)
+    provider.codes = Queue()
+    provider.outbound = []
+    base = f"http://127.0.0.1:{port}"
+
+    def ready():
+        for _ in range(150):
+            try:
+                web.request(base, "/api/session/main")
+                return
+            except OSError:
+                time.sleep(0.1)
+        raise AssertionError("Runtime unavailable")
+
+    def event(n, sender=SENDER, mime="application/pdf"):
+        return dict(
+            eventId=f"message-{n}",
+            occurredAt=datetime.now(timezone.utc).isoformat(),
+            cursor=f"offset-{n}",
+            previousCursor=f"offset-{n - 1}" if n else None,
+            fields=dict(
+                sender=sender,
+                attachmentTypes=[mime],
+                subject=f"Fixture {n}",
+                messageRef=f"mail://fixture/{n}",
+            ),
+        )
+
+    def post(packet, valid=True):
+        body = json.dumps(packet, sort_keys=True).encode()
+        stamp = str(int(time.time()))
+        signature = hmac.new(
+            secret.encode(), stamp.encode() + b"." + body, hashlib.sha256
+        ).hexdigest()
+        req = request.Request(
+            base + "/api/hook/" + EVENT_SOURCE,
+            data=body,
+            headers={
+                "X-Jeeves-Timestamp": stamp,
+                "X-Jeeves-Signature": signature if valid else "bogus",
+            },
+        )
+        try:
+            with request.urlopen(req, timeout=10) as resp:
+                assert resp.status == 202
+                return json.loads(resp.read())
+        except error.HTTPError as exc:
+            return exc.code
+
+    try:
+        ready()
+        mail = (
+            (f"http://127.0.0.1:{provider.server_port}/registration", provider.codes)
+            if managed
+            else None
+        )
+        with (
+            gateway(base, home, mail_fixture=mail) as (_, workspace, cookie),
+            sqlite3.connect(home / "state.db", isolation_level=None) as db,
+        ):
+            fixture = event(0)
+            assert post(fixture, valid=False) == 401
+            assert post(fixture) == {"admitted": 0, "duplicate": False}
+            created = browser_action(
+                home, workspace, cookie, "event-create", EVENT_REQUEST
+            )
+            assert "mail://fixture/0" in created["samples"][0]
+            assert db.execute(
+                "SELECT cursor FROM responsibility_event_cursors"
+            ).fetchone() == ("offset-0",)
+            assert db.execute(
+                "SELECT count(*) FROM responsibility_event_positions"
+            ).fetchone() == (1,)
+            baseline = db.execute("SELECT count(*) FROM model_requests").fetchone()
+            no_sender = event(1, sender="other@example.test")
+            no_pdf = event(2, mime="text/plain")
+            matched = event(3)
+            assert post(matched) == 409
+            for packet in [no_sender, no_pdf, matched]:
+                assert post(packet) == {"admitted": 1, "duplicate": False}
+            assert post(matched) == {"admitted": 0, "duplicate": True}
+            conflict = {
+                **matched,
+                "fields": {**matched["fields"], "subject": "Changed"},
+            }
+            assert post(conflict) == 409
+
+            def runs():
+                return db.execute(
+                    "SELECT coalesce(outcome,status) FROM responsibility_runs ORDER BY rowid"
+                ).fetchall()
+
+            for _ in range(150):
+                if runs() == [("skipped",), ("skipped",), ("confirmed",)]:
+                    break
+                time.sleep(0.1)
+            else:
+                raise AssertionError(runs())
+            assert (
+                db.execute("SELECT count(*) FROM model_requests").fetchone() == baseline
+            )
+            runtime.terminate()
+            runtime.wait(timeout=20)
+            runtime = web.start_runtime(home, port)
+            ready()
+            assert post(matched) == {"admitted": 0, "duplicate": True}
+            browser_action(home, workspace, cookie, "event-pause", EVENT_PAUSE)
+            assert post(event(4)) == {"admitted": 0, "duplicate": False}
+            deliveries = db.execute(
+                "SELECT content FROM chat_log WHERE source LIKE 'responsibility:expense-alert:event:%'"
+            ).fetchall()
+            assert (
+                len(deliveries) == 1
+                and "mail://fixture/3" in deliveries[0][0]
+                and "message-3" in deliveries[0][0]
+            )
+            assert (
+                runs() == [("skipped",), ("skipped",), ("confirmed",)]
+                and not provider.outbound
+            )
+            print(
+                json.dumps(
+                    dict(
+                        case="mail-event",
+                        mode="managed" if managed else "selfHosted",
+                        id="expense-alert",
+                        runs=runs(),
+                        deliveries=len(deliveries),
+                        executionModelRequests=0,
+                        externalSends=0,
+                    )
+                )
+            )
+    finally:
+        if runtime.poll() is None:
+            runtime.terminate()
+            runtime.wait(timeout=20)
+        provider.shutdown()
 
 
 def run(home, managed):
@@ -346,7 +571,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode", choices=["both", "managed", "selfHosted"], default="both"
     )
+    parser.add_argument("--case", choices=["both", "timer", "event"], default="both")
     args = parser.parse_args()
     for mode in ["selfHosted", "managed"] if args.mode == "both" else [args.mode]:
         with tempfile.TemporaryDirectory(prefix="jeeves-recurring-") as temp:
-            run(Path(temp), mode == "managed")
+            if args.case != "event":
+                run(Path(temp), mode == "managed")
+        if args.case != "timer":
+            with tempfile.TemporaryDirectory(prefix="jeeves-recurring-event-") as temp:
+                event_work(Path(temp), mode == "managed")
