@@ -16,6 +16,8 @@ pub(super) const ADAPTER: Adapter = Adapter {
     kind: "researchDigest",
     label: "Verified research report",
     uses_model: false,
+    internal: false,
+    settle: None,
     schema: || {
         json!({"type":"object","required":["taskId","sources"],"properties":{
         "taskId":{"type":"string"},"sources":{"type":"array","items":{"type":"string"}}

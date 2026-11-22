@@ -146,7 +146,7 @@ pub fn due_now<'a>(
 /// One ledger line per run (JSONL). The outbox is output (quiet has no output
 /// at all); this ledger answers
 /// "what ran and how each ended" — inspection, debugging, and frequency math.
-fn run_log_line(
+pub(crate) fn run_log_line(
     name: &str,
     minute: &str,
     status: &str,
@@ -168,7 +168,7 @@ fn run_log_line(
 
 /// Appends one line to `<home>/schedule-runs.jsonl`. Side path: a write failure
 /// only reports to stderr — a broken ledger must not turn a success into an error.
-fn append_run_log(home: &Path, line: &str) {
+pub(crate) fn append_run_log(home: &Path, line: &str) {
     use std::io::Write as _;
     let path = home.join("schedule-runs.jsonl");
     match std::fs::OpenOptions::new()

@@ -27,10 +27,22 @@ pub(super) struct Output {
     pub tools_used: i32,
 }
 
+pub(super) struct Settlement<'a> {
+    pub server: &'a Server,
+    pub work: &'a jeeves_state::responsibility_runs::Work,
+    pub output: Output,
+}
+
+type SettlementFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<(&'static str, String)>> + Send + 'a>>;
+type Settle = for<'a> fn(Settlement<'a>, &'a Value) -> SettlementFuture<'a>;
+
 pub(super) struct Adapter {
     pub kind: &'static str,
     pub label: &'static str,
     pub uses_model: bool,
+    pub internal: bool,
+    pub settle: Option<Settle>,
     pub schema: fn() -> Value,
     pub describe: Describe,
     pub preflight: Check,
@@ -67,6 +79,8 @@ const REMINDER: Adapter = Adapter {
     kind: "reminder",
     label: "Reminder",
     uses_model: false,
+    internal: false,
+    settle: None,
     schema: || json!({"type":"object","required":["text"],"properties":{"text":{"type":"string"}},"additionalProperties":false}),
     describe: |value| Ok(vec![instruction(value)?]),
     preflight: |_, _| Ok(()),
@@ -84,6 +98,8 @@ const DIGEST: Adapter = Adapter {
     kind: "digest",
     label: "Source digest",
     uses_model: false,
+    internal: false,
+    settle: None,
     schema: || {
         json!({"type":"object","required":["sources","options"],"properties":{
         "sources":{"type":"array","items":{"enum":["calendar","openTasks","unreadMail"]}},
@@ -125,6 +141,8 @@ const MODEL: Adapter = Adapter {
     kind: "model",
     label: "Generate a private draft with the model",
     uses_model: true,
+    internal: false,
+    settle: None,
     schema: REMINDER.schema,
     describe: REMINDER.describe,
     preflight: |server, _| {
@@ -184,7 +202,13 @@ const MODEL: Adapter = Adapter {
 };
 
 fn adapters() -> &'static [Adapter] {
-    &[REMINDER, DIGEST, MODEL, super::research::ADAPTER]
+    &[
+        REMINDER,
+        DIGEST,
+        MODEL,
+        super::research::ADAPTER,
+        super::morning::ADAPTER,
+    ]
 }
 
 pub(super) fn find(action: &ResponsibilityAction) -> Result<&'static Adapter> {
@@ -203,6 +227,7 @@ pub(super) fn catalog() -> Value {
     Value::Array(
         adapters()
             .iter()
+            .filter(|adapter| !adapter.internal)
             .map(|adapter| {
                 json!({
                     "kind":adapter.kind,"version":1,"label":adapter.label,
@@ -211,6 +236,14 @@ pub(super) fn catalog() -> Value {
             })
             .collect(),
     )
+}
+
+pub(super) fn allow_proposal(plan: &ResponsibilityPlan) -> Result<()> {
+    ensure!(
+        !find(&plan.action)?.internal,
+        "This action belongs to an existing local capability"
+    );
+    Ok(())
 }
 
 pub(super) fn validate(plan: &ResponsibilityPlan, budget: &BudgetView) -> Result<()> {

@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;
 
-pub(super) const NAME: &str = "daily-morning-briefing";
+pub(crate) const NAME: &str = "daily-morning-briefing";
 const MAX_EVENTS: usize = 30;
 const MAX_TASKS: usize = 20;
 
@@ -160,7 +160,7 @@ async fn timeline(server: &crate::Server) -> Result<(Vec<TaskItem>, usize)> {
     Ok((result, total))
 }
 
-pub(super) async fn proposal(server: &crate::Server, date: NaiveDate, zone: Tz) -> Result<String> {
+pub(crate) async fn proposal(server: &crate::Server, date: NaiveDate, zone: Tz) -> Result<String> {
     let config = jeeves_connector::config::load(&server.settings().home);
     let ctx = server.tool_ctx("schedule:daily-morning-briefing", None, None);
     let read_calendar = async {

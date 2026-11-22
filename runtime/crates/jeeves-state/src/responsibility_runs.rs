@@ -36,6 +36,14 @@ pub async fn list(pool: &SqlitePool, id: &str) -> sqlx::Result<Vec<Report>> {
 }
 
 pub async fn take(pool: &SqlitePool, now_ms: i64) -> sqlx::Result<Option<Work>> {
+    take_key(pool, now_ms, None).await
+}
+
+pub async fn take_key(
+    pool: &SqlitePool,
+    now_ms: i64,
+    key: Option<&str>,
+) -> sqlx::Result<Option<Work>> {
     let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
     let candidate: Option<Work> = sqlx::query_as(
         "SELECT w.source_key AS wake_key, r.id AS responsibility_id, r.sources_json,
@@ -44,12 +52,13 @@ pub async fn take(pool: &SqlitePool, now_ms: i64) -> sqlx::Result<Option<Work>> 
                 CAST(substr(w.source_key,length(w.target_task)+2) AS INTEGER) AS slot,r.budget_json,r.expires_ms,w.created_at
          FROM wake_inbox w JOIN responsibilities r ON w.target_task='responsibility:' || r.id
          WHERE w.state='pending' AND (r.plan_json IS NOT NULL OR r.research_task_id IS NOT NULL OR r.digest_json IS NOT NULL)
-           AND w.responsibility_revision=r.revision AND r.status='active' AND r.expires_ms>?
+           AND w.responsibility_revision=r.revision AND r.status='active' AND r.expires_ms>? AND (? IS NULL OR w.source_key=?)
            AND NOT EXISTS (SELECT 1 FROM responsibility_runs p WHERE p.wake_key=w.source_key)
            AND NOT EXISTS (SELECT 1 FROM responsibility_runs p WHERE p.responsibility_id=r.id AND p.status IN ('preparing','awaiting','sending'))
          ORDER BY w.rowid LIMIT 1",
     )
     .bind(now_ms)
+    .bind(key).bind(key)
     .fetch_optional(&mut *tx)
     .await?;
     if let Some(work) = &candidate {
@@ -113,11 +122,22 @@ pub async fn begin_bound(
     key: &str,
     slot_ms: i64,
 ) -> sqlx::Result<()> {
-    sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload,responsibility_revision)
-       SELECT ?, 'responsibility:'||id,purpose,revision FROM responsibilities WHERE id=? AND status='active'")
-        .bind(key).bind(id).execute(&mut *conn).await?;
+    enqueue_bound(conn, id, key, slot_ms, None).await?;
     sqlx::query("INSERT INTO responsibility_runs(wake_key,responsibility_id,status) VALUES(?,?,'preparing')")
         .bind(key).bind(id).execute(&mut *conn).await?;
+    Ok(())
+}
+
+pub async fn enqueue_bound(
+    conn: &mut sqlx::SqliteConnection,
+    id: &str,
+    key: &str,
+    slot_ms: i64,
+    context: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload,responsibility_revision,due_ms,event_json)
+       SELECT ?, 'responsibility:'||id,purpose,revision,?,? FROM responsibilities WHERE id=? AND status='active'")
+        .bind(key).bind(slot_ms).bind(context).bind(id).execute(&mut *conn).await?;
     sqlx::query("UPDATE responsibilities SET last_slot=? WHERE id=?")
         .bind(slot_ms.div_euclid(60000))
         .bind(id)

@@ -11,6 +11,7 @@ pub(crate) mod action;
 pub(crate) mod digest;
 pub(crate) mod events;
 mod feishu;
+mod morning;
 #[cfg(test)]
 mod plans_tests;
 pub(crate) mod price;
@@ -61,7 +62,7 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
                     .and_then(timestamp)
             })
             .transpose()?,
-        presentation: if row.research_task_id.is_some() {
+        presentation: if row.research_task_id.is_some() || row.clock_owner != "cron" {
             None
         } else {
             plan(&row)?.as_ref().map(action::presentation)
@@ -82,7 +83,7 @@ fn plan(
 
 fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObject> {
     Ok(ResponsibilityContract {
-        plan: if row.research_task_id.is_some() {
+        plan: if row.research_task_id.is_some() || row.clock_owner != "cron" {
             None
         } else {
             plan(&row)?
@@ -176,6 +177,7 @@ fn validated_row(
         if p.digest.is_some() || p.weekly_report.is_some() {
             return Err(invalid("Use either a plan or the legacy definition"));
         }
+        action::allow_proposal(plan).map_err(invalid)?;
         action::validate(plan, &p.budget).map_err(invalid)?;
         trigger::validate(&plan.trigger, now, expires_ms).map_err(invalid)?;
     }
