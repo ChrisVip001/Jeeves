@@ -92,7 +92,7 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 |---|---|
 | [docs/guide.md](docs/guide.md) | getting started: install, wizard, models, permissions, chat gateways, skills |
 | [docs/architecture.md](docs/architecture.md) | deployment topology, module responsibilities, dependencies and turn lifecycle |
-| [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, human responsibility controls and sourced Feishu weekly reports, notifications and error codes |
+| [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, session list and detail responses, human responsibility controls and sourced Feishu weekly reports, notifications and error codes |
 | [docs/configuration.md](docs/configuration.md) | runtime settings, model key rotation and recovery, and every `JEEVES_*` variable |
 | [docs/operations.md](docs/operations.md) | running every shape, backups, troubleshooting |
 | [docs/limitations.md](docs/limitations.md) | known boundaries, each with the file to open next |

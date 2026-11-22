@@ -92,7 +92,7 @@ just desktop-open      # 已运行时回到原窗口
 |---|---|
 | [docs/guide.zh.md](docs/guide.zh.md) | 上手指南：安装、向导、模型、权限、聊天网关、技能 |
 | [docs/architecture.zh.md](docs/architecture.zh.md) | 原则、crate 依赖图、turn 数据流、设计决策 |
-| [docs/protocol.zh.md](docs/protocol.zh.md) | JSON-RPC 方法、人工责任控制与带来源的飞书周报、通知序列与错误码 |
+| [docs/protocol.zh.md](docs/protocol.zh.md) | JSON-RPC 方法、会话列表与详情响应、人工责任控制与带来源的飞书周报、通知序列与错误码 |
 | [docs/configuration.zh.md](docs/configuration.zh.md) | 运行设置、模型密钥轮换与故障恢复、全部 `JEEVES_*` 变量 |
 | [docs/operations.zh.md](docs/operations.zh.md) | 运行手册：各种运行形态、备份、故障排查 |
 | [docs/limitations.zh.md](docs/limitations.zh.md) | 已知边界，每条都指出下一步该打开哪个文件 |

@@ -202,8 +202,7 @@ L1 分类器只看消息文本。
 
 ## 回合与任务
 
-* **边界** — 会话元数据只有名字、工作目录和分叉来源：没有所有者、可见性、状态。sessions 表出现之前创建的会话工作目录为空。
-  → `runtime/crates/jeeves-state/src/chat.rs`、`migrations/0018_sessions.sql`
+* **边界** — 会话可命名并绑定工作目录。会话元数据不记录所有者、可见性和状态。在 `sessions` 表出现之前创建的会话工作目录为空。[会话存储](../runtime/crates/jeeves-state/src/chat.rs)
 * **边界** — 创建本身不执行任务。仅限人工的 `task/start` 在独立工作会话里排入一次首次执行。本地 worker（1–8 个，默认 1 个）需要进程存活且已配置模型；
   它不是全天在线或分布式的调度器（[独立任务执行](protocol.zh.md#独立任务执行)）。
 * **未做** — 只有 `feishu_send` 与 `email_send` 写回执：飞书真实发送后记 `claimed` 的 `feishu_message` 回执，

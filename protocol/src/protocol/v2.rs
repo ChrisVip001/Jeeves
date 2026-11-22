@@ -1246,11 +1246,6 @@ pub struct SessionSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub cwd: Option<String>,
-    /// The session this one was forked from. Display only: the two are independent — deleting
-    /// one must not affect the other.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
-    pub forked_from: Option<String>,
 }
 
 /// A message's role. A **closed set** — deliberately no "unknown" escape hatch.

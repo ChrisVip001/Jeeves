@@ -57,7 +57,7 @@
 | `session/permission/set` | `SessionPermissionSetParams` → `SessionPermissionResponse` | 人工修改会话策略；`expectedRevision` 必须匹配，提升完全访问须显式确认 |
 | `session/main` | 无 → `SessionNewResponse` | 幂等打开常驻的 `jeeves-main` 会话 |
 | `session/list` | `SessionListParams` → `SessionListResponse` | 唯一公开会话 |
-| `session/get` | `SessionGetParams` → `SessionGetResponse` | 单个会话的元数据 |
+| `session/get` | `SessionGetParams` → `SessionGetResponse` | 单个会话的元数据，与 `session/list` 共用 [SessionSummary](../protocol/schema/typescript/v2/SessionSummary.ts) |
 | `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | 改名 / 改工作目录（`null` = 不动，`""` = 清空） |
 | `session/messages` | `SessionMessagesParams` → `SessionMessagesResponse` | 会话消息按从新到旧分页。任务最新页的可选字段 `activeInputs` 列出尚未归入历史的本轮指令与已接收的补充 |
 | `memory/search` | `MemorySearchParams` → `MemorySearchResponse` | facts + episodes 关键词检索 |

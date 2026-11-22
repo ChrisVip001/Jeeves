@@ -5773,13 +5773,6 @@
             "null"
           ]
         },
-        "forkedFrom": {
-          "description": "The session this one was forked from. Display only: the two are independent — deleting one must not affect the other.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "id": {
           "type": "string"
         },

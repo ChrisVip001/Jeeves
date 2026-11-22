@@ -59,7 +59,7 @@ before the response). Every type is defined in
 | `session/permission/set` | `SessionPermissionSetParams` → `SessionPermissionResponse` | human-controlled policy change; requires matching `expectedRevision` and confirmation when elevating to full access |
 | `session/main` | none → `SessionNewResponse` | idempotently open the persistent `jeeves-main` session |
 | `session/list` | `SessionListParams` → `SessionListResponse` | the sole public conversation |
-| `session/get` | `SessionGetParams` → `SessionGetResponse` | one session's metadata |
+| `session/get` | `SessionGetParams` → `SessionGetResponse` | one session's metadata, using the same [SessionSummary](../protocol/schema/typescript/v2/SessionSummary.ts) as `session/list` |
 | `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | rename / change directory (`null` = leave alone, `""` = clear) |
 | `session/messages` | `SessionMessagesParams` → `SessionMessagesResponse` | messages, newest first. On the newest task page, optional `activeInputs` lists the current instruction and accepted follow-ups until the turn enters history |
 | `memory/search` | `MemorySearchParams` → `MemorySearchResponse` | keyword search over facts + episodes |

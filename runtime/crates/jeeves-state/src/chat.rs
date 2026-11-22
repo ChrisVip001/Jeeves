@@ -38,9 +38,6 @@ pub struct SessionRow {
     /// The working directory this session works in: the root of what it may write. `None` = not
     /// chosen yet, which means write tools refuse every write (see `jeeves_tools::fs_write`).
     pub cwd: Option<String>,
-    /// The session this one was forked from, if any. Display only: there is no cascade in
-    /// either direction — deleting the parent must not take the branch with it.
-    pub forked_from: Option<String>,
 }
 
 #[derive(Clone)]
@@ -459,8 +456,7 @@ const SESSION_COLUMNS: &str = "
            (SELECT COUNT(*) FROM chat_log c WHERE c.session_id = s.id) AS messages,
            (SELECT MIN(c.created_at) FROM chat_log c WHERE c.session_id = s.id) AS started_at,
            s.last_at AS last_at,
-           s.cwd AS cwd,
-           s.forked_from AS forked_from
+           s.cwd AS cwd
       FROM sessions s";
 
 #[derive(sqlx::FromRow)]
@@ -471,7 +467,6 @@ struct RawSession {
     started_at: Option<String>,
     last_at: Option<String>,
     cwd: Option<String>,
-    forked_from: Option<String>,
 }
 
 impl From<RawSession> for SessionRow {
@@ -483,7 +478,6 @@ impl From<RawSession> for SessionRow {
             started_at: row.started_at,
             last_at: row.last_at,
             cwd: row.cwd,
-            forked_from: row.forked_from,
         }
     }
 }

@@ -156,8 +156,8 @@ Consecutive acceptance and goal rounds carry the original human assignment along
 ### State (jeeves-state)
 
 One `state.db`: `facts` / `episodes` (each with an FTS5 trigram index and sync triggers),
-`chat_log` and `sessions` (a session row holds name, working directory and fork origin; the
-body is `chat_log`), the append-only `ledger`, task / run / checkpoint / operation tables, and
+`chat_log` for messages, `sessions` for session names and working directories,
+the append-only `ledger`, task / run / checkpoint / operation tables, and
 more. Migrations are embedded at compile time via `sqlx::migrate!`, so the binary carries
 its own schema. Queries in spaceless scripts (Chinese, Japanese, Korean) are cut into
 overlapping two-character terms and ranked by how many each row contains; other queries go

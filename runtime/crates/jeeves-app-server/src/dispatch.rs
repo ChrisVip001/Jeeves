@@ -1060,7 +1060,6 @@ fn to_session(row: jeeves_state::SessionRow) -> jeeves_protocol::SessionSummary 
         started_at: iso_opt(row.started_at),
         last_at: iso_opt(row.last_at),
         cwd: row.cwd,
-        forked_from: row.forked_from,
     }
 }
 

@@ -286,10 +286,9 @@ straight from the file header.
 
 ## Turns and tasks
 
-* **Boundary** — Session metadata holds only a name, a working directory and the fork origin:
-  no owner, no visibility, no status. Sessions created before the sessions table have an empty
-  working directory.
-  → `runtime/crates/jeeves-state/src/chat.rs`, `migrations/0018_sessions.sql`
+* **Boundary** — A session can be named and bound to a working directory. Ownership,
+  visibility and status are outside the session metadata model. Sessions created before
+  the sessions table have an empty working directory. [Session storage](../runtime/crates/jeeves-state/src/chat.rs)
 * **Boundary** — Creation alone does not execute a task. Human-only `task/start` queues one
   initial execution in a separate work session. Local workers (1–8, default 1) need a live process and
   a configured model; it is not an always-online or distributed scheduler

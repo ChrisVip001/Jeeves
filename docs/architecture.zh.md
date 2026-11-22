@@ -137,8 +137,8 @@ jeeves-cli               `jeeves` 二进制                                   �
 
 ### 状态层（jeeves-state）
 
-一个 `state.db`：`facts` / `episodes`（各带 FTS5 trigram 索引和同步触发器）、`chat_log` 与
-`sessions`（会话一行记录名字、工作目录和分叉来源；正文仍在 `chat_log`）、只追加的
+一个 `state.db`：`facts` / `episodes`（各带 FTS5 trigram 索引和同步触发器）、保存消息的 `chat_log`、
+保存会话名称和工作目录的 `sessions`、只追加的
 `ledger`、任务 / 运行 / 检查点 / 操作等表。迁移通过 `sqlx::migrate!` 在编译期嵌入，
 二进制自带 schema。无空格文字（中日韩）的查询被切成相邻重叠的双字词，按每行命中个数
 排序；其他查询走 FTS5 trigram，并带 LIKE 兜底。记忆后端契约在 `store.rs`：

@@ -929,17 +929,37 @@ async fn backfilling_marks_history_as_folded() {
 }
 
 #[tokio::test]
-async fn a_session_that_was_never_forked_has_no_source() {
-    let chat = Chat::new(temp_db("fork_none.db").await);
-    chat.append_exchange("hi", "hello", "plain", "cli", None)
-        .await
-        .unwrap();
-    let meta = chat
-        .session("plain")
-        .await
-        .unwrap()
-        .expect("it has metadata");
-    assert_eq!(meta.forked_from, None);
+async fn session_metadata_survives_the_v24_upgrade() -> anyhow::Result<()> {
+    use sqlx::{migrate::Migrate, sqlite::SqliteConnectOptions, Connection, SqliteConnection};
+
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("state.db");
+    let options = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await?;
+    conn.ensure_migrations_table().await?;
+    for migration in sqlx::migrate!().iter().take_while(|m| m.version <= 24) {
+        conn.apply(migration).await?;
+    }
+    sqlx::query("INSERT INTO sessions (id, title, cwd, forked_from) VALUES ('work', 'Notes', '/project', 'parent')")
+        .execute(&mut conn)
+        .await?;
+    conn.close().await?;
+
+    let pool = crate::open(&path).await?;
+    let old_column: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'forked_from'",
+    )
+    .fetch_one(&pool)
+    .await?;
+    assert_eq!(old_column, 0);
+    let chat = Chat::new(pool);
+    let session = chat.session("work").await?.expect("migrated session");
+    assert_eq!(session.title, "Notes");
+    assert_eq!(session.cwd.as_deref(), Some("/project"));
+    assert_eq!(chat.sessions().await?, [session]);
+    Ok(())
 }
 
 #[tokio::test]
