@@ -175,6 +175,8 @@ pub async fn recover(pool: &SqlitePool) -> sqlx::Result<Vec<String>> {
          WHERE status IN ('preparing','awaiting','sending') RETURNING wake_key")
         .fetch_all(&mut *tx).await?;
     for key in &keys {
+        sqlx::query("UPDATE responsibilities SET status='paused',revision=revision+1 WHERE clock_owner='price-watch' AND status='active' AND id=(SELECT responsibility_id FROM responsibility_runs WHERE wake_key=?)")
+            .bind(key).execute(&mut *tx).await?;
         sqlx::query("UPDATE wake_inbox SET state='reconcile',settled_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
                      WHERE source_key=? AND state='pending'").bind(key).execute(&mut *tx).await?;
         sqlx::query("DELETE FROM pending_approvals WHERE turn_id=?")

@@ -8,6 +8,7 @@ use jeeves_protocol::{
 use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 
 pub(crate) mod digest;
+pub(crate) mod price;
 pub(crate) mod reviews;
 #[cfg(test)]
 mod tests;

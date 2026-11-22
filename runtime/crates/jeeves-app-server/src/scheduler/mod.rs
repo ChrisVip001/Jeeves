@@ -334,7 +334,7 @@ pub async fn run(server: Server) -> Result<()> {
             eprintln!("(jeeves) responsibility clock: {error}");
         }
         if let Err(error) =
-            crate::interaction::price_watch::tick(&server, now.timestamp_millis()).await
+            crate::responsibility::price::tick(&server, now.timestamp_millis()).await
         {
             eprintln!("(jeeves) price watch clock: {error}");
         }
