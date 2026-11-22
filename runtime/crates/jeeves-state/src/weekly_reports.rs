@@ -6,7 +6,9 @@ pub struct Work {
     pub wake_key: String,
     pub responsibility_id: String,
     pub sources_json: String,
-    pub weekly_report_json: String,
+    pub weekly_report_json: Option<String>,
+    pub digest_json: Option<String>,
+    pub slot: i64,
     pub budget_json: String,
     pub expires_ms: i64,
     pub created_at: String,
@@ -34,9 +36,9 @@ pub async fn list(pool: &SqlitePool, id: &str) -> sqlx::Result<Vec<Report>> {
 pub async fn take(pool: &SqlitePool, now_ms: i64) -> sqlx::Result<Option<Work>> {
     let candidate: Option<Work> = sqlx::query_as(
         "SELECT w.source_key AS wake_key, r.id AS responsibility_id, r.sources_json,
-                r.weekly_report_json, r.budget_json, r.expires_ms, w.created_at
+                r.weekly_report_json, r.digest_json, CAST(substr(w.source_key,length(w.target_task)+2) AS INTEGER) AS slot,r.budget_json, r.expires_ms, w.created_at
          FROM wake_inbox w JOIN responsibilities r ON w.target_task='responsibility:' || r.id
-         WHERE w.state='pending' AND r.weekly_report_json IS NOT NULL
+         WHERE w.state='pending' AND (r.weekly_report_json IS NOT NULL OR r.digest_json IS NOT NULL) AND w.responsibility_revision=r.revision
            AND r.status='active' AND r.expires_ms>?
            AND NOT EXISTS (SELECT 1 FROM weekly_reports p WHERE p.wake_key=w.source_key)
          ORDER BY w.rowid LIMIT 1",
@@ -84,7 +86,7 @@ pub async fn finish(
     wall: i32,
 ) -> sqlx::Result<()> {
     let mut tx = pool.begin().await?;
-    sqlx::query("UPDATE weekly_reports SET status=?,detail=?,wall_ms=? WHERE wake_key=?")
+    sqlx::query("UPDATE weekly_reports SET status=?,detail=?,wall_ms=? WHERE wake_key=? AND status NOT IN ('confirmed','draft','denied','review')")
         .bind(status)
         .bind(detail)
         .bind(wall)
@@ -105,6 +107,29 @@ pub async fn finish(
     .execute(&mut *tx)
     .await?;
     tx.commit().await
+}
+
+pub async fn deliver_chat(
+    pool: &SqlitePool,
+    key: &str,
+    body: &str,
+    reads: i32,
+    now: i64,
+) -> sqlx::Result<bool> {
+    let mut tx = pool.begin().await?;
+    let claimed=sqlx::query("UPDATE weekly_reports SET status='confirmed',body=?,tools_used=?,detail='Delivered in main chat'
+        WHERE wake_key=? AND status='preparing' AND EXISTS(SELECT 1 FROM wake_inbox w JOIN responsibilities r
+        ON r.id=weekly_reports.responsibility_id WHERE w.source_key=weekly_reports.wake_key AND w.state='pending'
+        AND r.revision=w.responsibility_revision AND r.status='active' AND r.expires_ms>?)")
+        .bind(body).bind(reads).bind(key).bind(now).execute(&mut *tx).await?.rows_affected();
+    if claimed == 1 {
+        sqlx::query("INSERT INTO chat_log(role,content,session_id,source) VALUES('assistant',?,'jeeves-main',?)")
+            .bind(body).bind(key).execute(&mut *tx).await?;
+        sqlx::query("UPDATE wake_inbox SET state='delivered',settled_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE source_key=?")
+            .bind(key).execute(&mut *tx).await?;
+    }
+    tx.commit().await?;
+    Ok(claimed == 1)
 }
 
 pub async fn recover(pool: &SqlitePool) -> sqlx::Result<Vec<String>> {

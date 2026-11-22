@@ -80,6 +80,7 @@ before the response). Every type is defined in
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | the usage ledger: per-model aggregates + totals. **Accounting only, no enforcement** |
 | `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | last 50 reports, delivery states and live approval cards |
 | `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | validate and normalize the proposed definition for review |
+| `responsibility/sample` | `ResponsibilityContract` → string | preview a private sourced digest using the current local calendar date |
 | `responsibility/amend` | `ResponsibilityAmendParams` → `ResponsibilityView` | replace a duty at its expected revision and hold outstanding wakes for review |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | human registration of a recurring duty |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | list contracts, stop state and last due minute |
@@ -487,6 +488,8 @@ The human cockpit can register a duty with `POST /api/responsibilities`, inspect
 Registration requires a unique schedule-style ID, a purpose, named evidence sources, a five-field cron expression in the Runtime host’s local time, a future RFC 3339 expiry and at least one positive task budget limit (`tokens`, `tools` or `wallMs`). The contract is immutable. A source name identifies evidence and confers no connector permission.
 
 While active, a matching scheduler tick records a pending wake and its UTC minute in a single database transaction. Another tick or restart cannot claim that minute twice. Minutes missed while the Runtime was offline are skipped. Pausing or reaching the expiry moves outstanding wakes to reconciliation and reports the stop once per transition. Resume permits future ticks until expiry. A generic responsibility only records due work.
+
+For a private digest, select distinct `calendar`, `openTasks` or `unreadMail` sources and set `digest.timeZone`, `calendarWindow` (today, tomorrow, thisWeek or nextWeek) and `layout` (paragraphs or list). Each source becomes a section. The owner can sample the definition at `POST /api/responsibilities/sample`. A scheduled run records its main-chat message and delivery in the same transaction.
 
 ### Feishu weekly reports
 

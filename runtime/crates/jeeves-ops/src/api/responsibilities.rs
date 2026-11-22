@@ -10,6 +10,13 @@ pub async fn list(Extension(app): Extension<Arc<AppServer>>) -> Response {
     relay::<ResponsibilityListResponse>(&app, methods::RESPONSIBILITY_LIST, json!({})).await
 }
 
+pub async fn sample(
+    Extension(app): Extension<Arc<AppServer>>,
+    Json(body): Json<Value>,
+) -> Response {
+    relay::<String>(&app, methods::RESPONSIBILITY_SAMPLE, body).await
+}
+
 pub async fn prepare(
     Extension(app): Extension<Arc<AppServer>>,
     Json(body): Json<Value>,

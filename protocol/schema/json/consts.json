@@ -69,6 +69,7 @@
     "RESPONSIBILITY_PREPARE": "responsibility/prepare",
     "RESPONSIBILITY_REGISTER": "responsibility/register",
     "RESPONSIBILITY_REPORTS": "responsibility/reports",
+    "RESPONSIBILITY_SAMPLE": "responsibility/sample",
     "RESPONSIBILITY_SET_PAUSED": "responsibility/setPaused",
     "SCHEDULE_LIST": "schedule/list",
     "SCHEDULE_REMOVE": "schedule/remove",

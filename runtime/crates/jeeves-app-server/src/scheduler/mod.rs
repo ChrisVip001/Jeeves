@@ -43,7 +43,7 @@ use chrono::{Local, NaiveDateTime, Timelike, Utc};
 
 mod fire;
 pub mod gap;
-mod morning;
+pub(crate) mod morning;
 use fire::fire;
 
 /// Where output is delivered.

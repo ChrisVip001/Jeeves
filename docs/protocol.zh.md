@@ -78,6 +78,7 @@
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | 用量台账：per-model 聚合 + 总数。**只记账不强制** —— 没有配额、没有限速 |
 | `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | 最近 50 次周报、投递状态和待答审批 |
 | `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | 校验并规范化待核对的委托定义 |
+| `responsibility/sample` | `ResponsibilityContract` → string | 按当前当地日期预览带来源的私人摘要 |
 | `responsibility/amend` | `ResponsibilityAmendParams` → `ResponsibilityView` | 按期望版本修改委托，未结唤醒转入核对 |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | 由人登记周期性责任 |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | 列出契约、状态与上次认领的分钟 |
@@ -451,6 +452,8 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 登记需要唯一的调度标识、目的、具名证据来源、按运行时主机本地时间解释的五段 cron、未来的 RFC 3339 截止时间，以及至少一项正数任务预算（`tokens`、`tools` 或 `wallMs`）。登记后契约不可覆盖。来源名称只标识证据，连接器操作仍需独立授权。
 
 调度器在有效时段匹配到 cron 时，用同一数据库事务记录待处理唤醒及其 UTC 分钟。重复轮询和重启都只能认领该分钟一次。停机期间错过的分钟不会补跑。暂停或到期会把待处理唤醒转入对账，并在每次状态转变时报告一次停止原因。恢复后，截止时间前的后续轮询可以继续认领。普通责任只记录到点工作。
+
+私人摘要可组合 `calendar`、`openTasks`、`unreadMail`，每种来源生成一段或一个列表。填写 `digest.timeZone`、`calendarWindow`（today、tomorrow、thisWeek、nextWeek）和 `layout`（paragraphs、list）。所有者通过 `POST /api/responsibilities/sample` 读取样例。正式执行在同一事务写入主聊天消息和送达记录。
 
 ### 飞书周报
 

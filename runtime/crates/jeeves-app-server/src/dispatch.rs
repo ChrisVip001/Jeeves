@@ -601,6 +601,10 @@ async fn dispatch(
             parse(params, method)?,
             chrono::Utc::now(),
         )?),
+        methods::RESPONSIBILITY_SAMPLE => respond(
+            crate::responsibility::sample(server, parse(params, method)?, chrono::Utc::now())
+                .await?,
+        ),
         methods::RESPONSIBILITY_AMEND => respond(
             crate::responsibility::amend(server, parse(params, method)?, chrono::Utc::now())
                 .await?,

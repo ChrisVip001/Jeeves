@@ -132,7 +132,41 @@ async fn execute(
     budget: &BudgetView,
     deadline: Instant,
 ) -> Result<(&'static str, String)> {
-    let report: FeishuWeeklyReport = serde_json::from_str(&work.weekly_report_json)?;
+    if let Some(options) = &work.digest_json {
+        let instant = DateTime::from_timestamp(
+            work.slot
+                .checked_mul(60)
+                .context("Invalid scheduled slot")?,
+            0,
+        )
+        .context("Invalid scheduled time")?;
+        let sources: Vec<String> = serde_json::from_str(&work.sources_json)?;
+        let body = crate::responsibility::digest::render(
+            server,
+            &serde_json::from_str(options)?,
+            &sources,
+            instant,
+        )
+        .await?;
+        ensure!(Instant::now() < deadline, "Digest deadline reached");
+        ensure!(
+            store::deliver_chat(
+                &server.pool,
+                &work.wake_key,
+                &body,
+                sources.len() as i32,
+                Utc::now().timestamp_millis()
+            )
+            .await?,
+            "Digest was stopped or revised before delivery"
+        );
+        return Ok(("confirmed", "Delivered in main chat".into()));
+    }
+    let report: FeishuWeeklyReport = serde_json::from_str(
+        work.weekly_report_json
+            .as_deref()
+            .context("Missing report definition")?,
+    )?;
     let sources: Vec<String> = serde_json::from_str(&work.sources_json)?;
     let root = server
         .tasks

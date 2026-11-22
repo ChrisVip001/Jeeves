@@ -4,6 +4,7 @@ use sqlx::{FromRow, SqlitePool};
 #[derive(Debug, FromRow)]
 pub struct ResponsibilityRow {
     pub revision: i32,
+    pub digest_json: Option<String>,
     pub id: String,
     pub purpose: String,
     pub sources_json: String,
@@ -22,8 +23,8 @@ impl Responsibilities<'_> {
     pub async fn register(&self, row: &ResponsibilityRow, now: i64) -> sqlx::Result<bool> {
         let result = sqlx::query(
             "INSERT INTO responsibilities
-             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, weekly_report_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, weekly_report_json,digest_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
         )
         .bind(&row.id)
         .bind(&row.purpose)
@@ -33,6 +34,7 @@ impl Responsibilities<'_> {
         .bind(&row.budget_json)
         .bind(now)
         .bind(&row.weekly_report_json)
+        .bind(&row.digest_json)
         .execute(self.0)
         .await?;
         Ok(result.rows_affected() == 1)
@@ -46,10 +48,10 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let mut tx = self.0.begin().await?;
         let updated = sqlx::query_as(
-            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,weekly_report_json=?,
+            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,weekly_report_json=?,digest_json=?,
              revision=revision+1,enabled_ms=? WHERE id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
         ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
-         .bind(&row.budget_json).bind(&row.weekly_report_json).bind(now).bind(&row.id)
+         .bind(&row.budget_json).bind(&row.weekly_report_json).bind(&row.digest_json).bind(now).bind(&row.id)
          .bind(expected).bind(now).fetch_optional(&mut *tx).await?;
         if updated.is_some() {
             Self::stop_wakes(&mut tx, &row.id).await?;
@@ -64,9 +66,12 @@ impl Responsibilities<'_> {
             .await
     }
 
-    pub async fn candidates(&self, now: i64) -> sqlx::Result<Vec<(String, String, i32)>> {
+    pub async fn candidates(
+        &self,
+        now: i64,
+    ) -> sqlx::Result<Vec<(String, String, i32, Option<String>)>> {
         sqlx::query_as(
-            "SELECT id, cron, revision FROM responsibilities
+            "SELECT id, cron, revision, json_extract(digest_json,'$.timeZone') FROM responsibilities
              WHERE status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
              ORDER BY id",
         )

@@ -184,7 +184,7 @@ pub(super) async fn proposal(server: &crate::Server, date: NaiveDate, zone: Tz) 
 }
 
 /// Source text is data, not instructions; keep heading and channel markup under Runtime control.
-fn plain(text: &str, max: usize) -> String {
+pub(crate) fn plain(text: &str, max: usize) -> String {
     let words = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut out: String = words
         .chars()

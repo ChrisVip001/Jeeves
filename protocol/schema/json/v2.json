@@ -1637,6 +1637,15 @@
       "title": "CalendarConnectorSettings",
       "type": "object"
     },
+    "CalendarWindow": {
+      "enum": [
+        "today",
+        "tomorrow",
+        "thisWeek",
+        "nextWeek"
+      ],
+      "type": "string"
+    },
     "CapabilityCard": {
       "description": "One capability and its state. Never carries a secret: `secretPointer` says where a key lives (`env:NAME` / `keychain` / `file`), not what it is.",
       "properties": {
@@ -2919,6 +2928,13 @@
       ],
       "title": "DeviceRevokeParams",
       "type": "object"
+    },
+    "DigestLayout": {
+      "enum": [
+        "paragraphs",
+        "list"
+      ],
+      "type": "string"
     },
     "EmailConnectorSettings": {
       "additionalProperties": false,
@@ -4524,6 +4540,16 @@
         "cron": {
           "type": "string"
         },
+        "digest": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ResponsibilityDigest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "expiresAt": {
           "type": "string"
         },
@@ -4559,6 +4585,26 @@
         "sources"
       ],
       "title": "ResponsibilityContract",
+      "type": "object"
+    },
+    "ResponsibilityDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "calendarWindow": {
+          "$ref": "#/definitions/CalendarWindow"
+        },
+        "layout": {
+          "$ref": "#/definitions/DigestLayout"
+        },
+        "timeZone": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "calendarWindow",
+        "layout",
+        "timeZone"
+      ],
       "type": "object"
     },
     "ResponsibilityListResponse": {

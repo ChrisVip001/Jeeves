@@ -157,6 +157,7 @@ pub mod methods {
     pub const SCHEDULE_SAVE: &str = "schedule/save";
     /// Delete one stored job (a skill-owned job is refused with the way out).
     pub const SCHEDULE_REMOVE: &str = "schedule/remove";
+    pub const RESPONSIBILITY_SAMPLE: &str = "responsibility/sample";
     pub const RESPONSIBILITY_PREPARE: &str = "responsibility/prepare";
     pub const RESPONSIBILITY_AMEND: &str = "responsibility/amend";
     pub const RESPONSIBILITY_REGISTER: &str = "responsibility/register";
@@ -465,6 +466,36 @@ pub struct ResponsibilityContract {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub weekly_report: Option<FeishuWeeklyReport>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub digest: Option<ResponsibilityDigest>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum CalendarWindow {
+    Today,
+    Tomorrow,
+    ThisWeek,
+    NextWeek,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum DigestLayout {
+    Paragraphs,
+    List,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct ResponsibilityDigest {
+    pub time_zone: String,
+    pub calendar_window: CalendarWindow,
+    pub layout: DigestLayout,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]

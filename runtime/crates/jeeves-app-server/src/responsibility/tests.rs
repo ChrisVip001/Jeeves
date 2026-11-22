@@ -266,3 +266,57 @@ async fn editing_fences_the_old_clock_and_preserves_each_claimed_revision() {
         ]
     );
 }
+
+#[tokio::test]
+async fn private_digest_previews_do_not_consume_the_chat_delivery() {
+    let home = tempfile::tempdir().unwrap();
+    let server = boot(&home, Default::default()).await;
+    let mut p = contract();
+    p.sources = vec!["openTasks".into()];
+    p.digest = Some(
+        serde_json::from_value(
+            json!({"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"paragraphs"}),
+        )
+        .unwrap(),
+    );
+    for _ in 0..2 {
+        assert!(sample(&server, p.clone(), start())
+            .await
+            .unwrap()
+            .contains("No matches"));
+    }
+    assert!(list(&server, start())
+        .await
+        .unwrap()
+        .responsibilities
+        .is_empty());
+    register(&server, p, start()).await.unwrap();
+    tick(&server, start()).await.unwrap();
+    let w = jeeves_state::weekly_reports::take(&server.pool, start().timestamp_millis())
+        .await
+        .unwrap()
+        .unwrap();
+    let body = "one verified digest";
+    for expected in [true, false] {
+        assert_eq!(
+            jeeves_state::weekly_reports::deliver_chat(
+                &server.pool,
+                &w.wake_key,
+                body,
+                1,
+                start().timestamp_millis()
+            )
+            .await
+            .unwrap(),
+            expected
+        );
+    }
+    let rows: Vec<String> = sqlx::query_scalar(
+        "SELECT content FROM chat_log WHERE session_id='jeeves-main' AND source=?",
+    )
+    .bind(w.wake_key)
+    .fetch_all(&server.pool)
+    .await
+    .unwrap();
+    assert_eq!(rows, [body]);
+}

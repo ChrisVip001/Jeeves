@@ -7,6 +7,7 @@ use jeeves_protocol::{
 };
 use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 
+pub(crate) mod digest;
 #[cfg(test)]
 mod tests;
 
@@ -50,6 +51,12 @@ fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObjec
     Ok(ResponsibilityContract {
         id: row.id,
         purpose: row.purpose,
+        digest: row
+            .digest_json
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()
+            .map_err(internal)?,
         sources: serde_json::from_str(&row.sources_json).map_err(internal)?,
         cron: row.cron,
         expires_at: timestamp(row.expires_ms)?,
@@ -95,6 +102,29 @@ fn validated_row(
     if wall_ms.is_none() && tokens.is_none() && tools.is_none() {
         return Err(invalid("declare at least one responsibility budget limit"));
     }
+    if let Some(options) = &p.digest {
+        options
+            .time_zone
+            .parse::<chrono_tz::Tz>()
+            .map_err(invalid)?;
+        if p.weekly_report.is_some()
+            || sources
+                .iter()
+                .any(|s| !matches!(*s, "calendar" | "openTasks" | "unreadMail"))
+            || sources
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != sources.len()
+        {
+            return Err(invalid(
+                "A chat digest needs distinct calendar, openTasks or unreadMail sources",
+            ));
+        }
+        if tools.is_some_and(|n| n < sources.len() as i32) {
+            return Err(invalid("The tool budget must cover the selected sources"));
+        }
+    }
     if let Some(report) = &mut p.weekly_report {
         report.task_id = report.task_id.trim().to_owned();
         report.recipient = report.recipient.trim().to_owned();
@@ -119,6 +149,12 @@ fn validated_row(
     }
     Ok(ResponsibilityRow {
         revision: 1,
+        digest_json: p
+            .digest
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(internal)?,
         id: id.into(),
         purpose: purpose.into(),
         sources_json: serde_json::to_string(&sources).map_err(internal)?,
@@ -141,6 +177,35 @@ pub(crate) fn prepare(
     now: DateTime<Utc>,
 ) -> Result<ResponsibilityContract, ErrorObject> {
     contract(validated_row(p, now)?)
+}
+
+pub(crate) async fn sample(
+    server: &Server,
+    p: ResponsibilityContract,
+    now: DateTime<Utc>,
+) -> Result<String, ErrorObject> {
+    let checked = prepare(p, now)?;
+    let options = checked
+        .digest
+        .as_ref()
+        .ok_or_else(|| invalid("Select a digest to preview its sources"))?;
+    let deadline = DateTime::parse_from_rfc3339(&checked.expires_at)
+        .map_err(invalid)?
+        .timestamp_millis()
+        - now.timestamp_millis();
+    let limit = checked
+        .budget
+        .wall_ms
+        .map(i64::from)
+        .unwrap_or(deadline)
+        .min(deadline);
+    tokio::time::timeout(
+        std::time::Duration::from_millis(limit as u64),
+        digest::render(server, options, &checked.sources, now),
+    )
+    .await
+    .map_err(|_| invalid("Digest preview deadline reached"))?
+    .map_err(invalid)
 }
 
 pub(crate) async fn register(
@@ -233,8 +298,17 @@ pub(crate) async fn set_paused(
 pub(crate) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
     expire(server, now).await?;
     let rows = Responsibilities(&server.pool);
-    let local = now.with_timezone(&Local).naive_local();
-    for (id, cron, revision) in rows.candidates(now.timestamp_millis()).await? {
+    for (id, cron, revision, zone) in rows.candidates(now.timestamp_millis()).await? {
+        let local = match zone {
+            Some(zone) => now
+                .with_timezone(
+                    &zone
+                        .parse::<chrono_tz::Tz>()
+                        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?,
+                )
+                .naive_local(),
+            None => now.with_timezone(&Local).naive_local(),
+        };
         if jeeves_agent::cron::matches(&cron, local)
             && rows.claim(&id, revision, now.timestamp_millis()).await?
         {
