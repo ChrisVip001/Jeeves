@@ -95,6 +95,31 @@ async fn invalid_contract_is_rejected_before_any_write() {
 }
 
 #[tokio::test]
+async fn reviewed_weekly_contract_needs_a_separate_unexpired_registration() {
+    let home = tempfile::tempdir().unwrap();
+    let server = boot(&home, Default::default()).await;
+    let now = start();
+    let mut request = contract();
+    request.sources = vec!["  https://example.org/report  ".into()];
+    request.weekly_report = Some(jeeves_protocol::FeishuWeeklyReport {
+        task_id: "  research ".into(),
+        recipient: " group ".into(),
+    });
+    let reviewed = prepare(request, now).unwrap();
+    let report = reviewed.weekly_report.as_ref().unwrap();
+    assert_eq!(report.recipient, "group");
+    assert_eq!(report.task_id, "research");
+    assert_eq!(reviewed.sources, ["https://example.org/report"]);
+    let stored = register(&server, reviewed.clone(), now + Duration::minutes(5)).await;
+    assert_eq!(stored.unwrap_err().code, codes::INVALID_PARAMS);
+    assert!(Responsibilities(&server.pool)
+        .list()
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
 async fn concurrent_claim_restart_pause_and_expiry_respect_the_human_contract() {
     let home = tempfile::tempdir().unwrap();
     let notices = Arc::new(Notices::default());

@@ -287,18 +287,25 @@ def run(port=0, hold=False, mail_followup=False):
             contract = {'id': 'fixture-duty', 'purpose': 'Summarize fixture notes', 'sources': ['fixture:notes'],
                         'cron': '0 9 * * 1', 'expiresAt': '2099-01-01T00:00:00Z', 'budget': {'tools': 2}}
             assert request(base, duties)['responsibilities'] == []
+            review_url = duties + '/prepare'
+            for _ in range(2):
+                reviewed = request(base, review_url, dict(contract, purpose='  Summarize fixture notes '))
+                assert reviewed['purpose'] == contract['purpose'] and reviewed['id'] == contract['id']
+            assert request(base, duties)['responsibilities'] == []
             for bad_contract, authenticated, status in [
                 (contract, False, 401),
                 (dict(contract, budget={'tokens': 12, 'tools': 0}), True, 400),
                 (dict(contract, budget={'tokens': 12, 'toolz': 1}), True, 400),
             ]:
-                try:
-                    request(base, duties, bad_contract, auth=authenticated)
-                    raise AssertionError('invalid or unauthorized responsibility accepted')
-                except urllib.error.HTTPError as error:
-                    assert error.code == status
+                for url in (review_url, duties):
+                    try:
+                        request(base, url, bad_contract, auth=authenticated)
+                        raise AssertionError('invalid or unauthorized responsibility accepted')
+                    except urllib.error.HTTPError as error:
+                        assert error.code == status
             assert request(base, duties)['responsibilities'] == []
-            assert request(base, duties, contract)['status'] == 'active'
+            registered = request(base, duties, reviewed)
+            assert registered['status'] == 'active' and registered['contract'] == reviewed
             for paused, expected in [(True, 'paused'), (False, 'active')]:
                 assert request(base, duties + '/pause', {'id': contract['id'], 'paused': paused})['status'] == expected
             assert request(base, duties)['responsibilities'][0]['contract']['budget'] == {'tools': 2}

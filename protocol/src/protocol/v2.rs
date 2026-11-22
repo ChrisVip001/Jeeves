@@ -157,6 +157,7 @@ pub mod methods {
     pub const SCHEDULE_SAVE: &str = "schedule/save";
     /// Delete one stored job (a skill-owned job is refused with the way out).
     pub const SCHEDULE_REMOVE: &str = "schedule/remove";
+    pub const RESPONSIBILITY_PREPARE: &str = "responsibility/prepare";
     pub const RESPONSIBILITY_REGISTER: &str = "responsibility/register";
     pub const RESPONSIBILITY_REPORTS: &str = "responsibility/reports";
     pub const RESPONSIBILITY_LIST: &str = "responsibility/list";

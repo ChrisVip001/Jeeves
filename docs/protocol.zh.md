@@ -77,6 +77,7 @@
 | `model/routes/save` | `ModelRoutesSaveParams` → `ModelRoutesResponse` | 整表替换；档位名与 profile id 都在写入前校验，拼错直接报错 |
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | 用量台账：per-model 聚合 + 总数。**只记账不强制** —— 没有配额、没有限速 |
 | `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | 最近 50 次周报、投递状态和待答审批 |
+| `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | 校验并规范化待核对的委托定义 |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | 由人登记周期性责任 |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | 列出契约、状态与上次认领的分钟 |
 | `responsibility/setPaused` | `ResponsibilitySetPausedParams` → `ResponsibilityView` | 暂停或恢复尚未到期的责任 |
@@ -441,6 +442,8 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 仅用户可调用 `browser/list`，输入 `BrowserListParams`，返回安装可用性和所属浏览器元数据。`browser/start` 输入 `BrowserStartParams`；`browser/control` 输入携带预期代际的 `BrowserControlParams`；二者返回 `BrowserSessionView`。`browser/frame` 输入 `TaskGetParams`，返回限长、按需的 `BrowserFrameResponse`。这些是已认证的客户端 RPC，不是模型工具。Web 对应 `GET /api/browser`、`POST /api/browser/start`、`POST /api/browser/control`、`GET /api/browser/frame`。工作进程传输类型也由同一 Rust 协议定义，但其命令不是公开 app-server RPC。
 
 ## 周期性责任
+
+已认证的工作台可向 `/api/responsibilities/prepare` 提交待核对契约，查看规范化后的定义。核对只校验字段。正式登记时会重新校验契约、检查标识是否可用，并启用委托。
 
 人可以通过 `POST /api/responsibilities` 登记，通过 `GET /api/responsibilities` 查询，向 `POST /api/responsibilities/pause` 发送 `{"id":"weekly","paused":true}` 暂停。接口沿用控制台的访问控制。模型和聊天网关没有登记或暂停权限。
 

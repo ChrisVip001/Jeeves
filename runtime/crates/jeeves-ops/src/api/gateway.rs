@@ -64,6 +64,7 @@ mod tests {
             "task/start",
             "task/create",
             "memory/remember",
+            methods::RESPONSIBILITY_PREPARE,
             methods::RESPONSIBILITY_REGISTER,
             methods::RESPONSIBILITY_SET_PAUSED,
             methods::DEVICE_PAIR,

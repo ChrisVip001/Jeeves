@@ -378,6 +378,10 @@ pub fn router(gate: Gate) -> Router {
             get(api::responsibilities::list).post(api::responsibilities::register),
         )
         .route(
+            "/api/responsibilities/prepare",
+            post(api::responsibilities::prepare),
+        )
+        .route(
             "/api/responsibilities/pause",
             post(api::responsibilities::set_paused),
         )

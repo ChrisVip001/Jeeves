@@ -32,20 +32,6 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
         _ => return Err(internal("invalid stored responsibility status")),
     };
     Ok(ResponsibilityView {
-        contract: ResponsibilityContract {
-            id: row.id,
-            purpose: row.purpose,
-            sources: serde_json::from_str(&row.sources_json).map_err(internal)?,
-            cron: row.cron,
-            expires_at: timestamp(row.expires_ms)?,
-            weekly_report: row
-                .weekly_report_json
-                .as_deref()
-                .map(serde_json::from_str)
-                .transpose()
-                .map_err(internal)?,
-            budget: serde_json::from_str(&row.budget_json).map_err(internal)?,
-        },
         status,
         last_due_at: row
             .last_slot
@@ -55,14 +41,31 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
                     .and_then(timestamp)
             })
             .transpose()?,
+        contract: contract(row)?,
     })
 }
 
-pub(crate) async fn register(
-    server: &Server,
+fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObject> {
+    Ok(ResponsibilityContract {
+        id: row.id,
+        purpose: row.purpose,
+        sources: serde_json::from_str(&row.sources_json).map_err(internal)?,
+        cron: row.cron,
+        expires_at: timestamp(row.expires_ms)?,
+        weekly_report: row
+            .weekly_report_json
+            .as_deref()
+            .map(serde_json::from_str)
+            .transpose()
+            .map_err(internal)?,
+        budget: serde_json::from_str(&row.budget_json).map_err(internal)?,
+    })
+}
+
+fn validated_row(
     mut p: ResponsibilityContract,
     now: DateTime<Utc>,
-) -> Result<ResponsibilityView, ErrorObject> {
+) -> Result<ResponsibilityRow, ErrorObject> {
     let id = p.id.trim();
     jeeves_agent::schedule::validate_name(id).map_err(invalid)?;
     let purpose = p.purpose.trim();
@@ -113,7 +116,7 @@ pub(crate) async fn register(
             return Err(invalid("weekly report sources must be at most 20 HTTP(S) evidence URLs without credentials"));
         }
     }
-    let row = ResponsibilityRow {
+    Ok(ResponsibilityRow {
         id: id.into(),
         purpose: purpose.into(),
         sources_json: serde_json::to_string(&sources).map_err(internal)?,
@@ -128,7 +131,22 @@ pub(crate) async fn register(
         budget_json: crate::task::normalise_budget(Some(&p.budget))?,
         status: "active".into(),
         last_slot: None,
-    };
+    })
+}
+
+pub(crate) fn prepare(
+    p: ResponsibilityContract,
+    now: DateTime<Utc>,
+) -> Result<ResponsibilityContract, ErrorObject> {
+    contract(validated_row(p, now)?)
+}
+
+pub(crate) async fn register(
+    server: &Server,
+    p: ResponsibilityContract,
+    now: DateTime<Utc>,
+) -> Result<ResponsibilityView, ErrorObject> {
+    let row = validated_row(p, now)?;
     if !Responsibilities(&server.pool)
         .register(&row, now.timestamp_millis())
         .await

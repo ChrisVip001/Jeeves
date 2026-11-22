@@ -79,6 +79,7 @@ before the response). Every type is defined in
 | `model/routes/save` | `ModelRoutesSaveParams` → `ModelRoutesResponse` | replace the whole table; tier names and profile ids are validated before writing |
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | the usage ledger: per-model aggregates + totals. **Accounting only, no enforcement** |
 | `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | last 50 reports, delivery states and live approval cards |
+| `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | validate and normalize the proposed definition for review |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | human registration of a recurring duty |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | list contracts, stop state and last due minute |
 | `responsibility/setPaused` | `ResponsibilitySetPausedParams` → `ResponsibilityView` | pause or resume an unexpired duty |
@@ -477,6 +478,8 @@ The authenticated HTTP calls are `POST /api/browser/input`, `GET /api/browser/do
 Human-only `browser/list` accepts `BrowserListParams` and returns installation availability plus owned browser metadata. `browser/start` accepts `BrowserStartParams`; `browser/control` accepts `BrowserControlParams` with the expected generation; both return `BrowserSessionView`. `browser/frame` accepts `TaskGetParams` and returns a bounded, on-demand `BrowserFrameResponse`. They are authenticated client RPCs, never model tools. Web maps them to `GET /api/browser`, `POST /api/browser/start`, `POST /api/browser/control`, `GET /api/browser/frame`. Worker transport types share the Rust protocol definition, but worker commands are not public app-server RPCs.
 
 ## Recurring responsibilities
+
+The authenticated cockpit can post a proposed contract to `/api/responsibilities/prepare` to review the normalized fields. Preparation only checks the definition. Registration revalidates the contract, checks its ID is available and activates it.
 
 The human cockpit can register a duty with `POST /api/responsibilities`, inspect it with `GET /api/responsibilities`, and send `{"id":"weekly","paused":true}` to `POST /api/responsibilities/pause`. These endpoints use the cockpit’s normal access controls. Models and chat gateways have no registration or pause method.
 

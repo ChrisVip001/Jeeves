@@ -10,6 +10,14 @@ pub async fn list(Extension(app): Extension<Arc<AppServer>>) -> Response {
     relay::<ResponsibilityListResponse>(&app, methods::RESPONSIBILITY_LIST, json!({})).await
 }
 
+pub async fn prepare(
+    Extension(app): Extension<Arc<AppServer>>,
+    Json(body): Json<Value>,
+) -> Response {
+    relay::<jeeves_protocol::ResponsibilityContract>(&app, methods::RESPONSIBILITY_PREPARE, body)
+        .await
+}
+
 pub async fn register(
     Extension(app): Extension<Arc<AppServer>>,
     Json(body): Json<Value>,

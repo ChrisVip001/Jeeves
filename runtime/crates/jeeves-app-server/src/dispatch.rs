@@ -597,6 +597,10 @@ async fn dispatch(
             })?)
         }
         methods::CONNECTOR_CATALOG => respond(jeeves_mcp::manifest::catalog()),
+        methods::RESPONSIBILITY_PREPARE => respond(crate::responsibility::prepare(
+            parse(params, method)?,
+            chrono::Utc::now(),
+        )?),
         methods::RESPONSIBILITY_REGISTER => respond(
             crate::responsibility::register(server, parse(params, method)?, chrono::Utc::now())
                 .await?,
