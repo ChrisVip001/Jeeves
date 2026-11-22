@@ -72,3 +72,7 @@ desktop/src-tauri/browser-runtime/
 desktop/src-tauri/browser-runtime.old/
 desktop/src-tauri/jeeves-browser-*/
 .claude/worktrees/
+
+# AOCI agent host integration (machine-bound; do not commit)
+.codex/config.toml
+.codex/config.toml.backup.*

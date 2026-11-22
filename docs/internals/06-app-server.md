@@ -10,7 +10,7 @@ This crate is the single execution runtime per `state.db`, and it is where every
 |---|---|
 | `lib.rs`, `server/` | `Server` (shared handles), boot (`runtime.rs`), tool assembly (`tools.rs`), turn table, capacity caps and follow-up queue (`controls.rs`), event sink (`events.rs`) |
 | `stdio.rs`, `dispatch.rs` | transport and the method table |
-| `turn/` | the turn lifecycle: `entry.rs` (prepare), `execution.rs` (one loop pass), `continuation.rs`, `driver.rs` (task rounds), `finalize.rs`, `settlement.rs`, `prompt.rs`, `history.rs` |
+| `turn/` | the turn lifecycle: `entry.rs` (prepare), `execution.rs` (one loop pass), `driver.rs` (task rounds), `finalize.rs`, `settlement.rs`, `prompt.rs`, `history.rs` |
 | `task/`, `interaction/` | task ledger switches, dispatch worker, waits, workspaces; the main conversation and its `task` tool |
 | `approval.rs`, `permissions.rs`, `pending_approvals.rs` | approval broker, session policies, live pending snapshot |
 | `subagent.rs`, `jobs.rs`, `goal.rs` | subagent executor, background job host, goal judge |
@@ -87,16 +87,16 @@ The task handoff includes recent task events, the last recorded edit-check summa
 
 A failure closes the checkpoint, run and task honestly (`fail_turn`), because an open checkpoint would be resumed at the next boot as if nothing happened.
 
-### Self-continuation
+### Continuous execution
 
-`continuation.rs`: after a pass the turn may continue itself up to `JEEVES_AUTO_CONTINUE_MAX` times (default 2). The gate opens only when the pass was cut off by the step cap (`iterations >= cap`) and the session's todo list still has open items; a turn that stopped by itself is never hijacked, and a turn with a goal belongs to the goal loop. A continuation resumes with the previous segment's messages, steps and usage and buys `JEEVES_TURN_STEP_SLICE` (default 12) more steps. The earlier segments' tool calls are re-attached before the last segment's, so wrap-up reports one request order. When the budget is spent the reply says it stopped one step short and the trace records `unfinished`.
+Conversation and task runs use one loop, driven by tool results, user input and stop conditions. Task budgets are checked at model and tool boundaries. Recovery starts from the last settled checkpoint and credits spend already recorded for that round. [Loop exit conditions](03-model-and-loop.md#314-exits-and-wrap-up)
 
 ### Task rounds
 
-`driver.rs::drive_task` runs after every pass. Order is fixed: observe → account → measure → decide. A turn without a task still goes through it and ends at `Done`.
+`driver.rs::drive_task` observes and accounts for the combined result of the round before deciding what to do with it.
 
 - `account_round` writes steps (idempotency key `<turn_id>:<seq>`), artifacts that really exist, spend, and runs the acceptance checks (`fileExists`, `fileContains`, `jsonEquals`, `toolsOk`, `receiptConfirmed`, `commandSucceeds`: a `stat`, a read, an SQL count, or one command through the exec gate; paths resolved through `paths.rs`).
-- Decision order, first match wins: interrupted; budget (wall time, tokens, tool calls; a `budget` event names which); unknown tool effect; running background jobs (`WaitingForJobs`); output or step limit reached; a declared external input still pending or expired; failed acceptance; a contradiction (a tool said it wrote a file that is not there); then the judge.
+- Decisions consider interruption, task budget, unknown tool effects, running background jobs, declared external input, response or resource limits, acceptance failures, contradictions and finally the judge, in that order.
 - Failed acceptance with rounds left (`max_rounds`: the task's, else `JEEVES_GOAL_MAX_ROUNDS`, default 5) feeds the measurement back as the next message and runs another pass; with none left the task needs attention. The judge is not called while a fact fails.
 - The judge (`goal.rs`) runs only when the task has a goal condition: the small model, no tools, the last 8 turns capped at 8000 characters, JSON `{ok, impossible, reason}`; a self-contradicting answer counts as not met. `ok` → done, `impossible` → failed, rounds exhausted → failed with status `round-limit`, a broken judge → needs attention with status `blocked`, otherwise the reason becomes the next user message in the same session. Every verdict sends `goalRound`. Only a human sets a goal (`set_task_goal`, a column on the task row); the model has no path to it.
 - `needs_attention` is non-terminal: a human can continue or cancel.
@@ -161,7 +161,7 @@ Calibration: at wrap-up the turn stores the last request's provider-measured inp
 - Settings and the resolved model are read at call time through the shared `Arc<RwLock<_>>`, never snapshotted at construction, so a provider switch applies.
 - Own context: empty history, short system prompt, no retrieval, skills, summary or project conventions; nothing persisted to `chat_log`; no approval channel; no notifications or interrupt.
 - Tool table: the parent's enabled table without `delegate_task` and `todo_write`; read-only batch members also lose the exclusive tools, because four parallel loops cannot honor the single-writer barrier.
-- Caps: iterations default 5, hard cap 10; 2048 output tokens; a 120 000-token budget independent of `JEEVES_TURN_TOKEN_BUDGET`.
+- Delegation uses the [catalog output policy](../configuration.md#the-model-catalog-models-catalogjson) and a separate 120,000-token budget.
 - `result_schema`: the reply must validate; one retry carries the error and the previous messages; if it still fails the raw text is returned with the reason.
 - The conclusion is wrapped as a paraphrase by `jeeves-tools/src/report.rs` (see [04-tools](04-tools.md)).
 

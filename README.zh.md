@@ -26,7 +26,7 @@
 
 ## 安装
 
-从仓库根目录运行 `just build`、`just check` 和 `just release-package`。参见[仓库布局](AGENTS.zh.md#仓库布局)。
+从仓库根目录运行 `just build`、`just check` 和 `just release-package`。参见[仓库布局](AGENTS.md#repository-layout)。
 
 **托管版**使用服务公开的 HTTPS 地址注册或登录。浏览器和 iOS PWA 共用一个账号与任务工作台。Mac 客户端用同一账号配对，在任务需要时授权操作所选窗口。[云端部署](control-plane/README.zh.md)
 
@@ -54,7 +54,7 @@ just desktop-open      # 已运行时回到原窗口
 - **花得少一点**：系统提示是「稳定前缀 + 每轮尾巴」，供应商能缓存；`JEEVES_TOOL_POLICY=deferred` 时请求里只放常驻工具的 schema（[docs/configuration.zh.md](docs/configuration.zh.md)）
 - **长本事，但你说了算**：能力中心把技能、MCP 连接器和定时任务并排摆着，[连接管理](docs/guide.zh.md#连接状态)显示需要你处理的连接，可配置本地邮件/日历及发起支持的 OAuth 授权。可浏览精选目录、接入自定义 MCP 并逐工具启停。常驻运行时自动续期已绑定的 MCP OAuth 登录。MCP 工具的权限可以在[连接器清单](docs/configuration.zh.md#连接器清单)中配置。自己的可以加可以删，内置项只读。
 - **按项目规矩干活**：从工作目录往上找 `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`，拼进每轮尾巴（[docs/internals/06-app-server.zh.md](docs/internals/06-app-server.zh.md)）
-- **不把做到一半的活扔回来**：步数用完而待办未完时继续，最多 `JEEVES_AUTO_CONTINUE_MAX` 次（[docs/configuration.zh.md](docs/configuration.zh.md)）
+- **在原事项里接着做**：Jeeves 在原事项里持续执行，按目标与验收条件交付。[长任务如何协作](docs/design/main-entry.zh.md#长任务如何协作)
 - **被检验**：确定性 eval 与回放 eval 把守每次发布；judge 给回答质量打分（[docs/internals/08-quality.zh.md](docs/internals/08-quality.zh.md)）
 
 ### 内置工具
@@ -85,6 +85,8 @@ just desktop-open      # 已运行时回到原窗口
 工具失败会以文本返回给模型，循环不会因此崩溃。
 
 ### 模型与密钥
+
+Runtime 会按模型目录和上下文余量调整每次模型请求的输出额度。[内置默认模型](docs/configuration.zh.md#内置默认模型)
 
 内置 12 家 LLM 厂商预适配（`jeeves-provider`），含本地 Ollama。`<home>/models-catalog.json` 可补丁内置默认值或新增一家，`scripts/gen_catalog.py` 从 [models.dev](https://models.dev) 生成这些行（[docs/configuration.zh.md](docs/configuration.zh.md)）。终端里 `/model` 看已配好的套，`/model add ds deepseek deepseek-flash --env DEEPSEEK_API_KEY` 加一套，`/model use ds` 切过去，不用重启；Web 与桌面端偏好设置里有同样的模型菜单。每个模型 profile 显式指定凭据来源（[SECURITY.zh.md](SECURITY.zh.md)）。`JEEVES_OPS_HOST=0.0.0.0` 时启动强制要求 `JEEVES_OPS_TOKEN`（[docs/operations.zh.md](docs/operations.zh.md)）。
 

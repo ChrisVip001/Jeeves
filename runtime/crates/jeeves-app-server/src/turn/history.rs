@@ -89,54 +89,6 @@ pub(super) fn notify_goal(
     }));
 }
 
-/// Is there work this turn itself declared unfinished?
-///
-/// The todo list is the model's **own** written statement of what is left, so it is the one
-/// "are you done?" signal that costs no model call and cannot be talked around. Three rules keep
-/// it from becoming a loop driver:
-///
-/// * `interrupted` means the human said "enough" — that is not unfinished work;
-/// * no tool call this turn means a conversation, and a stale board from an earlier turn must not
-///   drag a chat turn back to work it never reopened;
-/// * a goal-carrying turn is driven by the goal loop instead (checked by the caller).
-pub(super) fn unfinished_work(
-    server: &Server,
-    session_id: &str,
-    result: &jeeves_loop::LoopResult,
-) -> Option<String> {
-    if result.interrupted || result.tool_calls.is_empty() {
-        return None;
-    }
-    let list = server.todo.read(session_id)?;
-    let open: Vec<&jeeves_tools::todo::TodoItem> = list
-        .items
-        .iter()
-        .filter(|item| {
-            matches!(
-                item.status,
-                jeeves_tools::todo::TodoStatus::Pending
-                    | jeeves_tools::todo::TodoStatus::InProgress
-            )
-        })
-        .collect();
-    if open.is_empty() {
-        return None;
-    }
-    let mut listed: Vec<String> = open
-        .iter()
-        .take(3)
-        .map(|item| format!("{} ({})", item.content, item.status.as_str()))
-        .collect();
-    if open.len() > listed.len() {
-        listed.push(format!("and {} more", open.len() - listed.len()));
-    }
-    Some(format!(
-        "{} to-do items are still open: {}",
-        open.len(),
-        listed.join("；")
-    ))
-}
-
 /// Take only the most recent N turns, plus a rolling summary.
 ///
 /// Without a sliding window, a long session stuffs the entire history into the prompt every turn until
@@ -246,16 +198,14 @@ pub(super) async fn load_history(
 /// background, so that turn finds nothing newly evicted and makes no summary call before its own.
 ///
 /// The next turn's real budget is not known yet (its soul, memory and tools are assembled then),
-/// so this one is approximate: 90% of the budget minus the output and summary reserves. It can
+/// so this one is approximate: 90% of the budget minus the summary reserve. It can
 /// only fold less than the turn would; the turn's own `refresh` covers the rest. Fail-open and
 /// bounded; the monotonic save guard keeps a late run from undoing a newer summary.
 pub(super) async fn precompact(server: &Server, resolved: &Resolved, session_id: &str) {
     let settings = server.settings();
     let factor = server.chat.context_factor(session_id).await.unwrap_or(None);
     let budget = (budget_tokens(resolved, &settings, factor) as f64 * 0.9) as usize;
-    let budget = budget
-        .saturating_sub(settings.max_tokens.max(0) as usize + SUMMARY_RESERVE_TOKENS)
-        .max(1024);
+    let budget = budget.saturating_sub(SUMMARY_RESERVE_TOKENS).max(1024);
     let lock = server.session_write_lock(session_id);
     let _guard = lock.lock().await;
     let work = load_history(

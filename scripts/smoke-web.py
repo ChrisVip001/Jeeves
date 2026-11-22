@@ -311,11 +311,11 @@ def run(port=0, hold=False, mail_followup=False):
             assert config['provider'] == 'ollama'
             request(base, '/api/config', {'patch': {'maxTokens': 4096}})
             try:
-                request(base, '/api/config', {'patch': {'maxTokens': 0, 'maxIterations': 40}})
+                request(base, '/api/config', {'patch': {'maxTokens': -1, 'historyTurns': 40}})
                 raise AssertionError('invalid config must reject the whole patch')
             except urllib.error.HTTPError as error:
                 assert error.code == 400
-            assert request(base, '/api/config')['config']['maxIterations'] == config['maxIterations']
+            assert request(base, '/api/config')['config']['historyTurns'] == config['historyTurns']
             events = stream(base, session, 'hello fixture')
             assert any(e['type'] == 'textDelta' for e in events)
             assert any(e['type'] == 'turnCompleted' for e in events)

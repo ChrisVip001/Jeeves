@@ -15,6 +15,7 @@ pub(crate) struct TurnFrame<'a> {
     pub(crate) interrupt: Option<Arc<jeeves_loop::Interrupt>>,
     pub(crate) worktree: Option<std::path::PathBuf>,
     pub(crate) turn_cwd: Option<std::path::PathBuf>,
+    pub(crate) tool_limits: Arc<jeeves_tools::web::TurnLimits>,
     /// Resume from a checkpoint instead of assembling history (crash recovery).
     pub(crate) resume: Option<jeeves_loop::Resume>,
     /// The checkpoint outlet: every tool-results boundary lands here (None = no checkpointing).

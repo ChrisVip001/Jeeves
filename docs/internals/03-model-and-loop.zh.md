@@ -13,7 +13,7 @@
 - `ContentBlock` 是内部打标签的枚举（`type`，snake_case），序列化后与 Anthropic 的 content block 逐字节一致，所以 `anthropic.rs` 几乎不用翻译。
 - 除 `Text`、`ToolUse`、`ToolResult` 外，还有 `Image`（base64，不带路径），以及必须原样回放的延续块：`Thinking` / `RedactedThinking`（Anthropic wire）、`OpenAiReasoning`（Chat Completions 的 `reasoning_content`）、`ResponseItem`（Responses 的加密 reasoning）。一种 wire 绝不发送另一种 wire 的延续块：Anthropic 与 Chat Completions 遇到 `ResponseItem` 或带 Responses 标记的 `ToolUse.extra` 会拒绝，Anthropic 遇到 `OpenAiReasoning` 也拒绝，而不是悄悄丢掉。
 - `ToolUse.extra` 是一个不透明槽位，为 `None` 时序列化跳过。Gemini 思考模型会给 tool call 附 `thought_signature`，下一轮必须原样带回；在 Chat Completions wire 上它以 `extra_content` 往返。
-- `StopReason` 带 `#[serde(other)]` 兜底，厂商新增取值不会让一轮崩溃。`IterationLimit` 与 `UncertainEffect` 由循环设置，从不来自 wire。
+- `StopReason` 带 `#[serde(other)]` 兜底，厂商新增取值不会让一轮崩溃。`UncertainEffect` 由循环设置，从不来自 wire。
 - `Usage` 在 input/output 之外记录缓存读取与缓存写入 token，以及 `prompt_tokens`：每种 wire 上都含缓存部分的完整 prompt（Anthropic 的 `input_tokens` 不含缓存读取，OpenAI 的含）。`Usage::prompt_size()` 是衡量下一次请求大小的数。
 
 ## 3.2 厂商目录
@@ -124,13 +124,13 @@ trait Provider: Send + Sync {
 
 `jeeves_loop::run(Turn)` 接收一次循环所需的全部输入：
 
-- 模型客户端、模型名、`max_tokens`、`max_iterations`、可选的 `token_budget`；
+- 模型客户端、模型名、拟合后的输出上限、可选的资源预算（目录与剩余上下文如何决定它，见[模型目录](../configuration.zh.md#模型目录models-catalogjson)）；
 - `system_prefix` 与 `system`（见 3.8）、`history`（已由 app-server 裁剪）与 `user_message`——二者分开保存，因为来源不同（数据库对请求）——以及只挂在第一条用户消息上的 `user_images`；
 - `tools`（`ToolRegistry`）与 `ctx`（`ToolCtx`）；
 - 出口与控制：`observer`、`on_text`、`interrupt`、`checkpoint`、`steering`、`resume`；
 - `tool_result_budget`（3.16）。
 
-`resume` 从检查点的工作记忆继续，而不是重新拼装历史；`Resume.max_iterations` 让续跑带上自己的上限。
+`resume` 从检查点的工作记忆继续。
 
 ## 3.11 事件与两个文本出口
 
@@ -161,28 +161,20 @@ trait Provider: Send + Sync {
 
 ## 3.14 退出与收尾
 
-| 退出 | 条件 | `stop_reason` |
-|---|---|---|
-| 自然 | 模型没有请求工具 | 模型给出的 |
-| 收尾 | 最后一次允许的迭代，或回合 token 预算将尽 | 模型给出的 |
-| 残余 | 迭代仍然耗尽（`max_iterations == 1`，或收尾调用仍返回了工具调用） | `IterationLimit` |
-| 不确定 | 某工具的效果无法确认 | `UncertainEffect` |
-| 中断 | 3.13 | `Other` |
+模型停止调用工具，且没有待接收的追加输入时，循环交付回复。用户取消、无法核实的外部操作、资源额度耗尽、持续重复的工具调用和模型报错都有独立的停止路径。工具请求被模型输出截断时，Runtime 不执行该批请求。
 
-收尾会拿走工具，并追加一条指令，要求用三句话说明：做完了什么、卡在哪里、下一步需要什么。步数上限是成本预算而不是悬崖，所以结束时给出诚实的总结，而不是一句套话。回合 token 预算（`JEEVES_TURN_TOKEN_BUDGET`，0 为关闭）在花费达到预算的 80% 时触发同样的退出，花费按「已用 + 下一次请求的预期输入」计算（`budget::next_input_tokens`：上次实测 prompt 加上仅新增部分的估算）；它的指令会说明停下来是因为 token 预算。
-
-残余回复坦率地说工作没做完；绝不把模型最后那句「接下来我会……」当作答案。循环只负责如实地结束一段。要不要继续由上层决定（`JEEVES_AUTO_CONTINUE_MAX`、`JEEVES_TURN_STEP_SLICE`；见 [06-app-server](06-app-server.zh.md)），循环并不知道自己是不是第一次运行。
+超过上下文阈值时，模型请求保留当前用户指令和最近一批完整的工具往来，用摘录压缩更早的内容。完整记录仍用来核验检查点和记账。模型在执行中报告上下文溢出时，Runtime 可缩减当前请求并重试一次，接着使用已经落定的工具结果。
 
 ## 3.15 循环守卫
 
-`guard.rs` 防止模型把迭代预算烧在重复调用上。`StallGuard` 是对 `(工具, 参数, 结果)` 哈希按请求顺序做检测的纯检测器，每回合新建（跨回合的重复由 app-server 里的另一套机制处理）。
+`guard.rs` 防止模型因重复调用而停滞。`StallGuard` 是对 `(工具, 参数, 结果)` 哈希按请求顺序做检测的纯检测器，每回合新建（跨回合的重复由 app-server 里的另一套机制处理）。
 
 | 判据 | 触发 |
 |---|---|
 | 重复 | 同一调用、同一结果连续第 3 次（单次重复可能只是无害的复查） |
 | 循环 | 最近 `2p` 次调用两两相同，`p` 取 2 到 4（交替会重置连续计数，所以要单独判；整个窗口都是同一个调用算「重复」，不算循环） |
 
-命中时，只有喂回模型的文本会变：追加一段 `[guard]` 提醒（换条路，或告诉用户卡在哪里）；若是重复调用且结果足够长，正文被替换成简短的引用桩。`LoopResult.tool_calls` 与 `Tool` 事件保留真实结果。命中次数与最后一条提示进入 `LoopResult.guard`，再进入回合元数据，卡住这件事在 trace 里可见。
+命中时，模型会收到 `[guard]` 提醒。过长的重复结果会用简短的引用桩代替。`LoopResult.tool_calls` 与 `Tool` 事件保留真实结果，命中次数与最后一条提示进入 `LoopResult.guard`。连续三批工具调用都触发重复或循环判定时，任务停止并等待核对。
 
 ## 3.16 工具结果预算
 

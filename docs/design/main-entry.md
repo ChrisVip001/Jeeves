@@ -74,6 +74,8 @@ The Runtime verifies task ownership, the action’s association with that task, 
 
 ### Working on a long task
 
+Jeeves keeps working in the same task as tool results arrive. Approvals still come to you. A task pauses when work reaches a resource limit, when you stop it or when an external action needs review. [Runtime limits](../configuration.md#behavior-knobs)
+
 When an assignment explicitly names an output file, main chat can hand off a file check. If the person also specifies literal text that must appear, the check measures that text in the file. The Runtime records each result against the task's workspace and sends a failed check back for correction within the task's round limit. The task detail shows the recorded criteria and verdicts. Source accuracy, code behavior and other semantic requirements need their own evidence.
 
 A follow-up after delivery opens a new run in the same task and workspace. The earlier receipt stays attached to its run. The follow-up starts without file checks, so its output is marked unverified.

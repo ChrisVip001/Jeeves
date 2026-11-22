@@ -1333,7 +1333,6 @@ pub struct SettingsView {
     pub provider: String,
     pub model: String,
     pub small_model: String,
-    pub max_iterations: i32,
     pub max_tokens: i32,
     /// Working-memory sliding window: only the last N turns go into the prompt.
     pub history_turns: i32,
@@ -1348,8 +1347,6 @@ pub struct SettingsView {
 #[ts(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct SettingsPatch {
-    #[ts(optional = nullable)]
-    pub max_iterations: Option<i32>,
     #[ts(optional = nullable)]
     pub max_tokens: Option<i32>,
     #[ts(optional = nullable)]
@@ -1384,8 +1381,7 @@ impl SettingsPatch {
     /// remembered.
     pub fn is_empty(&self) -> bool {
         let p = self;
-        p.max_iterations.is_none()
-            && p.max_tokens.is_none()
+        p.max_tokens.is_none()
             && p.history_turns.is_none()
             && p.consolidate_every.is_none()
             && p.retrieval_top_k.is_none()
@@ -1400,9 +1396,6 @@ impl SettingsPatch {
     /// the saved patch is the foundation of the new one, not the other way around.
     pub fn merge_newer(&mut self, newer: &Self) {
         let p = newer;
-        if p.max_iterations.is_some() {
-            self.max_iterations = p.max_iterations;
-        }
         if p.max_tokens.is_some() {
             self.max_tokens = p.max_tokens;
         }

@@ -122,7 +122,6 @@ export function renderOverview(
           }),
         ),
         ...row(t("检索条数"), String(config.retrievalTopK)),
-        ...row(t("最多迭代"), String(config.maxIterations)),
       ),
     ),
   );

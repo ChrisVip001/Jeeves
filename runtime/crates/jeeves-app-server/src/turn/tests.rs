@@ -48,6 +48,94 @@ async fn server(mock: Arc<Mock>) -> Server {
     server
 }
 
+#[tokio::test]
+async fn a_model_request_fits_its_output_into_the_remaining_context() {
+    let mock = Arc::new(Mock::new(vec![
+        Mock::tool_use("material", "read_file", json!({"path": "material.txt"})),
+        Mock::text("Reviewed."),
+    ]));
+    let mut server = server(mock.clone()).await;
+    server.restrict_tools(&["read_file"]);
+    let mut resolved = server.resolved().unwrap();
+    resolved.context_window = 8_192;
+    server.set_resolved(Some(resolved));
+    let home = server.settings().home;
+    std::fs::write(
+        home.join("material.txt"),
+        "A line of evidence for the review.\n".repeat(200),
+    )
+    .unwrap();
+    let (sink, _) = EventSink::channel();
+    crate::turn::run_turn(
+        &server,
+        TurnStartParams {
+            message: "Review this material. ".repeat(240),
+            cwd: Some(home.display().to_string()),
+            ..Default::default()
+        },
+        RequestId::Number(1),
+        &sink,
+    )
+    .await
+    .unwrap();
+    let requests = mock.received.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[1].max_tokens < requests[0].max_tokens);
+    for request in requests.iter() {
+        let input = jeeves_provider::tokens::estimate_messages(&request.messages)
+            + jeeves_provider::tokens::estimate_text(&request.system_text().unwrap_or_default())
+            + jeeves_provider::tokens::estimate_tools(&request.tools);
+        assert!(request.max_tokens > 0);
+        assert!((request.max_tokens as usize) + input < 8_192);
+    }
+}
+
+#[tokio::test]
+async fn delegated_model_requests_use_the_same_output_policy() {
+    let mock = Arc::new(Mock::new(vec![
+        Mock::tool_use(
+            "child",
+            "delegate_task",
+            json!({"task": "Return a short finding."}),
+        ),
+        Mock::text("The child completed the review."),
+        Mock::text("The review is complete."),
+    ]));
+    let server = server(mock.clone()).await;
+    {
+        let mut settings = server.settings.write().unwrap();
+        settings.delegate_enabled = true;
+        settings.context_window = Some(8192);
+    }
+    let (sink, _) = EventSink::channel();
+    crate::turn::run_turn(
+        &server,
+        TurnStartParams {
+            session_id: Some("delegate-test".into()),
+            message: "Delegate a short review.".into(),
+            ..Default::default()
+        },
+        RequestId::Number(1),
+        &sink,
+    )
+    .await
+    .unwrap();
+    let requests = mock.received.lock().unwrap();
+    let child = requests
+        .iter()
+        .find(|request| {
+            request
+                .system_text()
+                .is_some_and(|system| system.contains("You are a subagent:"))
+        })
+        .expect("the child model was called");
+    assert!(child.max_tokens > 2048);
+    let input = jeeves_provider::tokens::estimate_messages(&child.messages)
+        + jeeves_provider::tokens::estimate_text(&child.system_text().unwrap_or_default())
+        + jeeves_provider::tokens::estimate_tools(&child.tools);
+    assert!((child.max_tokens as usize) + input < 8192);
+}
+
 async fn call(server: &Server, request: JsonRpcRequest) -> JsonRpcMessage {
     let (tx, mut rx) = mpsc::unbounded_channel();
     crate::handle(server, request, EventSink::new(tx)).await;
@@ -410,18 +498,18 @@ async fn config_write_lands_in_memory_and_survives_a_reboot() {
         request(
             1,
             "config/write",
-            json!({"patch": {"maxIterations": 20, "maxTokens": 4096}}),
+            json!({"patch": {"historyTurns": 20, "maxTokens": 4096}}),
         ),
     )
     .await;
     match response {
         JsonRpcMessage::Response(resp) => {
-            assert_eq!(resp.result["config"]["maxIterations"], 20);
+            assert_eq!(resp.result["config"]["historyTurns"], 20);
             assert_eq!(resp.result["config"]["maxTokens"], 4096);
         }
         other => panic!("config/write should not error: {other:?}"),
     }
-    assert_eq!(server.settings().max_iterations, 20);
+    assert_eq!(server.settings().history_turns, 20);
     assert_eq!(server.settings().max_tokens, 4096);
     assert!(
         home.join("settings.json").exists(),
@@ -433,7 +521,7 @@ async fn config_write_lands_in_memory_and_survives_a_reboot() {
         ..Settings::default()
     };
     let server2 = crate::open(&settings2).await.expect("reopen");
-    assert_eq!(server2.settings().max_iterations, 20);
+    assert_eq!(server2.settings().history_turns, 20);
     assert_eq!(server2.settings().max_tokens, 4096);
 }
 
@@ -495,19 +583,19 @@ async fn a_bad_patch_is_rejected_without_touching_anything() {
 
     let response = call(
         &server,
-        request(1, "config/write", json!({"patch": {"maxIterations": 0}})),
+        request(1, "config/write", json!({"patch": {"historyTurns": -1}})),
     )
     .await;
     match response {
         JsonRpcMessage::Error(error) => {
             assert_eq!(error.error.code, jeeves_protocol::codes::INVALID_PARAMS);
-            assert!(error.error.message.contains("maxIterations"));
+            assert!(error.error.message.contains("historyTurns"));
         }
         other => panic!("an illegal patch must be refused: {other:?}"),
     }
     assert_eq!(
-        server.settings().max_iterations,
-        jeeves_config::Settings::default().max_iterations
+        server.settings().history_turns,
+        jeeves_config::Settings::default().history_turns
     );
     assert!(!home.join("settings.json").exists());
 }
@@ -523,7 +611,7 @@ async fn model_list_reports_the_provider_catalog() {
             let data = resp.result["data"].as_array().expect("the data array");
             assert_eq!(data.len(), jeeves_provider::PROVIDERS.len());
             assert_eq!(data[0]["provider"], "anthropic");
-            assert_eq!(data[0]["flagship"], "claude-sonnet-5");
+            assert_eq!(data[0]["flagship"], "claude-sonnet-5-5");
         }
         other => panic!("model/list should not error: {other:?}"),
     }
@@ -652,6 +740,7 @@ async fn precompaction_prepares_the_summary_once() {
         "a summary of the earlier conversation.",
     ))]));
     let server = server(mock.clone()).await;
+    server.settings.write().unwrap().compact_threshold = 0.4;
     let long = "word ".repeat(600);
     for i in 0..12 {
         server

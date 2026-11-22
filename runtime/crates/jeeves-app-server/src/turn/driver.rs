@@ -41,7 +41,7 @@ pub(crate) async fn drive_task(
         task,
         assignment,
         run_id,
-        frame,
+        mut frame,
         mut plan,
         mut round_no,
         max_rounds,
@@ -56,6 +56,17 @@ pub(crate) async fn drive_task(
         ..
     } = frame.clone();
     let (session_id, turn_id) = (session_id.to_string(), turn_id.to_string());
+    let checkpoint_for_round = |round| {
+        Some(checkpoint_outlet(
+            server,
+            sink,
+            &turn_id,
+            &session_id,
+            assignment,
+            run_id.as_deref(),
+            round,
+        ))
+    };
     let task_id = task.as_ref().map(|task| task.id.clone());
     let goal_condition = task.as_ref().and_then(|task| task.goal_condition.clone());
     let acceptance = match task
@@ -73,14 +84,12 @@ pub(crate) async fn drive_task(
             })
         }
     };
-    let verify_root = turn_cwd.clone();
-    let mut observation = observe_round(&full.result, &turn_id, turn_cwd.as_deref());
     if let Some(condition) = &goal_condition {
         eprintln!("(jeeves) goal loop starts: {condition} (max {max_rounds} rounds)");
     }
     let mut round_started = started;
-
     let (decision, goal_status) = loop {
+        let observation = observe_round(&full.result, &turn_id, turn_cwd.as_deref());
         let goal_rounds = round_no;
         if let Some(id) = &task_id {
             if let Err(e) = server.tasks.record_round(id, round_no).await {
@@ -97,7 +106,7 @@ pub(crate) async fn drive_task(
                 task: task.as_ref(),
                 run_id: run_id.as_deref(),
                 acceptance: &acceptance,
-                verify_root: verify_root.clone(),
+                verify_root: turn_cwd.clone(),
                 started: round_started,
                 wall_offset_ms,
             },
@@ -207,56 +216,34 @@ pub(crate) async fn drive_task(
             }
         }
 
-        if matches!(
-            full.result.stop_reason,
-            jeeves_provider::StopReason::MaxTokens | jeeves_provider::StopReason::IterationLimit
-        ) {
-            let reason = match full.result.stop_reason {
-                jeeves_provider::StopReason::MaxTokens => {
-                    "Model output reached its token limit; task completion is not verified"
-                }
-                _ => "The loop reached its step limit; task completion is not verified",
-            };
-            break (
-                TaskDecision::NeedsAttention(reason.into()),
-                Some("response-limit".into()),
-            );
-        }
-
         if let Some(task) = &task {
             let inputs = jeeves_state::external_waits::ExternalWaits::new(server.pool.clone());
-            match inputs.get(&task.id).await {
-                Ok(Some(input))
-                    if input.event_id.is_none()
-                        || run_id.is_none()
-                        || input.consumed_run_id.as_deref() != run_id.as_deref() =>
-                {
-                    match inputs.expired(&task.id).await {
-                        Ok(false) => {
-                            break (
-                                TaskDecision::WaitingForInput(input.condition_id),
-                                Some("waiting-input".into()),
-                            )
-                        }
-                        Ok(true) => {
-                            break (
-                                TaskDecision::NeedsAttention(
-                                    "Expected input did not arrive before its deadline".into(),
-                                ),
-                                Some("input-expired".into()),
-                            )
-                        }
-                        Err(error) => {
-                            break (
-                                TaskDecision::NeedsAttention(format!(
-                                    "Cannot verify task input deadline: {error}"
-                                )),
-                                Some("input-unavailable".into()),
-                            )
-                        }
+            match crate::task::inputs::awaiting(&inputs, &task.id, run_id.as_deref()).await {
+                Ok(Some(input)) => match inputs.expired(&task.id).await {
+                    Ok(false) => {
+                        break (
+                            TaskDecision::WaitingForInput(input.condition_id),
+                            Some("waiting-input".into()),
+                        )
                     }
-                }
-                Ok(_) => (),
+                    Ok(true) => {
+                        break (
+                            TaskDecision::NeedsAttention(
+                                "Expected input did not arrive before its deadline".into(),
+                            ),
+                            Some("input-expired".into()),
+                        )
+                    }
+                    Err(error) => {
+                        break (
+                            TaskDecision::NeedsAttention(format!(
+                                "Cannot verify task input deadline: {error}"
+                            )),
+                            Some("input-unavailable".into()),
+                        )
+                    }
+                },
+                Ok(None) => (),
                 Err(error) => {
                     break (
                         TaskDecision::NeedsAttention(format!(
@@ -266,6 +253,25 @@ pub(crate) async fn drive_task(
                     )
                 }
             }
+        }
+
+        let response_limit = if let Some(reason) = full.result.stop_detail.as_deref() {
+            Some(reason)
+        } else if full.result.token_budget_reached && task.is_some() {
+            Some("The turn reached its token budget")
+        } else {
+            match full.result.stop_reason {
+                jeeves_provider::StopReason::MaxTokens => {
+                    Some("Model output reached its token limit")
+                }
+                _ => None,
+            }
+        };
+        if let Some(limit) = response_limit {
+            break (
+                TaskDecision::NeedsAttention(format!("{limit}. Task completion is not verified.")),
+                Some("response-limit".into()),
+            );
         }
 
         if let Some(reason) = jeeves_agent::verify::failure_summary(&checks) {
@@ -280,6 +286,7 @@ pub(crate) async fn drive_task(
             }
             eprintln!("(jeeves) task {who} failed acceptance on round {round_no}: {reason}");
             round_no += 1;
+            frame.checkpoint = checkpoint_for_round(round_no);
             round_started = std::time::Instant::now();
             wall_offset_ms = 0;
             plan = revise_plan(server, resolved, task.as_ref(), &acceptance, plan, &reason).await;
@@ -293,25 +300,12 @@ pub(crate) async fn drive_task(
                 resolved,
                 &correction,
                 Vec::new(),
-                TurnFrame {
-                    resume: None,
-                    checkpoint: Some(checkpoint_outlet(
-                        server,
-                        sink,
-                        &turn_id,
-                        &session_id,
-                        assignment,
-                        run_id.as_deref(),
-                        round_no,
-                    )),
-                    ..frame.clone()
-                },
+                frame.clone(),
                 None,
             )
             .await;
             match next {
                 Ok(next) => {
-                    observation = observe_round(&next.result, &turn_id, turn_cwd.as_deref());
                     full = next;
                     continue;
                 }
@@ -422,6 +416,7 @@ pub(crate) async fn drive_task(
             judgement.reason
         );
         round_no += 1;
+        frame.checkpoint = checkpoint_for_round(round_no);
         round_started = std::time::Instant::now();
         wall_offset_ms = 0;
         let continuation = next_round_message(assignment, &judgement.reason, plan.as_ref());
@@ -430,25 +425,12 @@ pub(crate) async fn drive_task(
             resolved,
             &continuation,
             Vec::new(),
-            TurnFrame {
-                resume: None,
-                checkpoint: Some(checkpoint_outlet(
-                    server,
-                    sink,
-                    &turn_id,
-                    &session_id,
-                    assignment,
-                    run_id.as_deref(),
-                    round_no,
-                )),
-                ..frame.clone()
-            },
+            frame.clone(),
             None,
         )
         .await;
         match next {
             Ok(next) => {
-                observation = observe_round(&next.result, &turn_id, turn_cwd.as_deref());
                 full = next;
             }
             Err(e) => {

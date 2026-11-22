@@ -90,7 +90,7 @@ Cargo, Go and npm use their workspace or module manifests at the repository root
 Inside `runtime/crates/jeeves-app-server`, `server/` holds shared server state (`runtime.rs` boot and recovery,
 `tools.rs` tool assembly, `controls.rs` approvals, capacity and active-turn control,
 `settings.rs` configuration access); `dispatch.rs` and `stdio.rs` route JSON-RPC methods;
-`turn/` is one turn (entry, execution, continuation, finalization, history, prompt assembly,
+`turn/` is one turn (entry, execution, finalization, history, prompt assembly,
 operation review); `task/` is the independent-task worker; `interaction/` is the main
 conversation entry; `scheduler/` fires jobs; `memory_worker.rs`, `ledger_writer.rs` and
 `memory_center.rs` are the background memory worker, the ledger writer and the memory-center
@@ -212,10 +212,8 @@ prefix, because it changes with the directory. A subagent gets none of it. The b
 grows within a session, so in a repository with a fat `AGENTS.md` it understates the prompt by
 that file (see [limitations](limitations.md#context)).
 
-Three things keep the budget from quietly growing: compaction (above); tool-result trimming,
-which stubs the oldest oversized results before each request (`JEEVES_TOOL_RESULT_TOTAL_CHARS`,
-newest `JEEVES_TOOL_RESULT_KEEP_RECENT` kept whole); and the iteration budget, which bounds the
-turn itself (`JEEVES_MAX_ITERATIONS`; the last step is a wrap-up).
+History is compacted before a turn. The active request can also compact earlier exchanges while retaining current instructions and recent tool results.
+[Loop exits and active context](internals/03-model-and-loop.md#314-exits-and-wrap-up)
 
 ### Tools (jeeves-tools)
 

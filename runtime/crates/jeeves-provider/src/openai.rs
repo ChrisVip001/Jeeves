@@ -508,12 +508,13 @@ pub fn from_openai(text: &str) -> Result<CreateResponse, ProviderError> {
         ..usage
     };
 
+    let stop_reason = match choice.get("finish_reason").and_then(Value::as_str) {
+        Some("length" | "max_tokens") => StopReason::MaxTokens,
+        _ if tool_calls > 0 => StopReason::ToolUse,
+        _ => StopReason::EndTurn,
+    };
     Ok(CreateResponse {
-        stop_reason: if tool_calls > 0 {
-            StopReason::ToolUse
-        } else {
-            StopReason::EndTurn
-        },
+        stop_reason,
         usage,
         content,
     })

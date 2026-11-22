@@ -276,11 +276,8 @@ a new database is not copied.
   at 32 KB — so in a repository with a fat `AGENTS.md` the band *understates* the prompt by
   that file. That is the trade: the band answers "what grows within a session", and a file
   that is constant per directory does not grow.
-* A turn may spend at most `JEEVES_MAX_ITERATIONS` model calls (default 32). The **last one is a
-  wrap-up**: the tools are taken away and the model has to answer in three sentences — done /
-  stuck / what it needs next. A long turn therefore ends with something you can act on
-  instead of an apology. Oversized tool results are stubbed oldest-first before each request
-  (`JEEVES_TOOL_RESULT_TOTAL_CHARS`), so one chatty command cannot fill the window by itself.
+* The Runtime compacts active model requests against the context window. Configure a token budget to limit spend for one turn.
+  [Runtime configuration](configuration.md#behavior-knobs)
 * `jeeves memory rebuild` folds hand edits of the library pages under `<home>/memory` back into the
   facts and regenerates the library; `jeeves memory backfill` rebuilds ledger rows from old chat history.
 

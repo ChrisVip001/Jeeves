@@ -73,7 +73,7 @@ async fn anthropic_stream_yields_deltas_over_a_real_socket() {
         .stream(
             crate::CreateRequest {
                 cache_prefix: None,
-                model: "claude-sonnet-5".to_string(),
+                model: "claude-sonnet-5-5".to_string(),
                 system: None,
                 messages: vec![crate::Message::user_text("hi")],
                 tools: vec![],
@@ -159,7 +159,7 @@ fn thought_signature_round_trips_through_the_openai_wire() {
 
     let request = crate::CreateRequest {
         cache_prefix: None,
-        model: "gemini-3.5-flash".to_string(),
+        model: "gemini-4-neon".to_string(),
         system: None,
         messages: vec![
             crate::Message {

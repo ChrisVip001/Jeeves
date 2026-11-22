@@ -23,7 +23,51 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use jeeves_provider::{ContentBlock, Message};
+use jeeves_provider::{ContentBlock, Message, Usage};
+
+/// Fit the catalog ceiling to the estimated prompt. Keep 1% window headroom
+/// and pad the local input estimate by 15%, matching OpenCode's default policy.
+pub(crate) fn fit_output(ceiling: i32, context_window: Option<u32>, input: usize) -> i32 {
+    let Some(window) = context_window else {
+        return ceiling;
+    };
+    let usable = (window as usize).saturating_mul(99) / 100;
+    let padded_input = input.saturating_mul(115).div_ceil(100);
+    let room = usable.saturating_sub(padded_input);
+    (ceiling as usize).min(room.max(1024)) as i32
+}
+
+/// Cumulative allowance for the active task round. The caller subtracts spend
+/// from other rounds and restores the current round's already accounted prefix.
+#[derive(Clone)]
+pub struct RunLimits {
+    pub tokens: Option<i64>,
+    pub tools: Option<usize>,
+    pub deadline: Option<tokio::time::Instant>,
+}
+
+impl RunLimits {
+    pub(crate) fn blocker(&self, usage: Usage, tools: usize, requested: usize) -> Option<String> {
+        if self
+            .deadline
+            .is_some_and(|stop| tokio::time::Instant::now() >= stop)
+        {
+            return Some("The task's elapsed-time budget was reached".into());
+        }
+        if self
+            .tokens
+            .is_some_and(|cap| usage.input_tokens.saturating_add(usage.output_tokens) >= cap)
+        {
+            return Some("The task's token budget was reached".into());
+        }
+        if let Some(cap) = self.tools {
+            if tools >= cap || requested > cap.saturating_sub(tools) {
+                return Some(format!("The task's tool-call budget cannot admit this step ({tools} of {cap} calls used)"));
+            }
+        }
+        None
+    }
+}
 
 /// Tools that manage themselves: they do not participate in intra-turn stubbing.
 const SELF_BUDGETED: &[&str] = &["run_command"];
@@ -38,8 +82,7 @@ const SELF_BUDGETED: &[&str] = &["run_command"];
 /// wrap-up call), so a second threshold would be a second name for the same branch; 80% exists to
 /// leave room for that wrap-up call, which is itself a request.
 ///
-/// `None` and 0 both mean off — the step cap already bounds rounds, and a cap nobody asked for
-/// cuts honest work short.
+/// `None` and 0 both disable the turn token budget.
 pub fn should_wrap_up(budget: Option<usize>, spent: usize, next_input: usize) -> bool {
     let Some(budget) = budget.filter(|budget| *budget > 0) else {
         return false;

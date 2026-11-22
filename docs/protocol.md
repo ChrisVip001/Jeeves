@@ -390,7 +390,7 @@ Clients can call `session/main` to recover the main conversation ID when a sessi
 
 The main model answers discussions and asks for clarification in the conversation. Its interaction-scoped `task` tool can create a batch of up to four independent assignments or continue an owned task. Both operations require literal spans of the current human message. A span used for a follow-up cannot also create another task in the same interaction. New tasks carry document references and bounded main-conversation context. Explicit `taskId` bypasses routing after ownership checks. Pending follow-ups append; running ones steer at the next model boundary. Completed unchecked single-turn tasks reopen in the same workspace/context with a new run; other states require existing resume/reconciliation. New images for pending/running tasks are refused.
 
-Before buying another step slice, a task counts the current round’s tokens, tool calls and elapsed time. Recovery leaves a legacy checkpoint suspended for review when its task owns the turn but its run identity is missing. Ordinary chat checkpoints with recorded tool results can still resume.
+A task counts cumulative token, tool and elapsed-time usage at execution boundaries. Recovery leaves a legacy checkpoint suspended for review when its task owns the turn but its run identity is missing. Ordinary chat checkpoints with recorded tool results can still resume.
 
 Task list, runs, artifacts and detail reads return an RPC error if their underlying query fails. A task with unreadable stored checks, acceptance or budget also reports an error. An absent task still has an empty run and artifact history.
 

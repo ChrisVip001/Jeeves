@@ -31,7 +31,7 @@
 /model use ds                                切换
 ```
 
-添加时用 `--vision` / `--no-vision` 声明是否支持图片，否则按厂商默认行决定。本地模型不需要密钥：装好 Ollama、`ollama pull qwen3:8b`，添加一套 `ollama` 配置即可。按轮路由、模型目录与全部选项见[配置参考](configuration.zh.md#多套模型与它们的密钥homemodelsjson)。
+添加时用 `--vision` / `--no-vision` 声明是否支持图片，否则按厂商默认行决定。本地推理可以装好 Ollama，[下载默认模型](configuration.zh.md#本地推理ollama)，再添加一套 `ollama` 配置。按轮路由和模型配置选项见[配置参考](configuration.zh.md#多套模型与它们的密钥homemodelsjson)。
 
 ## 4. 权限
 

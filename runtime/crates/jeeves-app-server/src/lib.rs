@@ -232,7 +232,7 @@ pub struct Server {
     pub(crate) route_cache: Arc<std::sync::Mutex<std::collections::HashMap<String, Resolved>>>,
     /// The merged model catalog (built-in table + `<home>/models-catalog.json`), loaded
     /// once at boot. `model/save` validates against it; `model/list` shows it.
-    pub(crate) catalog: jeeves_provider::catalog::Catalog,
+    pub(crate) catalog: Arc<jeeves_provider::catalog::Catalog>,
     /// One **write-section lock** per session: the serialisation point for a turn's
     /// write sections (history append / consolidation / compaction). Model-call
     /// sections never hold it — that would stall the session and keep interrupt out.

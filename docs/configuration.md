@@ -201,10 +201,9 @@ points cannot disagree.
 
 | Variable | Range |
 |---|---|
-| `JEEVES_MAX_ITERATIONS` | 1 – 100 |
-| `JEEVES_MAX_TOKENS` | 128 – 200000 |
+| `JEEVES_MAX_TOKENS` | 0 or 128 – 200000 |
 | `JEEVES_HISTORY_TURNS` | 0 – 1000 |
-| `JEEVES_CONTEXT_WINDOW` | 1024 – 10000000, and must exceed `JEEVES_MAX_TOKENS` |
+| `JEEVES_CONTEXT_WINDOW` | 1024 – 10000000 |
 | `JEEVES_COMPACT_THRESHOLD` | 0.05 – 0.95 |
 | `JEEVES_TOOL_RESULT_TOTAL_CHARS` | 0 – 4000000 |
 | `JEEVES_TOOL_RESULT_MAX_CHARS` | 0 – 1000000 |
@@ -214,8 +213,6 @@ points cannot disagree.
 | `JEEVES_HOME_MAX_MB` | 0 – 10000000 |
 | `JEEVES_TOOL_RESULT_KEEP_RECENT` | 0 – 50 |
 | `JEEVES_TURN_TOKEN_BUDGET` | 0 – 2000000 |
-| `JEEVES_AUTO_CONTINUE_MAX` | 0 – 5 |
-| `JEEVES_TURN_STEP_SLICE` | 1 – 60 |
 | `JEEVES_RESUME_MAX_AGE` | 0 – 10080 |
 | `JEEVES_CONSOLIDATE_EVERY` | 1 – 1000 |
 | `JEEVES_RETRIEVAL_TOP_K` | 1 – 100 |
@@ -241,17 +238,14 @@ nothing", which is the default.
 | `JEEVES_PROVIDER` | `anthropic` | provider: anthropic / openai / deepseek / gemini / kimi / glm / minimax / xai / openrouter / opencode_zen / opencode_go / ollama. **Only** the fallback when no profile is configured (that is how local models start zero-config); models and keys live in `<home>/models.json` |
 | `JEEVES_LLM_TIMEOUT` | `120` | per-call model timeout in seconds |
 | `JEEVES_LLM_RETRIES` | `2` | retries on 429/5xx/network hiccups — exponential backoff (500ms, capped at 8s per wait, 30s total), **announced every time**, never a different provider; `0` disables |
-| `JEEVES_THINKING_BUDGET` | `0` | Anthropic extended thinking for the main model: the `budget_tokens` to allow (0 = off). Takes effect only when it is at least 1024 and below `JEEVES_MAX_TOKENS`; the small-model helper calls never think. Thinking is billed as output tokens. |
+| `JEEVES_THINKING_BUDGET` | `0` | Anthropic Messages thinking for the main model. `0` uses the model default. A value from 1024 to below the request output allowance sets a manual budget on supported models or enables adaptive thinking on Claude 5.5 and MiniMax M3 models. Thinking counts as output. |
 | `JEEVES_GOAL_MAX_ROUNDS` | `5` | how many rounds a goal may continue for; on overrun the status is `round-limit` and the miss is reported honestly |
 
 ## Behavior knobs
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JEEVES_AUTO_CONTINUE_MAX` | `2` | how many times one turn may **continue itself**. Two sources share the budget: the Stop hook demanding one more pass, and the built-in gate seeing `pending` / `in_progress` items in the model's own todo list. A continuation carries the steps and tool results so far (it does not restart) and spends one fresh slice. `0` = off — running out of steps stops being a cliff |
-| `JEEVES_TURN_STEP_SLICE` | `12` | steps bought by one continuation. **A slice rather than a higher `JEEVES_MAX_ITERATIONS`**: a bigger cap also makes a runaway turn more expensive, while a slice is only spent when it is asked for |
-| `JEEVES_MAX_ITERATIONS` | `32` | per-turn step budget. The **last** step is a wrap-up: the tools are taken away and the model is asked to say what it did, where it is stuck, and what it needs — the cap bounds cost, it does not turn success into an apology. Running out is not a cliff: if the todo list still has open items the turn continues itself (`JEEVES_AUTO_CONTINUE_MAX`) |
-| `JEEVES_MAX_TOKENS` | `16384` | per-call output cap (headroom for reasoning models) |
+| `JEEVES_MAX_TOKENS` | `0` | optional ceiling on the automatic output allowance. `0` uses the [model catalog](#the-model-catalog-models-catalogjson) and available context |
 | `JEEVES_HISTORY_TURNS` | `12` | working-memory window **ceiling**: only the last N turns enter the prompt (older turns are folded into a rolling summary, not dropped) |
 | `JEEVES_CONTEXT_WINDOW` | provider default | override the context-window estimate (local models differ wildly; the table holds common defaults) |
 | `JEEVES_COMPACT_THRESHOLD` | `0.8` | start compacting at this fraction of the window — tokens are the real gate, turns are the ceiling |
@@ -262,7 +256,7 @@ nothing", which is the default.
 | `JEEVES_TASK_WORKERS` | `1` | how many human-started tasks run side by side; each holds a lease, see [task workers](operations.md#task-workers-and-leases) |
 | `JEEVES_HOME_MAX_MB` | `0` | MB; once the home directory is this large new turns are refused, while reads, export and cleanup keep working (`0` = no cap) |
 | `JEEVES_TOOL_RESULT_KEEP_RECENT` | `3` | how many of the newest results are never stubbed (trimming is oldest-first) |
-| `JEEVES_TURN_TOKEN_BUDGET` | `0` | per-**turn** token cap (input + output, as the provider reports it). At 80% the tools are taken away and the model wraps up — the same exit as the step cap, only this time the wallet ran out. `0` = off (default): the step cap already bounds rounds, and a cost gate nobody asked for cuts honest work short |
+| `JEEVES_TURN_TOKEN_BUDGET` | `0` | Token budget for one turn. As measured usage plus the next estimated input approaches the budget, the model can report progress without tools. `0` disables the budget |
 | `JEEVES_RESUME_MAX_AGE` | `60` | minutes; an `open` turn checkpoint older than this is marked `abandoned` at startup instead of resumed (`0` = always resume) |
 | `JEEVES_CONSOLIDATE_EVERY` | `6` | run consolidation every N new turns |
 | `JEEVES_RETRIEVAL_TOP_K` | `4` | maximum matching facts per turn |
@@ -395,10 +389,13 @@ existing id** (any subset of fields) or **adds a new provider** (`wire`,
 ```json
 [
   { "id": "deepseek", "context_window": 999999 },
-  { "id": "mybox", "wire": "openai", "model": "qwen3:8b",
-    "base_url": "http://127.0.0.1:11434/v1" }
+  { "id": "mybox", "wire": "openai", "model": "qwen3.5:9b",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model_output_limits": { "qwen3.5:9b": 8192 } }
 ]
 ```
+
+`model_output_limits` maps exact model IDs to output token ceilings for that provider. The bundled output table comes from the models.dev snapshot in OpenCode. The Runtime uses 32,000 tokens when an exact entry is absent and caps the catalog ceiling at 256,000. Conversation, task and subagent requests count the projected input, including the system prompt and tool schemas, before fitting output to the available window. The estimate has a 15% input margin and leaves 1% window headroom. When the estimate leaves little space, the OpenCode policy uses a 1,024-token floor, still subject to catalog and explicit budget caps.
 
 The file is read **once at boot** and merged into the catalog; `/model` and
 `model/list` see the merged result, and
@@ -412,9 +409,9 @@ To skip hand-writing the JSON row, use the generator script (stdlib only):
 
 ```bash
 python3 scripts/gen_catalog.py --list        # what the upstream offers
-python3 scripts/gen_catalog.py glm --model glm-5.2              # built-in id → patch
-python3 scripts/gen_catalog.py zhipuai --model glm-5.2 \
-  --base-url https://open.bigmodel.cn/api/paas/v4 \
+python3 scripts/gen_catalog.py glm --model glm-5.3              # built-in id → patch
+python3 scripts/gen_catalog.py zhipuai --model glm-5.3 \
+  --base-url https://open.bigmodel.cn/api/anthropic \
   --out ~/.jeeves/models-catalog.json                              # new id → new provider, merged in place
 ```
 
@@ -424,6 +421,27 @@ wire and key_env come from jeeves's mapping table inside the script. The script
 picks "the largest-context tool-call model" as the default — that is a starting
 point only; the main and small models deserve a human look (candidates are
 printed to stderr).
+
+### Built-in default models
+
+These defaults apply when the profile leaves the model ID unset. Pick a model explicitly in your profile to use another version.
+
+| Provider | Main model | Helper model |
+| --- | --- | --- |
+| [Anthropic](https://platform.claude.com/docs/en/models/overview) | `claude-sonnet-5-5` | `claude-haiku-5-5` |
+| [OpenAI](https://developers.openai.com/api/docs/guides/model-selection) | `gpt-6.2-sol` | `gpt-6-luna` |
+| [OpenRouter](https://openrouter.ai/collections/free-models) | `nvidia/nemotron-3.5-super-vl:free` | `nvidia/nemotron-3.5-lightning:free` |
+| [Gemini](https://aistudio.google.com/docs/models) | `gemini-4-neon` | `gemini-4-hydrogen` |
+| [DeepSeek](https://api-docs.deepseek.com/quick_start/pricing/) | `deepseek-v4-pro` | `deepseek-flash` |
+| [MiniMax](https://platform.minimax.cn/docs/api-reference/text-anthropic-api) | `MiniMax-M3.1-Flash` | `MiniMax-M3` |
+| [Kimi](https://platform.kimi.ai/docs/pricing/chat.md) | `kimi-k3.1-pro` | `kimi-k2.7-code` |
+| [GLM](https://docs.z.ai/guides/llm/glm-5.3) | `glm-5.3` | `glm-5.3-flash` |
+| [xAI](https://docs.x.ai/developers/models) | `grok-4.7` | `grok-4.3` |
+| [OpenCode Zen](https://opencode.ai/docs/console/models/) | `deepseek-v4.1-flash-free` | `deepseek-v4.1-flash-free` |
+| [OpenCode Go](https://opencode.ai/docs/console/go/) | `deepseek-v4.1-flash` | `deepseek-v4.1-flash` |
+| [Ollama](https://ollama.com/library/qwen3.5/tags) | `qwen3.5:9b` | `qwen3.5:4b` |
+
+OpenRouter and OpenCode Zen use free model IDs. OpenCode Go uses the subscription endpoint. Ollama retains compact models and a 32,768-token Runtime context default.
 
 ## Delegating work to a subagent
 
@@ -436,8 +454,7 @@ done in a fresh context. What the subagent gets:
   with no retrieval, no skills and no summary;
 * the parent's tool table **minus `delegate_task`** — delegating again is not
   refused, it simply is not an option;
-* its own iteration limit (default 5, hard cap 10) and at most 2048 output
-  tokens;
+* the same model catalog and context-based output policy, plus a separate token budget;
 * no interactive approval path and no way to ask you a question.
 
 The conclusion comes back with the tools it used, and failed calls are marked,
@@ -451,8 +468,8 @@ same state, so nothing is isolated beyond its context.
 nothing leaves the computer. Install [Ollama](https://ollama.com), then:
 
 ```bash
-ollama pull qwen3:8b     # the main model
-ollama pull qwen3:4b     # the cheap model for consolidation
+ollama pull qwen3.5:9b     # the main model
+ollama pull qwen3.5:4b     # the cheap model for consolidation
 JEEVES_PROVIDER=ollama jeeves  # no API key anywhere
 ```
 
@@ -462,7 +479,7 @@ the same shape — add a profile pointing at them (`--url` for the endpoint). A 
 also picks a model other than the default:
 
 ```
-/model add local ollama qwen3:14b
+/model add local ollama qwen3.5:27b
 ```
 
 This is the privacy path and the zero-cost path, and the one that keeps

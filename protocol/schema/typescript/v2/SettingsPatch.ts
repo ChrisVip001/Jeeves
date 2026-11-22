@@ -4,7 +4,6 @@
  * The **write patch** for config. Pass only the fields to change; null means leave as-is.
  */
 export type SettingsPatch = {
-  maxIterations?: number | null;
   maxTokens?: number | null;
   historyTurns?: number | null;
   consolidateEvery?: number | null;

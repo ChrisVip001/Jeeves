@@ -44,7 +44,6 @@ pub trait SubagentRunner: Send + Sync {
     fn run(
         &self,
         task: String,
-        max_iterations: Option<i32>,
         result_schema: Option<Value>,
         parent_cwd: Option<std::path::PathBuf>,
         worktree: Option<std::path::PathBuf>,
@@ -74,12 +73,6 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
                     "items": {"type": "string"},
                     "description": "Several **independent** pieces of work dispatched at once (4 at most): they run concurrently and their conclusions come back merged in the order you gave; a batch of subagents is **read-only** (no writing files, no running commands). Anything with ordering or disk writes should be delegated separately."
                 },
-                "max_iterations": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 10,
-                    "description": "How many rounds a subagent may run (5 by default, 10 at most)"
-                },
                 "result_schema": {
                     "type": "object",
                     "description": "To get a structured conclusion, give a JSON Schema: the subagent must reply with JSON that matches it. A mismatch is retried once with the error, and if it still fails it falls back to prose and says so in the text — you define the shape, rather than trusting it to comply."
@@ -89,10 +82,6 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
         handler: Arc::new(move |_ctx: ToolCtx, args: Value| {
             let runner = runner.clone();
             Box::pin(async move {
-                let max_iterations = args
-                    .get("max_iterations")
-                    .and_then(Value::as_i64)
-                    .map(|value| value as i32);
                 let result_schema = args.get("result_schema").cloned().filter(|v| !v.is_null());
                 let cwd = _ctx.cwd.clone();
 
@@ -122,7 +111,7 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
                 if tasks.len() == 1 {
                     let task = tasks.into_iter().next().expect("just confirmed there is one");
                     return match runner
-                        .run(task, max_iterations, result_schema, cwd, _ctx.worktree, false)
+                        .run(task, result_schema, cwd, _ctx.worktree, false)
                         .await
                     {
                         Ok(summary) => Ok(crate::report::as_report(&summary)),
@@ -134,7 +123,6 @@ pub fn delegate_task(runner: Arc<dyn SubagentRunner>) -> Tool {
                 for (index, task) in tasks.iter().enumerate() {
                     let fut = runner.run(
                         task.clone(),
-                        max_iterations,
                         result_schema.clone(),
                         cwd.clone(),
                         _ctx.worktree.clone(),

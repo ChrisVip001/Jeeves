@@ -22,6 +22,7 @@ use jeeves_provider::{ContentBlock, Message, Resolved, Role, Usage};
 use jeeves_state::checkpoints::CheckpointWrite;
 use jeeves_state::operations::OperationSnapshot;
 use jeeves_state::CheckpointRow;
+use std::sync::Arc;
 
 use crate::turn::{finalize_turn, full_turn, FinishedTurn, TurnFrame, TurnGuard};
 use crate::{EventSink, Server};
@@ -621,13 +622,13 @@ pub(crate) async fn resume_turn(
         sink,
         interrupt: Some(interrupt.clone()),
         worktree: crate::task::worktree::owned(&server.settings().home, task.as_ref()),
-        turn_cwd: cwd.clone(),
+        turn_cwd: cwd,
+        tool_limits: Arc::new(jeeves_tools::web::TurnLimits::from_env()),
         resume: Some(jeeves_loop::Resume {
             round_id: round_id.clone(),
             messages,
             completed_iterations: row.iterations,
             usage,
-            max_iterations: None,
         }),
         checkpoint: Some(crate::turn::checkpoint_outlet(
             server,
@@ -646,7 +647,7 @@ pub(crate) async fn resume_turn(
         &resolved,
         &row.user_message,
         Vec::new(),
-        frame,
+        frame.clone(),
         None,
     )
     .await
@@ -660,27 +661,8 @@ pub(crate) async fn resume_turn(
                     assignment: &row.user_message,
                     run_id: run_id.clone(),
                     frame: TurnFrame {
-                        interaction_tool: None,
-                        session_id: &session_id,
-                        turn_id: &turn_id,
-                        sink,
-                        interrupt: Some(interrupt.clone()),
-                        worktree: crate::task::worktree::owned(
-                            &server.settings().home,
-                            task.as_ref(),
-                        ),
-                        turn_cwd: cwd.clone(),
                         resume: None,
-                        checkpoint: Some(crate::turn::checkpoint_outlet(
-                            server,
-                            sink,
-                            &turn_id,
-                            &session_id,
-                            &row.user_message,
-                            run_id.as_deref(),
-                            round_no,
-                        )),
-                        steering: Some(steering.clone()),
+                        ..frame
                     },
                     plan,
                     round_no,
@@ -719,8 +701,6 @@ pub(crate) async fn resume_turn(
                     started,
                     run_id,
                     decision: task.as_ref().map(|_| driven.decision),
-                    continues: 0,
-                    unfinished: None,
                 },
             )
             .await;

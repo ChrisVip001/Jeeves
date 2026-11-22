@@ -72,7 +72,7 @@ v2.rs 类型 ──(cargo test，被忽略的测试)──> TS + JSON Schema + �
 - 启动时的 `Settings::validate`：非法值拒绝启动，并指出变量名；
 - `config/write` 的 `validate_patch_values`：非法补丁整体被拒。
 
-枚举（`JEEVES_APPROVAL`、`JEEVES_SOUL_MODE`、`JEEVES_TOOL_POLICY`）、上下文窗口关系（`JEEVES_MAX_TOKENS` 必须小于被覆盖的 `JEEVES_CONTEXT_WINDOW`）以及 exec 允许规则的卫生检查（`MAX_EXEC_RULES`、`MAX_EXEC_RULE_CHARS`，不允许空规则或多行规则）在表旁边的代码里检查。`patch_name: None` 的配置项只能通过环境变量设置。
+枚举（`JEEVES_APPROVAL`、`JEEVES_SOUL_MODE`、`JEEVES_TOOL_POLICY`）以及 exec 允许规则的卫生检查（`MAX_EXEC_RULES`、`MAX_EXEC_RULE_CHARS`，不允许空规则或多行规则）在表旁边的代码里检查。`JEEVES_MAX_TOKENS` 是上限，不是每次请求的固定大小：模型目录的输出上限与剩余上下文会把每次请求拟合到窗口内，因此它可以大于被覆盖的 `JEEVES_CONTEXT_WINDOW`。`patch_name: None` 的配置项只能通过环境变量设置。
 
 `ensure_home()` 在 `JEEVES_HOME` 下创建 `traces/`、`outbox/`、`skills/` 和 `spill/`。
 

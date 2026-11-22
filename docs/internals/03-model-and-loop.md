@@ -13,7 +13,7 @@ Directories: `runtime/crates/jeeves-provider/src/` and `runtime/crates/jeeves-lo
 - `ContentBlock` is internally tagged (`type`, snake_case), so its serialized form is byte-identical to Anthropic's content blocks. `anthropic.rs` therefore needs almost no translation.
 - Besides `Text`, `ToolUse` and `ToolResult`, it carries `Image` (base64, no path), and continuation blocks that must be replayed verbatim: `Thinking` / `RedactedThinking` (Anthropic wire), `OpenAiReasoning` (Chat Completions `reasoning_content`), `ResponseItem` (Responses encrypted reasoning). A wire never sends another wire's continuation blocks; Anthropic and Chat Completions reject a `ResponseItem` or a Responses-tagged `ToolUse.extra`, and Anthropic rejects `OpenAiReasoning`, rather than silently dropping them.
 - `ToolUse.extra` is an opaque slot, skipped in serialization when `None`. Gemini thinking models attach a `thought_signature` to a tool call and require it back unchanged; on the Chat Completions wire it travels as `extra_content`.
-- `StopReason` has a `#[serde(other)]` catch-all so a new vendor value cannot crash a turn. `IterationLimit` and `UncertainEffect` are set by the loop, never by a wire.
+- `StopReason` has a `#[serde(other)]` catch-all so a new vendor value cannot crash a turn. `UncertainEffect` is set by the loop, never by a wire.
 - `Usage` keeps cache-read and cache-creation tokens beside input/output, and `prompt_tokens`, the whole prompt including cached parts on every wire (Anthropic's `input_tokens` excludes cache reads, OpenAI's includes them). `Usage::prompt_size()` is the number used to size the next request.
 
 ## 3.2 The provider catalog
@@ -124,13 +124,13 @@ Stateless: every request is sent with `store: false` and `include: ["reasoning.e
 
 `jeeves_loop::run(Turn)` takes everything one loop needs:
 
-- the model client, model name, `max_tokens`, `max_iterations`, optional `token_budget`;
+- the model client, model name, a fitted output ceiling and optional resource budgets (see [the model catalog](../configuration.md#the-model-catalog-models-catalogjson) for how the catalogue and remaining context choose it);
 - `system_prefix` and `system` (see 3.8), `history` (already trimmed by app-server) and `user_message` kept separate because they come from different places (database versus request), plus `user_images` that ride only on the first user message;
 - `tools` (`ToolRegistry`) and `ctx` (`ToolCtx`);
 - outlets and controls: `observer`, `on_text`, `interrupt`, `checkpoint`, `steering`, `resume`;
 - `tool_result_budget` (3.16).
 
-`resume` continues a checkpointed working memory instead of assembling history; `Resume.max_iterations` lets a continuation carry its own ceiling.
+`resume` continues a checkpointed working memory.
 
 ## 3.11 Events and the two text outlets
 
@@ -161,28 +161,20 @@ An interruption is not an error: it returns `Ok(LoopResult { interrupted: true, 
 
 ## 3.14 Exits and wrap-up
 
-| Exit | Condition | `stop_reason` |
-|---|---|---|
-| Natural | The model requested no tools | the model's |
-| Wrap-up | Last allowed iteration, or the turn's token budget is nearly spent | the model's |
-| Residue | Iterations exhausted anyway (`max_iterations == 1`, or the wrap-up call still returned tool calls) | `IterationLimit` |
-| Uncertain | A tool's effect is unconfirmed | `UncertainEffect` |
-| Interrupt | 3.13 | `Other` |
+The loop delivers a reply when the model requests no tools and there is no pending user input. Cancellation, uncertain effects, exhausted resources, repeated tool batches and provider errors have distinct exit paths. Tool calls from a truncated model response are discarded.
 
-A wrap-up takes the tools away and appends an instruction asking for three sentences: what is done, where it is stuck, what is needed next. The step cap is a budget for cost, not a cliff, so it ends with an honest summary rather than a canned apology. The token budget (`JEEVES_TURN_TOKEN_BUDGET`, off at 0) triggers the same exit at 80% of the budget, counting what was spent plus the next request's expected input (`budget::next_input_tokens`: last measured prompt plus an estimate of only what was appended); its instruction says the stop came from the token budget.
-
-The residue reply says plainly that the work is not finished; it never presents the model's last "next I will…" as an answer. The loop only ends a segment truthfully. Whether to continue is decided above it (`JEEVES_AUTO_CONTINUE_MAX`, `JEEVES_TURN_STEP_SLICE`; see [06-app-server](06-app-server.md)), and the loop does not know whether it is a first run.
+When the context estimate crosses its threshold, the request keeps the current instructions and recent complete tool exchanges, with excerpts from older messages. The full transcript remains available to checkpoint and account for the work. On a provider overflow during execution, the Runtime can retry that request once with less context and the settled tool results.
 
 ## 3.15 Loop guard
 
-`guard.rs` keeps a model from burning the iteration budget on repeated calls. `StallGuard` is a pure detector over `(tool, args, result)` hashes in request order, created per turn (cross-turn repetition is a different mechanism in app-server).
+`guard.rs` keeps a model from repeating tool calls without progress. `StallGuard` is a pure detector over `(tool, args, result)` hashes in request order, created per turn (cross-turn repetition is a different mechanism in app-server).
 
 | Criterion | Trigger |
 |---|---|
 | Repeated | The same call and result a 3rd consecutive time (a single repeat may be a harmless recheck) |
 | Cyclic | The last `2p` calls are pairwise identical for `p` in 2 to 4 (alternation resets the consecutive count, so it needs its own test); a window that is all one call is "repeated", not a cycle |
 
-On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard` and on to turn metadata, so a stall is visible in the trace.
+On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard`. Three successive batches with exclusively repeated or cyclic calls stop for review.
 
 ## 3.16 Tool-result budget
 

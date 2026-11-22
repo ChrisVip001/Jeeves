@@ -119,7 +119,7 @@ pub(super) async fn run(
     } else {
         vec!["read_file", "write_file"]
     };
-    let host = server(home, settings, resolved, &allowed, 10).await?;
+    let host = server(home, settings, resolved, &allowed, 80_000).await?;
     if phase == "start" {
         let created = rpc(&host,"task/create",json!({"sessionId":"long-research","title":"Next-day research decision report","cwd":home,"maxRounds":3,"acceptance":[{"kind":"fileExists","path":"report.md"}],"budget":{"tokens":60000}})).await?;
         let task = created
@@ -269,7 +269,7 @@ mod tests {
             &jeeves_config::Settings::default(),
             &resolved,
             &[],
-            2,
+            20_000,
         )
         .await?;
         let state = rpc(&reopened, "task/get", json!({"taskId":study["taskId"]})).await?;

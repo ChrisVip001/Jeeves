@@ -27,11 +27,6 @@ pub(crate) struct FinishedTurn<'a> {
     pub(crate) run_id: Option<String>,
     /// The verdict of this turn's rounds; `None` = nobody decided (a resumed turn).
     pub(crate) decision: Option<TaskDecision>,
-    /// How many times this turn continued itself (Stop hook or unfinished work).
-    pub(crate) continues: usize,
-    /// Why it could not continue further, when it stopped with work still open. `None` = it
-    /// stopped because it was done (or was not allowed to try).
-    pub(crate) unfinished: Option<String>,
 }
 
 /// The shared tail of every turn: notifications, the checkpoint ledger's closing entry, the
@@ -63,8 +58,6 @@ pub(crate) async fn finalize_turn(
         started,
         run_id: _,
         decision: _,
-        continues,
-        unfinished,
     } = t;
 
     crate::completion_delivery::flush(server).await;
@@ -166,8 +159,7 @@ pub(crate) async fn finalize_turn(
                 "compacted": history.compacted,
             },
             "steps": result.iterations,
-            "continues": continues,
-            "unfinished": unfinished,
+            "stopDetail": result.stop_detail,
         }),
     );
     if let Err(e) = server

@@ -148,15 +148,15 @@ async fn grep_returns_path_line_and_text() {
 #[tokio::test]
 async fn grep_honours_the_glob_filter_and_ignore_case() {
     let dir = tempfile::tempdir().expect("temp dir");
-    std::fs::write(dir.path().join("a.rs"), "MaxIterations = 3\n").expect("write");
-    std::fs::write(dir.path().join("a.ts"), "maxIterations = 3\n").expect("write");
+    std::fs::write(dir.path().join("a.rs"), "MaxBytes = 3\n").expect("write");
+    std::fs::write(dir.path().join("a.ts"), "maxBytes = 3\n").expect("write");
     let ctx = ctx_in(dir.path()).await;
 
     let only_ts = run(
         &search_registry(),
         &ctx,
         "grep",
-        json!({"pattern": "maxiterations", "glob": "*.ts", "ignore_case": true}),
+        json!({"pattern": "maxbytes", "glob": "*.ts", "ignore_case": true}),
     )
     .await;
     assert!(only_ts.contains("a.ts:1:"), "{only_ts}");
@@ -169,7 +169,7 @@ async fn grep_honours_the_glob_filter_and_ignore_case() {
         &search_registry(),
         &ctx,
         "grep",
-        json!({"pattern": "maxiterations"}),
+        json!({"pattern": "maxbytes"}),
     )
     .await;
     assert!(

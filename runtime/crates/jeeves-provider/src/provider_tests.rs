@@ -161,8 +161,8 @@ fn local_provider_needs_no_key() {
     };
     let resolved = crate::resolve(&settings).expect("a local provider needs no key");
     assert_eq!(resolved.provider_id, "ollama");
-    assert_eq!(resolved.model, "qwen3:8b");
-    assert_eq!(resolved.small_model, "qwen3:4b");
+    assert_eq!(resolved.model, "qwen3.5:9b");
+    assert_eq!(resolved.small_model, "qwen3.5:4b");
 }
 
 #[test]
@@ -499,10 +499,65 @@ fn built_in_catalog_matches_the_static_table() {
 }
 
 #[test]
+fn cloud_defaults_have_exact_output_limits() {
+    let catalog = crate::catalog::Catalog::built_in();
+    for provider in catalog
+        .entries()
+        .iter()
+        .filter(|provider| provider.needs_key())
+    {
+        for model in [&provider.model, provider.small_model.as_ref().unwrap()] {
+            assert!(
+                provider.model_output_limits.contains_key(model),
+                "{} has no output limit for {model}",
+                provider.id
+            );
+        }
+    }
+    assert_eq!(catalog.output_ceiling("openai", "gpt-6.2-sol", 0), 128_000);
+    assert_eq!(catalog.output_ceiling("gemini", "gemini-4-neon", 0), 65_536);
+}
+
+#[test]
+fn opencode_plans_use_their_own_inference_endpoints_and_limits() {
+    let catalog = crate::catalog::Catalog::built_in();
+    let zen = catalog.lookup("opencode_zen").unwrap();
+    let go = catalog.lookup("opencode_go").unwrap();
+    assert_eq!(zen.model, "deepseek-v4.1-flash-free");
+    assert_eq!(go.model, "deepseek-v4.1-flash");
+    assert_eq!(
+        zen.base_url.as_deref(),
+        Some("https://opencode.ai/inference/openai/v1")
+    );
+    assert_eq!(
+        go.base_url.as_deref(),
+        Some("https://opencode.ai/inference/go/openai/v1")
+    );
+    assert_eq!(catalog.output_ceiling(&zen.id, &zen.model, 0), 32_000);
+    assert_eq!(catalog.output_ceiling(&go.id, &go.model, 0), 256_000);
+}
+
+#[test]
 fn load_without_an_override_file_is_built_in() {
     let dir = tempfile::tempdir().expect("temp dir");
     let catalog = crate::catalog::Catalog::load(dir.path());
     assert_eq!(catalog.entries().len(), crate::PROVIDERS.len());
+}
+
+#[test]
+fn output_ceiling_uses_exact_catalog_entries_and_operator_limits() {
+    let home = tempfile::tempdir().unwrap();
+    std::fs::write(
+        home.path().join("models-catalog.json"),
+        r#"[{"id":"openai","model_output_limits":{"company-model":6144}},{"id":"ollama","model_output_limits":{"qwen3:8b":8192}}]"#,
+    )
+    .unwrap();
+    let catalog = crate::catalog::Catalog::load(home.path());
+    assert_eq!(catalog.output_ceiling("openai", "gpt-4.1-mini", 0), 32_768);
+    assert_eq!(catalog.output_ceiling("openai", "company-model", 0), 6_144);
+    assert_eq!(catalog.output_ceiling("ollama", "qwen3:8b", 4_096), 4_096);
+    assert_eq!(catalog.output_ceiling("ollama", "qwen3:8b", 20_000), 8_192);
+    assert_eq!(catalog.output_ceiling("ollama", "company-model", 0), 32_000);
 }
 
 #[test]
@@ -812,6 +867,36 @@ fn anthropic_thinking_goes_only_to_the_main_model_and_only_when_it_fits() {
         .body_for_test(&request("big", 16_384))
         .get("thinking")
         .is_none());
+}
+
+#[test]
+fn adaptive_anthropic_models_omit_the_legacy_thinking_budget() {
+    for model in ["claude-sonnet-5-5", "MiniMax-M3.1-Flash"] {
+        let client = crate::anthropic::Client::new("k", None, std::time::Duration::from_secs(5), 0)
+            .with_thinking(model, 2048);
+        let request = CreateRequest {
+            model: model.to_string(),
+            cache_prefix: None,
+            system: None,
+            messages: vec![],
+            tools: vec![],
+            max_tokens: 16_384,
+        };
+        let main = client.body_for_test(&request);
+        assert_eq!(main["thinking"], json!({"type": "adaptive"}));
+    }
+    let client = crate::anthropic::Client::new("k", None, std::time::Duration::from_secs(5), 0)
+        .with_thinking("claude-sonnet-5-5", 0);
+    let helper = client.body_for_test(&CreateRequest {
+        model: "claude-haiku-5-5".to_string(),
+        cache_prefix: None,
+        system: None,
+        messages: vec![],
+        tools: vec![],
+        max_tokens: 700,
+    });
+    assert_eq!(helper["thinking"], json!({"type": "disabled"}));
+    assert_eq!(helper["output_config"]["effort"], "low");
 }
 
 #[test]

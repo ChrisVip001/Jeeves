@@ -13,6 +13,17 @@ fn invalid(error: impl std::fmt::Display) -> ErrorObject {
         data: None,
     }
 }
+
+pub(crate) async fn awaiting(
+    waits: &ExternalWaits,
+    task_id: &str,
+    run_id: Option<&str>,
+) -> anyhow::Result<Option<InputCondition>> {
+    Ok(waits.get(task_id).await?.filter(|input| {
+        input.event_id.is_none() || run_id.is_none() || input.consumed_run_id.as_deref() != run_id
+    }))
+}
+
 pub(crate) fn view(input: InputCondition) -> TaskInputView {
     TaskInputView {
         condition_id: input.condition_id,

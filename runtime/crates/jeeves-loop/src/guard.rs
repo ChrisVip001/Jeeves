@@ -1,7 +1,6 @@
 //! Loop guardrails: when the model is stuck in repeated or alternating tool calls, tell it **early**.
 //!
-//! Without this layer, getting stuck costs the whole iteration budget: the model repeats the
-//! same call until `max_iterations` runs out, and every round is real money. `fold_tool_activity`
+//! Repeated calls can spend tokens without making progress. `fold_tool_activity`
 //! guards **cross-turn** forgetting (history); this layer guards **within-turn** dead loops.
 //!
 //! Two criteria:

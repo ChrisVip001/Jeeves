@@ -175,10 +175,9 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 
 | 变量 | 范围 |
 |---|---|
-| `JEEVES_MAX_ITERATIONS` | 1 – 100 |
-| `JEEVES_MAX_TOKENS` | 128 – 200000 |
+| `JEEVES_MAX_TOKENS` | 0 或 128 – 200000 |
 | `JEEVES_HISTORY_TURNS` | 0 – 1000 |
-| `JEEVES_CONTEXT_WINDOW` | 1024 – 10000000，且必须大于 `JEEVES_MAX_TOKENS` |
+| `JEEVES_CONTEXT_WINDOW` | 1024 – 10000000 |
 | `JEEVES_COMPACT_THRESHOLD` | 0.05 – 0.95 |
 | `JEEVES_TOOL_RESULT_TOTAL_CHARS` | 0 – 4000000 |
 | `JEEVES_TOOL_RESULT_MAX_CHARS` | 0 – 1000000 |
@@ -188,8 +187,6 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 | `JEEVES_HOME_MAX_MB` | 0 – 10000000 |
 | `JEEVES_TOOL_RESULT_KEEP_RECENT` | 0 – 50 |
 | `JEEVES_TURN_TOKEN_BUDGET` | 0 – 2000000 |
-| `JEEVES_AUTO_CONTINUE_MAX` | 0 – 5 |
-| `JEEVES_TURN_STEP_SLICE` | 1 – 60 |
 | `JEEVES_RESUME_MAX_AGE` | 0 – 10080 |
 | `JEEVES_CONSOLIDATE_EVERY` | 1 – 1000 |
 | `JEEVES_RETRIEVAL_TOP_K` | 1 – 100 |
@@ -214,15 +211,14 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 | `JEEVES_PROVIDER` | `anthropic` | 模型厂商：anthropic / openai / deepseek / gemini / kimi / glm / minimax / xai / openrouter / opencode_zen / opencode_go / ollama。**只**是一套都没配时的兜底（本地模型靠它零配置起步）；真正的模型与密钥在 `<home>/models.json` |
 | `JEEVES_LLM_TIMEOUT` | `120` | 单次模型调用超时（秒） |
 | `JEEVES_LLM_RETRIES` | `2` | 429/5xx/网络抖动时重试几次 —— 指数退避（500ms 起、单次上限 8s、总预算 30s），**每次必发通知**，绝不换厂商；`0` 关闭 |
-| `JEEVES_THINKING_BUDGET` | `0` | Anthropic 扩展思考：主模型允许的 `budget_tokens`（0 = 关闭）。仅当不小于 1024 且小于 `JEEVES_MAX_TOKENS` 时生效；小模型的辅助调用从不思考。思考按输出 token 计费。 |
+| `JEEVES_THINKING_BUDGET` | `0` | 为 Anthropic Messages 主模型设置思考方式。`0` 使用模型默认值。当预算至少为 1024 且低于本次请求的输出额度时，支持手动思考的模型使用设定的预算，Claude 5.5 和 MiniMax M3 系列使用自适应思考。思考计入输出。 |
 | `JEEVES_GOAL_MAX_ROUNDS` | `5` | 一个目标最多自动续几轮。超了就置 `round-limit` 并如实说明没完成 —— 不伪装完成、也不清掉目标 |
 
 ## 行为旋钮
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `JEEVES_MAX_ITERATIONS` | `32` | 单轮的步数预算。**最后一步是收尾轮**：工具被收起，模型只用三句话说「完成 / 卡住 / 需要什么」—— 这个数限定的是成本，不是把「没做成」变成一句道歉。用完了不算断崖：待办还没做完就自动续一片（见 `JEEVES_AUTO_CONTINUE_MAX`） |
-| `JEEVES_MAX_TOKENS` | `16384` | 单次模型调用输出上限（给推理模型留思考余量） |
+| `JEEVES_MAX_TOKENS` | `0` | 可选的人工上限。`0` 由[模型目录](#模型目录models-catalogjson)和上下文余量计算 |
 | `JEEVES_HISTORY_TURNS` | `12` | 工作记忆滑窗的**上限**：只把最近 N 轮塞进 prompt（更老的折进滚动摘要，不是丢掉） |
 | `JEEVES_CONTEXT_WINDOW` | provider 默认 | 覆盖上下文窗口的估算值（本地模型窗口差异极大，表里只是常见默认） |
 | `JEEVES_COMPACT_THRESHOLD` | `0.8` | 用到窗口的这个比例就开始压缩 —— token 才是闸门，轮数是上限 |
@@ -233,9 +229,7 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 | `JEEVES_TASK_WORKERS` | `1` | 同时并行跑几个用户发起的任务；每个任务持有一份租约，见[任务 worker 与租约](operations.zh.md#任务-worker-与租约) |
 | `JEEVES_HOME_MAX_MB` | `0` | MB；home 目录占用达到这个值后拒绝开新回合，读取、导出和清理照常可用（`0` = 不限）|
 | `JEEVES_TOOL_RESULT_KEEP_RECENT` | `3` | 最新的几条结果永不换桩（清理从最旧的开始） |
-| `JEEVES_TURN_TOKEN_BUDGET` | `0` | **一轮**的 token 花费上限（输入+输出，按 provider 报的数）。到 80% 就把工具收起、让模型三句话收尾 —— 和步数上限走同一条路，只是这次是钱包到了。`0` = 关（默认）：步数已经管住轮数，没人要的花费闸门不该掐断正事 |
-| `JEEVES_AUTO_CONTINUE_MAX` | `2` | 一轮最多**自己续几次**。两个来源共用这个额度：Stop 钩子要求继续，或者内建完成闸发现待办里还有 `pending` / `in_progress`。续跑会带上刚才的步骤与工具结果（不是从头再来），并用掉一片新预算。`0` = 关（跑完就收尾）—— 步数用完不再等于「断掉」 |
-| `JEEVES_TURN_STEP_SLICE` | `12` | 一次续跑买回的步数。**加片而不是抬高 `JEEVES_MAX_ITERATIONS`**：上限抬高了，跑飞的那一轮也更贵；而片只在真的需要时才花 |
+| `JEEVES_TURN_TOKEN_BUDGET` | `0` | 单个 turn 的 token 额度。已用量与下一次预计输入接近预算时收起工具并汇报进度。`0` 为关闭 |
 | `JEEVES_RESUME_MAX_AGE` | `60` | 分钟；比这更旧的 `open` checkpoint 在启动时标 `abandoned`，不自动续跑（`0` = 一律续跑） |
 | `JEEVES_CONSOLIDATE_EVERY` | `6` | 每 N 轮新对话触发一次 consolidation |
 | `JEEVES_RETRIEVAL_TOP_K` | `4` | 每轮最多取回的匹配事实数 |
@@ -357,10 +351,13 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 ```json
 [
   { "id": "deepseek", "context_window": 999999 },
-  { "id": "mybox", "wire": "openai", "model": "qwen3:8b",
-    "base_url": "http://127.0.0.1:11434/v1" }
+  { "id": "mybox", "wire": "openai", "model": "qwen3.5:9b",
+    "base_url": "http://127.0.0.1:11434/v1",
+    "model_output_limits": { "qwen3.5:9b": 8192 } }
 ]
 ```
+
+`model_output_limits` 按该厂商的精确模型 ID 配置输出上限。内置数据取自 OpenCode 随附的 models.dev 快照。目录查不到该模型时，用 32,000 token 作为候选上限，目录上限最多取 256,000。对话、任务和子代理都按当前请求装入的内容计算可用空间，系统提示和工具声明也计入。输入估算加 15% 余量，并预留窗口的 1%。估算余量很小时，沿用 OpenCode 的 1,024 token 下限，仍受模型目录和显式预算约束。
 
 文件**只在启动时读一次**并合并进目录；`/model` 与
 `model/list` 看到的都是合并后的结果，`model/save` 也按它校验。未知字段会被
@@ -371,9 +368,9 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 
 ```bash
 python3 scripts/gen_catalog.py --list        # 看看上游有哪些厂商
-python3 scripts/gen_catalog.py glm --model glm-5.2              # 内置 id → 补丁
-python3 scripts/gen_catalog.py zhipuai --model glm-5.2 \
-  --base-url https://open.bigmodel.cn/api/paas/v4 \
+python3 scripts/gen_catalog.py glm --model glm-5.3              # 内置 id → 补丁
+python3 scripts/gen_catalog.py zhipuai --model glm-5.3 \
+  --base-url https://open.bigmodel.cn/api/anthropic \
   --out ~/.jeeves/models-catalog.json                              # 新 id → 新厂商，直接合并写盘
 ```
 
@@ -381,6 +378,27 @@ python3 scripts/gen_catalog.py zhipuai --model glm-5.2 \
 context 上限、是否看图、是否支持工具调用都从它取；wire 和 key_env 由脚本里的
 jeeves 映射表决定。脚本会挑「支持工具调用里上下文最大的」当默认模型 —— 那只是
 起点，主模型和小模型值得人工确认（候选列表会打在 stderr 上）。
+
+### 内置默认模型
+
+模型配置留空模型 ID 时使用这里的默认值。需要其他版本时，可以在配置里指定模型 ID。
+
+| 厂商 | 主模型 | 辅助模型 |
+| --- | --- | --- |
+| [Anthropic](https://platform.claude.com/docs/en/models/overview) | `claude-sonnet-5-5` | `claude-haiku-5-5` |
+| [OpenAI](https://developers.openai.com/api/docs/guides/model-selection) | `gpt-6.2-sol` | `gpt-6-luna` |
+| [OpenRouter](https://openrouter.ai/collections/free-models) | `nvidia/nemotron-3.5-super-vl:free` | `nvidia/nemotron-3.5-lightning:free` |
+| [Gemini](https://aistudio.google.com/docs/models) | `gemini-4-neon` | `gemini-4-hydrogen` |
+| [DeepSeek](https://api-docs.deepseek.com/quick_start/pricing/) | `deepseek-v4-pro` | `deepseek-flash` |
+| [MiniMax](https://platform.minimax.cn/docs/api-reference/text-anthropic-api) | `MiniMax-M3.1-Flash` | `MiniMax-M3` |
+| [Kimi](https://platform.kimi.ai/docs/pricing/chat.md) | `kimi-k3.1-pro` | `kimi-k2.7-code` |
+| [GLM](https://docs.z.ai/guides/llm/glm-5.3) | `glm-5.3` | `glm-5.3-flash` |
+| [xAI](https://docs.x.ai/developers/models) | `grok-4.7` | `grok-4.3` |
+| [OpenCode Zen](https://opencode.ai/docs/console/models/) | `deepseek-v4.1-flash-free` | `deepseek-v4.1-flash-free` |
+| [OpenCode Go](https://opencode.ai/docs/console/go/) | `deepseek-v4.1-flash` | `deepseek-v4.1-flash` |
+| [Ollama](https://ollama.com/library/qwen3.5/tags) | `qwen3.5:9b` | `qwen3.5:4b` |
+
+OpenRouter 和 OpenCode Zen 使用免费模型 ID，OpenCode Go 使用订阅端点。Ollama 保留小体积模型，Runtime 的默认上下文仍是 32,768 token。
 
 ## 把活交给子代理
 
@@ -392,7 +410,7 @@ jeeves 映射表决定。脚本会挑「支持工具调用里上下文最大的�
   不带摘要；
 * 父轮工具表**去掉 `delegate_task`** 的副本 —— 再派一层不是「被拒绝」，而是根本
   不存在这个选项；
-* 自己的迭代上限（默认 5，硬上限 10）与最多 2048 输出 token；
+* 与主 Runtime 共用模型目录和上下文输出策略，另有独立的 token 预算；
 * 没有交互批准通道，也没有向你提问的途径。
 
 结论回来时带着它用过的工具，**失败的调用会被标出来** —— 父轮因此能判断这份结论
@@ -405,8 +423,8 @@ jeeves 映射表决定。脚本会挑「支持工具调用里上下文最大的�
 装好 [Ollama](https://ollama.com) 之后：
 
 ```bash
-ollama pull qwen3:8b     # 主模型
-ollama pull qwen3:4b     # 固化记忆用的小模型
+ollama pull qwen3.5:9b     # 主模型
+ollama pull qwen3.5:4b     # 固化记忆用的小模型
 JEEVES_PROVIDER=ollama jeeves  # 不需要任何 API key
 ```
 
@@ -415,7 +433,7 @@ Ollama 暴露的是 OpenAI 兼容端点（`http://127.0.0.1:11434/v1`），所�
 （`--url` 给端点、模型名写进 `--model`）。零配置的本地起步：
 
 ```bash
-JEEVES_PROVIDER=ollama jeeves          # 或：/model add 本地 ollama qwen3:14b
+JEEVES_PROVIDER=ollama jeeves          # 或：/model add 本地 ollama qwen3.5:27b
 ```
 
 这是隐私路径、零成本路径，也是断网（或 key 失效）时照样能用的路径。

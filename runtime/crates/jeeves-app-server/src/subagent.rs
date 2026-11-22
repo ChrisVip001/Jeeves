@@ -7,8 +7,7 @@
 //!
 //! * **Its own context**: empty history + a short system (persona + one line "you do only this task"),
 //!   no retrieval, no skills, no summary. A delegated task should be self-contained.
-//! * **Its own iteration cap**: default 5, hard cap 10. Allowing dozens of turns amounts to secretly
-//!   running a whole long conversation elsewhere, while "saving context" is the very reason for delegation.
+//! * **Its own token budget**: delegated work has a separate cost boundary.
 //! * **No further delegation**: the tool table explicitly drops `delegate_task` (recursive delegation is
 //!   the kind of thing that is invisible until someone tries it and burns through the quota).
 //! * **No notifications, no interrupts**: the parent turn only knows "delegate_task was called", then gets the conclusion.
@@ -28,15 +27,7 @@ use jeeves_state::{Chat, Episodes, Facts};
 use jeeves_tools::{subagent::SubagentRunner, BoxFut, ToolRegistry};
 use serde_json::Value;
 
-/// Default iteration cap: a delegated task should be smaller than a full conversation.
-const DEFAULT_ITERATIONS: i32 = 5;
-/// Hard cap: beyond this it is no longer "delegation".
-const MAX_ITERATIONS: i32 = 10;
-/// The subagent's answer should not consume a whole turn's quota: it delivers conclusions.
-const SUBAGENT_MAX_TOKENS: i32 = 2048;
-/// A subagent is **hard-capped** on cost, independently of `JEEVES_TURN_TOKEN_BUDGET`: ten rounds of
-/// a big context would otherwise be someone's whole bill for a side question. Same exit as the
-/// parent's budget — tools away, one wrap-up answer.
+/// Per-loop cost budget for a subagent.
 const SUBAGENT_TOKEN_BUDGET: Option<usize> = Some(120_000);
 
 /// Distinguishes subagents spawned within the same millisecond (a batch spawns up to four).
@@ -52,6 +43,7 @@ pub(crate) struct Delegated {
     /// Settings and model handles shared with `Server` (read at runtime; see module docs).
     pub(crate) settings: Arc<RwLock<Settings>>,
     pub(crate) resolved: Arc<RwLock<Option<Resolved>>>,
+    pub(crate) catalog: Arc<jeeves_provider::catalog::Catalog>,
 }
 
 /// What gets fed to the subagent this time.
@@ -70,9 +62,17 @@ async fn run_child(
     tools: &ToolRegistry,
     ctx: jeeves_tools::ToolCtx,
     prompt: Prompt,
-    max_iterations: i32,
     budget: jeeves_loop::budget::ToolResultBudget,
+    context_window: u32,
+    output_ceiling: i32,
 ) -> anyhow::Result<jeeves_loop::LoopResult> {
+    let prompt_overhead = jeeves_provider::tokens::estimate_text(&prompt.system)
+        + prompt
+            .system_prefix
+            .as_deref()
+            .map(jeeves_provider::tokens::estimate_text)
+            .unwrap_or(0)
+        + jeeves_provider::tokens::estimate_tools(&tools.schemas());
     jeeves_loop::run(jeeves_loop::Turn {
         system_prefix: prompt.system_prefix,
         client: resolved.client.as_ref(),
@@ -83,8 +83,14 @@ async fn run_child(
         user_images: Vec::new(),
         tools,
         ctx,
-        max_iterations,
-        max_tokens: SUBAGENT_MAX_TOKENS,
+        run_limits: None,
+        context_budget: Some(
+            (context_window as usize * 4 / 5)
+                .saturating_sub(prompt_overhead)
+                .max(1024),
+        ),
+        context_window: Some(context_window),
+        max_tokens: output_ceiling,
         token_budget: SUBAGENT_TOKEN_BUDGET,
         tool_result_budget: budget,
         observer: None,
@@ -113,7 +119,6 @@ impl SubagentRunner for Delegated {
     fn run(
         &self,
         task: String,
-        max_iterations: Option<i32>,
         result_schema: Option<serde_json::Value>,
         parent_cwd: Option<std::path::PathBuf>,
         worktree: Option<std::path::PathBuf>,
@@ -126,6 +131,7 @@ impl SubagentRunner for Delegated {
         let facts = self.facts.clone();
         let episodes = self.episodes.clone();
         let chat = self.chat.clone();
+        let catalog = self.catalog.clone();
         let cwd = parent_cwd;
 
         Box::pin(async move {
@@ -144,10 +150,6 @@ impl SubagentRunner for Delegated {
                 .clone();
             let home: PathBuf = settings.home.clone();
             let tools = crate::connector_settings::apply(&home, &mcp.apply(&tools));
-
-            let iterations = max_iterations
-                .unwrap_or(DEFAULT_ITERATIONS)
-                .clamp(1, MAX_ITERATIONS);
 
             let child_tools = crate::enabled_tools(&tools, &settings)
                 .without(jeeves_tools::subagent::NAME)
@@ -215,6 +217,9 @@ impl SubagentRunner for Delegated {
 
             ctx.worktree = worktree;
             let budget = crate::tool_result_budget(&settings);
+            let context_window = settings.context_window.unwrap_or(resolved.context_window());
+            let output_ceiling =
+                catalog.output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
 
             let result = run_child(
                 &resolved,
@@ -226,8 +231,9 @@ impl SubagentRunner for Delegated {
                     history: Vec::new(),
                     user_message: task,
                 },
-                iterations,
                 budget,
+                context_window,
+                output_ceiling,
             )
             .await
             .map_err(|e| anyhow::anyhow!("Model call failed: {e}"))?;
@@ -251,8 +257,9 @@ impl SubagentRunner for Delegated {
                                 history: result.messages.clone(),
                                 user_message: nudge,
                             },
-                            iterations,
                             budget,
+                            context_window,
+                            output_ceiling,
                         )
                         .await;
                         match retry {

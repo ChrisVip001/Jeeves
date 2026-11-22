@@ -10,7 +10,7 @@
 |---|---|
 | `lib.rs`、`server/` | `Server`（共享句柄）、启动（`runtime.rs`）、工具装配（`tools.rs`）、轮表/容量上限/跟进队列（`controls.rs`）、事件出口（`events.rs`） |
 | `stdio.rs`、`dispatch.rs` | 传输与方法表 |
-| `turn/` | 一轮的生命周期：`entry.rs`（准备）、`execution.rs`（一次 loop）、`continuation.rs`、`driver.rs`（任务回合）、`finalize.rs`、`settlement.rs`、`prompt.rs`、`history.rs` |
+| `turn/` | 一轮的生命周期：`entry.rs`（准备）、`execution.rs`（一次 loop）、`driver.rs`（任务回合）、`finalize.rs`、`settlement.rs`、`prompt.rs`、`history.rs` |
 | `task/`、`interaction/` | 任务账本开关、派发 worker、等待、工作区；主对话及其 `task` 工具 |
 | `approval.rs`、`permissions.rs`、`pending_approvals.rs` | 批准代理、会话策略、实时待批快照 |
 | `subagent.rs`、`jobs.rs`、`goal.rs` | 子代理执行器、后台作业宿主、目标裁判 |
@@ -87,16 +87,16 @@ std 锁只守一次读改写，绝不跨 await。每会话写段锁覆盖历史�
 
 失败会如实关闭检查点、run 与任务（`fail_turn`），因为留着 open 的检查点会在下次启动被当作什么都没发生而续跑。
 
-### 自续
+### 持续执行
 
-`continuation.rs`：一次 loop 之后，轮可以自己续跑，最多 `JEEVES_AUTO_CONTINUE_MAX` 次（默认 2）。闸门只在这次被步数上限截断（`iterations >= cap`）且会话 todo 里仍有未完项时才开；自己停下的轮从不被劫持，带目标的轮归目标循环管。续跑带着上一段的消息、步数与用量恢复，并额外买 `JEEVES_TURN_STEP_SLICE`（默认 12）步。更早各段的工具调用被接在最后一段之前，收尾因此只报一个请求顺序。预算用完时回复会说明差一步，trace 记录 `unfinished`。
+对话和任务共用一个由工具结果、用户追加内容和停止条件驱动的循环。任务预算在模型请求和工具执行边界核对。重启从最近的已落定检查点恢复，先前已记账的用量按执行回合去重。[循环退出条件](03-model-and-loop.zh.md#314-退出与收尾)
 
 ### 任务回合
 
-`driver.rs::drive_task` 在每次 loop 后运行。顺序固定：观察 → 记账 → 度量 → 决定。没有任务的轮也经过它，并以 `Done` 结束。
+`driver.rs::drive_task` 对任务回合汇总结果进行观察和记账，再决定下一步。
 
 - `account_round` 写步骤（幂等键 `<turn_id>:<seq>`）、真实存在的产物、花费，并运行验收（`fileExists`、`fileContains`、`jsonEquals`、`toolsOk`、`receiptConfirmed`、`commandSucceeds`：一次 `stat`、一次读、一次 SQL 计数，或经 exec 门运行一条命令；路径经 `paths.rs` 解析）。
-- 决定顺序，先命中者生效：被中断；预算（时长、token、工具调用；`budget` 事件点明哪一项）；工具结果未知；仍有后台作业（`WaitingForJobs`）；触达输出或步数上限；声明的外部输入仍待或已过期；验收失败；矛盾（工具说写了、文件不在）；最后才是裁判。
+- 依次处理用户中断、任务预算、工具结果未知、运行中的后台作业、已声明的外部输入、输出或资源限制、验收失败和结果矛盾，最后才调用裁判。
 - 验收失败且还有回合（`max_rounds`：任务自己的，否则 `JEEVES_GOAL_MAX_ROUNDS`，默认 5）时，把度量结果作为下一条消息再跑一次；回合用尽则任务进入需要关注。有事实失败时不调用裁判。
 - 裁判（`goal.rs`）只在任务有目标条件时运行：小模型、无工具、最近 8 轮且截断到 8000 字符、JSON `{ok, impossible, reason}`；自相矛盾的回答按未达成算。`ok` → 完成，`impossible` → 失败，回合用尽 → 失败且状态为 `round-limit`，裁判坏了 → 需要关注且状态为 `blocked`，否则理由成为同一会话的下一条用户消息。每个结论都发 `goalRound`。只有人能设目标（`set_task_goal`，任务行上的一列），模型没有通往它的路径。
 - `needs_attention` 非终态：人可以继续或取消。
@@ -161,7 +161,7 @@ tail   = 时钟（按天）· 能力缺口 · 能力使用说明 · todo · 记�
 - 设置与解析后的模型在调用时通过共享的 `Arc<RwLock<_>>` 读取，从不在构造时快照，所以 provider 切换会生效。
 - 独立上下文：空历史、简短 system、无检索、skill、摘要与项目约定；不写入 `chat_log`；没有批准通道；没有通知与中断。
 - 工具表：父轮已启用的表去掉 `delegate_task` 与 `todo_write`；只读的批量成员还会失去独占工具，因为四个并行 loop 无法遵守单写者屏障。
-- 上限：迭代默认 5、硬上限 10；输出 2048 token；独立于 `JEEVES_TURN_TOKEN_BUDGET` 的 120 000 token 预算。
+- 子代理采用[目录输出策略](../configuration.zh.md#模型目录models-catalogjson)，另有独立的 120,000 token 预算。
 - `result_schema`：回复必须通过校验；重试一次，携带错误与之前的消息；仍不合格则返回原文并附原因。
 - 结论由 `jeeves-tools/src/report.rs` 包成转述（见 [04-tools](04-tools.zh.md)）。
 

@@ -47,28 +47,10 @@ pub struct Bound {
 
 pub const BOUNDS: &[Bound] = &[
     Bound {
-        patch_name: Some("maxIterations"),
-        env_name: "JEEVES_MAX_ITERATIONS",
-        min: 1,
-        max: 100,
-    },
-    Bound {
-        patch_name: None,
-        env_name: "JEEVES_AUTO_CONTINUE_MAX",
-        min: 0,
-        max: 5,
-    },
-    Bound {
         patch_name: None,
         env_name: "JEEVES_TASK_WORKERS",
         min: 1,
         max: 8,
-    },
-    Bound {
-        patch_name: None,
-        env_name: "JEEVES_TURN_STEP_SLICE",
-        min: 1,
-        max: 60,
     },
     Bound {
         patch_name: Some("maxTokens"),
@@ -209,6 +191,9 @@ fn check_bound(key: &str, value: i64) -> Result<(), String> {
         .iter()
         .find(|b| b.env_name == key || b.patch_name == Some(key))
         .expect("no such knob in the bounds table — that is a code bug, not a misconfiguration");
+    if bound.patch_name == Some("maxTokens") && value == 0 {
+        return Ok(());
+    }
     if value < bound.min || value > bound.max {
         return Err(format!(
             "{key} must be between {} and {}, got {value}",
@@ -247,12 +232,11 @@ pub struct Settings {
     /// 2, cap 5, 0 = off). Only retries errors where "try again" makes sense, and
     /// **always sends a notification per retry** — see retry.rs in jeeves-provider.
     pub llm_retries: i32,
-    /// `JEEVES_THINKING_BUDGET`: Anthropic extended-thinking budget in tokens for the main model
-    /// (0 = off, the default). Thinking tokens count against `max_tokens`.
+    /// `JEEVES_THINKING_BUDGET`: manual thinking budget for the Anthropic Messages main model.
+    /// 0 uses the model default. Models that require adaptive thinking do not receive a budget.
     pub thinking_budget: i32,
     /// Timeout for a single model call. A hung network call must never silently freeze a turn.
     pub llm_timeout_secs: i64,
-    pub max_iterations: i32,
     /// Leave headroom: reasoning models (kimi-k3, gpt-5.x, gemini-*-pro) spend output tokens
     /// thinking first; a low cap leaves stop_reason=max_tokens stuck mid-thought.
     pub max_tokens: i32,
@@ -347,30 +331,9 @@ pub struct Settings {
     /// results, and stubbing one of those answers a question it just asked.
     pub tool_result_keep_recent: i32,
     /// `JEEVES_TURN_TOKEN_BUDGET`: cost cap for **one turn**, in tokens (input + output, as the
-    /// provider reports it). Reaching it ends the turn the same way the step cap does — tools
-    /// away, one wrap-up call — so a runaway turn costs a bounded amount instead of a night.
-    /// **0 = off** (the default): the step cap already bounds rounds, and a token cap nobody
-    /// asked for would cut honest work short.
+    /// provider reports it). Reaching it allows a final tool-free progress report.
+    /// **0 = off** (the default).
     pub turn_token_budget: i64,
-    /// `JEEVES_AUTO_CONTINUE_MAX`: how many times one turn may **continue itself** after it would
-    /// have ended. Two reasons qualify: the human's Stop hook demanded it, or the turn was cut off
-    /// by the step cap while the todo list still had `pending`/`in_progress` items.
-    ///
-    /// A turn that ends of its own accord is **not** continued, even with work left on the list:
-    /// "here is the plan" is a finished turn, and driving it on would execute a plan nobody asked
-    /// to execute.
-    ///
-    /// Default 2: a turn that stops one step short is the most common failure mode, and
-    /// "your move" is a poor answer when the model itself wrote down what was left. 0 disables
-    /// self-continuation entirely (the old behavior).
-    pub auto_continue_max: i32,
-    /// `JEEVES_TURN_STEP_SLICE`: extra steps granted by **one** continuation.
-    ///
-    /// The step cap stops being a cliff: running out means "here is another slice", as long as
-    /// `auto_continue_max` still allows it. Slice rather than raise the cap, because a bigger
-    /// `JEEVES_MAX_ITERATIONS` also makes a *runaway* turn more expensive — a slice is only spent
-    /// when it is asked for.
-    pub turn_step_slice: i32,
 
     /// `JEEVES_NOTIFY`: only when enabled does Jeeves read `<home>/notify.json` and push
     /// notifications to its webhooks (approval requests / job completion / blocked goals).
@@ -440,8 +403,7 @@ impl Default for Settings {
             llm_retries: 2,
             thinking_budget: 0,
             llm_timeout_secs: 120,
-            max_iterations: 32,
-            max_tokens: 16_384,
+            max_tokens: 0,
             history_turns: 12,
             context_window: None,
             compact_threshold: 0.8,
@@ -466,8 +428,6 @@ impl Default for Settings {
             tool_result_total_chars: 200_000,
             tool_result_max_chars: 30_000,
             turn_token_budget: 0,
-            auto_continue_max: 2,
-            turn_step_slice: 12,
             tool_result_keep_recent: 3,
             browser: None,
             desktop_helper: None,
@@ -509,7 +469,6 @@ impl Settings {
             llm_retries: env_int("JEEVES_LLM_RETRIES", d.llm_retries),
             thinking_budget: env_int("JEEVES_THINKING_BUDGET", d.thinking_budget),
             llm_timeout_secs: env_int("JEEVES_LLM_TIMEOUT", d.llm_timeout_secs as i32) as i64,
-            max_iterations: env_int("JEEVES_MAX_ITERATIONS", d.max_iterations),
             max_tokens: env_int("JEEVES_MAX_TOKENS", d.max_tokens),
             history_turns: env_int("JEEVES_HISTORY_TURNS", d.history_turns),
             context_window: env("JEEVES_CONTEXT_WINDOW").and_then(|v| v.parse().ok()),
@@ -554,8 +513,6 @@ impl Settings {
             ),
             turn_token_budget: env_int("JEEVES_TURN_TOKEN_BUDGET", d.turn_token_budget as i32)
                 as i64,
-            auto_continue_max: env_int("JEEVES_AUTO_CONTINUE_MAX", d.auto_continue_max),
-            turn_step_slice: env_int("JEEVES_TURN_STEP_SLICE", d.turn_step_slice),
             browser: browser::from_env(),
             desktop_helper: env("JEEVES_DESKTOP_HELPER").map(Into::into),
             exec_enabled: env_bool("JEEVES_EXEC"),
@@ -608,7 +565,6 @@ impl Settings {
     /// The caller (`app-server`'s `open`) exits on `Err` and prints the reason — "failing to
     /// start" is far cheaper and far easier to debug than "runs but misbehaves".
     pub fn validate(&self) -> Result<(), String> {
-        check_bound("JEEVES_MAX_ITERATIONS", self.max_iterations as i64)?;
         check_bound("JEEVES_MAX_TOKENS", self.max_tokens as i64)?;
         check_bound("JEEVES_HISTORY_TURNS", self.history_turns as i64)?;
         check_bound("JEEVES_CONSOLIDATE_EVERY", self.consolidate_every as i64)?;
@@ -630,8 +586,6 @@ impl Settings {
         )?;
         check_bound("JEEVES_TOOL_RESULT_MAX_CHARS", self.tool_result_max_chars)?;
         check_bound("JEEVES_TURN_TOKEN_BUDGET", self.turn_token_budget)?;
-        check_bound("JEEVES_AUTO_CONTINUE_MAX", self.auto_continue_max as i64)?;
-        check_bound("JEEVES_TURN_STEP_SLICE", self.turn_step_slice as i64)?;
         check_bound(
             "JEEVES_TOOL_RESULT_KEEP_RECENT",
             self.tool_result_keep_recent as i64,
@@ -662,12 +616,6 @@ impl Settings {
             if !(1_024..=10_000_000).contains(&window) {
                 return Err(format!(
                     "JEEVES_CONTEXT_WINDOW must be between 1024 and 10000000, got {window}"
-                ));
-            }
-            if self.max_tokens as u32 >= window {
-                return Err(format!(
-                    "JEEVES_MAX_TOKENS ({}) must be smaller than JEEVES_CONTEXT_WINDOW ({window}) — otherwise even the answer will not fit",
-                    self.max_tokens
                 ));
             }
         }
@@ -713,7 +661,6 @@ impl Settings {
             provider: self.provider.clone(),
             model: self.model.clone().unwrap_or_default(),
             small_model: self.small_model.clone().unwrap_or_default(),
-            max_iterations: self.max_iterations,
             max_tokens: self.max_tokens,
             history_turns: self.history_turns,
             consolidate_every: self.consolidate_every,
@@ -734,7 +681,6 @@ pub fn patch_path(home: &std::path::Path) -> std::path::PathBuf {
 /// (that is the provider layer's business); the caller (app-server) adds that step.
 pub fn validate_patch_values(patch: &jeeves_protocol::SettingsPatch) -> Result<(), String> {
     for (key, value) in [
-        ("maxIterations", patch.max_iterations),
         ("maxTokens", patch.max_tokens),
         ("historyTurns", patch.history_turns),
         ("consolidateEvery", patch.consolidate_every),
@@ -841,9 +787,6 @@ pub fn save_patch(
 /// "keys casually written into settings.json".
 pub fn apply_patch(patch: &jeeves_protocol::SettingsPatch, settings: &mut Settings) {
     let p = patch;
-    if let Some(v) = p.max_iterations {
-        settings.max_iterations = v;
-    }
     if let Some(v) = p.max_tokens {
         settings.max_tokens = v;
     }
@@ -904,8 +847,7 @@ mod config_tests {
     fn defaults_match_the_documented_values() {
         let s = Settings::default();
         assert_eq!(s.provider, "anthropic");
-        assert_eq!(s.max_iterations, 32);
-        assert_eq!(s.max_tokens, 16_384);
+        assert_eq!(s.max_tokens, 0);
         assert_eq!(s.history_turns, 12);
         assert_eq!(s.consolidate_every, 6);
         assert_eq!(s.retrieval_top_k, 4);
@@ -953,7 +895,7 @@ mod config_tests {
         let s = Settings::default();
         let v = s.view();
         assert_eq!(v.provider, "anthropic");
-        assert_eq!(v.max_tokens, 16_384);
+        assert_eq!(v.max_tokens, 0);
     }
 
     #[test]
@@ -965,7 +907,6 @@ mod config_tests {
         };
         apply_patch(&patch, &mut s);
         assert_eq!(s.max_tokens, 4096);
-        assert_eq!(s.max_iterations, Settings::default().max_iterations);
     }
 
     /// Models and keys are **not** in this patch — change them via `model/*`; keys go only into
@@ -985,16 +926,16 @@ mod config_tests {
     #[test]
     fn merge_newer_keeps_newer_values_and_keeps_older_ones_otherwise() {
         let mut base = jeeves_protocol::SettingsPatch {
-            max_iterations: Some(5),
+            history_turns: Some(5),
             max_tokens: Some(1024),
             ..Default::default()
         };
         let newer = jeeves_protocol::SettingsPatch {
-            max_iterations: Some(9),
+            history_turns: Some(9),
             ..Default::default()
         };
         base.merge_newer(&newer);
-        assert_eq!(base.max_iterations, Some(9));
+        assert_eq!(base.history_turns, Some(9));
         assert_eq!(
             base.max_tokens,
             Some(1024),
@@ -1006,12 +947,12 @@ mod config_tests {
     fn patch_round_trips_through_disk() {
         let dir = tempfile::tempdir().expect("temp dir");
         let patch = jeeves_protocol::SettingsPatch {
-            max_iterations: Some(20),
+            history_turns: Some(20),
             ..Default::default()
         };
         save_patch(dir.path(), &patch).expect("write to disk");
         let loaded = load_patch(dir.path());
-        assert_eq!(loaded.max_iterations, Some(20));
+        assert_eq!(loaded.history_turns, Some(20));
     }
 
     #[test]
@@ -1020,7 +961,7 @@ mod config_tests {
         save_patch(
             dir.path(),
             &jeeves_protocol::SettingsPatch {
-                max_iterations: Some(20),
+                history_turns: Some(20),
                 ..Default::default()
             },
         )
@@ -1152,15 +1093,14 @@ mod config_tests {
             .expect_err("a window of 10 means nothing")
             .contains("JEEVES_CONTEXT_WINDOW"));
 
-        let impossible = Settings {
+        let capped_per_request = Settings {
             context_window: Some(4096),
             max_tokens: 8192,
             ..Settings::default()
         };
-        assert!(impossible
+        capped_per_request
             .validate()
-            .expect_err("the answer does not fit")
-            .contains("JEEVES_MAX_TOKENS"));
+            .expect("requests fit the ceiling to the context");
 
         let ok = Settings {
             context_window: Some(8192),

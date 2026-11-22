@@ -293,13 +293,13 @@ pub fn from_responses(value: &Value) -> Result<CreateResponse, ProviderError> {
     }
     let usage = value.get("usage").unwrap_or(&Value::Null);
     let number = |field| usage.get(field).and_then(Value::as_i64).unwrap_or(0);
-    let stop_reason = if content
+    let stop_reason = if status == "incomplete" {
+        StopReason::MaxTokens
+    } else if content
         .iter()
         .any(|block| matches!(block, ContentBlock::ToolUse { .. }))
     {
         StopReason::ToolUse
-    } else if status == "incomplete" {
-        StopReason::MaxTokens
     } else {
         StopReason::EndTurn
     };

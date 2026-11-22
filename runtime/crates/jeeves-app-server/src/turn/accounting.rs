@@ -161,8 +161,7 @@ pub(crate) fn budget_overrun(task: &TaskRow) -> Option<String> {
     budget_remaining(task).err()
 }
 
-/// Whether a valid, unspent task has an explicit cap. Any error stops further spending.
-pub(crate) fn budget_remaining(task: &TaskRow) -> Result<bool, String> {
+fn task_budget(task: &TaskRow) -> Result<jeeves_protocol::BudgetView, String> {
     let budget: jeeves_protocol::BudgetView =
         serde_json::from_str(&task.budget_json).map_err(|e| format!("Invalid task budget: {e}"))?;
     for (name, value) in [
@@ -176,6 +175,11 @@ pub(crate) fn budget_remaining(task: &TaskRow) -> Result<bool, String> {
             ));
         }
     }
+    Ok(budget)
+}
+
+pub(crate) fn budget_remaining(task: &TaskRow) -> Result<bool, String> {
+    let budget = task_budget(task)?;
     let mut over = Vec::new();
     if let Some(cap) = budget.wall_ms {
         if task.spent_wall_ms >= cap as i64 {
@@ -201,4 +205,56 @@ pub(crate) fn budget_remaining(task: &TaskRow) -> Result<bool, String> {
     } else {
         Err(format!("Over budget: {}", over.join("; ")))
     }
+}
+
+/// The round sees its full usage, including checkpointed spend. Credit only the
+/// part of that same round already charged to the task's durable totals.
+pub(super) async fn active_limits(
+    server: &Server,
+    run: &jeeves_state::RunRow,
+    resume: Option<&jeeves_loop::Resume>,
+) -> Result<Option<jeeves_loop::budget::RunLimits>, String> {
+    let task = server
+        .tasks
+        .get(&run.task_id)
+        .await
+        .map_err(|e| format!("Cannot read task budget: {e}"))?
+        .ok_or_else(|| "Task disappeared during execution".to_string())?;
+    let budget = task_budget(&task)?;
+    if budget.tokens.is_none() && budget.tools.is_none() && budget.wall_ms.is_none() {
+        return Ok(None);
+    }
+    let charged = match resume {
+        Some(point) => server
+            .runs
+            .round_account(&run.id, &point.round_id)
+            .await
+            .map_err(|e| format!("Cannot read checkpoint accounting: {e}"))?,
+        None => Default::default(),
+    };
+    let remaining = |cap: i32, spent: i64, credit: i64| {
+        i64::from(cap)
+            .saturating_sub(spent.saturating_sub(credit).max(0))
+            .max(0)
+    };
+    Ok(Some(jeeves_loop::budget::RunLimits {
+        tokens: budget.tokens.map(|cap| {
+            remaining(
+                cap,
+                task.spent_tokens,
+                charged.tokens_in.saturating_add(charged.tokens_out),
+            )
+        }),
+        tools: budget.tools.map(|cap| {
+            remaining(
+                cap,
+                task.spent_tools,
+                charged.tools_ok.saturating_add(charged.tools_failed),
+            ) as usize
+        }),
+        deadline: budget.wall_ms.map(|cap| {
+            tokio::time::Instant::now()
+                + std::time::Duration::from_millis(remaining(cap, task.spent_wall_ms, 0) as u64)
+        }),
+    }))
 }

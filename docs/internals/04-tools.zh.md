@@ -216,7 +216,7 @@ HTML 由本模块自己的转换器转成文本。正文经 `report::as_external
 
 ## 子代理
 
-`delegate_task` 接收 `task` 或 `tasks`（最多 4 个，两者同时给出时以 `tasks` 为准）、`max_iterations`（1–10，默认 5）和 `result_schema`。
+`delegate_task` 接收 `task` 或 `tasks`（最多 4 个，两者同时给出时以 `tasks` 为准）和 `result_schema`。
 执行器（`jeeves-app-server/src/subagent.rs`）给子代理的是父轮当前已启用的表，去掉 `delegate_task` 与 `todo_write`；没有审批通道（需要审批的一律拒绝），
 没有记忆，也没有项目指令。带 schema 的结果会校验并重试一次，仍不符则退回文字。输出经 `report::as_report` 包装，其中会转义形似指令的片段。
 批量（`tasks`）并发运行子代理，且各自应用 `readonly()`，因为父轮的屏障无法给四个独立循环排序；单个任务保留完整的表。

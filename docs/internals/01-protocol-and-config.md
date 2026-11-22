@@ -72,7 +72,7 @@ Field names, variables, defaults and ranges are written only in [configuration.m
 - startup, `Settings::validate`: an illegal value refuses to boot, with the variable named;
 - `config/write`, `validate_patch_values`: an illegal patch is rejected wholesale.
 
-Enumerations (`JEEVES_APPROVAL`, `JEEVES_SOUL_MODE`, `JEEVES_TOOL_POLICY`), the context-window relation (`JEEVES_MAX_TOKENS` must be below an overridden `JEEVES_CONTEXT_WINDOW`) and exec allow-rule hygiene (`MAX_EXEC_RULES`, `MAX_EXEC_RULE_CHARS`, no empty or multi-line rules) are checked in code beside the table. A knob with `patch_name: None` can only be set through the environment.
+Enumerations (`JEEVES_APPROVAL`, `JEEVES_SOUL_MODE`, `JEEVES_TOOL_POLICY`) and exec allow-rule hygiene (`MAX_EXEC_RULES`, `MAX_EXEC_RULE_CHARS`, no empty or multi-line rules) are checked in code beside the table. `JEEVES_MAX_TOKENS` is a ceiling, not a fixed per-request size: the model catalogue's output limit and the remaining context fit each request to the window, so it may exceed an overridden `JEEVES_CONTEXT_WINDOW`. A knob with `patch_name: None` can only be set through the environment.
 
 `ensure_home()` creates `traces/`, `outbox/`, `skills/` and `spill/` under `JEEVES_HOME`.
 

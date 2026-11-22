@@ -33,7 +33,7 @@
 | `id`、`description` | 名称与一句话意图 |
 | `message` / `responses` / `interrupt_after_deltas` / `cwd` | 单轮简写 |
 | `turns[]` | 多轮：每轮有 `message`、`session_id`、`responses`、`apply_patch`、`interrupt_after_deltas`、`cwd`、`restart`、`resume_task`、`approval` |
-| `settings` | 单用例的 Settings 覆盖（窗口、沉淀、检索、迭代数、token、上下文窗口、压缩阈值、exec/write/delegate/plan 开关、exec 允许列表、工具结果预算、soul 模式、工具策略、技能预算、审批模式与超时、自动续跑与步数切片） |
+| `settings` | 单用例的 Settings 覆盖（窗口、沉淀、检索、token、上下文窗口、压缩阈值、exec/write/delegate/plan 开关、exec 允许列表、工具结果预算、soul 模式、工具策略、技能预算、审批模式与超时） |
 | `files` | 运行前写入用例 home 的文件 |
 | `prereq` | `python3`、`sh` 或 `sandbox`；缺少前置条件时记为跳过，绝不记为通过 |
 | `known_gap` | 尚未实现的行为；失败不拦截，通过反而拦截，所以标记不会过期 |
@@ -84,7 +84,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 事件按有序子序列匹配，多出来的流式 delta 不会让用例失败。同一轮内，`toolStarted` 随运行推进发出，`toolCompleted` 在末尾一起发出；期望序列按这个顺序写。脚本化的审批回答是 `yes`、`no` 或 `silence`（`remember`：`once`、`session`、`always`）。
 
-五个文件各钉一个边界：`compaction`、`approval`（沉默变成拒绝）、`exec`（`toolCompleted` 之前的增量 `toolDelta`）、`mcp`（断线与重建）、`continuation`（步数预算耗尽而 todo 未完成）。
+五个文件各钉一个边界：`compaction`、`approval`（沉默变成拒绝）、`exec`（`toolCompleted` 之前的增量 `toolDelta`）、`mcp`（断线与重建）、`continuation`（连续工具调用与自然交付）。
 
 ## 8.4 长任务基准
 

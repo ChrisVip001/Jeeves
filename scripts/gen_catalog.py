@@ -28,7 +28,7 @@ from pathlib import Path
 MODELS_DEV_URL = "https://models.dev/api.json"
 
 # The mapping jeeves already knows: jeeves id → (models.dev id, wire, key_env).
-# `wire` is one of jeeves's two transports (anthropic / openai); models.dev does not distinguish.
+# Jeeves supplies the wire because one provider can offer multiple transports.
 # A key_env of None means a new vendor: take models.dev's env field (or JEEVES_<ID>_API_KEY).
 KNOWN: dict[str, tuple[str, str, str | None]] = {
     "anthropic": ("anthropic", "anthropic", "ANTHROPIC_API_KEY"),
@@ -36,16 +36,16 @@ KNOWN: dict[str, tuple[str, str, str | None]] = {
     "openrouter": ("openrouter", "openai", "OPENROUTER_API_KEY"),
     "gemini": ("google", "openai", "GEMINI_API_KEY"),
     "deepseek": ("deepseek", "openai", "DEEPSEEK_API_KEY"),
-    "minimax": ("minimax", "anthropic", "MINIMAX_API_KEY"),
+    "minimax": ("minimax-cn", "anthropic", "MINIMAX_API_KEY"),
     "kimi": ("moonshotai", "anthropic", "MOONSHOT_API_KEY"),
-    "glm": ("zhipuai", "anthropic", "ZHIPU_API_KEY"),
+    "glm": ("zai", "anthropic", "ZHIPU_API_KEY"),
     "xai": ("xai", "openai", "XAI_API_KEY"),
     "opencode_zen": ("opencode", "openai", "OPENCODE_ZEN_API_KEY"),
     "opencode_go": ("opencode-go", "openai", "OPENCODE_GO_API_KEY"),
     "ollama": ("ollama", "openai", ""),  # a local endpoint needs no key
 }
-# Of models.dev's ids, the four whose jeeves side goes over the anthropic wire:
-ANTHROPIC_WIRE = {"anthropic", "moonshotai", "zhipuai", "minimax"}
+# models.dev provider IDs that use the Anthropic wire by default.
+ANTHROPIC_WIRE = {"anthropic", "moonshotai", "zhipuai", "zai", "minimax", "minimax-cn"}
 
 
 def fetch() -> dict:
@@ -94,9 +94,7 @@ def build_row(data: dict, jeeves_id: str, model: str | None, small_model: str | 
     if known:
         md_id, wire, default_key_env = known
     else:
-        # A new vendor: the id is models.dev's. The wire is a guess (the four anthropic-wire
-        # vendors are all listed), everything else defaults to openai-compatible — which covers
-        # the overwhelming majority of third-party endpoints.
+        # A new vendor uses the models.dev ID and defaults to the OpenAI-compatible wire.
         md_id, wire, default_key_env = jeeves_id, "openai", None
         if md_id in ANTHROPIC_WIRE:
             wire = "anthropic"
@@ -132,6 +130,14 @@ def build_row(data: dict, jeeves_id: str, model: str | None, small_model: str | 
     }
     if small_model:
         row["small_model"] = small_model
+    outputs = {}
+    for name in (model_name, small_model):
+        model_info = (info.get("models") or {}).get(name, {})
+        output = (model_info.get("limit") or {}).get("output")
+        if type(output) is int and output > 0:
+            outputs[name] = output
+    if outputs:
+        row["model_output_limits"] = outputs
     if base_url:
         row["base_url"] = base_url
     elif not known:

@@ -77,7 +77,7 @@ Cargo、Go 和 npm 的工作区或模块配置都在仓库根目录。
 
 `runtime/crates/jeeves-app-server` 内的 `server/` 放共享服务状态（`runtime.rs` 启动与恢复、`tools.rs` 工具
 装配、`controls.rs` 审批/容量/活动 turn 控制、`settings.rs` 配置读取）；`dispatch.rs` 与
-`stdio.rs` 路由 JSON-RPC 方法；`turn/` 是一个 turn（入口、执行、续跑、收尾、历史、提示词
+`stdio.rs` 路由 JSON-RPC 方法；`turn/` 是一个 turn（入口、执行、收尾、历史、提示词
 装配、操作核对）；`task/` 是独立任务 worker；`interaction/` 是主会话入口；`scheduler/` 触发
 定时任务；`memory_worker.rs`、`ledger_writer.rs`、`memory_center.rs` 分别是后台记忆
 worker、账本写入器和记忆中心的只读面。HTTP 处理器在 `jeeves-ops/src/api/` 下，按资源分组。
@@ -182,9 +182,8 @@ jeeves-cli               `jeeves` 二进制                                   �
 仪表显示的是随会话增长的部分，所以在 `AGENTS.md` 很胖的仓库里它会低估提示词（见
 [limitations](limitations.zh.md#上下文)）。
 
-三样东西防止预算悄悄膨胀：压缩（见上）；工具结果裁剪，每次请求前把最旧的超大结果换成占位
-（`JEEVES_TOOL_RESULT_TOTAL_CHARS`，最新 `JEEVES_TOOL_RESULT_KEEP_RECENT` 条保持完整）；以及迭代
-预算，约束 turn 本身（`JEEVES_MAX_ITERATIONS`；最后一步是收尾）。
+会话历史在开始前压缩。执行中的模型请求保留当前指令与最近的工具往来，必要时整理更早的内容。
+[模型循环与执行中压缩](internals/03-model-and-loop.zh.md#314-退出与收尾)
 
 ### 工具层（jeeves-tools）
 

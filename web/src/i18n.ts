@@ -68,7 +68,6 @@ const DICT: Record<string, string> = {
   "提炼频率": "Distillation cadence",
   "每 {consolidateEvery} 轮": "Every {consolidateEvery} turns",
   "检索条数": "Hits per search",
-  "最多迭代": "Step budget",
   "飞书": "Feishu",
   "连接器": "Connectors",
   "可发送": "Can send",

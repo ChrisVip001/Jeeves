@@ -92,7 +92,7 @@ impl Server {
             .read()
             .expect("the settings lock should not be poisoned")
             .clone();
-        let catalog = jeeves_provider::catalog::Catalog::load(&snapshot.home);
+        let catalog = Arc::new(jeeves_provider::catalog::Catalog::load(&snapshot.home));
         let resolved = match jeeves_provider::resolve_with(&snapshot, &catalog) {
             Ok(resolved) => Some(resolved),
             Err(reason) => {
@@ -204,6 +204,7 @@ impl Server {
                     chat: chat.clone(),
                     settings: settings.clone(),
                     resolved: resolved.clone(),
+                    catalog: catalog.clone(),
                 },
             )));
         }

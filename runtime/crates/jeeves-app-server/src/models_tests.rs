@@ -365,7 +365,7 @@ async fn editing_runtime_settings_keeps_the_custom_catalog_and_preserves_damaged
         })
         .unwrap();
     let patch = jeeves_protocol::SettingsPatch {
-        max_iterations: Some(7),
+        history_turns: Some(7),
         ..Default::default()
     };
     server.apply_config_patch(&patch).unwrap();

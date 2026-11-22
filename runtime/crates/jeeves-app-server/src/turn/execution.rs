@@ -168,7 +168,6 @@ pub(crate) async fn full_turn(
         + jeeves_provider::tokens::estimate_text(&memory_context)
         + jeeves_provider::tokens::estimate_text(&skills)
         + jeeves_provider::tokens::estimate_tools(&turn_tools.schemas())
-        + settings.max_tokens.max(0) as usize
         + SUMMARY_RESERVE_TOKENS;
     let factor = server.chat.context_factor(session_id).await.unwrap_or(None);
     let history_budget = budget_tokens(resolved, &settings, factor).saturating_sub(reserve);
@@ -332,10 +331,21 @@ pub(crate) async fn full_turn(
         turn_cwd.clone(),
         server.session_approval(session_id, turn_id, sink),
     );
+    ctx.turn_limits = frame.tool_limits.clone();
     ctx.worktree = if scoped_task {
         turn_cwd.clone()
     } else {
         frame.worktree.clone()
+    };
+    let limits = match &run {
+        Some(run) => super::accounting::active_limits(server, run, resume.as_ref())
+            .await
+            .map_err(|message| ErrorObject {
+                code: codes::INTERNAL_ERROR,
+                message,
+                data: None,
+            })?,
+        None => None,
     };
     ctx.task_run_id = run.map(|run| run.id);
     ctx.edit_checks = Some(std::sync::Arc::new(crate::edit_check_host::HostEditChecks(
@@ -381,7 +391,19 @@ pub(crate) async fn full_turn(
     };
 
     let mut retried = false;
+    let context_window = settings.context_window.unwrap_or(resolved.context_window());
+    let output_ceiling =
+        server
+            .catalog
+            .output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
     let result: LoopResult = loop {
+        let context_budget = budget_tokens(resolved, &settings, factor)
+            .saturating_sub(
+                jeeves_provider::tokens::estimate_text(&prompt.stable)
+                    + jeeves_provider::tokens::estimate_text(&prompt.tail)
+                    + jeeves_provider::tokens::estimate_tools(&turn_tools.schemas()),
+            )
+            .max(1024);
         let attempt = jeeves_loop::run(jeeves_loop::Turn {
             system_prefix: Some(prompt.stable.clone()),
             client: resolved.client.as_ref(),
@@ -392,11 +414,10 @@ pub(crate) async fn full_turn(
             user_images: user_images.clone(),
             tools: &turn_tools,
             ctx: ctx.clone(),
-            max_iterations: resume
-                .as_ref()
-                .and_then(|point| point.max_iterations)
-                .unwrap_or(settings.max_iterations),
-            max_tokens: settings.max_tokens,
+            run_limits: limits.clone(),
+            context_budget: Some(context_budget),
+            context_window: Some(context_window),
+            max_tokens: output_ceiling,
             token_budget: Some(settings.turn_token_budget)
                 .filter(|budget| *budget > 0)
                 .map(|budget| budget as usize),

@@ -10,7 +10,6 @@ use super::{BoxFut, ToolRegistry};
 #[derive(Debug, Clone)]
 struct Seen {
     task: String,
-    max_iterations: Option<i32>,
     schema: Option<serde_json::Value>,
     readonly: bool,
 }
@@ -40,7 +39,6 @@ impl SubagentRunner for Fake {
     fn run(
         &self,
         task: String,
-        max_iterations: Option<i32>,
         result_schema: Option<serde_json::Value>,
         _parent_cwd: Option<std::path::PathBuf>,
         _worktree: Option<std::path::PathBuf>,
@@ -48,7 +46,6 @@ impl SubagentRunner for Fake {
     ) -> BoxFut {
         self.seen.lock().expect("lock").push(Seen {
             task,
-            max_iterations,
             schema: result_schema,
             readonly,
         });
@@ -99,10 +96,6 @@ async fn a_delegation_returns_the_summary_with_a_label() {
     let seen = runner.seen.lock().expect("lock");
     assert_eq!(seen.len(), 1);
     assert_eq!(seen[0].task, "check today's schedule");
-    assert_eq!(
-        seen[0].max_iterations, None,
-        "no max_iterations means None (the runner picks the default)"
-    );
     assert_eq!(seen[0].schema, None, "no schema means None");
 }
 
@@ -178,7 +171,6 @@ impl SubagentRunner for Echo {
     fn run(
         &self,
         task: String,
-        _max_iterations: Option<i32>,
         _result_schema: Option<serde_json::Value>,
         _parent_cwd: Option<std::path::PathBuf>,
         _worktree: Option<std::path::PathBuf>,

@@ -175,7 +175,7 @@ mod tests {
                 context_window: jeeves_provider::DEFAULT_CONTEXT_WINDOW,
             };
             let home = tempfile::tempdir()?;
-            let host = server(home.path(), &Default::default(), &resolved, &[], 4).await?;
+            let host = server(home.path(), &Default::default(), &resolved, &[], 40_000).await?;
             let scenario = jeeves_eval::scenario::JudgeScenario {
                 id: "support-test".into(),
                 description: String::new(),

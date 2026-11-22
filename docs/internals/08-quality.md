@@ -38,7 +38,7 @@ A case is one JSON line in a `.jsonl` file (`#` comment lines allowed). Fields o
 | `id`, `description` | name and one-line intent |
 | `message` / `responses` / `interrupt_after_deltas` / `cwd` | single-turn shorthand |
 | `turns[]` | multi-turn: each turn has `message`, `session_id`, `responses`, `apply_patch`, `interrupt_after_deltas`, `cwd`, `restart`, `resume_task`, `approval` |
-| `settings` | per-case Settings overrides (window, consolidation, retrieval, iterations, tokens, context window, compaction threshold, exec/write/delegate/plan switches, exec allowlist, tool-result budget, soul mode, tool policy, skill budgets, approval mode and timeout, auto-continue and step slice) |
+| `settings` | per-case Settings overrides (window, consolidation, retrieval, tokens, context window, compaction threshold, exec/write/delegate/plan switches, exec allowlist, tool-result budget, soul mode, tool policy, skill budgets, approval mode and timeout) |
 | `files` | files written into the case home before the run |
 | `prereq` | `python3`, `sh` or `sandbox`; a missing prerequisite is reported as skipped, never as passed |
 | `known_gap` | a behavior not built yet; a failure does not block, a pass does, so the marker cannot go stale |
@@ -113,7 +113,7 @@ expected sequences follow that order. A scripted approval answer is `yes`, `no` 
 
 The five files each pin one boundary: `compaction`, `approval` (silence becomes a refusal), `exec`
 (incremental `toolDelta` before `toolCompleted`), `mcp` (disconnect and rebuild) and `continuation`
-(step budget exhausted with an open todo list).
+(chained tool calls leading to delivery).
 
 ## 8.4 Long-Task Benchmark
 

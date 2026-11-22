@@ -165,12 +165,8 @@ high-quality extraction use `run_command` with curl or an MCP fetching service.
   carries no `run_command` / `write_file` / `edit` / `apply_patch`, because the one-write-at-a-time
   barrier cannot reach concurrent loops. Single delegations get the full table.
   → `runtime/crates/jeeves-tools/src/lib.rs` (`ToolRegistry::readonly`)
-* **Deliberate** — `JEEVES_MAX_ITERATIONS` (default 32) is a spend budget. The last step is a
-  wrap-up with tools removed. A turn continues itself at most `JEEVES_AUTO_CONTINUE_MAX` times
-  (default 2) on a chat turn or a task without a budget; a task run that has a budget continues instead for as long as the budget has room (a ceiling of 64 only guards against bugs), and when the budget is spent it stops and names the open items. Each automatic continuation writes an `auto_continue` task event and a stderr line. A turn continues itself only when it was cut off with open todo items, buying one more slice
-  (`JEEVES_TURN_STEP_SLICE`). The completion gate reads facts (open todo items), never asks the
-  model "are you done?".
-  → `runtime/crates/jeeves-loop/src/lib.rs`, `runtime/crates/jeeves-app-server/src/turn/history.rs` (`unfinished_work`)
+* **Deliberate** — Active context compaction keeps current instructions and recent tool exchanges. A single oversized instruction or tool input can still exceed the window. The Runtime reports the stop after saving completed work.
+  [Loop exits and wrap-up](internals/03-model-and-loop.md#314-exits-and-wrap-up)
 * **Deliberate** — The todo list is capped at 20 items of 4000 characters, one `in_progress`
   at a time.
   → `runtime/crates/jeeves-tools/src/todo.rs`
@@ -412,8 +408,8 @@ straight from the file header.
   task in the session. Malformed stored acceptance conditions or budgets stop the task instead
   of becoming an empty checklist.
 * **Boundary** — Plans commit as whole immutable versions and are advisory: they do not change
-  acceptance or authorization. A truncated or iteration-limited model response cannot finish a
-  task. Structured handoffs are rebuilt each round from persistent records, independent of
+  acceptance or authorization. A truncated model response leaves the task incomplete.
+  Structured handoffs are rebuilt each round from persistent records, independent of
   rolling summaries; corruption, an execution-context mismatch or a handoff over 64,000 bytes
   stops execution instead of truncating constraints.
 * **Boundary** — Task job waits persist their exact dependency set. A task with unfinished

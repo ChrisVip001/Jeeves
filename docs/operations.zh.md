@@ -254,10 +254,8 @@ Runtime 得在运行。删是 `cancel_schedule`，列是 `list_schedules`。
   之间读到的**项目约定**（`AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`）。前三样各几十个
   token；约定封顶 32 KB —— 所以仓库里有一份很厚的 `AGENTS.md` 时，带子会**低估**真实占用一个
   文件。这是取舍：带子回答的是「一个会话里什么在长」，而按目录恒定的文件不长。
-* 一轮最多花 `JEEVES_MAX_ITERATIONS` 次模型调用（默认 32）。**最后一次是收尾轮**：工具被收起，
-  模型只能用三句话说「完成 / 卡住 / 下一步需要什么」。所以长回合的结尾是一句你能接着用的
-  话，而不是一句道歉。过长的工具结果在每次请求前从最旧的开始换桩
-  （`JEEVES_TOOL_RESULT_TOTAL_CHARS`），一条话多的命令撑不满整个窗口。
+* 执行中，Runtime 按上下文窗口整理模型请求。配置 token 预算可约束单个 turn 的用量。
+  [Runtime 配置](configuration.zh.md#行为旋钮)
 * `jeeves memory rebuild` 把 `<home>/memory` 下手改过的库页折回事实并重新生成整个库；
   `jeeves memory backfill` 从旧聊天记录重建账本行。
 

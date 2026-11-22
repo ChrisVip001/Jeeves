@@ -560,7 +560,6 @@ export const UI_EN: Record<string, string> = {
   "已拒绝": "Denied",
   "已超时": "Timed out",
   "确认已失效": "Approval voided",
-  "自动续跑": "Continued on its own",
   "调用工具 {tool}": "Use the tool {tool}",
   "还没有记录。任务每推进一步，这里多一行。": "Nothing recorded yet. Each step the task takes adds a line here.",
   "还没有进展记录": "No progress recorded yet",

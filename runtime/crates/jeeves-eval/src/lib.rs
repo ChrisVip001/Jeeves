@@ -292,11 +292,11 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
         history_turns: scenario.settings.history_turns.unwrap_or(12),
         consolidate_every: scenario.settings.consolidate_every.unwrap_or(6),
         retrieval_top_k: scenario.settings.retrieval_top_k.unwrap_or(4),
-        max_iterations: scenario.settings.max_iterations.unwrap_or(10),
         max_tokens: scenario
             .settings
             .max_tokens
             .unwrap_or(jeeves_config::Settings::default().max_tokens),
+        turn_token_budget: scenario.settings.turn_token_budget.unwrap_or(0),
         context_window: scenario.settings.context_window,
         compact_threshold: scenario.settings.compact_threshold.unwrap_or(0.8),
         exec_enabled: scenario.settings.exec_enabled.unwrap_or(false),
@@ -310,8 +310,6 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
             .clone()
             .unwrap_or_else(|| "never".to_string()),
         approval_timeout_secs: scenario.settings.approval_timeout_secs.unwrap_or(120),
-        auto_continue_max: scenario.settings.auto_continue_max.unwrap_or(0),
-        turn_step_slice: scenario.settings.turn_step_slice.unwrap_or(12),
         tool_result_total_chars: scenario.settings.tool_result_total_chars.unwrap_or(200_000),
         tool_result_max_chars: scenario.settings.tool_result_max_chars.unwrap_or(30_000),
         tool_result_keep_recent: scenario.settings.tool_result_keep_recent.unwrap_or(3),

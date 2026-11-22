@@ -6,7 +6,6 @@ export function taskEventText(event: TaskEventView, t: UiTranslator) {
   const labels: Record<string, string> = {
     verify: t("验收"),
     budget: t("预算用完"),
-    auto_continue: t("自动续跑"),
     contradiction: t("发现矛盾"),
     job_finished: t("后台作业结束"),
     run_started: t("本次执行开始"),

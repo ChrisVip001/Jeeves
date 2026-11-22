@@ -232,7 +232,7 @@ The list is kept per session by the server and injected into the system prompt e
 
 ## Subagents
 
-`delegate_task` takes `task` or `tasks` (up to 4, `tasks` wins), `max_iterations` (1–10, default 5) and `result_schema`.
+`delegate_task` takes `task` or `tasks` (up to 4, `tasks` wins) and `result_schema`.
 The runner (`jeeves-app-server/src/subagent.rs`) gives the child the parent's current enabled table minus `delegate_task` and `todo_write`, no approval channel (anything needing approval is denied),
 no memory and no project instructions. A schema result is validated and retried once, then falls back to prose. Output is wrapped by `report::as_report`, which escapes instruction-shaped fragments.
 A batch (`tasks`) runs the children concurrently, each with `readonly()` applied, because the parent's barrier cannot order four independent loops; a single task keeps the full table.

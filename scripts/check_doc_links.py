@@ -41,7 +41,7 @@ for p in docs():
     if p.name.endswith(".zh.md"):
         continue
     twin = p.with_name(p.stem + ".zh.md")
-    if "docs/design/" in str(p) or p.name in ("LICENSE.md",):
+    if "docs/design/" in str(p) or p.name in ("LICENSE.md", "AGENTS.md"):
         continue
     if not twin.exists():
         bad.append(f"{p.relative_to(ROOT)}: no .zh.md twin")

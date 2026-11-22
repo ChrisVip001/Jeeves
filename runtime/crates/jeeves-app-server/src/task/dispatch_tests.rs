@@ -86,6 +86,97 @@ async fn wait_finished(server: &Server, id: &str) {
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn a_task_delivers_past_chat_step_limits_without_a_follow_up() {
+    use jeeves_provider::mock::Mock;
+    use jeeves_provider::ContentBlock;
+    use jeeves_state::TaskStatus;
+
+    const SOURCES: usize = 57;
+    let home = tempfile::tempdir().unwrap();
+    let pool = jeeves_state::open(&home.path().join("state.db"))
+        .await
+        .unwrap();
+    let server = Server::boot(
+        pool,
+        jeeves_config::Settings {
+            home: home.path().into(),
+            ..Default::default()
+        },
+    )
+    .await;
+    let mut responses = Vec::new();
+    for index in 1..=SOURCES {
+        let path = format!("source-{index}.txt");
+        std::fs::write(home.path().join(&path), format!("evidence-{index}")).unwrap();
+        responses.push(Mock::tool_use(
+            &format!("read-{index}"),
+            "read_file",
+            json!({"path":path}),
+        ));
+    }
+    responses.push(Mock::text("All sources were reviewed."));
+    let model = Arc::new(Mock::new(responses));
+    server.install_provider(Resolved {
+        client: model.clone(),
+        model: "fixture".into(),
+        small_model: "fixture".into(),
+        provider_id: "mock".into(),
+        vision: false,
+        context_window: 100_000,
+    });
+    let created = rpc(
+        &server,
+        "task/create",
+        json!({"title":"Review the sources","sessionId":"jeeves-main","cwd":home.path()}),
+    )
+    .await
+    .unwrap();
+    let id = created["task"]["id"].as_str().unwrap();
+    rpc(
+        &server,
+        "task/start",
+        json!({"taskId":id,"message":"Review the source files and report the results."}),
+    )
+    .await
+    .unwrap();
+    let task = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let task = server.tasks.get(id).await.unwrap().unwrap();
+            if !matches!(task.status, TaskStatus::Pending | TaskStatus::Running) {
+                break task;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(task.status, TaskStatus::Done, "{:?}", task.suspend_reason);
+    assert_eq!(server.runs.count_by_task(id).await.unwrap(), 1);
+    assert_eq!(task.rounds_used, 1);
+    assert_eq!(task.spent_tools, SOURCES as i64);
+    let received = model.received.lock().unwrap();
+    assert_eq!(received.len(), SOURCES + 1);
+    let results: Vec<_> = received[SOURCES]
+        .messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .filter_map(|block| match block {
+            ContentBlock::ToolResult {
+                tool_use_id,
+                content,
+            } => Some((tool_use_id.as_str(), content.as_str())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(results.len(), SOURCES);
+    for (index, (call, content)) in results.iter().enumerate() {
+        assert_eq!(*call, format!("read-{}", index + 1));
+        assert!(content.contains(&format!("evidence-{}", index + 1)));
+    }
+}
+
 #[tokio::test]
 async fn queued_task_and_conversation_run_independently() {
     let home = tempfile::tempdir().unwrap();

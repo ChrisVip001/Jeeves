@@ -1530,7 +1530,7 @@ async fn failed_budget_stop_is_reported_by_the_turn() {
 }
 
 #[tokio::test]
-async fn a_step_slice_checks_this_rounds_spend_before_another_model_call() {
+async fn a_task_checks_current_spend_before_admitting_tools() {
     let mock = Arc::new(Mock::new(vec![
         Mock::tool_use(
             "first",
@@ -1540,11 +1540,10 @@ async fn a_step_slice_checks_this_rounds_spend_before_another_model_call() {
         Mock::text("an extra call would exceed the budget"),
     ]));
     let (server, _home) = boot(Some(mock.clone())).await;
-    server.settings.write().unwrap().max_iterations = 1;
     let task = call(
         &server,
         "task/create",
-        json!({"sessionId":"default","title":"budget per slice","budget":{"tokens":20}}),
+        json!({"sessionId":"default","title":"token budget before tools","budget":{"tokens":20}}),
     )
     .await
     .unwrap();

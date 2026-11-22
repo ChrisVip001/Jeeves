@@ -7,7 +7,6 @@ export type SettingsView = {
   provider: string;
   model: string;
   smallModel: string;
-  maxIterations: number;
   maxTokens: number;
   /**
    * Working-memory sliding window: only the last N turns go into the prompt.

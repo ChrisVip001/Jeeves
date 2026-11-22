@@ -26,8 +26,7 @@ pub struct Client {
     api_key: String,
     /// Max retries on rate limits / transient faults (`JEEVES_LLM_RETRIES`).
     max_retries: u32,
-    /// Extended thinking: `(main model, budget_tokens)`. Only requests for that model think;
-    /// the small-model helper calls (gate, triage, compaction) stay fast and cheap.
+    /// Main model and its requested manual thinking budget.
     thinking: Option<(String, u32)>,
 }
 
@@ -57,9 +56,9 @@ impl Client {
         }
     }
 
-    /// Turn extended thinking on for `model`. A budget of 0 leaves it off.
+    /// Configure thinking for the main model. A budget of 0 uses its default.
     pub fn with_thinking(mut self, model: &str, budget_tokens: u32) -> Self {
-        self.thinking = (budget_tokens > 0).then(|| (model.to_string(), budget_tokens));
+        self.thinking = Some((model.to_string(), budget_tokens));
         self
     }
 
@@ -74,7 +73,17 @@ impl Client {
             .as_ref()
             .filter(|(model, _)| *model == request.model)
             .map(|(_, budget)| *budget);
-        anthropic_body(request, stream, thinking)
+        let mut body = anthropic_body(request, stream, thinking);
+        if request.model == "claude-haiku-5-5"
+            && self
+                .thinking
+                .as_ref()
+                .is_some_and(|(main_model, _)| main_model != &request.model)
+        {
+            body["thinking"] = json!({"type": "disabled"});
+            body["output_config"] = json!({"effort": "low"});
+        }
+        body
     }
 
     /// Send one request (retrying on rate limits / transient faults); returns the unread-body response.
@@ -207,10 +216,15 @@ fn anthropic_body(request: &CreateRequest, stream: bool, thinking: Option<u32>) 
     if stream {
         body["stream"] = json!(true);
     }
-    if let Some(budget) = thinking {
-        if budget >= 1024 && (budget as i64) < request.max_tokens as i64 {
-            body["thinking"] = json!({"type": "enabled", "budget_tokens": budget});
-        }
+    if let Some(budget) = thinking
+        .filter(|&budget| budget >= 1024 && i64::from(budget) < i64::from(request.max_tokens))
+    {
+        body["thinking"] = match request.model.as_str() {
+            "claude-sonnet-5-5" | "claude-haiku-5-5" | "MiniMax-M3.1-Flash" | "MiniMax-M3" => {
+                json!({"type": "adaptive"})
+            }
+            _ => json!({"type": "enabled", "budget_tokens": budget}),
+        };
     }
     if let Some(system) = anthropic_system(request) {
         body["system"] = system;

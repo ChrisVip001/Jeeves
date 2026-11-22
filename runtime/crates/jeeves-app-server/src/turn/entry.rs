@@ -9,9 +9,9 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
 
 use super::{
-    checkpoint_outlet, continue_turn, driver, fail_turn, finalize_turn, full_turn, load_plan,
-    new_turn_id, open_run, resolve_attachments, resolve_turn_cwd, retry_outlet, session_cwd,
-    FinishedTurn, FullTurn, TurnFrame, TurnGuard,
+    checkpoint_outlet, driver, fail_turn, finalize_turn, full_turn, load_plan, new_turn_id,
+    open_run, resolve_attachments, resolve_turn_cwd, retry_outlet, session_cwd, FinishedTurn,
+    FullTurn, TurnFrame, TurnGuard,
 };
 use crate::{route, EventSink, Server};
 
@@ -273,6 +273,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         interrupt: Some(interrupt),
         worktree,
         turn_cwd,
+        tool_limits: Arc::new(jeeves_tools::web::TurnLimits::from_env()),
         steering: (!channel).then_some(steering),
         resume: None,
         checkpoint: Some(checkpoint),
@@ -306,17 +307,6 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
             return Err(e);
         }
     };
-
-    let (full, continues, unfinished) = continue_turn(
-        server,
-        &resolved,
-        full,
-        frame.clone(),
-        run_id.as_deref(),
-        task.as_ref(),
-        started,
-    )
-    .await?;
 
     let driver::DrivenTask {
         full,
@@ -362,8 +352,6 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
             started,
             run_id,
             decision: Some(decision),
-            continues,
-            unfinished,
         },
     )
     .await?;

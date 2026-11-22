@@ -54,7 +54,7 @@ Tell Jeeves what you need in your own words — even if the request is still vag
 - **Stay cheap**: the system prompt is a stable prefix plus a per-turn tail so the provider can cache it, and `JEEVES_TOOL_POLICY=deferred` keeps only the always-on tool schemas in the request ([docs/configuration.md](docs/configuration.md))
 - **Grow on your say-so**: the capability center lists Skills, MCP connectors and scheduled jobs side by side; the [Connections page](docs/guide.md#connection-status) shows what needs attention, configures local calendar/mail, and starts supported OAuth authorization. Browse the catalog, add a custom MCP connection and switch individual tools on or off. The resident Runtime renews bound MCP OAuth credentials. Configure MCP tool permissions in the [connector manifest](docs/configuration.md#connector-manifests). You add and delete your own entries, bundled ones are read-only.
 - **Follow the project's rules**: `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md` are discovered upwards from the working directory and joined into the per-turn tail ([docs/internals/06-app-server.md](docs/internals/06-app-server.md))
-- **Finish what it starts**: when the step budget runs out with open todo items it continues, up to `JEEVES_AUTO_CONTINUE_MAX` times ([docs/configuration.md](docs/configuration.md))
+- **Keep assigned work moving**: Jeeves works in the same task until it can deliver or hits a condition that requires it to stop. [Working on a long task](docs/design/main-entry.md#working-on-a-long-task)
 - **Be examined**: deterministic and replay evals gate every release; a judge scores answer quality ([docs/internals/08-quality.md](docs/internals/08-quality.md))
 
 ### Built-in tools
@@ -85,6 +85,8 @@ Tell Jeeves what you need in your own words — even if the request is still vag
 Tool failures return to the model as text; the loop never crashes on one.
 
 ### Providers and keys
+
+The Runtime sizes each model response from the catalog and its available context. [Built-in model defaults](docs/configuration.md#built-in-default-models)
 
 Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama. `<home>/models-catalog.json` patches built-in defaults or adds a provider, and `scripts/gen_catalog.py` generates rows from [models.dev](https://models.dev) ([docs/configuration.md](docs/configuration.md)). In the REPL, `/model` lists configured profiles, `/model add ds deepseek deepseek-flash --env DEEPSEEK_API_KEY` adds one and `/model use ds` switches without a restart; the Web and desktop preferences have the same model menu. Each profile identifies its credential source ([SECURITY.md](SECURITY.md)). `JEEVES_OPS_HOST=0.0.0.0` requires `JEEVES_OPS_TOKEN` at startup ([docs/operations.md](docs/operations.md)).
 

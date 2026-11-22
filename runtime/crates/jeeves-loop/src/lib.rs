@@ -12,10 +12,8 @@
 //!         done                            # reply to the human
 //! ```
 //!
-//! Two guardrails (exit conditions):
-//!   1. the model stops requesting tools → the turn ends naturally
-//!   2. `max_iterations` reached → **one wrap-up call with the tools taken away**, so the turn
-//!      ends with "what I did / where I am stuck / what I need", not with a canned apology
+//! The loop continues while the model requests tools or the user adds input.
+//! Completion, cancellation, exhausted resources and stalled work end the loop.
 //!
 //! The observer is an enum of events, not a `(kind, dict)` — fields have types,
 //! so a misspelled key is a compile-time error.
@@ -32,6 +30,7 @@ use serde_json::Value;
 
 pub mod budget;
 pub mod guard;
+mod projection;
 
 use budget::ToolResultBudget;
 use guard::{GuardReport, StallGuard};
@@ -113,6 +112,10 @@ impl Steering {
         let pending = self.messages[self.consumed..].to_vec();
         self.consumed = self.messages.len();
         pending
+    }
+
+    fn has_pending(&self) -> bool {
+        self.consumed < self.messages.len()
     }
 
     /// Everything ever accepted for this turn — the transcript writes all of it.
@@ -205,13 +208,6 @@ pub struct Resume {
     pub completed_iterations: i32,
     /// Token usage already spent before the crash.
     pub usage: Usage,
-    /// The cap **for this resumed run**, when it differs from the session setting.
-    ///
-    /// A continuation after the step budget ran out is exactly that case: it resumes with
-    /// `completed_iterations` already at the old ceiling, so without a new cap it would get zero
-    /// steps and hand back a "budget spent" message — which is why continuations used to start a
-    /// brand-new loop (fresh history, no memory of the steps they were continuing).
-    pub max_iterations: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -235,6 +231,8 @@ impl ToolOutcome {
 #[derive(Debug, Clone)]
 pub struct LoopResult {
     pub stop_reason: StopReason,
+    pub token_budget_reached: bool,
+    pub stop_detail: Option<String>,
     pub round_id: String,
     /// What the model says to the user.
     pub reply: String,
@@ -258,20 +256,7 @@ pub struct LoopResult {
     pub observed_input_tokens: usize,
 }
 
-/// What the model is told on its last allowed iteration, once the tools are gone.
-///
-/// Written as an instruction the model can *follow*, not as an apology: three sentences, no
-/// pretending, no invented results. The failure this answers was a turn that spent its whole
-/// budget and then handed the human "try splitting the request into smaller pieces".
-const WRAP_UP: &str =
-    "(Budget note: this is the last model call of this turn; the tools have been put away.)\
-Answer in three sentences: what is done, where you are stuck, what you need from me next.\
-If you have not verified something, say you are unsure — do not invent results.";
-
-/// The same wrap-up, for the other budget: **this turn's tokens are (nearly) spent**.
-///
-/// It says *why* on purpose — "it was the wallet, not the work" is the one thing the human
-/// cannot infer from an answer that stops mid-task.
+/// A tool-free reply can report progress when a turn exhausts its token budget.
 const WRAP_UP_TOKENS: &str = "(Budget note: this turn's token budget is spent; the tools have been put away.)\
 Answer in three sentences: what is done, where you are stuck, what you need from me next —\
 and say plainly that the stop came from this turn's token budget (JEEVES_TURN_TOKEN_BUDGET), not from the work being finished.\
@@ -299,12 +284,14 @@ pub struct Turn<'a> {
     pub user_images: Vec<ContentBlock>,
     pub tools: &'a ToolRegistry,
     pub ctx: ToolCtx,
-    pub max_iterations: i32,
+    pub run_limits: Option<budget::RunLimits>,
+    pub context_budget: Option<usize>,
+    pub context_window: Option<u32>,
+    /// Catalog and operator ceiling. Fit against each request's actual projected input.
     pub max_tokens: i32,
     /// Cost cap for this turn in tokens (`JEEVES_TURN_TOKEN_BUDGET`). `None`/0 = off.
     ///
-    /// The step cap bounds **how many** rounds; this bounds **how much** they cost. Reaching it
-    /// takes the same exit as the step cap (tools away, one wrap-up call) — see `budget::should_wrap_up`.
+    /// The budget can reserve a final tool-free response.
     pub token_budget: Option<usize>,
     /// Budget for intra-turn tool results (off by default; see `budget.rs`).
     pub tool_result_budget: ToolResultBudget,
@@ -398,6 +385,40 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         .await
         .map_err(jeeves_provider::ProviderError::Api)?;
     }
+    let active_from = if turn.resume.is_some() {
+        messages
+            .iter()
+            .position(|m| {
+                m.role == Role::User
+                    && !turn.user_message.is_empty()
+                    && m.text().contains(&turn.user_message)
+            })
+            .unwrap_or(0)
+    } else {
+        turn.history.len()
+    };
+    let mut context_budget = turn.context_budget;
+    let token_ceiling = turn
+        .token_budget
+        .filter(|cap| *cap > 0)
+        .into_iter()
+        .chain(
+            turn.run_limits
+                .as_ref()
+                .and_then(|limits| limits.tokens)
+                .map(|cap| cap.max(0) as usize),
+        )
+        .min();
+    let mut compaction_reported = false;
+    let completed_tools = if turn.run_limits.is_some() && turn.resume.is_some() {
+        messages
+            .iter()
+            .flat_map(|message| &message.content)
+            .filter(|block| matches!(block, ContentBlock::ToolUse { .. }))
+            .count()
+    } else {
+        0
+    };
     let mut tool_calls: Vec<ToolOutcome> = Vec::new();
     let spill_dir = turn.ctx.home.join("spill");
     let mut last_estimate = 0usize;
@@ -416,7 +437,10 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         })
     };
 
-    for iteration in (completed_before + 1)..=turn.max_iterations.max(1) {
+    let mut iterations = completed_before;
+    let mut stalled_batches = 0;
+    let stop_detail = loop {
+        let iteration = iterations.saturating_add(1);
         if turn
             .interrupt
             .as_ref()
@@ -435,6 +459,14 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             }));
         }
 
+        if let Some(reason) = turn
+            .run_limits
+            .as_ref()
+            .and_then(|limits| limits.blocker(usage, completed_tools + tool_calls.len(), 0))
+        {
+            break reason;
+        }
+
         if let Some(steering) = &turn.steering {
             let pending = steering
                 .lock()
@@ -448,108 +480,121 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             }
         }
 
-        let spent = (usage.input_tokens.max(0) + usage.output_tokens.max(0)) as usize;
-        let last_round = iteration == turn.max_iterations && turn.max_iterations > 1;
-        let appended = jeeves_provider::tokens::estimate_messages(
-            messages.get(sent_len..).unwrap_or_default(),
-        );
-        let next_input = budget::next_input_tokens(last_observed, appended, last_estimate);
-        let out_of_tokens = budget::should_wrap_up(turn.token_budget, spent, next_input);
-        let wrapping_up = last_round || out_of_tokens;
-        if wrapping_up {
-            let text = if last_round { WRAP_UP } else { WRAP_UP_TOKENS };
-            messages.push(Message {
-                role: Role::User,
-                content: vec![ContentBlock::Text {
-                    text: text.to_string(),
-                }],
-            });
-        }
-
-        budget::trim_tool_results(
-            &mut messages,
+        let spent = usage
+            .input_tokens
+            .max(0)
+            .saturating_add(usage.output_tokens.max(0)) as usize;
+        let mut request_messages = messages.clone();
+        let trim = budget::trim_tool_results(
+            &mut request_messages,
             Some(&spill_dir),
             &turn.tool_result_budget,
             &turn.ctx.session_id,
         );
-
-        let schemas = if wrapping_up {
-            Vec::new()
-        } else {
-            turn.tools.schemas()
-        };
-        last_estimate = jeeves_provider::tokens::estimate_messages(&messages)
-            + jeeves_provider::tokens::estimate_text(&turn.system)
+        let mut projected = trim.trimmed > 0;
+        if let Some(compacted) = context_budget
+            .filter(|limit| jeeves_provider::tokens::estimate_messages(&request_messages) > *limit)
+            .and_then(|limit| projection::compact(&request_messages, active_from, limit))
+        {
+            if !compaction_reported {
+                eprintln!(
+                    "(jeeves) compacting active model requests without discarding checkpoints"
+                );
+                compaction_reported = true;
+            }
+            request_messages = compacted;
+            projected = true;
+        }
+        let system_tokens = jeeves_provider::tokens::estimate_text(&turn.system)
             + turn
                 .system_prefix
                 .as_deref()
                 .map(jeeves_provider::tokens::estimate_text)
-                .unwrap_or(0)
-            + jeeves_provider::tokens::estimate_tools(&schemas);
-        let request = CreateRequest {
-            cache_prefix: turn.system_prefix.clone(),
-            model: turn.model.to_string(),
-            system: Some(turn.system.clone()),
-            messages: messages.clone(),
-            tools: schemas,
-            max_tokens: turn.max_tokens,
+                .unwrap_or(0);
+        let mut schemas = turn.tools.schemas();
+        let next_input = if projected {
+            jeeves_provider::tokens::estimate_messages(&request_messages)
+                + system_tokens
+                + jeeves_provider::tokens::estimate_tools(&schemas)
+        } else {
+            let appended = jeeves_provider::tokens::estimate_messages(
+                messages.get(sent_len..).unwrap_or_default(),
+            );
+            budget::next_input_tokens(last_observed, appended, last_estimate)
         };
-
-        let fut = match (turn.on_text.clone(), notify.clone()) {
-            (Some(sink), Some(observer)) => {
-                let (record, streamed_sink) = (record.clone(), sink.clone());
-                let combined: TextSink = Arc::new(move |delta: &str| {
-                    record(delta);
-                    observer(LoopEvent::Text {
-                        delta: delta.to_string(),
-                    });
-                    streamed_sink(delta);
+        let out_of_tokens = budget::should_wrap_up(turn.token_budget, spent, next_input);
+        if out_of_tokens {
+            schemas.clear();
+        }
+        let mut recovered_overflow = false;
+        let sampled = loop {
+            let mut model_messages = request_messages.clone();
+            if out_of_tokens {
+                model_messages.push(Message {
+                    role: Role::User,
+                    content: vec![ContentBlock::Text {
+                        text: WRAP_UP_TOKENS.to_string(),
+                    }],
                 });
-                turn.client.stream(request, combined)
             }
-            (Some(sink), None) => {
-                let (record, record_only) = (record.clone(), sink.clone());
-                let chained: TextSink = Arc::new(move |delta: &str| {
-                    record(delta);
-                    record_only(delta);
-                });
-                turn.client.stream(request, chained)
-            }
-            (None, Some(observer)) => {
-                let record = record.clone();
-                let observer_only: TextSink = Arc::new(move |delta: &str| {
-                    record(delta);
-                    observer(LoopEvent::Text {
-                        delta: delta.to_string(),
-                    });
-                });
-                turn.client.stream(request, observer_only)
-            }
-            (None, None) => turn.client.create(request),
-        };
-
-        let response = match turn.interrupt.as_ref() {
-            Some(cancel) => {
-                tokio::select! {
-                    _ = cancel.wait() => {
-                                return Ok(interrupted_result(Scene {
-                round_id: round_id.clone(),
-                                    streamed,
-                                    tool_calls,
-                                    iterations: iteration - 1,
-                                    usage,
-                                    messages,
-                                    guard: GuardReport::close(&guard),
-                                    estimated_input_tokens: last_estimate,
-                                    observed_input_tokens: last_observed,
-                                }));
-                    }
-                    response = fut => response?,
+            last_estimate = jeeves_provider::tokens::estimate_messages(&model_messages)
+                + system_tokens
+                + jeeves_provider::tokens::estimate_tools(&schemas);
+            let fitted = budget::fit_output(turn.max_tokens, turn.context_window, last_estimate);
+            let max_tokens = token_ceiling.map_or(fitted, |cap| {
+                let remaining = cap.saturating_sub(spent).saturating_sub(last_estimate);
+                (fitted as usize).min(remaining.max(16)) as i32
+            });
+            let request = CreateRequest {
+                cache_prefix: turn.system_prefix.clone(),
+                model: turn.model.to_string(),
+                system: Some(turn.system.clone()),
+                messages: model_messages,
+                tools: schemas.clone(),
+                max_tokens,
+            };
+            match sample(&turn, request, notify.clone(), record.clone()).await {
+                Some(Ok(response)) => break Some(response),
+                Some(Err(error))
+                    if error.is_context_overflow() && (iterations > 0 || turn.resume.is_some()) =>
+                {
+                    let budget = jeeves_provider::tokens::estimate_messages(&request_messages) / 2;
+                    let compacted = (!recovered_overflow)
+                        .then(|| projection::compact(&messages, active_from, budget))
+                        .flatten()
+                        .filter(|projection| {
+                            jeeves_provider::tokens::estimate_messages(projection)
+                                < jeeves_provider::tokens::estimate_messages(&request_messages)
+                        });
+                    let Some(compacted) = compacted else {
+                        break None;
+                    };
+                    eprintln!("(jeeves) compacted the active context after provider overflow");
+                    context_budget = Some(budget);
+                    request_messages = compacted;
+                    recovered_overflow = true;
+                }
+                Some(Err(error)) => return Err(error.into()),
+                None => {
+                    return Ok(interrupted_result(Scene {
+                        round_id: round_id.clone(),
+                        streamed,
+                        tool_calls,
+                        iterations,
+                        usage,
+                        messages,
+                        guard: GuardReport::close(&guard),
+                        estimated_input_tokens: last_estimate,
+                        observed_input_tokens: last_observed,
+                    }))
                 }
             }
-            None => fut.await?,
+        };
+        let Some(response) = sampled else {
+            break "The active context exceeded the model window after compaction. Completed work was saved".into();
         };
 
+        iterations = iteration;
         usage.input_tokens += response.usage.input_tokens;
         usage.output_tokens += response.usage.output_tokens;
         last_observed = response.usage.prompt_size().max(0) as usize;
@@ -562,16 +607,44 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             });
         }
 
+        let uses = response.tool_uses();
+        let tools_allowed = !out_of_tokens && response.stop_reason != StopReason::MaxTokens;
+        if tools_allowed {
+            if let Some(reason) = turn.run_limits.as_ref().and_then(|limits| {
+                limits.blocker(usage, completed_tools + tool_calls.len(), uses.len())
+            }) {
+                if !uses.is_empty() {
+                    break reason;
+                }
+            }
+        }
         messages.push(Message {
             role: Role::Assistant,
-            content: response.content.clone(),
+            content: response
+                .content
+                .iter()
+                .filter(|block| tools_allowed || !matches!(block, ContentBlock::ToolUse { .. }))
+                .cloned()
+                .collect(),
         });
 
-        let uses = response.tool_uses();
-
-        if uses.is_empty() {
+        if tools_allowed
+            && uses.is_empty()
+            && response.stop_reason == StopReason::EndTurn
+            && turn.steering.as_ref().is_some_and(|steer| {
+                steer
+                    .lock()
+                    .expect("the steering lock should not be poisoned")
+                    .has_pending()
+            })
+        {
+            continue;
+        }
+        if uses.is_empty() || !tools_allowed {
             return Ok(LoopResult {
                 stop_reason: response.stop_reason,
+                token_budget_reached: out_of_tokens,
+                stop_detail: None,
                 round_id: round_id.clone(),
                 reply: response.text(),
                 tool_calls,
@@ -607,6 +680,7 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         let operation_uses = uses.clone();
 
         let mut results = Vec::new();
+        let mut progressed = false;
         let uncertain = Arc::new(std::sync::atomic::AtomicBool::new(false));
         for segment in plan_segments(turn.tools, uses) {
             for (id, name, input) in &segment {
@@ -736,6 +810,7 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                     duration_ms,
                 });
                 let verdict = guard.observe(name, input, &output);
+                progressed |= verdict.is_ok();
                 let for_model = guard::for_model(&output, name, input, &verdict);
                 results.push(ContentBlock::ToolResult {
                     tool_use_id: id.clone(),
@@ -756,6 +831,8 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             return Ok(LoopResult {
                 round_id: round_id.clone(),
                 stop_reason: StopReason::UncertainEffect,
+                token_budget_reached: false,
+                stop_detail: None,
                 reply:
                     "A tool's outcome is unknown. Reconcile the external state before continuing."
                         .into(),
@@ -793,18 +870,20 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
             .await
             .map_err(jeeves_provider::ProviderError::Api)?;
         }
-    }
-
+        stalled_batches = if progressed { 0 } else { stalled_batches + 1 };
+        if stalled_batches >= 3 {
+            break "Tools kept returning the same results after repeated warnings. Work stopped for review".into();
+        }
+    };
+    eprintln!("(jeeves) agent loop stopped: {stop_detail}");
     Ok(LoopResult {
-        stop_reason: StopReason::IterationLimit,
-        round_id: round_id.clone(),
-        reply: format!(
-            "(This turn used its {} steps without wrapping up. Every tool call and result above is still here —\
-             say \"carry on\" and I resume where it stopped, or split the request into two and it fits in one turn.)",
-            turn.max_iterations
-        ),
+        stop_reason: StopReason::Other,
+        token_budget_reached: false,
+        reply: format!("({stop_detail}.)"),
+        stop_detail: Some(stop_detail),
+        round_id,
         tool_calls,
-        iterations: turn.max_iterations,
+        iterations,
         usage,
         messages,
         interrupted: false,
@@ -814,9 +893,57 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
     })
 }
 
+async fn sample(
+    turn: &Turn<'_>,
+    request: CreateRequest,
+    notify: Option<Observer>,
+    record: TextSink,
+) -> Option<std::result::Result<jeeves_provider::CreateResponse, jeeves_provider::ProviderError>> {
+    let fut = match (turn.on_text.clone(), notify.clone()) {
+        (Some(sink), Some(observer)) => {
+            let (record, streamed_sink) = (record.clone(), sink.clone());
+            let combined: TextSink = Arc::new(move |delta: &str| {
+                record(delta);
+                observer(LoopEvent::Text {
+                    delta: delta.to_string(),
+                });
+                streamed_sink(delta);
+            });
+            turn.client.stream(request, combined)
+        }
+        (Some(sink), None) => {
+            let (record, record_only) = (record.clone(), sink.clone());
+            let chained: TextSink = Arc::new(move |delta: &str| {
+                record(delta);
+                record_only(delta);
+            });
+            turn.client.stream(request, chained)
+        }
+        (None, Some(observer)) => {
+            let record = record.clone();
+            let observer_only: TextSink = Arc::new(move |delta: &str| {
+                record(delta);
+                observer(LoopEvent::Text {
+                    delta: delta.to_string(),
+                });
+            });
+            turn.client.stream(request, observer_only)
+        }
+        (None, None) => turn.client.create(request),
+    };
+
+    match turn.interrupt.as_ref() {
+        Some(cancel) => tokio::select! {
+            _ = cancel.wait() => None,
+            response = fut => Some(response),
+        },
+        None => Some(fut.await),
+    }
+}
+
 /// The stand-down result on interrupt: reply is text already streamed (or one explanatory line),
 /// and `interrupted: true` lets the caller persist it honestly, not pass off half an answer.
-/// The stand-down scene. Both interrupt and "iteration cap" assemble `LoopResult` here — past
+/// The stand-down scene assembles the interruption result. Past
 /// seven or eight params, a struct reads better, and adding a field no longer breaks four sites.
 struct Scene {
     round_id: String,
@@ -853,6 +980,8 @@ fn interrupted_result(scene: Scene) -> LoopResult {
     };
     LoopResult {
         stop_reason: StopReason::Other,
+        token_budget_reached: false,
+        stop_detail: None,
         round_id,
         reply,
         tool_calls,

@@ -124,7 +124,7 @@ async fn server(
     base: &jeeves_config::Settings,
     resolved: &Resolved,
     tools: &[&str],
-    max_iterations: i32,
+    token_budget: i64,
 ) -> Result<Server> {
     let mut settings = base.clone();
     settings.home = home.into();
@@ -132,7 +132,7 @@ async fn server(
     settings.delegate_enabled = false;
     settings.notify_enabled = false;
     settings.write_enabled = true;
-    settings.max_iterations = max_iterations;
+    settings.turn_token_budget = token_budget;
     settings.max_tokens = 2048;
     settings.llm_retries = 0;
     let pool = jeeves_state::open(&home.join("state.db")).await?;
@@ -386,7 +386,7 @@ async fn main() -> Result<()> {
                 Some(proof)
             } else {None};
             let allowed=if suite == "support" {vec![]} else if ["source-report","source-unavailable"].contains(&name) {vec!["sources_web_ui","sources_python_sdk",if suite == "research-guarded" {"sources_publish"} else {"write_file"}]} else if name=="uncertain-effect" {vec!["lab_commit"]}else{vec!["read_file","write_file","list_dir","search_memory","list_memory","read_memory_page"]};
-            let host=server(home,&settings,&resolved,&allowed,if ["waiting-chat-delivery", "source-report", "source-unavailable"].contains(&name) {8} else {4}).await?;
+            let host=server(home,&settings,&resolved,&allowed,if ["waiting-chat-delivery", "source-report", "source-unavailable"].contains(&name) {80_000} else {40_000}).await?;
             if let Some(scenario) = support.iter().find(|case| case.id == name) {
                 return expanded::support(&host, scenario).await;
             }

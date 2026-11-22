@@ -150,9 +150,9 @@ pub struct SettingsOverrides {
     #[serde(default)]
     pub retrieval_top_k: Option<i32>,
     #[serde(default)]
-    pub max_iterations: Option<i32>,
-    #[serde(default)]
     pub max_tokens: Option<i32>,
+    #[serde(default)]
+    pub turn_token_budget: Option<i64>,
     /// Approximate context window override — token-triggered compaction must be pinnable in a case.
     #[serde(default)]
     pub context_window: Option<u32>,
@@ -200,14 +200,6 @@ pub struct SettingsOverrides {
     /// `JEEVES_APPROVAL_TIMEOUT`: shortened so a "nobody answers" case costs a second, not two minutes.
     #[serde(default)]
     pub approval_timeout_secs: Option<i64>,
-    /// `JEEVES_AUTO_CONTINUE_MAX`: how many times a turn may continue itself. Cases that end on
-    /// purpose (an unfinished todo is part of the assertion) set this to 0.
-    #[serde(default)]
-    pub auto_continue_max: Option<i32>,
-    /// `JEEVES_TURN_STEP_SLICE`: steps granted by one continuation — small in a case, so "the budget
-    /// ran out and it kept going" is cheap to prove.
-    #[serde(default)]
-    pub turn_step_slice: Option<i32>,
 }
 
 impl Scenario {

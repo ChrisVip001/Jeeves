@@ -1,7 +1,7 @@
 //! Tests for the loop.
 //!
 //! A mock provider scripts exactly what the model says each turn, verifying the guardrails
-//! one by one: natural end, tool round trip, errors not fatal, iteration cap.
+//! one by one: natural end, tool round trip, errors not fatal, and a long run of distinct tools.
 //! Scripted model: what the model says is entirely decided by the test.
 
 use std::sync::{Arc, Mutex};
@@ -56,7 +56,9 @@ async fn turn<'a>(
         user_message: "remember that alex likes morning meetings".to_string(),
         tools,
         ctx,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -102,7 +104,9 @@ async fn words_added_mid_turn_join_the_next_model_call_and_do_not_rerun_tools() 
         user_images: vec![],
         tools: &tools,
         ctx: ctx().await,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -244,56 +248,99 @@ async fn unknown_tool_name_is_surfaced_not_fatal() {
 }
 
 #[tokio::test]
-async fn the_last_iteration_is_a_wrap_up_not_a_cliff() {
-    let mock = Mock::new(vec![
-        Mock::tool_use("tu_1", "memory", json!({"action": "list"})),
-        Mock::text("the time was read; what is unfinished is the cleanup; I need you to confirm what to delete."),
-    ]);
-    let tools = handlers::build_default();
-    let ctx = ctx().await;
+async fn a_long_sequence_of_distinct_tools_runs_until_the_model_finishes() {
+    let mut responses: Vec<_> = (1..=66)
+        .map(|step| Mock::tool_use(&format!("tool-{step}"), "echo", json!({"step": step})))
+        .collect();
+    responses.push(Mock::text("All steps completed."));
+    let mock = Mock::new(responses);
+    let mut tools = jeeves_tools::ToolRegistry::new();
+    tools.register(slow_tool("echo", 0, "evidence"));
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.iterations, 67);
+    assert_eq!(result.tool_calls.len(), 66);
+    assert_eq!(result.reply, "All steps completed.");
+    assert!(!mock
+        .received
+        .lock()
+        .unwrap()
+        .last()
+        .unwrap()
+        .tools
+        .is_empty());
+}
 
-    let result = run(Turn {
-        system_prefix: None,
-        user_images: Vec::new(),
-        client: &mock,
-        model: "test-model",
-        system: "You are Jeeves".to_string(),
-        history: vec![],
-        user_message: "what time is it".to_string(),
-        tools: &tools,
-        ctx,
-        max_iterations: 2,
-        max_tokens: 1024,
-        token_budget: None,
-        tool_result_budget: Default::default(),
-        observer: None,
-        on_text: None,
-        interrupt: None,
-        checkpoint: None,
-        steering: None,
-        resume: None,
-    })
-    .await
-    .expect("the closing round should not error");
-
-    assert_eq!(result.iterations, 2);
-    assert_eq!(
-        result.reply, "the time was read; what is unfinished is the cleanup; I need you to confirm what to delete.",
-        "the wrapping-up round's words go to the user as they are, not swapped for a template"
-    );
-
-    let requests = mock.received.lock().expect("lock");
-    let last = requests.last().expect("at least one request has to go out");
+#[tokio::test]
+async fn an_active_context_overflow_retries_only_the_model_request() {
+    let mut outcomes: Vec<_> = (1..=6)
+        .map(|step| {
+            Ok(Mock::tool_use(
+                &format!("fetch-{step}"),
+                "fetch",
+                json!({"step": step}),
+            ))
+        })
+        .collect();
+    outcomes.push(Mock::context_overflow());
+    outcomes.push(Ok(Mock::text("The work is complete.")));
+    let mock = Mock::with_outcomes(outcomes);
+    let evidence = "Important evidence in the original tool response. ".repeat(300);
+    let mut tools = jeeves_tools::ToolRegistry::new();
+    tools.register(slow_tool("fetch", 0, &evidence));
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.reply, "The work is complete.");
+    assert_eq!(result.tool_calls.len(), 6);
+    assert!(result.tool_calls.iter().all(|call| call.output == evidence));
+    let requests = mock.received.lock().unwrap();
+    assert_eq!(requests.len(), 8);
+    let retry = &requests[7].messages;
     assert!(
-        last.tools.is_empty(),
-        "the wrapping-up round must get no more tools: {} of them",
-        last.tools.len()
+        jeeves_provider::tokens::estimate_messages(retry)
+            < jeeves_provider::tokens::estimate_messages(&requests[6].messages)
     );
-    let tail = serde_json::to_string(&last.messages).expect("serialise");
-    assert!(
-        tail.contains("Budget note"),
-        "the wrapping-up instruction has to reach the context: {tail:.200}"
+    let replay = serde_json::to_string(retry).unwrap();
+    assert!(replay.contains("remember that alex likes morning meetings"));
+    assert!(replay.contains("Context compacted"));
+    assert!(replay.contains("fetch-6"));
+    assert!(result
+        .messages
+        .iter()
+        .flat_map(|m| &m.content)
+        .any(|block| {
+            matches!(block, ContentBlock::ToolResult { tool_use_id, content }
+            if tool_use_id == "fetch-1" && content == &evidence)
+        }));
+}
+
+#[tokio::test]
+async fn repeated_batches_eventually_yield_for_review() {
+    let mock = Mock::new(
+        (1..=5)
+            .map(|step| Mock::tool_use(&format!("repeat-{step}"), "fetch", json!({})))
+            .collect(),
     );
+    let mut tools = jeeves_tools::ToolRegistry::new();
+    tools.register(slow_tool("fetch", 0, "same evidence"));
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.tool_calls.len(), 5);
+    assert!(result.stop_detail.unwrap().contains("repeated warnings"));
+}
+
+#[tokio::test]
+async fn a_truncated_response_cannot_execute_tools() {
+    let mut truncated = Mock::tool_use("call-truncated", "write", json!({}));
+    truncated.stop_reason = StopReason::MaxTokens;
+    let mock = Mock::new(vec![truncated]);
+    let mut tools = jeeves_tools::ToolRegistry::new();
+    tools.register(slow_tool("write", 0, "would be a side effect"));
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.stop_reason, StopReason::MaxTokens);
+    assert!(result.tool_calls.is_empty());
+    assert!(result
+        .messages
+        .iter()
+        .flat_map(|m| &m.content)
+        .all(|b| !matches!(b, ContentBlock::ToolUse { .. })));
 }
 
 #[tokio::test]
@@ -315,7 +362,9 @@ async fn the_token_budget_also_turns_the_next_round_into_a_wrap_up() {
         user_message: "what time is it".to_string(),
         tools: &tools,
         ctx,
-        max_iterations: 10,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: Some(20),
         tool_result_budget: Default::default(),
@@ -366,7 +415,9 @@ async fn without_a_token_budget_the_loop_keeps_its_tools() {
         user_message: "what time is it".to_string(),
         tools: &tools,
         ctx,
-        max_iterations: 10,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -475,7 +526,9 @@ async fn streaming_emits_text_deltas_in_order() {
         user_message: "hi".to_string(),
         tools: &tools,
         ctx,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -549,7 +602,9 @@ async fn streaming_works_across_tool_rounds() {
         user_message: "hi".to_string(),
         tools: &tools,
         ctx,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -592,7 +647,9 @@ async fn a_cancelled_interrupt_stops_the_loop_before_any_model_call() {
         user_message: "hi".to_string(),
         tools: &tools,
         ctx: ctx().await,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -649,7 +706,9 @@ async fn an_interrupt_between_tool_rounds_keeps_what_already_happened() {
         user_message: "hi".to_string(),
         tools: &tools,
         ctx,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -772,7 +831,9 @@ async fn an_oversized_tool_result_becomes_a_stub_before_the_next_request() {
         user_message: "let us have a look at that text".to_string(),
         tools: &tools,
         ctx,
-        max_iterations: 4,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: crate::budget::ToolResultBudget {
@@ -855,7 +916,9 @@ async fn a_checkpoint_lands_at_every_tool_results_boundary() {
         user_message: "remember that alex likes morning meetings".to_string(),
         tools: &tools,
         ctx: ctx().await,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -929,7 +992,9 @@ async fn a_resumed_turn_continues_without_rerunning_finished_tools() {
         user_message: String::new(),
         tools: &tools,
         ctx: ctx().await,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -947,7 +1012,6 @@ async fn a_resumed_turn_continues_without_rerunning_finished_tools() {
                 output_tokens: 20,
                 ..Usage::default()
             },
-            max_iterations: None,
         }),
     })
     .await
@@ -1031,7 +1095,9 @@ async fn run_with(
         user_message: "do two things at once".to_string(),
         tools,
         ctx,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 1024,
         token_budget: None,
         tool_result_budget: Default::default(),
@@ -1244,7 +1310,9 @@ async fn uncertain_effect_stops_remaining_tools_and_keeps_the_intent_checkpoint(
         user_message: "work".into(),
         tools: &tools,
         ctx: ctx().await,
-        max_iterations: 5,
+        run_limits: None,
+        context_budget: None,
+        context_window: None,
         max_tokens: 600,
         token_budget: None,
         tool_result_budget: Default::default(),

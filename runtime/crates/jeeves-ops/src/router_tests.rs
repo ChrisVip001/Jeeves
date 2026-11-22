@@ -143,7 +143,7 @@ pub(crate) fn auto_respond(fake: crate::client::client_tests::Fake) {
             let result = match method.as_str() {
                 "config/read" => json!({"config": {
                     "provider": "anthropic", "model": "", "smallModel": "",
-                    "maxIterations": 10, "maxTokens": 4096, "historyTurns": 10,
+                    "maxTokens": 4096, "historyTurns": 10,
                     "consolidateEvery": 5, "retrievalTopK": 5,
                     "appleCalendar": false, "googleCalendar": false,
                     "experimental": false, "graphWorkflows": false, "home": "/tmp",

@@ -31,7 +31,7 @@ Use `/model` in the Jeeves CLI to manage profiles. Changes take effect on the ne
 /model use ds                                switch
 ```
 
-Declare image support when you add a profile (`--vision` / `--no-vision`), otherwise the vendor's default row decides. A local model needs no key: install Ollama, `ollama pull qwen3:8b`, and add an `ollama` profile. Per-turn model routing, the model catalog and every flag are in the [configuration reference](configuration.md#model-profiles-and-their-keys-homemodelsjson).
+Declare image support when you add a profile (`--vision` / `--no-vision`), otherwise the vendor's default row decides. For local inference, install Ollama, [pull the default models](configuration.md#local-inference-ollama) and add an `ollama` profile. See the [configuration reference](configuration.md#model-profiles-and-their-keys-homemodelsjson) for model routing and profile options.
 
 ## 4. Permissions
 

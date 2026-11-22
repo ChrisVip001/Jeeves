@@ -246,7 +246,7 @@ pub fn grep_tool() -> Tool {
             "properties": {
                 "pattern": {
                     "type": "string",
-                    "description": "The text to look for, e.g. `fn main` or `max_iterations`."
+                    "description": "The text to look for, e.g. `fn main` or `context_window`."
                 },
                 "path": {
                     "type": "string",

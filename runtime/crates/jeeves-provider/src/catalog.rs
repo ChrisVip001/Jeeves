@@ -8,11 +8,24 @@
 //! a broken row costs one stderr line and keeps the built-in table — a typo in a config file
 //! must not take the assistant down, but it must not pass silently either.
 
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path, sync::OnceLock};
 
 use serde::{Deserialize, Serialize};
 
 use super::{ProviderInfo, Wire, PROVIDERS};
+
+const UNKNOWN_MODEL_OUTPUT_TOKENS: u32 = 32_000;
+const MAX_OUTPUT_TOKENS: u32 = 256_000;
+
+/// Exact provider and model IDs from the models.dev catalog shipped by OpenCode.
+/// Unknown IDs use the catalog fallback.
+fn built_in_outputs() -> &'static BTreeMap<String, BTreeMap<String, u32>> {
+    static OUTPUTS: OnceLock<BTreeMap<String, BTreeMap<String, u32>>> = OnceLock::new();
+    OUTPUTS.get_or_init(|| {
+        serde_json::from_str(include_str!("catalog-output-limits.json"))
+            .expect("the bundled output catalog is valid JSON")
+    })
+}
 
 /// Where the local override lives: `<home>/models-catalog.json`.
 pub fn catalog_path(home: &Path) -> std::path::PathBuf {
@@ -33,6 +46,8 @@ pub struct CatalogEntry {
     #[serde(default)]
     pub small_model: Option<String>,
     pub context_window: u32,
+    #[serde(default)]
+    pub model_output_limits: BTreeMap<String, u32>,
     /// Whether the provider's models accept image input (see `ProviderInfo::vision`).
     /// Absent in the file = `false` — be conservative, override explicitly.
     #[serde(default)]
@@ -56,6 +71,7 @@ impl From<&'static ProviderInfo> for CatalogEntry {
             model: info.model.to_string(),
             small_model: Some(info.small_model.to_string()),
             context_window: info.context_window,
+            model_output_limits: built_in_outputs().get(info.id).cloned().unwrap_or_default(),
             vision: info.vision,
         }
     }
@@ -77,6 +93,8 @@ struct CatalogPatch {
     #[serde(default)]
     small_model: Option<String>,
     context_window: Option<u32>,
+    #[serde(default)]
+    model_output_limits: BTreeMap<String, u32>,
     vision: Option<bool>,
 }
 
@@ -102,6 +120,7 @@ impl CatalogPatch {
         if let Some(context_window) = self.context_window {
             entry.context_window = context_window;
         }
+        entry.model_output_limits.extend(self.model_output_limits);
         if let Some(vision) = self.vision {
             entry.vision = vision;
         }
@@ -126,6 +145,7 @@ impl CatalogPatch {
             model,
             small_model: Some(small_model),
             context_window: self.context_window.unwrap_or(crate::DEFAULT_CONTEXT_WINDOW),
+            model_output_limits: self.model_output_limits,
             vision: self.vision.unwrap_or(false),
         })
     }
@@ -187,6 +207,21 @@ impl Catalog {
         self.entries.iter().find(|e| e.id == id)
     }
 
+    /// Upper bound before fitting a request to the available context.
+    pub fn output_ceiling(&self, provider: &str, model: &str, configured: i32) -> i32 {
+        let catalog = self
+            .lookup(provider)
+            .and_then(|entry| entry.model_output_limits.get(model))
+            .copied()
+            .unwrap_or(UNKNOWN_MODEL_OUTPUT_TOKENS)
+            .min(MAX_OUTPUT_TOKENS);
+        if configured > 0 {
+            catalog.min(configured as u32) as i32
+        } else {
+            catalog as i32
+        }
+    }
+
     pub fn ids(&self) -> Vec<&str> {
         self.entries.iter().map(|e| e.id.as_str()).collect()
     }
@@ -200,6 +235,9 @@ impl CatalogPatch {
     fn apply_or_add(self, catalog: &mut Catalog) -> Result<(), String> {
         if self.id.is_empty() {
             return Err("a catalog entry is missing its id".to_string());
+        }
+        if self.model_output_limits.values().any(|&limit| limit == 0) {
+            return Err(format!("{}: model output limits must be positive", self.id));
         }
         match catalog.entries.iter_mut().find(|e| e.id == self.id) {
             Some(entry) => {

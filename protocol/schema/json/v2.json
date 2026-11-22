@@ -5926,13 +5926,6 @@
             "null"
           ]
         },
-        "maxIterations": {
-          "format": "int32",
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
         "maxTokens": {
           "format": "int32",
           "type": [
@@ -5982,10 +5975,6 @@
         "home": {
           "type": "string"
         },
-        "maxIterations": {
-          "format": "int32",
-          "type": "integer"
-        },
         "maxTokens": {
           "format": "int32",
           "type": "integer"
@@ -6008,7 +5997,6 @@
         "consolidateEvery",
         "historyTurns",
         "home",
-        "maxIterations",
         "maxTokens",
         "model",
         "provider",
