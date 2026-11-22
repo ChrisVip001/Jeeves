@@ -135,6 +135,16 @@ impl Server {
         let notifier = jeeves_tools::notify::load(&snapshot.home, snapshot.notify_enabled);
         let approval_log = jeeves_state::Approvals::new(pool.clone());
         let grants = jeeves_state::Grants::new(pool.clone());
+        match jeeves_state::responsibility_runs::recover(&pool).await {
+            Ok(keys) => {
+                for key in keys {
+                    eprintln!("(jeeves) responsibility {key} interrupted; review delivery");
+                }
+            }
+            Err(error) => eprintln!(
+                "(jeeves) responsibility recovery incomplete; prior claims retained: {error}"
+            ),
+        }
         let restored_approvals = match grants.pending_restore(chrono::Utc::now().timestamp()).await
         {
             Ok(rows) => {

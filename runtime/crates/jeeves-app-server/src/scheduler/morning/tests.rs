@@ -247,3 +247,48 @@ async fn configured_ics_is_read_and_one_proposal_reaches_the_chosen_webhook() {
             .contains("\"delivered\":true")
     );
 }
+
+#[tokio::test]
+async fn transfer_keeps_old_claim_and_only_one_clock_can_admit_the_next_day() {
+    let home = tempfile::tempdir().unwrap();
+    let host = server(home.path(), "outbox@Asia/Shanghai").await;
+    let briefing = Briefing::parse("outbox@Asia/Shanghai").unwrap();
+    let schedules = jeeves_state::Schedules::new(host.pool.clone());
+    schedules.ensure(NAME, true, "outbox").await.unwrap();
+    schedules.claim(NAME, "2026-11-18T08:00").await.unwrap();
+    crate::scheduler::runtime_jobs(home.path(), &host.pool, Some(briefing)).await;
+    let job = briefing.job();
+    fire(&host, &job, "2026-11-19T08:00:00".parse().unwrap())
+        .await
+        .unwrap();
+    assert!(jeeves_state::responsibility_runs::list(&host.pool, NAME)
+        .await
+        .unwrap()
+        .is_empty());
+    crate::scheduler::acknowledge(&host, NAME).await.unwrap();
+    let duties = jeeves_state::responsibilities::Responsibilities(&host.pool);
+    assert!(duties
+        .candidates(chrono::Utc::now().timestamp_millis())
+        .await
+        .unwrap()
+        .is_empty());
+    fire(&host, &job, "2026-11-19T08:00:00".parse().unwrap())
+        .await
+        .unwrap();
+    duties
+        .set_paused(NAME, true, chrono::Utc::now().timestamp_millis())
+        .await
+        .unwrap();
+    fire(&host, &job, "2026-11-20T08:00:00".parse().unwrap())
+        .await
+        .unwrap();
+    let runs = jeeves_state::responsibility_runs::list(&host.pool, NAME)
+        .await
+        .unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].status, "draft");
+    assert_eq!(
+        runs[0].wake_key,
+        "schedule:daily-morning-briefing:2026-11-19T08:00"
+    );
+}

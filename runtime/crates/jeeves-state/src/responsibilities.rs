@@ -69,7 +69,7 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let updated = sqlx::query_as(
             "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,research_task_id=?,feishu_recipient=?,digest_json=?,
-             revision=revision+1,enabled_ms=? WHERE id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
+             revision=revision+1,enabled_ms=? WHERE clock_owner='cron' AND id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
         ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
          .bind(&row.budget_json).bind(&row.research_task_id).bind(&row.feishu_recipient).bind(&row.digest_json).bind(now).bind(&row.id)
          .bind(expected).bind(now).fetch_optional(&mut *conn).await?;
@@ -91,7 +91,7 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Vec<(String, String, i32, Option<String>)>> {
         sqlx::query_as(
             "SELECT id, cron, revision, json_extract(digest_json,'$.timeZone') FROM responsibilities
-             WHERE status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
+             WHERE clock_owner='cron' AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
              ORDER BY id",
         )
         .bind(now)
@@ -104,7 +104,7 @@ impl Responsibilities<'_> {
     async fn stop_wakes(tx: &mut sqlx::SqliteConnection, id: &str) -> sqlx::Result<()> {
         sqlx::query(
             "UPDATE wake_inbox SET state='reconcile', settled_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
-             WHERE target_task=? AND state='pending' AND source_key LIKE 'responsibility:%'",
+             WHERE target_task=? AND state='pending'",
         )
         .bind(format!("responsibility:{id}"))
         .execute(tx)
@@ -186,7 +186,7 @@ impl Responsibilities<'_> {
         let mut tx = self.0.begin().await?;
         let purpose: Option<String> = sqlx::query_scalar(
             "UPDATE responsibilities SET last_slot=?
-             WHERE id=? AND revision=? AND status='active' AND enabled_ms<=? AND expires_ms>?
+             WHERE clock_owner='cron' AND id=? AND revision=? AND status='active' AND enabled_ms<=? AND expires_ms>?
              AND (last_slot IS NULL OR last_slot<?) RETURNING purpose",
         )
         .bind(slot)

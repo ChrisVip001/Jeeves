@@ -28,6 +28,9 @@ pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Resul
         Delivery::Quiet => "quiet",
     };
     schedules.ensure(&job.name, job.catch_up, delivery).await?;
+    if let Some(briefing) = briefing {
+        return super::morning::fire(server, job, briefing, at, &minute).await;
+    }
     if !schedules.claim_once(&job.name, &minute).await? {
         eprintln!(
             "(jeeves) schedule '{}' trigger retained or already handled; no new turn submitted",
@@ -38,9 +41,6 @@ pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Resul
     let wake_key = format!("schedule:{}:{minute}", job.name);
     if !crate::wake::register(server, &wake_key, &job.name, &job.prompt).await {
         return Ok(());
-    }
-    if let Some(briefing) = briefing {
-        return fire_briefing(server, job, briefing, at, &minute, &wake_key).await;
     }
     let notifier = server.notifier();
     let target = notifier
@@ -172,72 +172,5 @@ pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Resul
             delivered,
         ),
     );
-    Ok(())
-}
-
-/// Never enter the model runner or its retrying notification queue for this duty.
-async fn fire_briefing(
-    server: &Server,
-    job: &Job,
-    briefing: super::morning::Briefing,
-    at: NaiveDateTime,
-    minute: &str,
-    wake_key: &str,
-) -> Result<()> {
-    let home = server.settings().home;
-    let rows = ScheduleCompletions::new(server.state_pool());
-    let proposal = super::morning::proposal(server, at.date(), briefing.zone).await;
-    let (body, outcome) = match proposal {
-        Ok(body) => {
-            let file_name = format!("schedule-{}-{}.md", job.name, at.format("%Y%m%d-%H%M"));
-            let outcome = match crate::schedule_output::write_output(&home, &file_name, &body) {
-                Ok(()) if job.delivery == Delivery::Notify => match server.notifier() {
-                    Some(notifier) => notifier.send_once(body.clone()).await,
-                    None => {
-                        Err("selected channel is not configured; the proposal is in outbox".into())
-                    }
-                },
-                Ok(()) => Ok(()),
-                Err(error) => Err(format!("local proposal delivery failed: {error}")),
-            };
-            (body, outcome)
-        }
-        Err(error) => (
-            String::new(),
-            Err(format!("briefing acceptance failed: {error}")),
-        ),
-    };
-    let (state, report) = match &outcome {
-        Ok(()) => ("produced", ""),
-        Err(report) => ("needs_attention", report.as_str()),
-    };
-    rows.settle(ScheduleCompletion {
-        name: &job.name,
-        minute,
-        status: state,
-        detail: report,
-        output: &body,
-        preview: report,
-        output_path: None,
-        notify_requested: false,
-        notify_target: None,
-    })
-    .await?;
-    crate::wake::settle(server, wake_key, outcome.is_err()).await;
-    append_run_log(
-        &home,
-        &run_log_line(
-            &job.name,
-            minute,
-            state,
-            report,
-            body.chars().count(),
-            outcome.is_ok(),
-        ),
-    );
-    if let Err(error) = outcome {
-        anyhow::bail!("Morning briefing requires review; delivery was not retried: {error}");
-    }
-    eprintln!("(jeeves) morning briefing delivered at {minute}");
     Ok(())
 }

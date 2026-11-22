@@ -45,15 +45,6 @@ pub(crate) async fn reports(server: &Server, id: &str) -> Result<ResponsibilityR
 }
 
 pub(crate) async fn run(server: Server, sink: EventSink) -> Result<()> {
-    let interrupted = store::recover(&server.pool).await?;
-    server
-        .restored_approvals
-        .lock()
-        .expect("restored approvals lock")
-        .retain(|row| !interrupted.contains(&row.turn_id));
-    for key in interrupted {
-        eprintln!("(jeeves) weekly report {key} interrupted; review delivery");
-    }
     loop {
         match store::take(&server.pool, Utc::now().timestamp_millis()).await {
             Ok(Some(work)) => {

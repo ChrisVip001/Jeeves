@@ -368,7 +368,18 @@ async fn runtime_jobs(
     let mut jobs = load_jobs(home, pool).await;
     if let Some(briefing) = briefing {
         jobs.retain(|job| job.name != morning::NAME);
-        jobs.push(briefing.job());
+        let bound = async {
+            let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+            let active = morning::occurrence::bind(&mut tx, briefing).await?;
+            tx.commit().await?;
+            anyhow::Ok(active)
+        }
+        .await;
+        match bound {
+            Ok(true) => jobs.push(briefing.job()),
+            Ok(false) => {}
+            Err(error) => eprintln!("(jeeves) morning briefing unavailable: {error}"),
+        }
     }
     jobs
 }

@@ -38,11 +38,19 @@ impl ScheduleCompletions {
         Self { pool }
     }
     pub async fn settle(&self, row: ScheduleCompletion<'_>) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        Self::settle_on(&mut tx, row).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+    pub async fn settle_on(
+        conn: &mut sqlx::SqliteConnection,
+        row: ScheduleCompletion<'_>,
+    ) -> Result<()> {
         ensure!(
             matches!(row.status, "produced" | "empty" | "needs_attention"),
             "Invalid schedule outcome"
         );
-        let mut tx = self.pool.begin().await?;
         let changed = sqlx::query(
             "UPDATE schedule_state SET
             last_fired_minute=CASE WHEN ?='needs_attention' THEN last_fired_minute ELSE ? END,
@@ -54,7 +62,7 @@ impl ScheduleCompletions {
         .bind(row.status)
         .bind(row.name)
         .bind(row.minute)
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await?
         .rows_affected();
         if changed == 0 {
@@ -63,7 +71,7 @@ impl ScheduleCompletions {
             )
             .bind(row.name)
             .bind(row.minute)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *conn)
             .await?;
             ensure!(
                 status.as_deref() == Some(row.status),
@@ -73,14 +81,14 @@ impl ScheduleCompletions {
             let inserted=sqlx::query("INSERT INTO schedule_completions(name,minute,status,detail,output,preview,output_path,notify_requested,notify_target)
                 VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
                 .bind(row.name).bind(row.minute).bind(row.status).bind(row.detail).bind(row.output).bind(row.preview.chars().take(120).collect::<String>()).bind(row.output_path).bind(row.notify_requested).bind(row.notify_target)
-                .execute(&mut *tx).await?.rows_affected();
+                .execute(&mut *conn).await?.rows_affected();
             if inserted == 0 {
                 let status: String = sqlx::query_scalar(
                     "SELECT status FROM schedule_completions WHERE name=? AND minute=?",
                 )
                 .bind(row.name)
                 .bind(row.minute)
-                .fetch_one(&mut *tx)
+                .fetch_one(&mut *conn)
                 .await?;
                 ensure!(
                     status == row.status,
@@ -88,7 +96,6 @@ impl ScheduleCompletions {
                 );
             }
         }
-        tx.commit().await?;
         Ok(())
     }
     pub async fn pending(&self) -> Result<Vec<ScheduleCompletionRow>> {

@@ -88,10 +88,18 @@ impl Schedules {
         }
     }
     pub async fn claim_once(&self, name: &str, minute: &str) -> Result<bool, sqlx::Error> {
+        Self::claim_once_on(&mut *self.pool.acquire().await?, name, minute).await
+    }
+
+    pub async fn claim_once_on(
+        conn: &mut sqlx::SqliteConnection,
+        name: &str,
+        minute: &str,
+    ) -> Result<bool, sqlx::Error> {
         let changed=sqlx::query("UPDATE schedule_state SET claimed_minute=?,updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now')
             WHERE name=? AND claimed_minute IS NULL AND (last_fired_minute IS NULL OR last_fired_minute<>?)
             AND NOT EXISTS(SELECT 1 FROM schedule_completions c WHERE c.name=schedule_state.name AND c.minute=?)")
-            .bind(minute).bind(name).bind(minute).bind(minute).execute(&self.pool).await?.rows_affected();
+            .bind(minute).bind(name).bind(minute).bind(minute).execute(conn).await?.rows_affected();
         Ok(changed == 1)
     }
 

@@ -1,9 +1,11 @@
 //! The opt-in morning duty builds a sourced proposal without a model or mutation tools.
+pub(super) mod occurrence;
 use super::{Delivery, Job};
 use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use jeeves_state::TaskStatus;
+pub(super) use occurrence::fire;
 use serde::Deserialize;
 use serde_json::json;
 use std::time::Duration;

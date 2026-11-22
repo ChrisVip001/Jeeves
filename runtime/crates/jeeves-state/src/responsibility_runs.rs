@@ -68,15 +68,39 @@ pub async fn proposal(pool: &SqlitePool, key: &str, body: &str) -> sqlx::Result<
     Ok(())
 }
 
+/// An adapter owns its existing clock. Record admission on the same connection as its cursor.
+pub async fn begin_bound(
+    conn: &mut sqlx::SqliteConnection,
+    id: &str,
+    key: &str,
+    slot_ms: i64,
+) -> sqlx::Result<()> {
+    sqlx::query("INSERT INTO wake_inbox(source_key,target_task,payload,responsibility_revision)
+       SELECT ?, 'responsibility:'||id,purpose,revision FROM responsibilities WHERE id=? AND status='active'")
+        .bind(key).bind(id).execute(&mut *conn).await?;
+    sqlx::query("INSERT INTO responsibility_runs(wake_key,responsibility_id,status) VALUES(?,?,'preparing')")
+        .bind(key).bind(id).execute(&mut *conn).await?;
+    sqlx::query("UPDATE responsibilities SET last_slot=? WHERE id=?")
+        .bind(slot_ms.div_euclid(60000))
+        .bind(id)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 /// The last local boundary before POST. Pausing and resuming holds the original wake permanently.
 pub async fn admit_send(pool: &SqlitePool, key: &str, now_ms: i64) -> sqlx::Result<bool> {
     let result = sqlx::query(
         "UPDATE responsibility_runs SET status='sending',tools_used=tools_used+1
          WHERE wake_key=? AND status='awaiting'
          AND EXISTS (SELECT 1 FROM wake_inbox WHERE source_key=wake_key AND state='pending')
-         AND EXISTS (SELECT 1 FROM responsibilities WHERE id=responsibility_id AND status='active' AND expires_ms>?)")
+         AND EXISTS (SELECT 1 FROM responsibilities WHERE id=responsibility_id AND revision=(SELECT responsibility_revision FROM wake_inbox WHERE source_key=wake_key) AND status='active' AND expires_ms>?)")
         .bind(key).bind(now_ms).execute(pool).await?;
     Ok(result.rows_affected() == 1)
+}
+
+pub async fn current_send(pool: &SqlitePool, key: &str, now: i64) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM responsibility_runs p JOIN wake_inbox w ON w.source_key=p.wake_key JOIN responsibilities r ON r.id=p.responsibility_id WHERE p.wake_key=? AND p.status='sending' AND w.state='pending' AND r.status='active' AND r.revision=w.responsibility_revision AND r.expires_ms>?)").bind(key).bind(now).fetch_one(pool).await
 }
 
 pub async fn finish(
@@ -87,12 +111,23 @@ pub async fn finish(
     wall: i32,
 ) -> sqlx::Result<()> {
     let mut tx = pool.begin().await?;
+    finish_on(&mut tx, key, status, detail, wall).await?;
+    tx.commit().await
+}
+
+pub async fn finish_on(
+    conn: &mut sqlx::SqliteConnection,
+    key: &str,
+    status: &str,
+    detail: &str,
+    wall: i32,
+) -> sqlx::Result<()> {
     sqlx::query("UPDATE responsibility_runs SET status=?,detail=?,wall_ms=? WHERE wake_key=? AND status NOT IN ('confirmed','draft','denied','review')")
         .bind(status)
         .bind(detail)
         .bind(wall)
         .bind(key)
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await?;
     let wake_state = if matches!(status, "confirmed" | "draft") {
         "delivered"
@@ -105,9 +140,9 @@ pub async fn finish(
     )
     .bind(wake_state)
     .bind(key)
-    .execute(&mut *tx)
+    .execute(&mut *conn)
     .await?;
-    tx.commit().await
+    Ok(())
 }
 
 pub async fn deliver_chat(
