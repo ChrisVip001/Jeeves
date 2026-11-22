@@ -7,19 +7,7 @@ use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams};
 use jeeves_state::schedule_completions::{ScheduleCompletion, ScheduleCompletions};
 
 pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Result<()> {
-    let briefing = (job.name == super::morning::NAME)
-        .then(|| server.settings().morning_briefing)
-        .flatten()
-        .as_deref()
-        .and_then(|raw| super::morning::Briefing::parse(raw).ok());
-    let slot = if briefing.is_some() {
-        at.date()
-            .and_hms_opt(8, 0, 0)
-            .expect("08:00 is a valid wall time")
-    } else {
-        at
-    };
-    let minute = slot.format("%Y-%m-%dT%H:%M").to_string();
+    let minute = at.format("%Y-%m-%dT%H:%M").to_string();
     let home = server.settings().home;
     let schedules = jeeves_state::Schedules::new(server.state_pool());
     let delivery = match job.delivery {
@@ -28,9 +16,6 @@ pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Resul
         Delivery::Quiet => "quiet",
     };
     schedules.ensure(&job.name, job.catch_up, delivery).await?;
-    if let Some(briefing) = briefing {
-        return super::morning::fire(server, job, briefing, at, &minute).await;
-    }
     if !schedules.claim_once(&job.name, &minute).await? {
         eprintln!(
             "(jeeves) schedule '{}' trigger retained or already handled; no new turn submitted",

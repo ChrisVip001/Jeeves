@@ -2,39 +2,31 @@
 
 English | [简体中文](composable-responsibilities.zh.md)
 
-An owner can describe a recurring private digest in chat, preview actual source items and activate it. A later message can change the time or sources, pause the duty or resume it. The card shows the assumed time, zone, destination and expiry. My Work lists the confirmed duties and their run history. [Runtime protocol](../protocol.md)
+Describe the schedule or event, the desired result and where it should appear. Jeeves proposes a card for the owner to review. A later request can amend, pause or resume the same duty. My Work shows the confirmed definition and run history. A new account starts with no recurring duties.
 
-## What the owner can compose
+## Compose a duty
 
-A private digest can read a configured calendar, unread mail and open Jeeves tasks. Calendar windows cover today, tomorrow, this week and next week in the agreed time zone. A list or a paragraph per source includes record identifiers. A required read that fails leaves a visible run for review. The model proposes supported fields. Rust validates them, binds the decision to one revision and produces the digest with deterministic reads. Source options, predicates, destination adapters and independently verifiable effects require engineering support. An arbitrary prose request cannot install a tool or enable a connector.
+A trigger can be an exact time, a delay after approval, an interval, a calendar schedule or an event from a signed source. Deterministic actions can render reminders and source summaries, verify saved evidence or test structured records. A record action can test the incoming event or have a timer check the latest signed record against a freshness limit. For example, ask Jeeves to tell you here when the latest available reading falls below a limit. The review card names the source, comparison, units or fields, and destination.
 
-The clock checks eligible minutes while the Runtime is running. The configured morning briefing retains its separate sleep and startup catch-up policy. A late or duplicate decision cannot modify a more recent revision. The local digest and its main-chat delivery record commit together. Every external weekly post still needs the connector's live checks, matching approval and receipt. [Execution and approvals](../protocol.md)
+A model draft can reference a reviewed version of an installed skill. A skill can supply reusable instructions. The owner separately enables the source and connector capabilities. Jeeves can compose those capabilities from a natural-language request. A new provider authentication flow, source protocol or external write needs a connector implementation. Adding a task from existing capabilities requires no engine change.
 
-## How the existing duties moved
+Local delivery can appear in the main chat or remain a private draft. An optional outbound adapter exposes its destination through the same catalog and uses the existing approval and receipt boundary. The built-in Feishu integration runs only when the owner enables it. Each external send needs approval for the exact content and destination, with the current revision and connector scope rechecked immediately before dispatch.
 
-| Duty | Clock and preserved evidence | How to operate it |
-| --- | --- | --- |
-| Weekly report | Migration 0008 transfers research task, recipient, slot, body, approval identity and saved outcome to the shared run ledger. Interrupted dispatch remains held for human review. | Review the verified draft, then approve the exact Feishu post. |
-| Morning briefing | Migration 0009 introduces clock ownership. An enabled briefing claims its local 08:00 slot and common wake together. Schedule completion and run settlement share a transaction. | Existing settings own the time zone and outbox or notification destination. Use a private digest for other times and source combinations. |
-| Price watch | Migration 0010 binds the responsibility to the original watch task. It retains quote evidence, shipping, currency, threshold revisions and the next observation time. The first qualifying observation commits with its chat delivery. | Select the watch in My Work and describe a new limit. A result returned while the limit was being changed cannot trigger the superseded terms. |
+## Execution and recovery
 
-## Reproducing the fourth request
+Timer and signed-event admission record one wake per occurrence. The timer admits at most one recent occurrence within a 15-minute catch-up window. Signed events advance the cursor and create wakes in one transaction. Repeating an event or timer slot adds no delivery. A revision change holds outstanding wakes for review. A lapsed execution lease or interruption leaves a review entry. Run history shows blocked, skipped, dispatched and interrupted occurrences. Previews perform read-only checks and do not advance clocks or event cursors. [Runtime protocol](../protocol.md)
 
-The acceptance input asks for next week's meetings and current unfinished tasks, in two sourced paragraphs in this chat every Friday afternoon. Its wording and the scripted model replies live in the test fixtures. No fourth task handler was added.
+## Existing duties after upgrade
 
-- Run `just smoke-recurring-work`. Chrome submits the request, previews it twice, activates it, changes it to Thursday with meetings only and pauses it. The fixture runs the same flow through the local gateway and a TLS gateway with a Go control plane. Both use disposable accounts, a loopback calendar, synthetic tasks and a controlled clock. Check the browser-visible history against SQLite. The duplicate Friday and superseded Friday produce no extra delivery. The next Thursday after pausing is silent. A differently worded request previews today's calendar as a list and can be dismissed.
-- In each fixture the duty is `planning-digest`. Revisions 1 and 2 produce two distinct confirmed occurrences in total, both delivered locally. Revision 3 is paused. The body cites the calendar UID and start time, and the first revision also cites the open task ID. The preview leaves the clock, grants and outbound receipts untouched. The fixture counts webhook attempts separately.
-- The [budgeted real-model conversation](../../evals/results/recurring-work-live.json) records the actual assistant replies, proposed definitions and simulated owner decisions. DeepSeek Flash proposed Friday at 15:00 in Shanghai, explicitly identified the assumed time, reduced the amended output to one calendar paragraph and requested confirmation to pause. This run measures interpretation. The browser fixtures measure delivery and restart behavior.
-- Run `just smoke-weekly-report`, `just eval-morning-briefing`, `just smoke-price-watch` and `just check` for the migrated duties and repository gates. The Feishu receiver and quote provider are local test services. Hosted routing was exercised on loopback with a development tenant binding. These checks use isolated state.
+| Stored duty | Upgrade behavior |
+| --- | --- |
+| Weekly research report | The verified evidence action retains its seven-day window and authorized URLs. The shared timer resolves the Runtime's local time zone. The saved recipient becomes a connector destination. Drafts and receipts remain available. |
+| Morning briefing | The previous clock time and source set are preserved in a proposed private digest. The duty is paused until the owner confirms the output, sources and destination, then resumes it. |
+| Price watch | The old monitor is paused. Quote observations, task history, threshold revisions and receipts remain. To resume, connect a structured source and confirm a new rule, including currency, product identity and shipping data where relevant. |
 
-## Composing a trigger with an action
+## Acceptance
 
-The owner can ask for an exact time, a delay after approval, an interval, a calendar schedule or an event from a signed connector. For example, a connector that publishes the sender and attachment media types can trigger a private chat reminder only when both fields match. Its rules and output fields become a reviewed definition. The Runtime can use the same record action for a different connector, fields or values. Event previews use the most recent sample available to the account. They never advance the source cursor or send a message.
-
-The registered action describes its inputs, review fields and effect. A deterministic action runs without a model. A bounded model draft can reference a version of an installed skill captured in the review. The host applies current source and connector policy on each occurrence, keeps the approved skill text fixed for that revision and meters model requests. Feishu posts continue to use an individually approved draft and a verified receipt.
-
-The timer and event paths both record a unique wake before execution. A timer resumes with at most one recent occurrence in a 15-minute catch-up window. A signed source advances its cursor together with its wakes, and duplicate events return an acknowledgement without another execution. An expired lease or an interrupted dispatch becomes a review entry. Morning and price watches retain their compatibility clocks and source-specific delivery receipts, and prepare their results in the common worker. The hosted development smoke exercises account-to-Runtime routing and signed event ingress on loopback.
-
-- Use `just smoke-recurring-work --case event` to reproduce the expense-mail acceptance. A sender mismatch and a MIME-type mismatch are skipped. The matching event delivers one private chat message with the original source reference. A duplicate before and after restart and a new event after pausing add no deliveries. The fixture checks zero model requests while processing events and zero outbound messages.
-- The [real-model acceptance](../../evals/results/recurring-event-live.json) records the model choosing the configured event source, converting PDF to the MIME value and producing a pending review. The fixture used synthetic mail metadata.
-- See [inbound webhooks](../configuration.md) for operator configuration of a signed event adapter.
+- `just smoke-recurring-work` uses disposable Web accounts and a scripted model. It creates, previews, amends and pauses a calendar/task digest. Its separate expense-mail case configures a signed source, matches a finance sender and a PDF attachment, then delivers one sourced notification. Mismatches, replay across restart and an event after pause add no delivery. The event worker uses zero model requests.
+- `just eval-morning-briefing` and `just smoke-price-watch` upgrade a v14 database and inspect paused duties and retained history across restarts. The latter also exercises a numeric predicate against a recent signed record on the shared timer.
+- `just smoke-weekly-report` covers the legacy registration entry point, exact-content approval, a loopback Feishu receiver, budget checks and crash reconciliation.
+- The [real-model expense-mail acceptance](../../evals/results/recurring-event-live.json) records the natural-language tool proposal with synthetic mail metadata. [Configure an inbound event source](../configuration.md)

@@ -96,8 +96,8 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 |---|---|
 | [docs/guide.md](docs/guide.md) | getting started: install, wizard, models, permissions, chat gateways, skills |
 | [docs/architecture.md](docs/architecture.md) | deployment topology, module responsibilities, dependencies and turn lifecycle |
-| [Recurring work](docs/design/composable-responsibilities.md) | Chat review, migration of the three original duties and end-to-end acceptance |
-| [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, session list and detail responses, chat-created recurring duties, revisions and activation and sourced Feishu weekly reports, notifications and error codes |
+| [Recurring work](docs/design/composable-responsibilities.md) | Chat review, configurable triggers and actions, and migration |
+| [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, session list and detail responses, recurring duties and delivery approvals, notifications and error codes |
 | [docs/configuration.md](docs/configuration.md) | runtime settings, model key rotation and recovery, and every `JEEVES_*` variable |
 | [docs/operations.md](docs/operations.md) | deployment modes, backups, legacy database migration rehearsals and troubleshooting |
 | [docs/limitations.md](docs/limitations.md) | known boundaries, each with the file to open next |

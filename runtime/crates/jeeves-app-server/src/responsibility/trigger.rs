@@ -92,7 +92,8 @@ pub(super) fn anchor(trigger: &mut Trigger, now: DateTime<Utc>) -> Result<()> {
 }
 
 fn next_cron(expression: &str, zone: Tz, after: DateTime<Utc>) -> Result<Option<i64>> {
-    let mut wall = after.with_timezone(&zone).naive_local();
+    let minute = utc(after.timestamp_millis().div_euclid(60_000) * 60_000)?;
+    let mut wall = minute.with_timezone(&zone).naive_local();
     for _ in 0..180 {
         let Some(candidate) = jeeves_agent::cron::next_after(expression, wall) else {
             return Ok(None);
@@ -221,7 +222,54 @@ pub(super) fn describe(trigger: &Trigger) -> String {
     }
 }
 
+pub(super) fn local_zone() -> Result<Tz> {
+    Ok(match jeeves_config::time_zone_override() {
+        Some(zone) => zone.parse()?,
+        None => iana_time_zone::get_timezone()?.parse()?,
+    })
+}
+
+async fn initialize_imported_clock(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
+    let rows: Vec<(String, i32, String, Option<i64>)> = sqlx::query_as(
+        "SELECT id,revision,plan_json,last_slot FROM responsibilities WHERE status='active' AND next_due_ms=0
+         AND expires_ms>? ORDER BY id LIMIT 64",
+    )
+    .bind(now.timestamp_millis())
+    .fetch_all(&server.pool)
+    .await?;
+    for (id, revision, json, last_slot) in rows {
+        let mut plan: ResponsibilityPlan =
+            serde_json::from_str(&json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        let Trigger::Cron { time_zone, .. } = &mut plan.trigger else {
+            continue;
+        };
+        let zone = local_zone();
+        let zone = match zone {
+            Ok(zone) => zone,
+            Err(error) => {
+                let reason = format!("Confirm the schedule time zone before resuming: {error}");
+                sqlx::query("UPDATE responsibilities SET status='paused',migration_note=?,revision=revision+1,next_due_ms=NULL WHERE id=? AND revision=? AND status='active' AND next_due_ms=0")
+                    .bind(&reason).bind(&id).bind(revision).execute(&server.pool).await?;
+                eprintln!("(jeeves) responsibility {id} paused: {reason}");
+                continue;
+            }
+        };
+        *time_zone = zone.to_string();
+        let after = last_slot
+            .and_then(|slot| slot.checked_mul(60_000))
+            .and_then(DateTime::from_timestamp_millis)
+            .map_or(now, |last| now.max(last));
+        let due = first(&plan.trigger, after).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        sqlx::query("UPDATE responsibilities SET next_due_ms=?,plan_json=? WHERE id=? AND revision=? AND status='active' AND next_due_ms=0")
+            .bind(due).bind(serde_json::to_string(&plan).map_err(|e| sqlx::Error::Decode(Box::new(e)))?)
+            .bind(&id).bind(revision).execute(&server.pool).await?;
+        eprintln!("(jeeves) responsibility {id} moved to the shared timer in {zone}");
+    }
+    Ok(())
+}
+
 pub(super) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
+    initialize_imported_clock(server, now).await?;
     let ms = now.timestamp_millis();
     let rows: Vec<(String, i32, i64, String, i64)> = sqlx::query_as(
         "SELECT id, revision, next_due_ms, plan_json, enabled_ms FROM responsibilities

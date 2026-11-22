@@ -170,8 +170,7 @@ and reads optional `schedule` (a cron line; the scheduler turns skills that have
 - Directories: `<home>/skills` plus `JEEVES_SKILL_DIRS` (path-separated). `loaded_skills` (used by export
   and the CLI listing) inserts the home directory last so a local skill wins on a name clash, and skips `_incoming`
   and a `SKILL.md` directly in a root.
-- Starter skills: `seed_default_skills` (called at runtime start) writes `morning-briefing`, `weekly-review`,
-  `summarize-document`, `tidy-folder` (from `jeeves-memory/default-skills/`) unless `<home>/skills/.seeded` exists,
+- Starter skills: `seed_default_skills` (called at runtime start) writes `summarize-document`, `tidy-folder` (from `jeeves-memory/default-skills/`) unless `<home>/skills/.seeded` exists,
   skipping any name already present, then writes the marker.
 - Hot reload: `SkillLoader` compares the modification times of every `SKILL.md` before each use and rescans on change.
 - Triggering (`match_message`): lowercase tokens are ASCII alphanumeric runs of length 3 or more, plus adjacent

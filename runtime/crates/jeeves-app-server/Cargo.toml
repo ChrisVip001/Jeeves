@@ -20,6 +20,7 @@ anyhow = { workspace = true }
 fs2 = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = "=0.10.4"
+iana-time-zone = "0.1"
 jeeves-agent = { workspace = true }
 jeeves-config = { workspace = true }
 jeeves-loop = { workspace = true }

@@ -24,6 +24,11 @@ fn env(name: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
+/// An optional process-level IANA time zone override for importing host-local schedules.
+pub fn time_zone_override() -> Option<String> {
+    env("TZ")
+}
+
 fn env_bool(name: &str) -> bool {
     matches!(env(name).as_deref(), Some("1") | Some("true") | Some("yes"))
 }
@@ -339,8 +344,6 @@ pub struct Settings {
     /// notifications to its webhooks (approval requests / job completion / blocked goals).
     /// Off by default — sending data to external services is a decision pressed by hand.
     pub notify_enabled: bool,
-    /// `JEEVES_MORNING_BRIEFING`: opt-in channel and IANA timezone, e.g. outbox@Asia/Shanghai.
-    pub morning_briefing: Option<String>,
 
     /// `JEEVES_DELEGATE`: only when enabled is `delegate_task` registered in the tool table.
     /// Off by default — "hand the work off and let it run" is capability as well as risk
@@ -423,7 +426,6 @@ impl Default for Settings {
             ops_token: None,
             dispatchers: Vec::new(),
             notify_enabled: false,
-            morning_briefing: None,
             delegate_enabled: false,
             tool_result_total_chars: 200_000,
             tool_result_max_chars: 30_000,
@@ -497,7 +499,6 @@ impl Settings {
                 })
                 .unwrap_or_default(),
             notify_enabled: env_bool("JEEVES_NOTIFY"),
-            morning_briefing: env("JEEVES_MORNING_BRIEFING"),
             delegate_enabled: env_bool("JEEVES_DELEGATE"),
             tool_result_total_chars: env_int(
                 "JEEVES_TOOL_RESULT_TOTAL_CHARS",

@@ -78,9 +78,9 @@ before the response). Every type is defined in
 | `model/routes` | — → `ModelRoutesResponse` | the routing table: `fixed` / `auto` plus three "tier → profile id" rows (an unconfigured tier is `null`) |
 | `model/routes/save` | `ModelRoutesSaveParams` → `ModelRoutesResponse` | replace the whole table; tier names and profile ids are validated before writing |
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | the usage ledger: per-model aggregates + totals. **Accounting only, no enforcement** |
-| `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | last 50 reports, delivery states and live approval cards |
+| `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | last 50 occurrences, delivery states and live approval cards |
 | `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | validate and normalize the proposed definition for review |
-| `responsibility/sample` | `ResponsibilityContract` → string | preview a private sourced digest using the current local calendar date |
+| `responsibility/sample` | `ResponsibilityContract` → string | run a read-only preview for the proposed definition |
 | `responsibility/amend` | `ResponsibilityAmendParams` → `ResponsibilityView` | replace a duty at its expected revision and hold outstanding wakes for review |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | human registration of a recurring duty |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | list contracts, stop state and last due minute |
@@ -388,13 +388,12 @@ New shells call `session/capabilities` once at connection time. `protocolVersion
 
 ## Main human interaction
 
-A monitored quote comes from a successful configured read-only tool call in the private conversation. Its JSON result supplies `url`, `model`, `spec`, `currency`, `price` and `shipping`. Monetary values are nonnegative numbers with up to two decimal places. A null shipping cost leaves the delivered total unknown.
 
 `session/main` (null params) idempotently opens `jeeves-main`, returning `SessionNewResponse`; only first creation initializes standard permissions. `interaction/start` accepts generated `InteractionStartParams`: `sessionId`, stable `messageId`, human `message`, optional `taskId`, `cwd`, and image `attachments`. It returns `TurnStartResponse` with normal notifications. Web uses authenticated `GET /api/session/main` and `POST /api/interaction` (SSE). The dashboard and gateway HTTP client read multi-line SSE events across network chunks and accept LF, CRLF, and CR line endings.
 
 Clients can call `session/main` to recover the main conversation ID when a session lookup fails.
 
-The main model answers discussions and asks for clarification in the conversation. Its interaction-scoped `task` tool can create a batch of up to four independent assignments or continue an owned task. Both operations require literal spans of the current human message. A span used for a follow-up cannot also create another task in the same interaction. New tasks carry document references and bounded main-conversation context. An explicit `taskId` selects an owned task. For a price watch this limits the interaction to reading its status, changing its threshold or cancelling it. Pending follow-ups append; running ones steer at the next model boundary. Completed unchecked single-turn tasks reopen in the same workspace/context with a new run; other states require existing resume/reconciliation. New images for pending/running tasks are refused.
+The main model answers discussions and asks for clarification in the conversation. Its interaction-scoped `task` tool can create a batch of up to four independent assignments or continue an owned task. Both operations require literal spans of the current human message. A span used for a follow-up cannot also create another task in the same interaction. New tasks carry document references and bounded main-conversation context. An explicit `taskId` selects an owned task. Pending follow-ups append; running ones steer at the next model boundary. Completed unchecked single-turn tasks reopen in the same workspace/context with a new run; other states require existing resume/reconciliation. New images for pending/running tasks are refused.
 
 A task counts cumulative token, tool and elapsed-time usage at execution boundaries. Recovery leaves a legacy checkpoint suspended for review when its task owns the turn but its run identity is missing. Ordinary chat checkpoints with recorded tool results can still resume.
 
@@ -487,16 +486,8 @@ The authenticated cockpit can post a proposed contract to `/api/responsibilities
 
 The human cockpit can register a duty with `POST /api/responsibilities`, inspect it with `GET /api/responsibilities`, and send `{"id":"weekly","paused":true}` to `POST /api/responsibilities/pause`. These endpoints use the cockpit’s normal access controls. Models and chat gateways have no registration or pause method.
 
-Registration requires a unique schedule-style ID, a purpose, named evidence sources, a five-field cron expression in the Runtime host’s local time, a future RFC 3339 expiry and at least one positive task budget limit (`tokens`, `tools` or `wallMs`). The contract is immutable. A source name identifies evidence and confers no connector permission.
+Registration requires a unique ID, a purpose, a future RFC 3339 expiry and at least one positive budget limit (`tokens`, `tools` or `wallMs`). A composable definition supplies `plan.trigger`, `plan.action` and `plan.delivery`. Read the versioned action schema from the `recurring_work` catalog. The Runtime returns a review `presentation` and validates the definition at confirmation and execution. The legacy digest and report fields remain accepted at the compatibility boundary. Sources identify evidence. Connector operations need independent authorization. An imported duty that needs revision returns `migrationNote`. [Execution and compatibility](design/composable-responsibilities.md)
 
-While active, a matching scheduler tick records a pending wake and its UTC minute in a single database transaction. Another tick or restart cannot claim that minute twice. Minutes missed while the Runtime was offline are skipped. Pausing or reaching the expiry moves outstanding wakes to reconciliation and reports the stop once per transition. Resume permits future ticks until expiry. A generic responsibility only records due work.
+### External delivery
 
-A composable definition can supply `plan.trigger`, `plan.action`, and `plan.delivery`. Use the versioned action schema from `recurring_work` capabilities. The Runtime returns a `presentation` for the Web review and revalidates it at confirmation and execution. The existing digest and weekly fields remain readable on legacy requests. Run history can return `blocked` or `skipped` with a reason. A connector event uses the signed webhook and can be redelivered with the same event ID. [Usage and compatibility](design/composable-responsibilities.md)
-
-For a private digest, select distinct `calendar`, `openTasks` or `unreadMail` sources and set `digest.timeZone`, `calendarWindow` (today, tomorrow, thisWeek or nextWeek) and `layout` (paragraphs or list). Each source becomes a section. The owner can sample the definition at `POST /api/responsibilities/sample`. A scheduled run records its main-chat message and delivery in the same transaction.
-
-### Feishu weekly reports
-
-Set `weeklyReport: {"taskId":"…","recipient":"oc_…"}` on registration and list the research task’s exact allowed HTTP(S) URLs in `sources`. For example, `0 9 * * 1` runs Mondays at 09:00 in the Runtime host’s local time. The task workspace supplies `claims.json` and snapshots saved by `fetch_url`. Each run quotes excerpts checked against their URL, digest and snapshot from the seven days preceding its firing. Missing, stale or mismatched evidence leaves the run for review.
-
-Read the body, approval card and outcome with `GET /api/responsibilities/reports?id=<duty-id>`. Budgets apply per firing. Evidence verification counts as one tool operation and an approved send attempt as one more. No model tokens are consumed. Wall time includes the approval wait. The default is a local draft. Live delivery requires the enabled Feishu connector, an allowlisted recipient and `JEEVES_APPROVAL=on-request`. Answer the existing `approval/respond` card bound to the account, recipient and content digest. Delivery is confirmed only by reading back the same message ID. Interrupted attempts, unknown outcomes and changed scopes stop for review without automatic replay.
+Use `{ "kind": "connector", "connector": "feishu", "recipient": "oc_…" }` for an enabled destination. Retrieve the body, approval and outcome from `/api/responsibilities/reports?id=<duty-id>`. An approval binds the account, recipient and content. The engine rechecks the revision and scope immediately before sending. The Feishu adapter confirms delivery by reading back the same message ID. Interrupted sends and unknown outcomes go to human review.

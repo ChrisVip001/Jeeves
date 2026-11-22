@@ -1293,6 +1293,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "fs2",
+ "iana-time-zone",
  "jeeves-agent",
  "jeeves-config",
  "jeeves-connector",

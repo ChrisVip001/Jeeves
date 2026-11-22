@@ -219,10 +219,11 @@ smoke-interaction *args: gateway-build
     cd {{ root }} && cargo build --bin jeeves
     {{ python }} {{ justfile_directory() }}/scripts/smoke-interaction.py {{args}}
 
-# Sourced comparison to a restart-safe watch, with a mobile threshold amendment.
-smoke-price-watch *args: gateway-build
-    cd {{ root }} && cargo build --bin jeeves
+# Legacy monitor cutover and a reusable numeric predicate on a scheduled source record.
+smoke-price-watch *args:
+    cd {{ root }} && cargo build -p jeeves-cli
     {{ python }} {{ justfile_directory() }}/scripts/smoke-price-watch.py {{args}}
+    cd {{ root }} && cargo test -p jeeves-app-server scheduled_records_check_the_latest_signed_observation
 
 # One npm workspace owns both the Web cockpit and the desktop UI.
 desktop-install:
@@ -375,9 +376,10 @@ smoke-business: build
 release-package *args:
     {{ python }} {{ justfile_directory() }}/scripts/package-release.py build {{ args }}
 
-# Fake-clock, sourced-output and one-shot delivery fixtures for the resident morning duty.
+# An upgraded morning schedule retains its time zone and artifacts until the owner reviews it.
 eval-morning-briefing:
-    cd {{ root }} && cargo test -p jeeves-app-server scheduler::morning::tests
+    cd {{ root }} && cargo build -p jeeves-cli
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-price-watch.py --case morning
 
 # Advance a controlled clock over persisted responsibility contracts and reopen the same database.
 eval-responsibility:

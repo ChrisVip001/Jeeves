@@ -102,15 +102,7 @@ fn tokens(text: &str) -> Vec<String> {
 }
 
 /// The starter pack: a few useful skills every new home gets once.
-const DEFAULT_SKILLS: [(&str, &str); 4] = [
-    (
-        "morning-briefing",
-        include_str!("../default-skills/morning-briefing/SKILL.md"),
-    ),
-    (
-        "weekly-review",
-        include_str!("../default-skills/weekly-review/SKILL.md"),
-    ),
+const DEFAULT_SKILLS: [(&str, &str); 2] = [
     (
         "summarize-document",
         include_str!("../default-skills/summarize-document/SKILL.md"),

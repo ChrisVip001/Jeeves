@@ -76,9 +76,9 @@
 | `model/routes` | — → `ModelRoutesResponse` | 路由表：`fixed` / `auto` + 三行「档位 → 配置 id」（没配的档位是 `null`，表示跟随缺省链） |
 | `model/routes/save` | `ModelRoutesSaveParams` → `ModelRoutesResponse` | 整表替换；档位名与 profile id 都在写入前校验，拼错直接报错 |
 | `usage/summary` | `UsageSummaryParams` → `UsageSummaryResponse` | 用量台账：per-model 聚合 + 总数。**只记账不强制** —— 没有配额、没有限速 |
-| `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | 最近 50 次周报、投递状态和待答审批 |
+| `responsibility/reports` | `ResponsibilityReportsParams` → `ResponsibilityReportsResponse` | 最近 50 次执行、投递状态和待答审批 |
 | `responsibility/prepare` | `ResponsibilityContract` → `ResponsibilityContract` | 校验并规范化待核对的委托定义 |
-| `responsibility/sample` | `ResponsibilityContract` → string | 按当前当地日期预览带来源的私人摘要 |
+| `responsibility/sample` | `ResponsibilityContract` → string | 只读预览待确认的委托 |
 | `responsibility/amend` | `ResponsibilityAmendParams` → `ResponsibilityView` | 按期望版本修改委托，未结唤醒转入核对 |
 | `responsibility/register` | `ResponsibilityContract` → `ResponsibilityView` | 由人登记周期性责任 |
 | `responsibility/list` | `{}` → `ResponsibilityListResponse` | 列出契约、状态与上次认领的分钟 |
@@ -357,7 +357,6 @@ SHA-256 一致；助手文本或不匹配的引文被拒绝。到期时间从原
 
 ## 主交互入口
 
-可持续监测的报价来自私人对话中已成功执行的只读工具。其 JSON 结果提供 `url`、`model`、`spec`、`currency`、`price` 和 `shipping`。金额为最多两位小数的非负数，运费为 null 时，到手价仍待确认。
 
 `session/main`（无参数）幂等打开 `jeeves-main`，返回 `SessionNewResponse`；仅首次创建初始化标准权限。`interaction/start` 使用生成的 `InteractionStartParams`：`sessionId`、稳定 `messageId`、人的 `message`，可选 `taskId`、`cwd`、图片 `attachments`。返回 `TurnStartResponse` 与既有通知。Web 对应鉴权的 `GET /api/session/main` 与 `POST /api/interaction`（SSE）。驾驶舱和网关 HTTP 客户端支持跨网络分块的多行 SSE 事件，兼容 LF、CRLF 和 CR 换行。
 
@@ -451,16 +450,8 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 
 人可以通过 `POST /api/responsibilities` 登记，通过 `GET /api/responsibilities` 查询，向 `POST /api/responsibilities/pause` 发送 `{"id":"weekly","paused":true}` 暂停。接口沿用控制台的访问控制。模型和聊天网关没有登记或暂停权限。
 
-登记需要唯一的调度标识、目的、具名证据来源、按运行时主机本地时间解释的五段 cron、未来的 RFC 3339 截止时间，以及至少一项正数任务预算（`tokens`、`tools` 或 `wallMs`）。登记后契约不可覆盖。来源名称只标识证据，连接器操作仍需独立授权。
+登记需要唯一标识、目的、未来的 RFC 3339 截止时间，以及至少一项正数预算（`tokens`、`tools` 或 `wallMs`）。可组合的定义包含 `plan.trigger`、`plan.action` 和 `plan.delivery`。通过 `recurring_work` 的能力目录获取对应版本的动作参数。Runtime 返回可审阅的 `presentation`，确认和执行时重新校验。历史摘要和周报字段仍可用于兼容入口。来源只标识证据，连接器操作须单独授权。需要修改迁移定义的委托会返回 `migrationNote`。[执行与兼容说明](design/composable-responsibilities.zh.md)
 
-调度器在有效时段匹配到 cron 时，用同一数据库事务记录待处理唤醒及其 UTC 分钟。重复轮询和重启都只能认领该分钟一次。停机期间错过的分钟不会补跑。暂停或到期会把待处理唤醒转入对账，并在每次状态转变时报告一次停止原因。恢复后，截止时间前的后续轮询可以继续认领。普通责任只记录到点工作。
+### 外部投递
 
-可组合的委托定义包含 `plan.trigger`、`plan.action` 和 `plan.delivery`。通过 `recurring_work` 的能力目录获取对应版本的动作参数。Runtime 返回供 Web 核对的 `presentation`，在确认和执行时重新检查条件。既有摘要和周报请求字段仍可读取。运行记录可以返回 `blocked` 或 `skipped` 及原因。签名 webhook 接收连接器事件，重复投递使用同一事件 ID。[使用和兼容说明](design/composable-responsibilities.zh.md)
-
-私人摘要可组合 `calendar`、`openTasks`、`unreadMail`，每种来源生成一段或一个列表。填写 `digest.timeZone`、`calendarWindow`（today、tomorrow、thisWeek、nextWeek）和 `layout`（paragraphs、list）。所有者通过 `POST /api/responsibilities/sample` 读取样例。正式执行在同一事务写入主聊天消息和送达记录。
-
-### 飞书周报
-
-登记责任时可设置 `weeklyReport: {"taskId":"…","recipient":"oc_…"}`，在 `sources` 中写入研究任务允许使用的完整 HTTP(S) URL。例如 `0 9 * * 1` 在主机本地时间每周一 09:00 触发。任务工作区需要有 `claims.json` 和 `fetch_url` 保存的来源快照。每次周报只引用触发前七天内经 URL、摘要和原文核对的摘录。来源缺失、过期或不符会留下待检查记录。
-
-通过 `GET /api/responsibilities/reports?id=<责任标识>` 查看正文、审批和投递结果。每次触发独立计算预算，研究核对计一次工具操作，批准后的发送尝试再计一次，模型 token 消耗为零。墙钟预算包含等待审批。默认生成本地草稿；实际发送需开启飞书 live、收件人位于允许名单且 `JEEVES_APPROVAL=on-request`。用已有的 `approval/respond` 回答绑定账号、收件人和正文摘要的问题。只有回读确认相同消息 ID 才算送达。中断、回执未知或范围变化都会停止该次投递，保留记录供人工对账。
+用 `{ "kind": "connector", "connector": "feishu", "recipient": "oc_…" }` 选择已启用的目的地。通过 `/api/responsibilities/reports?id=<委托标识>` 查看正文、审批及结果。批准绑定账号、收件人和正文，最终发送之前会重新检查权限与版本。飞书连接器回读相同消息 ID 后才确认送达。中断或结果未知的投递进入人工核对。

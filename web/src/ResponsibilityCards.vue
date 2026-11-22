@@ -41,9 +41,6 @@ function cadence(cron:string){
   return [phrase("分钟","Minute"),phrase("小时","Hour"),phrase("日期","Day"),phrase("月","Month"),phrase("星期","Weekday")].map((k,i)=>k+" "+(cron.split(/\s+/)[i]??"").replaceAll("*",phrase("每个","every"))).join(" · ");
 }
 function describe(c:ResponsibilityContract) {
-  const owner=duties.value.find(d=>d.contract.id===c.id)?.clock;
-  if (owner==="priceWatch") return [phrase("每小时检查，首次低于上限时在主聊天提醒","Check hourly and alert in main chat on the first price below the limit"), ...c.sources].join(" · ");
-  if (owner==="morning") return [cadence(c.cron),phrase("使用晨报设置中的时区和投递位置","Uses the time zone and destination in briefing settings")].join(" · ");
   const labels:Record<string,string>={calendar:phrase("日历","Calendar"),openTasks:phrase("未完成事项","Open tasks"),unreadMail:phrase("未读邮件","Unread mail"),today:phrase("今天","Today"),tomorrow:phrase("明天","Tomorrow"),thisWeek:phrase("本周","This week"),nextWeek:phrase("下周","Next week")};
   return [cadence(c.cron), c.digest?.timeZone ?? phrase("主机当地时间","Runtime local time"),
     c.sources.map(s=>labels[s]??s).join("、"), c.digest && c.sources.includes("calendar")?labels[c.digest.calendarWindow]:null,
@@ -82,6 +79,7 @@ async function inspect(id:string) {
       <article v-for="d in duties" :key="d.contract.id">
         <strong>{{ d.contract.purpose }}</strong>
         <p>{{ d.presentation ? [d.presentation.trigger, d.presentation.action, d.presentation.delivery, d.presentation.blocked].filter(Boolean).join(" · ") : describe(d.contract) }} · {{ d.status==='active'?phrase("已启用","Active"):d.status==='paused'?phrase("已暂停","Paused"):phrase("已到期","Expired") }}</p>
+        <p v-if="d.migrationNote" role="status">{{ d.migrationNote }}</p>
         <button :disabled="working" @click="act(()=>inspect(d.contract.id))">{{ phrase("运行记录","Run history") }}</button>
         <pre v-if="samples[d.contract.id]">{{ samples[d.contract.id] }}</pre>
       </article>

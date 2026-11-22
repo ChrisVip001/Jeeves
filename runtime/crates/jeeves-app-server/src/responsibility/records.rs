@@ -1,7 +1,7 @@
 //! Evaluate owner-reviewed predicates over structured records without model calls.
 use super::{
     action::{Adapter, Output},
-    trigger,
+    events, trigger,
 };
 use anyhow::{ensure, Context, Result};
 use serde::Deserialize;
@@ -13,6 +13,24 @@ struct Conditions {
     all: Vec<Predicate>,
     include: Vec<String>,
     message: String,
+    snapshot: Option<Snapshot>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Snapshot {
+    source: String,
+    event_type: String,
+    max_age_seconds: u32,
+}
+
+impl Snapshot {
+    fn trigger(&self) -> jeeves_protocol::ResponsibilityTrigger {
+        jeeves_protocol::ResponsibilityTrigger::Event {
+            source: self.source.clone(),
+            event_type: self.event_type.clone(),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -63,6 +81,14 @@ fn config(value: &Value) -> Result<Conditions> {
         };
         ensure!(valid, "Invalid comparison value for {}", filter.field);
     }
+    if let Some(source) = &config.snapshot {
+        ensure!(
+            trigger::slug(&source.source)
+                && trigger::slug(&source.event_type)
+                && (60..=86_400).contains(&source.max_age_seconds),
+            "Choose a configured source and a freshness limit from 60 seconds to one day"
+        );
+    }
     Ok(config)
 }
 
@@ -96,12 +122,23 @@ pub(super) const ADAPTER: Adapter = Adapter {
     kind: "records.evaluate",
     label: "Check conditions on source records",
     uses_model: false,
-    internal: false,
-    settle: None,
-    check_source: Some(|value, fields| {
-        use super::events::Field;
-        let fields = fields.context("Choose an event source for this record action")?;
+    initial_tools: 0,
+    check_source: Some(|server, value, fields| {
+        use events::Field;
         let config = config(value)?;
+        let snapshot_fields = match &config.snapshot {
+            Some(source) => {
+                ensure!(
+                    fields.is_none(),
+                    "Use the incoming event or a scheduled snapshot"
+                );
+                events::preflight(server, &source.trigger())?
+            }
+            None => None,
+        };
+        let fields = fields
+            .or(snapshot_fields.as_ref())
+            .context("Choose a signed event source for this record action")?;
         for rule in config.all {
             let field = fields
                 .get(&rule.field)
@@ -147,13 +184,20 @@ pub(super) const ADAPTER: Adapter = Adapter {
                     "properties":{"field":{"type":"string"},"op":{"enum":["eq","in","contains","lt","gt"]},"value":{"description":"Literal comparison value in the source field format. Arrays for in; a scalar for contains."}}
                 }},
                 "include":{"type":"array","maxItems":8,"items":{"type":"string"}},
-                "message":{"type":"string","description":"Literal introduction. The selected include fields are added separately; do not use placeholders."}
+                "message":{"type":"string","description":"Literal introduction. The selected include fields are added separately; do not use placeholders."},
+                "snapshot":{"type":"object","description":"Use with a timer to check the latest signed record from an enabled event source.","required":["source","eventType","maxAgeSeconds"],"additionalProperties":false,"properties":{"source":{"type":"string"},"eventType":{"type":"string"},"maxAgeSeconds":{"type":"integer","minimum":60,"maximum":86400}}}
             }
         })
     },
     describe: |value| {
         let config = config(value)?;
         let mut details = vec![config.message];
+        if let Some(source) = config.snapshot {
+            details.push(format!(
+                "Latest {} / {} within {} seconds",
+                source.source, source.event_type, source.max_age_seconds
+            ));
+        }
         for filter in config.all {
             let operation = match filter.op {
                 Operator::Eq => "equals",
@@ -173,11 +217,30 @@ pub(super) const ADAPTER: Adapter = Adapter {
     run: |input, value| {
         Box::pin(async move {
             let config = config(value)?;
-            let record: Value = serde_json::from_str(
-                input
-                    .event
-                    .context("No source record was attached to the occurrence")?,
-            )?;
+            let (record, reference) = if let Some(source) = config.snapshot {
+                let (record, event_id) = events::latest(
+                    input.server,
+                    &source.source,
+                    &source.event_type,
+                    source.max_age_seconds,
+                )
+                .await?
+                .context("No record within the reviewed freshness limit")?;
+                let reference = format!("{}/{}", source.source, source.event_type);
+                (
+                    record,
+                    event_id.map_or_else(|| reference.clone(), |id| format!("{reference}/{id}")),
+                )
+            } else {
+                (
+                    input
+                        .event
+                        .context("No source record was attached to the occurrence")?
+                        .to_owned(),
+                    input.wake_key.to_owned(),
+                )
+            };
+            let record: Value = serde_json::from_str(&record)?;
             let checks = config
                 .all
                 .iter()
@@ -198,12 +261,12 @@ pub(super) const ADAPTER: Adapter = Adapter {
                     body.push_str(&format!(
                         "\n{}: {}",
                         field,
-                        crate::scheduler::morning::plain(&text, 512)
+                        super::digest::plain(&text, 512)
                     ));
                 }
             }
-            if !input.wake_key.is_empty() {
-                body.push_str(&format!("\nSource: {}", input.wake_key));
+            if !reference.is_empty() {
+                body.push_str(&format!("\nSource: {reference}"));
             }
             Ok(Output {
                 body: Some(body),

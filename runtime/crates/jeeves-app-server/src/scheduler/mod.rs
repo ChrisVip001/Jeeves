@@ -39,11 +39,10 @@ use std::time::Duration;
 
 use crate::Server;
 use anyhow::Result;
-use chrono::{Local, NaiveDateTime, Timelike, Utc};
+use chrono::{Local, NaiveDateTime, Utc};
 
 mod fire;
 pub mod gap;
-pub(crate) mod morning;
 use fire::fire;
 
 /// Where output is delivered.
@@ -221,17 +220,7 @@ pub async fn run(server: Server) -> Result<()> {
         Err(why) => eprintln!("(jeeves) {why}"),
     }
     let pool = server.state_pool();
-    let briefing =
-        server.settings().morning_briefing.as_deref().and_then(
-            |raw| match morning::Briefing::parse(raw) {
-                Ok(briefing) => Some(briefing),
-                Err(error) => {
-                    eprintln!("(jeeves) morning briefing disabled: {error}");
-                    None
-                }
-            },
-        );
-    let initial = runtime_jobs(&home, &pool, briefing).await;
+    let initial = load_jobs(&home, &pool).await;
     if initial.is_empty() {
         eprintln!(
             "(jeeves) no scheduled jobs. Add a `schedule: 0 8 * * 1-5` line to a SKILL.md frontmatter, \
@@ -246,10 +235,7 @@ pub async fn run(server: Server) -> Result<()> {
     crate::wake::reconcile_unsettled_schedules(&server).await;
     let startup = Utc::now();
     for job in initial {
-        let zone = briefing
-            .filter(|_| job.name == morning::NAME)
-            .map(|briefing| briefing.zone);
-        let now0 = morning::wall(startup, zone);
+        let now0 = startup.with_timezone(&chrono::Local).naive_local();
         let delivery = match job.delivery {
             Delivery::Outbox => "outbox",
             Delivery::Notify => "notify",
@@ -295,12 +281,6 @@ pub async fn run(server: Server) -> Result<()> {
                 .then(|| last_missed(&job, from, now0))
                 .flatten()
             {
-                if zone.is_some() && missed.date() != now0.date() {
-                    eprintln!(
-                        "(jeeves) no catch-up for a morning briefing from a prior local date"
-                    );
-                    continue;
-                }
                 eprintln!(
                     "(jeeves) job '{}' missed its {} trigger; catching up now",
                     job.name,
@@ -333,55 +313,11 @@ pub async fn run(server: Server) -> Result<()> {
         if let Err(error) = crate::responsibility::tick(&server, now).await {
             eprintln!("(jeeves) responsibility clock: {error}");
         }
-        if let Err(error) =
-            crate::responsibility::price::tick(&server, now.timestamp_millis()).await
-        {
-            eprintln!("(jeeves) price watch clock: {error}");
-        }
-        let jobs = runtime_jobs(&home, &pool, briefing).await;
-        let (briefs, ordinary): (Vec<_>, Vec<_>) = jobs
-            .into_iter()
-            .partition(|job| briefing.is_some() && job.name == morning::NAME);
-        tick(&server, &ordinary, last_tick, now, None, &mut fired).await;
-        if let Some(briefing) = briefing {
-            tick(
-                &server,
-                &briefs,
-                last_tick,
-                now,
-                Some(briefing.zone),
-                &mut fired,
-            )
-            .await;
-        }
+        let jobs = load_jobs(&home, &pool).await;
+        tick(&server, &jobs, last_tick, now, &mut fired).await;
         last_tick = now;
         tokio::time::sleep(Duration::from_secs(20)).await;
     }
-}
-
-/// The built-in duty is opt-in via boot settings, never activated by a model-authored job.
-async fn runtime_jobs(
-    home: &Path,
-    pool: &sqlx::SqlitePool,
-    briefing: Option<morning::Briefing>,
-) -> Vec<Job> {
-    let mut jobs = load_jobs(home, pool).await;
-    if let Some(briefing) = briefing {
-        jobs.retain(|job| job.name != morning::NAME);
-        let bound = async {
-            let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-            let active = morning::occurrence::bind(&mut tx, briefing).await?;
-            tx.commit().await?;
-            anyhow::Ok(active)
-        }
-        .await;
-        match bound {
-            Ok(true) => jobs.push(briefing.job()),
-            Ok(false) => {}
-            Err(error) => eprintln!("(jeeves) morning briefing unavailable: {error}"),
-        }
-    }
-    jobs
 }
 
 async fn tick(
@@ -389,21 +325,11 @@ async fn tick(
     jobs: &[Job],
     last_tick: chrono::DateTime<Utc>,
     now: chrono::DateTime<Utc>,
-    zone: Option<chrono_tz::Tz>,
     fired: &mut HashMap<String, String>,
 ) {
-    let (before, at) = (morning::wall(last_tick, zone), morning::wall(now, zone));
-    if zone.is_some() {
-        let bucket = |time: NaiveDateTime| {
-            time.date()
-                .and_hms_opt(time.hour(), time.minute(), 0)
-                .expect("valid wall-clock minute")
-        };
-        let (begin, end) = (bucket(before), bucket(at));
-        if gap::is_gap(begin, end) {
-            gap::reconcile(server, jobs, begin, end, fired).await;
-        }
-    } else if gap::is_gap(before, at) {
+    let before = last_tick.with_timezone(&chrono::Local).naive_local();
+    let at = now.with_timezone(&chrono::Local).naive_local();
+    if gap::is_gap(before, at) {
         gap::reconcile(server, jobs, before, at, fired).await;
     }
     for job in due_now(jobs, at, fired) {

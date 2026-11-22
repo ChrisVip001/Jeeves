@@ -115,7 +115,7 @@ Jeeves 保存语义事实、带日期的情景和技能，完整回合使用本�
 
 ## 7. 技能
 
-技能是过程记忆：一个 `SKILL.md`，描述一类任务**怎么做**，相关消息出现时自动加载。新 home 第一次启动会得到四个起步技能：`morning-briefing`、`weekly-review`、`summarize-document`、`tidy-folder`。它们就是 `<home>/skills/` 里的普通文件；改了、删了就保持那样。
+技能是过程记忆：一个 `SKILL.md`，描述一类任务**怎么做**，相关消息出现时自动加载。新 home 第一次启动会得到两个起步技能：`summarize-document`、`tidy-folder`。它们就是 `<home>/skills/` 里的普通文件；改了、删了就保持那样。
 
 仓库的 `skills/` 目录放着可选技能，用 `export JEEVES_SKILL_DIRS="$PWD/skills"` 加载。其中 `dashboard-verification` 是改驾驶舱时的验收清单：它记下要证明哪些功能、用什么命令证明、以及要留什么证据。改完驾驶舱、宣布完成之前先过一遍。
 
@@ -151,7 +151,7 @@ jeeves skill export --to claude,codex                # 复制到其他 agent（-
 
 ## 8. 定时
 
-在对话里说：“每个工作日早上 8 点运行 morning-briefing”。Jeeves 会存下一个定时任务（cron + 一句提示），由运行中的 Runtime 在它自己的会话里触发，结果写进 `<home>/outbox/`。能力中心把任务和技能、MCP 连接器并排列出，带 `schedule:` 行的技能本身就是任务。任务要触发，Runtime 必须在运行：cron 语法、投递、补跑与恢复见[运行手册](operations.zh.md#定时任务)。
+在对话里说：「每个工作日早上 8 点把今天的日历发给我」。查看时间、来源和投递位置后确认。之后可以在同一对话中修改或暂停。见[周期委托](design/composable-responsibilities.zh.md)。
 
 ## 9. 凭据
 

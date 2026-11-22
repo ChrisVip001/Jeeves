@@ -140,10 +140,7 @@ pub(crate) async fn full_turn(
         crate::connector_settings::apply(&settings.home, &server.mcp.apply(&server.tools));
     let mut turn_tools = crate::enabled_tools(&current_tools, &settings)
         .session_view_with(server.activation_set(session_id));
-    let selected_watch = frame
-        .interaction_tool
-        .is_some_and(|t| t.name == crate::interaction::task_tool::SELECTED_WATCH);
-    if channel_chat || selected_watch {
+    if channel_chat {
         turn_tools = jeeves_tools::ToolRegistry::new();
     } else if scoped_task {
         for name in turn_tools
@@ -181,7 +178,7 @@ pub(crate) async fn full_turn(
     }
     if main_chat && !chat_operations.unresolved {
         if let Some(tool) = frame.interaction_tool.cloned() {
-            if !channel_chat && !selected_watch {
+            if !channel_chat {
                 turn_tools = turn_tools.without("schedule_job").without("recurring_work");
                 turn_tools.register_exclusive_with_effect(
                     crate::responsibility::reviews::tool(
@@ -267,16 +264,14 @@ pub(crate) async fn full_turn(
     } else if scoped_task {
         Some("Work in this task's isolated directory. Report results for the chat that requested this work.".into())
     } else if main_chat && tools_available {
-        let note = if selected_watch {
-            "Handle only the selected watch. Preserve the source, product, shipping, currency and expiry. Report a change only after the watch tool confirms it."
-        } else if turn_tools
+        let note = if turn_tools
             .get(crate::interaction::task_tool::NAME)
             .is_some()
         {
             concat!(
-                "Answer conversation, advice and progress questions here. Use recurring_work for recurring private summaries and reviews of existing duties. Price watching uses the verified quote workflow. ",
+                "Answer conversation, advice and progress questions here. Use recurring_work to propose scheduled or event-driven work from the enabled capabilities. ",
 
-                "Deliver the requested result here using the enabled tools and per-action approval. Compare matching specifications, include sources, retrieval time, shipping and unknown costs. For work requiring restart-safe follow-up, its own workspace, or independent acceptance checks, use task with the human's exact words. ",
+                "Deliver the requested result here using the enabled tools and per-action approval. Include sources and clearly identify evidence you could not verify. For work requiring restart-safe follow-up, its own workspace, or independent acceptance checks, use task with the human's exact words. ",
                 "A request to continue developing a project or add a feature is an assignment even when the human does not say 'task'. ",
                 "Delegate before planning the implementation in chat: a missing implementation choice does not block handoff. ",
                 "The worker can inspect the workspace, prepare reversible work and surface real blockers. ",

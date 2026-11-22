@@ -76,7 +76,7 @@ impl TaskDispatch {
         );
         let row=sqlx::query_as::<_,DispatchRow>("INSERT INTO task_dispatch(task_id,session_id,turn_id,message,attachments_json,origin_message_id)
             SELECT id, 'task-work:' || lower(hex(randomblob(16))), 'task-turn:' || lower(hex(randomblob(16))), ?, ?, ?
-            FROM agent_tasks WHERE id=? AND status='pending' AND current_turn_id IS NULL AND NOT EXISTS(SELECT 1 FROM price_watches WHERE task_id=agent_tasks.id)
+            FROM agent_tasks WHERE id=? AND status='pending' AND current_turn_id IS NULL AND NOT EXISTS(SELECT 1 FROM responsibility_predecessors WHERE task_id=agent_tasks.id)
             RETURNING task_id,session_id,turn_id,message,state,attachments_json")
             .bind(message).bind(attachments).bind(origin_message_id).bind(task_id).fetch_optional(conn).await?;
         row.ok_or_else(|| {
@@ -220,7 +220,7 @@ impl TaskDispatch {
     pub async fn progress(&self, owner_session: &str) -> Result<Vec<serde_json::Value>> {
         let rows: Vec<ProgressRow> = sqlx::query_as(
             "SELECT t.id,t.title,t.status,t.last_stop_reason,t.acceptance_json
-             FROM agent_tasks t WHERE t.session_id=? AND (EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=t.id) OR EXISTS(SELECT 1 FROM price_watches w WHERE w.task_id=t.id)) ORDER BY t.rowid DESC LIMIT 5")
+             FROM agent_tasks t WHERE t.session_id=? AND (EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=t.id) OR EXISTS(SELECT 1 FROM responsibility_predecessors w WHERE w.task_id=t.id)) ORDER BY t.rowid DESC LIMIT 5")
             .bind(owner_session).fetch_all(&self.pool).await?;
         Ok(rows
             .into_iter()

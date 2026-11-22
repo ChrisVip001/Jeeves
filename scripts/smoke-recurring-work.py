@@ -39,6 +39,21 @@ SENDER = "finance@example.test"
 OPEN, DONE = "Open fixture assignment", "Completed fixture assignment"
 
 
+def digest_plan(cron, sources, window, layout):
+    return dict(
+        trigger=dict(kind="cron", expression=cron, timeZone=ZONE.key),
+        action=dict(
+            kind="digest",
+            version=1,
+            config=dict(
+                sources=sources,
+                options=dict(timeZone=ZONE.key, calendarWindow=window, layout=layout),
+            ),
+        ),
+        delivery=dict(kind="chat"),
+    )
+
+
 class Source(web.fixture.Provider):
     def do_GET(self):
         if self.path != "/fixture.ics":
@@ -124,20 +139,14 @@ class Source(web.fixture.Provider):
                     id="daily-agenda",
                     fields={
                         "purpose": "当日日程",
-                        "cron": "0 8 * * *",
-                        "sources": ["calendar"],
-                        "digest": {
-                            "timeZone": ZONE.key,
-                            "calendarWindow": "today",
-                            "layout": "list",
-                        },
+                        "plan": digest_plan("0 8 * * *", ["calendar"], "today", "list"),
                     },
                 )
             elif AMEND in user:
                 args.update(
                     action="amend",
                     expectedRevision=1,
-                    fields={"cron": "0 15 * * 4", "sources": ["calendar"]},
+                    fields={"plan": digest_plan("0 15 * * 4", ["calendar"], "nextWeek", "paragraphs")},
                 )
             elif PAUSE in user:
                 args.update(action="pause", expectedRevision=2)
@@ -147,13 +156,9 @@ class Source(web.fixture.Provider):
                     action="create",
                     fields={
                         "purpose": "工作安排",
-                        "cron": "0 15 * * 5",
-                        "sources": ["calendar", "openTasks"],
-                        "digest": {
-                            "timeZone": ZONE.key,
-                            "calendarWindow": "nextWeek",
-                            "layout": "paragraphs",
-                        },
+                        "plan": digest_plan(
+                            "0 15 * * 5", ["calendar", "openTasks"], "nextWeek", "paragraphs"
+                        ),
                     },
                 )
             web.fixture.inline_delivery_fixture.calls(

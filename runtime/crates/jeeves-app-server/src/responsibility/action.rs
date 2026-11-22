@@ -14,7 +14,7 @@ type OutputFuture<'a> = Pin<Box<dyn Future<Output = Result<Output>> + Send + 'a>
 type Describe = fn(&Value) -> Result<Vec<String>>;
 type Check = fn(&Server, &Value) -> Result<()>;
 type FieldMap = std::collections::BTreeMap<String, super::events::Field>;
-type CheckSource = fn(&Value, Option<&FieldMap>) -> Result<()>;
+type CheckSource = fn(&Server, &Value, Option<&FieldMap>) -> Result<()>;
 
 pub(super) struct Input<'a> {
     pub server: &'a Server,
@@ -29,22 +29,11 @@ pub(super) struct Output {
     pub tools_used: i32,
 }
 
-pub(super) struct Settlement<'a> {
-    pub server: &'a Server,
-    pub work: &'a jeeves_state::responsibility_runs::Work,
-    pub output: Output,
-}
-
-type SettlementFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<(&'static str, String)>> + Send + 'a>>;
-type Settle = for<'a> fn(Settlement<'a>, &'a Value) -> SettlementFuture<'a>;
-
 pub(super) struct Adapter {
     pub kind: &'static str,
     pub label: &'static str,
     pub uses_model: bool,
-    pub internal: bool,
-    pub settle: Option<Settle>,
+    pub initial_tools: i32,
     pub schema: fn() -> Value,
     pub describe: Describe,
     pub preflight: Check,
@@ -82,8 +71,7 @@ const REMINDER: Adapter = Adapter {
     kind: "reminder",
     label: "Reminder",
     uses_model: false,
-    internal: false,
-    settle: None,
+    initial_tools: 0,
     check_source: None,
     schema: || json!({"type":"object","required":["text"],"properties":{"text":{"type":"string"}},"additionalProperties":false}),
     describe: |value| Ok(vec![instruction(value)?]),
@@ -102,8 +90,7 @@ const DIGEST: Adapter = Adapter {
     kind: "digest",
     label: "Source digest",
     uses_model: false,
-    internal: false,
-    settle: None,
+    initial_tools: 0,
     check_source: None,
     schema: || {
         json!({"type":"object","required":["sources","options"],"properties":{
@@ -148,8 +135,6 @@ fn adapters() -> &'static [Adapter] {
         DIGEST,
         super::model::ADAPTER,
         super::research::ADAPTER,
-        super::morning::ADAPTER,
-        super::price::ADAPTER,
         super::records::ADAPTER,
     ]
 }
@@ -170,7 +155,6 @@ pub(super) fn catalog() -> Value {
     Value::Array(
         adapters()
             .iter()
-            .filter(|adapter| !adapter.internal)
             .map(|adapter| {
                 json!({
                     "kind":adapter.kind,"version":1,"label":adapter.label,
@@ -179,14 +163,6 @@ pub(super) fn catalog() -> Value {
             })
             .collect(),
     )
-}
-
-pub(super) fn allow_proposal(plan: &ResponsibilityPlan) -> Result<()> {
-    ensure!(
-        !find(&plan.action)?.internal,
-        "This action belongs to an existing local capability"
-    );
-    Ok(())
 }
 
 pub(super) fn validate(plan: &ResponsibilityPlan, budget: &BudgetView) -> Result<()> {
@@ -202,17 +178,7 @@ pub(super) fn validate(plan: &ResponsibilityPlan, budget: &BudgetView) -> Result
             "Choose a model budget between 128 and 16384 tokens"
         );
     }
-    ensure!(
-        !matches!(plan.delivery, ResponsibilityDelivery::Feishu { .. })
-            || adapter.kind == "researchDigest",
-        "This action does not support external delivery"
-    );
-    if let ResponsibilityDelivery::Feishu { recipient } = &plan.delivery {
-        ensure!(
-            !recipient.trim().is_empty() && recipient.len() <= 256,
-            "Select a valid recipient"
-        );
-    }
+    crate::connector_settings::publish::resolve(&plan.delivery)?;
     Ok(())
 }
 
@@ -220,7 +186,7 @@ pub(super) fn preflight(server: &Server, plan: &ResponsibilityPlan) -> Result<()
     let fields = super::events::preflight(server, &plan.trigger)?;
     let adapter = find(&plan.action)?;
     if let Some(check_source) = adapter.check_source {
-        check_source(&plan.action.config, fields.as_ref())?;
+        check_source(server, &plan.action.config, fields.as_ref())?;
     }
     (adapter.preflight)(server, &plan.action.config)
 }
@@ -237,12 +203,11 @@ pub(super) fn presentation(plan: &ResponsibilityPlan) -> ResponsibilityPresentat
             Some(error.to_string()),
         ),
     };
-    let delivery = match &plan.delivery {
-        ResponsibilityDelivery::Chat => "Main chat".into(),
-        ResponsibilityDelivery::Draft => "Private draft".into(),
-        ResponsibilityDelivery::Feishu { recipient } => {
-            format!("Feishu (approval required): {recipient}")
-        }
+    let delivery = match crate::connector_settings::publish::resolve(&plan.delivery) {
+        Ok(Some((adapter, target))) => format!("{} (approval required): {target}", adapter.label),
+        Ok(None) if matches!(plan.delivery, ResponsibilityDelivery::Chat) => "Main chat".into(),
+        Ok(None) => "Private draft".into(),
+        Err(error) => error.to_string(),
     };
     ResponsibilityPresentation {
         trigger: trigger::describe(&plan.trigger),

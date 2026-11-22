@@ -86,8 +86,19 @@ pub(super) async fn sample(
     let ResponsibilityTrigger::Event { source, event_type } = trigger else {
         return Ok(None);
     };
-    Ok(sqlx::query_scalar("SELECT fields FROM responsibility_event_samples WHERE source=? AND event_type=? AND sampled_ms>?")
-        .bind(source).bind(event_type).bind(Utc::now().timestamp_millis()-86_400_000)
+    Ok(latest(server, source, event_type, 86_400)
+        .await?
+        .map(|(fields, _)| fields))
+}
+
+pub(super) async fn latest(
+    server: &Server,
+    source: &str,
+    event_type: &str,
+    max_age_seconds: u32,
+) -> anyhow::Result<Option<(String, Option<String>)>> {
+    Ok(sqlx::query_as("SELECT fields,event_id FROM responsibility_event_samples WHERE source=? AND event_type=? AND sampled_ms>?")
+        .bind(source).bind(event_type).bind(Utc::now().timestamp_millis()-i64::from(max_age_seconds)*1000)
         .fetch_optional(&server.pool).await?)
 }
 
@@ -197,9 +208,10 @@ pub(crate) async fn admit(
     .await
     .map_err(internal)?;
     if ms - occurred <= 900_000 {
-        sqlx::query("INSERT INTO responsibility_event_samples(source,event_type,fields,sampled_ms) VALUES(?,?,?,?)
-             ON CONFLICT(source,event_type) DO UPDATE SET fields=excluded.fields,sampled_ms=excluded.sampled_ms")
-            .bind(&input.source).bind(&input.event_type).bind(&body).bind(ms)
+        sqlx::query("INSERT INTO responsibility_event_samples(source,event_type,fields,sampled_ms,event_id) VALUES(?,?,?,?,?)
+             ON CONFLICT(source,event_type) DO UPDATE SET fields=excluded.fields,sampled_ms=excluded.sampled_ms,event_id=excluded.event_id
+             WHERE excluded.sampled_ms>=responsibility_event_samples.sampled_ms")
+            .bind(&input.source).bind(&input.event_type).bind(&body).bind(occurred).bind(&input.event_id)
             .execute(&mut *tx).await.map_err(internal)?;
     }
     let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM wake_inbox WHERE state='pending' AND target_task LIKE 'responsibility:%'")

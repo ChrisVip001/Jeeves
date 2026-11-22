@@ -162,3 +162,103 @@ async fn unavailable_model_blocks_a_due_plan_before_any_provider_request() {
         .unwrap();
     assert_eq!(requests, 0);
 }
+
+#[tokio::test]
+async fn scheduled_records_check_the_latest_signed_observation() {
+    let home = tempfile::tempdir().unwrap();
+    let server = test_server(&home).await;
+    let now = Utc::now();
+    std::fs::write(
+        home.path().join("webhooks.json"),
+        json!({"hooks":[{"name":"observations","event_type":"reading","signature":true,
+            "event_fields":{"totalMinor":"integer","reference":"string"}}]})
+        .to_string(),
+    )
+    .unwrap();
+    let tool = reviews::tool(
+        server.clone(),
+        "review-snapshot".into(),
+        "Check the latest observation every minute and tell me when it is below 1800".into(),
+    );
+    let plan = json!({
+        "trigger":{"kind":"every","intervalSeconds":60},
+        "action":{"kind":"records.evaluate","version":1,"config":{
+            "all":[{"field":"totalMinor","op":"lt","value":180000}],
+            "include":["reference"],"message":"A reading is below the limit",
+            "snapshot":{"source":"observations","eventType":"reading","maxAgeSeconds":180}
+        }},
+        "delivery":{"kind":"chat"}
+    });
+    let ctx = server.tool_ctx(crate::MAIN_SESSION, None, None);
+    (tool.handler)(
+        ctx,
+        json!({"action":"create","id":"check-reading","fields":{"purpose":"Check a reading","plan":plan}}),
+    )
+    .await
+    .unwrap();
+    reviews::decide(
+        &server,
+        ResponsibilityDecision {
+            id: "review-snapshot".into(),
+            accept: true,
+        },
+    )
+    .await
+    .unwrap();
+    let (sink, _rx) = crate::EventSink::channel();
+    for (event_id, previous_cursor, value, expected) in [
+        ("at-limit", None, 180000, "skipped"),
+        ("below-limit", Some("at-limit"), 179999, "confirmed"),
+    ] {
+        let event = serde_json::from_value(json!({
+            "source":"observations","eventType":"reading","eventId":event_id,
+            "cursor":event_id,"previousCursor":previous_cursor,"occurredAt":now.to_rfc3339(),
+            "fields":{"totalMinor":value,"reference":"signed-receipt"}
+        }))
+        .unwrap();
+        let event_receipt = events::admit(&server, event, now).await.unwrap();
+        assert_eq!(event_receipt.admitted, 0);
+        let due: i64 =
+            sqlx::query_scalar("SELECT next_due_ms FROM responsibilities WHERE id='check-reading'")
+                .fetch_one(&server.pool)
+                .await
+                .unwrap();
+        tick(&server, DateTime::from_timestamp_millis(due).unwrap())
+            .await
+            .unwrap();
+        let work = jeeves_state::responsibility_runs::take(&server.pool, due)
+            .await
+            .unwrap()
+            .unwrap();
+        worker::process(&server, &sink, &work).await.unwrap();
+        let result = worker::reports(&server, "check-reading").await.unwrap();
+        let run = result.reports.first().unwrap();
+        assert_eq!(run.status, expected);
+        if expected == "confirmed" {
+            let body = run.body.as_deref().unwrap();
+            assert!(
+                body.contains("signed-receipt")
+                    && body.contains("observations/reading/below-limit")
+            );
+        }
+    }
+    let calls: i64 = sqlx::query_scalar("SELECT count(*) FROM model_requests")
+        .fetch_one(&server.pool)
+        .await
+        .unwrap();
+    assert_eq!(calls, 0);
+}
+
+#[test]
+fn a_cron_slot_is_on_the_minute_regardless_of_approval_time() {
+    let approved: DateTime<Utc> = "2030-08-06T00:17:34.567Z".parse().unwrap();
+    let expected: DateTime<Utc> = "2030-08-06T07:00:00Z".parse().unwrap();
+    let trigger = jeeves_protocol::ResponsibilityTrigger::Cron {
+        expression: "0 15 * * *".into(),
+        time_zone: "Asia/Shanghai".into(),
+    };
+    assert_eq!(
+        trigger::first(&trigger, approved).unwrap(),
+        Some(expected.timestamp_millis())
+    );
+}

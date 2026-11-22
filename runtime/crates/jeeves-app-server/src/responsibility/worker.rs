@@ -1,5 +1,5 @@
-//! Consume scheduled research wakes without granting a model access to a connector.
-use super::{action, feishu};
+//! Execute admitted occurrences and fence outbound side effects before publishing.
+use super::action;
 use crate::{narrow, EventSink, Server};
 use anyhow::{ensure, Context, Result};
 use chrono::{DateTime, Utc};
@@ -165,6 +165,12 @@ async fn execute_plan(
         action::validate(plan, budget)?;
         action::preflight(server, plan)?;
         let adapter = action::find(&plan.action)?;
+        ensure!(
+            budget
+                .tools
+                .is_none_or(|limit| limit >= adapter.initial_tools),
+            "Tool budget does not cover the action"
+        );
         if adapter.uses_model {
             super::model::quota(server).await?;
         }
@@ -196,6 +202,9 @@ async fn execute_plan(
         store::active(&server.pool, &work.wake_key, Utc::now().timestamp_millis()).await?,
         "Responsibility changed or lost its lease before execution"
     );
+    if adapter.initial_tools > 0 {
+        store::record_tools(&server.pool, &work.wake_key, adapter.initial_tools).await?;
+    }
     let result = (adapter.run)(
         action::Input {
             server,
@@ -208,30 +217,44 @@ async fn execute_plan(
     )
     .await?;
     ensure!(Instant::now() < deadline, "Responsibility deadline reached");
-    if let Some(settle) = adapter.settle {
-        return settle(
-            action::Settlement {
-                server,
-                work,
-                output: result,
-            },
-            &plan.action.config,
-        )
-        .await;
-    }
-    if let (Some(body), ResponsibilityDelivery::Feishu { recipient }) =
-        (&result.body, &plan.delivery)
-    {
-        return feishu::deliver(
-            server,
-            sink,
-            &work.wake_key,
-            recipient,
-            body,
-            budget,
-            deadline,
-        )
-        .await;
+    if let Some(body) = result.body.as_deref() {
+        use crate::connector_settings::publish;
+        if let Some((adapter, recipient)) = publish::resolve(&plan.delivery)? {
+            let key = &work.wake_key;
+            store::proposal(&server.pool, key, body, result.tools_used).await?;
+            if !adapter.ready(&server.settings().home)? {
+                return Ok((
+                    "draft",
+                    format!("Draft saved; {} delivery is disabled", adapter.label),
+                ));
+            }
+            ensure!(
+                budget.tools.is_none_or(|limit| limit > result.tools_used),
+                "Tool budget does not cover delivery"
+            );
+            return adapter
+                .send(
+                    publish::Request {
+                        server,
+                        sink,
+                        key,
+                        recipient,
+                        body,
+                    },
+                    Box::new(move || {
+                        Box::pin(async move {
+                            ensure!(Instant::now() < deadline, "Delivery deadline reached");
+                            ensure!(
+                                store::admit_send(&server.pool, key, Utc::now().timestamp_millis())
+                                    .await?,
+                                "Delivery is no longer authorized for this occurrence"
+                            );
+                            Ok(())
+                        })
+                    }),
+                )
+                .await;
+        }
     }
     if let Some(body) = result
         .body

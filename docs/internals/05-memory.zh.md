@@ -147,7 +147,7 @@
 
 - 目录：`<home>/skills` 加 `JEEVES_SKILL_DIRS`（按路径分隔符分隔）。`loaded_skills`（供导出与 CLI 列表使用）
   最后插入 home 目录，使本地技能在重名时胜出，并跳过 `_incoming` 以及直接放在根目录下的 `SKILL.md`。
-- 起步技能：`seed_default_skills`（运行时启动时调用）写入 `morning-briefing`、`weekly-review`、`summarize-document`、
+- 起步技能：`seed_default_skills`（运行时启动时调用）写入 `summarize-document`、
   `tidy-folder`（来自 `jeeves-memory/default-skills/`），除非 `<home>/skills/.seeded` 已存在；已存在的同名技能跳过，随后写下该标记。
 - 热加载：`SkillLoader` 每次使用前比较所有 `SKILL.md` 的修改时间，变化则重新扫描。
 - 触发（`match_message`）：小写词元是长度 3 及以上的 ASCII 字母数字连续段，外加相邻汉字二元组。技能的名称 + 描述词元与

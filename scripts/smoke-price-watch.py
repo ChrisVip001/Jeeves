@@ -1,134 +1,129 @@
 #!/usr/bin/env python3
-"""Exercise the main composer, mobile amendment and a restart against the same quote source."""
+"""Upgrade an isolated v14 database and verify archived duties through the Runtime."""
 import argparse
+import asyncio
+import hashlib
 import importlib.util
-import json
 from pathlib import Path
-import socket
 import sqlite3
-import subprocess
 import tempfile
-import time
-import threading
-
-from gateway_fixture import gateway
-import inline_delivery_fixture as shops
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('web', ROOT / 'scripts/smoke-web.py')
-web = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(web)
+MIGRATIONS = ROOT / 'runtime/crates/jeeves-state/migrations'
+spec = importlib.util.spec_from_file_location('recovery', ROOT / 'scripts/smoke-recovery.py')
+recovery = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(recovery)
 
 
-def wait_for(read):
-    deadline = time.monotonic() + 42
-    while time.monotonic() < deadline:
+def seed(path):
+    with sqlite3.connect(path) as db:
+        db.execute('''CREATE TABLE _sqlx_migrations (
+            version BIGINT PRIMARY KEY, description TEXT NOT NULL,
+            installed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            success BOOLEAN NOT NULL, checksum BLOB NOT NULL, execution_time BIGINT NOT NULL)''')
+        for migration in sorted(MIGRATIONS.glob('*.sql')):
+            version, description = migration.stem.split('_', 1)
+            if int(version) > 14:
+                break
+            data = migration.read_bytes()
+            db.executescript(data.decode())
+            db.execute('INSERT INTO _sqlx_migrations VALUES (?,?,CURRENT_TIMESTAMP,1,?,0)',
+                       (int(version), description.replace('_', ' '), hashlib.sha384(data).digest()))
+        db.executescript('''
+            INSERT INTO agent_tasks(id,title,session_id,status)
+            VALUES('legacy-task','Legacy observation','jeeves-main','running');
+            INSERT INTO tool_operations(id,task_id,turn_id,session_id,round_id,tool_use_id,tool,input_json,input_digest)
+            VALUES('old-operation','legacy-task','old-turn','jeeves-main','old-round','old-call','task','{}','digest');
+            INSERT INTO conversation_handoffs(task_id,session_id,message_id,instruction,context,evidence_json)
+            VALUES('legacy-task','jeeves-main','old-message','Watch observation','','{}');
+            INSERT INTO price_watches(task_id,operation_id,quote_json,threshold_minor,expires_ms,next_check_ms)
+            VALUES('legacy-task','old-operation','{"url":"https://source.example/item","model":"B","spec":"256 GB","currency":"CNY"}',180000,4070908800000,1);
+            INSERT INTO watch_observations VALUES('legacy-task',60000,1,180000,'{"totalMinor":190000}');
+            INSERT INTO responsibilities(id,purpose,sources_json,cron,expires_ms,budget_json,revision,enabled_ms,clock_owner,plan_json)
+            VALUES('legacy-morning','My old schedule','["calendar"]','0 8 * * *',4070908800000,'{"tools":2}',4,1,'morning',
+            '{"trigger":{"kind":"cron","expression":"0 8 * * *","timeZone":"Asia/Shanghai"},"action":{"kind":"morningBriefing","version":1,"config":{}},"delivery":{"kind":"draft"}}');
+            INSERT INTO responsibilities(id,purpose,sources_json,cron,expires_ms,budget_json,revision,enabled_ms,
+                research_task_id,feishu_recipient,last_slot,plan_json)
+            VALUES('legacy-weekly','My verified evidence','["https://source.example/evidence"]','0 9 * * 1',
+                4070908800000,'{"tools":2}',7,1, 'legacy-task','oc_saved',28928160,
+                '{"trigger":{"kind":"cron","expression":"0 9 * * 1","timeZone":"UTC"},"action":{"kind":"researchDigest","version":1,"config":{"taskId":"legacy-task","sources":["https://source.example/evidence"]}},"delivery":{"kind":"feishu","recipient":"oc_saved"}}');
+            INSERT INTO receipts(task_id,kind,ref,status) VALUES('legacy-task','observation','old-receipt','confirmed');
+        ''')
+        for duty, revision in [('legacy-morning', 4), ('watch-legacy-task', 1)]:
+            for state, run in [('delivered', 'confirmed'), ('pending', 'sending'), ('pending', None)]:
+                key = f'{duty}-{run}'
+                db.execute('INSERT INTO wake_inbox(source_key,target_task,state,responsibility_revision) VALUES(?,?,?,?)',
+                           (key, f'responsibility:{duty}', state, revision))
+                if run:
+                    db.execute('INSERT INTO responsibility_runs(wake_key,responsibility_id,status,body) VALUES(?,?,?,?)',
+                               (key, duty, run, f'{run} draft'))
+        return list(db.execute('SELECT * FROM responsibility_revisions ORDER BY 1,2'))
+
+
+async def exercise(root, cases):
+    home = root / 'home'
+    home.mkdir()
+    path = home / 'state.db'
+    binary = ROOT / 'target/debug/jeeves'
+    revisions = seed(path)
+    for _ in range(2):
+        app = await recovery.App.start(binary, home, root)
         try:
-            result = read()
-            if result:
-                return result
-        except OSError:
-            pass
-        time.sleep(.15)
-    raise AssertionError(f'Timed out waiting for {read}')
-
-
-def run(home, channel, simulator):
-    with socket.socket() as reservation:
-        reservation.bind(('127.0.0.1', 0))
-        port = reservation.getsockname()[1]
-    base = f'http://127.0.0.1:{port}'
-    provider, runtime = web.start(home, port)
-    source = f'http://127.0.0.1:{provider.server_port}'
-    shops.configure(home, source)
-    try:
-        wait_for(lambda: web.request(base, '/api/session/main'))
-        with gateway(base, home) as (_, workspace, cookie), sqlite3.connect(home / 'state.db', isolation_level=None) as db:
-            create = subprocess.run(['node', ROOT / 'scripts/smoke-inline-delivery.mjs', workspace, cookie,
-                                     channel, source, home, 'watch'], stdout=subprocess.PIPE, text=True)
-            assert create.returncode == 0, 'Desktop composer failed'
-            assigned = json.loads(create.stdout)
-            task = assigned['taskId']
-            clock = db.execute('SELECT expires_ms,next_check_ms FROM price_watches WHERE task_id=?', (task,)).fetchone()
-            assert clock
-            created_ms = db.execute("SELECT unixepoch(created_at)*1000 FROM agent_tasks WHERE id=?", (task,)).fetchone()[0]
-            assert abs(clock[0] - created_ms - 72*3600*1000) < 2000, clock
-            def restart(prepare=None):
-                nonlocal runtime
-                runtime.terminate()
-                runtime.wait(timeout=15)
-                if prepare:
-                    prepare()
-                runtime = web.start_runtime(home, port)
-                wait_for(lambda: web.request(base, '/api/session/main'))
-
-            reading, release = threading.Event(), threading.Event()
-            original_offer = shops.offer
-            def held_offer(path):
-                quote = original_offer(path)
-                if path == '/shops/b':
-                    reading.set()
-                    if not release.wait(timeout=25):
-                        raise TimeoutError('amendment did not finish while quote was in flight')
-                    return dict(quote,price=1750,shipping=0)
-                return quote
-            shops.offer = held_offer
-            restart(lambda: db.execute('UPDATE price_watches SET next_check_ms=? WHERE task_id=?', (time.time_ns()//1000000-1000,task)))
-            assert reading.wait(25), 'expected the old threshold to claim the quote'
-            try:
-                if simulator:
-                    subprocess.run(['python3', ROOT / 'scripts/ios-watch-composer.py', simulator, workspace, cookie, task], check=True)
+            listed = await app.request('responsibility/list', {})
+            duties = {duty['contract']['id']: duty for duty in listed['responsibilities']}
+            for name in cases:
+                duty = duties[name]
+                assert duty['status'] == 'paused' and duty['migrationNote'], duty
+                assert duty['revision'] == (5 if name == 'legacy-morning' else 2), duty
+                plan = duty['contract'].get('plan')
+                if name == 'legacy-morning':
+                    assert plan['trigger']['timeZone'] == 'Asia/Shanghai', plan
+                    assert plan['action']['config']['sources'] == ['calendar'], plan
+                    assert plan['delivery']['kind'] == 'draft', plan
                 else:
-                    subprocess.run(['node', ROOT / 'scripts/smoke-watch-amend.mjs', channel, workspace, cookie, task], check=True)
-            finally:
-                release.set()
-                shops.offer = original_offer
-            wait_for(lambda: db.execute("SELECT 1 FROM watch_observations WHERE task_id=? AND revision=1 AND json_extract(evidence,'$.totalMinor')=175000",(task,)).fetchone())
-            assert not db.execute("SELECT 1 FROM chat_log WHERE task_id=? AND source='task_completion'",(task,)).fetchone()
-            row = db.execute('SELECT revision,threshold_minor,expires_ms,quote_json FROM price_watches WHERE task_id=?', (task,)).fetchone()
-            assert row[:3] == (2, 170000, clock[0]), row
-            assert json.loads(row[3]) == dict(url=source+'/shops/b', model='B', spec='256 GB', currency='CNY')
-            assert db.execute('SELECT COUNT(*) FROM conversation_handoffs').fetchone() == (1,)
-            assert db.execute('SELECT COUNT(*) FROM task_amendments').fetchone() == (1,)
+                    assert plan is None, duty
+                result = await app.request('responsibility/reports', {'id': name})
+                rows = {row['wakeKey']: row for row in result['reports']}
+                assert len(rows) == 3, rows
+                assert rows[f'{name}-confirmed']['body'] == 'confirmed draft', rows
+                assert rows[f'{name}-confirmed']['status'] == 'confirmed', rows
+                assert rows[f'{name}-sending']['body'] == 'sending draft', rows
+                assert rows[f'{name}-sending']['status'] == 'review', rows
+                assert rows[f'{name}-None']['status'] == 'review', rows
+                try:
+                    await app.request('responsibility/setPaused', {'id': name, 'paused': False})
+                except RuntimeError as error:
+                    assert 'confirm a change' in str(error), error
+                else:
+                    raise AssertionError('Imported schedule resumed without an amended plan')
+            with sqlite3.connect(path) as db:
+                assert db.execute('SELECT status FROM agent_tasks WHERE id=?', ('legacy-task',)).fetchone() == ('suspended',)
+                assert db.execute('SELECT ref,status FROM receipts').fetchall() == [('old-receipt', 'confirmed')]
+                assert db.execute('SELECT count(*) FROM watch_observations').fetchone() == (1,)
+                existing = db.execute('SELECT * FROM responsibility_revisions ORDER BY 1,2').fetchall()
+                assert all(revision in existing for revision in revisions)
+                weekly = db.execute("""SELECT status,revision,
+                    json_extract(plan_json,'$.action.kind'),json_extract(plan_json,'$.action.config.lookbackDays'),
+                    json_extract(plan_json,'$.delivery.kind'),json_extract(plan_json,'$.delivery.connector'),
+                    json_extract(plan_json,'$.delivery.recipient')
+                    FROM responsibilities WHERE id='legacy-weekly'""").fetchone()
+                assert weekly == ('active', 7, 'verifiedSummary', 7, 'connector', 'feishu', 'oc_saved'), weekly
+                assert db.execute("SELECT count(*) FROM wake_inbox WHERE state='delivered'").fetchone() == (2,)
+        finally:
+            await app.kill()
+    assert (home / 'state.db.pre-15').exists()
 
-            def due_after_restart(price, shipping):
-                def prepare():
-                    shops.OFFERS['b'].update(price=price, shipping=shipping)
-                    db.execute('UPDATE price_watches SET next_check_ms=? WHERE task_id=?', (time.time_ns()//1000000-1000,task))
-                restart(prepare)
 
-            def observations():
-                return db.execute('SELECT evidence FROM watch_observations WHERE task_id=? AND revision=2 ORDER BY checked_ms', (task,)).fetchall()
-
-            due_after_restart(1660, 40)
-            wait_for(lambda: any(json.loads(r[0]).get('totalMinor') == 170000 for r in observations()))
-            assert db.execute("SELECT COUNT(*) FROM chat_log WHERE task_id=? AND source='task_completion'", (task,)).fetchone() == (0,)
-            due_after_restart(1659, 40)
-            def notices():
-                history = web.request(base, '/api/session?sessionId=jeeves-main')['data']
-                return [m for m in history if m.get('taskId') == task and m.get('source') == 'task_completion']
-            receipts = wait_for(notices)
-            assert len(receipts) == 1 and '1699.00 CNY' in str(receipts) and source+'/shops/b' in str(receipts), receipts
-            restart()
-            assert notices() == receipts
-            assert db.execute("SELECT COUNT(*) FROM receipts WHERE kind='price_quote' AND status='confirmed'").fetchone() == (1,)
-            tasks = web.request(base, '/api/tasks')['tasks']
-            assert len(tasks)==1 and tasks[0]['id']==task and tasks[0]['checks'][0]['passed']
-            runs = db.execute("SELECT p.status,w.state FROM responsibility_runs p JOIN wake_inbox w ON p.wake_key=w.source_key WHERE p.responsibility_id=? ORDER BY p.rowid", ('watch-'+task,)).fetchall()
-            assert runs[-1] == ('confirmed','delivered') and runs.count(('confirmed','delivered')) == 1, runs
-            assert ('draft','delivered') in runs, runs
-            assert not (home / 'receiver.jsonl').exists()
-            print('PASS: one three-day watch, one amendment, same SKU and shipping basis, equality silent, one verified hit after restart, zero purchases.')
-    finally:
-        runtime.terminate()
-        runtime.wait(timeout=15)
-        provider.shutdown()
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--case', choices=('morning', 'price', 'all'), default='price')
+    choice = parser.parse_args().case
+    cases = {'morning': ['legacy-morning'], 'price': ['watch-legacy-task'],
+             'all': ['legacy-morning', 'watch-legacy-task']}[choice]
+    with tempfile.TemporaryDirectory() as root:
+        asyncio.run(exercise(Path(root), cases))
+    print(f'PASS recurring migration ({choice}): revision history, draft and receipt preservation, review and restart')
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--browser', default='chrome')
-    parser.add_argument('--ios-simulator', help='Booted iPhone simulator UDID')
-    args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix='jeeves-price-watch-') as home:
-        run(Path(home), args.browser, args.ios_simulator)
+    main()

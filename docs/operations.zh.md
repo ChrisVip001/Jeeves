@@ -75,20 +75,9 @@ JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 服务器用同一个 `open()` 开同一个 `state.db`（WAL + busy_timeout，多进程本来
 就能共存）；别的 agent 写进来的事实标着 `source: mcp`，来源始终可查。
 
-## 晨报（cron 友好）
+## 周期委托升级
 
-在常驻 Runtime 的环境中设定 `JEEVES_MORNING_BRIEFING=outbox@Asia/Shanghai` 后重启。
-把 `@` 后面的 IANA 时区替换为自己的时区。此职责默认关闭，显式开启后每天在当地 08:00 运行。
-内容包括当日 CalDAV/ICS 日程、近期未读 IMAP 邮件的短摘录和回复草稿，以及未完成任务的最新时间线进展。
-数据源缺失会在晨报里说清楚，不会实际回复邮件。Runtime 直接从这些来源编制，不调用模型。
-
-- `outbox@Area/City`（仅本地）：提议保存在 `<home>/outbox/schedule-daily-morning-briefing-*.md`。
-- `notify@Area/City`：保留本地副本，并向已配置的 [webhook](configuration.zh.md#驾驶舱与二进制) 投递一次（须设 `JEEVES_NOTIFY=1`）。请选私密渠道，
-  因为渠道会收到活动标题、任务进展和未读邮件摘录。投递失败会写入 stderr 和 `schedule-runs.jsonl`，不会自动重试。
-  检查本地副本与渠道后，运行 `jeeves schedule acknowledge daily-morning-briefing`，即可解锁后续晨报而不重放失败的那次。
-
-机器睡眠后的补跑仅限当前本地日期，一天一份。旧的 `morning-briefing` 技能仍可按需扫描 GitHub、网页和记忆，
-与这个定时职责分开。
+曾通过启动环境开启的晨报已迁入「我的工作」，可查看旧草稿。请在对话中确认新的来源、时间和接收位置。见[周期委托](design/composable-responsibilities.zh.md)。
 
 ## 用脚本驱动它
 

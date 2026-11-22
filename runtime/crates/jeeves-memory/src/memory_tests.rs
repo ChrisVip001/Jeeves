@@ -606,17 +606,17 @@ async fn malformed_extraction_shapes_release_the_claim_instead_of_losing_history
 #[test]
 fn the_starter_skills_are_seeded_once_and_all_parse() {
     let home = tempfile::tempdir().expect("temp dir");
-    assert_eq!(seed_default_skills(home.path()), 4);
+    assert_eq!(seed_default_skills(home.path()), 2);
     let loader = SkillLoader::new(SkillLoader::dirs_for(home.path()));
-    assert_eq!(loader.skills().len(), 4, "every starter skill must parse");
+    assert_eq!(loader.skills().len(), 2, "every starter skill must parse");
     let edited = home.path().join("skills/tidy-folder/SKILL.md");
     std::fs::write(
         &edited,
         "---\nname: tidy-folder\ndescription: mine\n---\nmine",
     )
     .unwrap();
-    std::fs::remove_dir_all(home.path().join("skills/weekly-review")).unwrap();
+    std::fs::remove_dir_all(home.path().join("skills/summarize-document")).unwrap();
     assert_eq!(seed_default_skills(home.path()), 0);
     assert!(std::fs::read_to_string(&edited).unwrap().contains("mine"));
-    assert!(!home.path().join("skills/weekly-review").exists());
+    assert!(!home.path().join("skills/summarize-document").exists());
 }

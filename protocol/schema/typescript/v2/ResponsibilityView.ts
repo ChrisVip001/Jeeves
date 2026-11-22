@@ -10,5 +10,6 @@ export type ResponsibilityView = {
   contract: ResponsibilityContract;
   status: ResponsibilityStatus;
   lastDueAt: string | null;
+  migrationNote?: string;
   presentation?: ResponsibilityPresentation;
 };

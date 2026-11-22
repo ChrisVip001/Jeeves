@@ -328,7 +328,20 @@ async fn chat_tool_only_proposes_and_each_human_decision_is_bound_to_a_review() 
     let now = Utc::now();
     let ctx = server.tool_ctx("jeeves-main", None, None);
     let create = reviews::tool(server.clone(), "turn-a".into(), "只看未完成事项".into());
-    (create.handler)(ctx.clone(),json!({"action":"create","id":"my-items","fields":{"purpose":"我的事项","sources":["openTasks"],"cron":"0 10 * * *","digest":{"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"list"}}})).await.unwrap();
+    let plan = |expression: &str| {
+        json!({
+            "trigger":{"kind":"cron","expression":expression,"timeZone":"Asia/Shanghai"},
+            "action":{"kind":"digest","version":1,"config":{"sources":["openTasks"],
+                "options":{"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"list"}}},
+            "delivery":{"kind":"chat"}
+        })
+    };
+    (create.handler)(
+        ctx.clone(),
+        json!({"action":"create","id":"my-items","fields":{"purpose":"我的事项","plan":plan("0 10 * * *")}}),
+    )
+    .await
+    .unwrap();
     assert!(list(&server, now)
         .await
         .unwrap()
@@ -343,7 +356,7 @@ async fn chat_tool_only_proposes_and_each_human_decision_is_bound_to_a_review() 
             let tool = reviews::tool(server.clone(), turn.into(), "用户的新要求".into());
             let mut request = json!({"action":action,"id":"my-items","expectedRevision":rev});
             if rev == 1 {
-                request["fields"] = json!({"cron":"0 11 * * *"});
+                request["fields"] = json!({"plan":plan("0 11 * * *")});
             }
             (tool.handler)(ctx.clone(), request).await.unwrap();
         }
@@ -359,7 +372,10 @@ async fn chat_tool_only_proposes_and_each_human_decision_is_bound_to_a_review() 
     }
     let row = list(&server, now).await.unwrap().responsibilities.remove(0);
     assert_eq!(row.status, ResponsibilityStatus::Paused);
-    assert_eq!(row.contract.cron, "0 11 * * *");
+    assert_eq!(
+        serde_json::to_value(row.contract.plan.unwrap().trigger).unwrap()["expression"],
+        "0 11 * * *"
+    );
     assert_eq!(row.revision, 3);
 }
 

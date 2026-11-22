@@ -128,8 +128,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
     kind: "model",
     label: "Generate a private draft with the model",
     uses_model: true,
-    internal: false,
-    settle: None,
+    initial_tools: 0,
     check_source: None,
     schema: || json!({"type":"object","required":["text"],"properties":{"text":{"type":"string"},"skill":{"type":"string"}},"additionalProperties":false}),
     describe: |value| {

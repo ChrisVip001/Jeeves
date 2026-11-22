@@ -197,7 +197,7 @@ async fn settle_known_calls(
             jeeves_state::operations::ToolOutput::failure(INTERRUPTED_READ.into())
         } else if matches!(
             tool,
-            crate::interaction::task_tool::NAME | crate::interaction::task_tool::SELECTED_WATCH
+            crate::interaction::task_tool::NAME | "selected_price_watch"
         ) {
             let Some(receipt) =
                 crate::interaction::handoff::committed_result(server, row, id, input).await?

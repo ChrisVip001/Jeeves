@@ -4,6 +4,7 @@ use sqlx::{FromRow, SqlitePool};
 #[derive(Debug, FromRow)]
 pub struct ResponsibilityRow {
     pub clock_owner: String,
+    pub migration_note: Option<String>,
     pub revision: i32,
     pub digest_json: Option<String>,
     pub plan_json: Option<String>,
@@ -74,10 +75,10 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let updated = sqlx::query_as(
             "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,research_task_id=?,feishu_recipient=?,digest_json=?,plan_json=?,next_due_ms=?,
-             revision=revision+1,enabled_ms=? WHERE clock_owner='cron' AND id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
+             revision=revision+1,migration_note=NULL,enabled_ms=? WHERE clock_owner='cron' AND id=? AND revision=? AND expires_ms>? AND status!='expired' AND (migration_note IS NULL OR ? IS NOT NULL) RETURNING *"
         ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
          .bind(&row.budget_json).bind(&row.research_task_id).bind(&row.feishu_recipient).bind(&row.digest_json).bind(&row.plan_json).bind(row.next_due_ms).bind(now).bind(&row.id)
-         .bind(expected).bind(now).fetch_optional(&mut *conn).await?;
+         .bind(expected).bind(now).bind(&row.plan_json).fetch_optional(&mut *conn).await?;
         if updated.is_some() {
             Self::stop_wakes(conn, &row.id).await?;
         }
@@ -96,7 +97,7 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Vec<(String, String, i32, Option<String>)>> {
         sqlx::query_as(
             "SELECT id, cron, revision, json_extract(digest_json,'$.timeZone') FROM responsibilities
-             WHERE clock_owner='cron' AND (plan_json IS NULL OR research_task_id IS NOT NULL) AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
+             WHERE clock_owner='cron' AND plan_json IS NULL AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
              ORDER BY id",
         )
         .bind(now)
@@ -164,12 +165,13 @@ impl Responsibilities<'_> {
         let state = if paused { "paused" } else { "active" };
         let result = sqlx::query(
             "UPDATE responsibilities SET status=?, revision=revision+1, enabled_ms=?
-             WHERE id=? AND expires_ms>? AND status!=? AND status!='expired' AND (? IS NULL OR revision=?)",
+             WHERE id=? AND expires_ms>? AND status!=? AND status!='expired' AND (?='paused' OR migration_note IS NULL) AND (? IS NULL OR revision=?)",
         )
         .bind(state)
         .bind(now)
         .bind(id)
         .bind(now)
+        .bind(state)
         .bind(state)
         .bind(expected)
         .bind(expected)

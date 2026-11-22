@@ -78,23 +78,9 @@ Jeeves's long-term memory. The server opens the same `state.db` through the same
 `open()` (WAL + busy_timeout, so multiple processes coexist); facts written
 by other agents are labelled `source: mcp` so the origin stays visible.
 
-## Morning brief (cron-friendly)
+## Recurring work upgrades
 
-Set `JEEVES_MORNING_BRIEFING=outbox@Asia/Shanghai` in the resident Runtime's environment and restart it.
-Replace the IANA timezone after `@` with yours. Off by default, the built-in duty runs daily at local 08:00.
-It lists today's CalDAV/ICS events, recent unread IMAP mail with short excerpt-based summaries and suggested
-draft replies, and unfinished tasks with their latest timeline entries. A missing source is named in the brief;
-replies are never sent. The Runtime builds it directly from those sources, without a model.
-
-- `outbox@Area/City` (local only): writes a proposal under `<home>/outbox/schedule-daily-morning-briefing-*.md`.
-- `notify@Area/City`: saves the same local copy and delivers the proposal once to the configured
-  [webhook](configuration.md#dashboard-and-binaries), enabled with `JEEVES_NOTIFY=1`. Choose a private destination: it receives event titles, task progress,
-  and unread-mail excerpts. A delivery failure is visible in stderr and `schedule-runs.jsonl`; it is not
-  retried. Check the local copy and destination, then run `jeeves schedule acknowledge daily-morning-briefing`
-  to unblock later briefs without replaying the failed one.
-
-Sleep/wake catch-up is limited to one proposal for the current local date. The older ad-hoc
-`morning-briefing` skill remains available for GitHub/web/memory scans; it is separate from this duty.
+A saved briefing enabled through the prior launch environment appears in My Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/composable-responsibilities.md)
 
 ## Driving it from a script
 

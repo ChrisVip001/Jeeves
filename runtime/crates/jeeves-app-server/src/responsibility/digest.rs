@@ -119,7 +119,6 @@ pub(crate) async fn render(
     sources: &[String],
     at: DateTime<Utc>,
 ) -> Result<String> {
-    use crate::scheduler::morning::plain;
     let zone: Tz = options.time_zone.parse()?;
     let date = at.with_timezone(&zone).date_naive();
     let mut sections = Vec::new();
@@ -185,4 +184,29 @@ pub(crate) async fn render(
         });
     }
     Ok(sections.join("\n\n"))
+}
+
+pub(crate) fn plain(text: &str, max: usize) -> String {
+    let words = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut out: String = words
+        .chars()
+        .take(max)
+        .map(|c| match c {
+            '<' => '‹',
+            '>' => '›',
+            '[' => '［',
+            ']' => '］',
+            '\u{60}' => '＇',
+            '*' => '＊',
+            '_' => '＿',
+            '&' => '＆',
+            '@' => '＠',
+            other if other.is_control() => ' ',
+            other => other,
+        })
+        .collect();
+    if words.chars().nth(max).is_some() {
+        out.push('…');
+    }
+    out
 }

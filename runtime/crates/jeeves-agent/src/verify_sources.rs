@@ -179,5 +179,5 @@ mod tests {
     }
 }
 
-mod weekly;
-pub use weekly::weekly_report;
+mod verified;
+pub use verified::verified_summary;

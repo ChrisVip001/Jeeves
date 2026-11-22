@@ -1,5 +1,4 @@
 //! One commit binds the original request, source and executable work before any worker is woken.
-use super::price_watch::Prepared;
 use jeeves_protocol::InteractionStartParams;
 use sqlx::SqliteConnection;
 
@@ -9,7 +8,6 @@ pub(crate) struct Assignment<'a> {
     pub invocation: Option<&'a str>,
     pub context: &'a str,
     pub message: String,
-    pub watch: Option<&'a Prepared>,
 }
 
 impl Assignment<'_> {
@@ -37,19 +35,15 @@ impl Assignment<'_> {
             )
             .await?;
         }
-        if let Some(watch) = self.watch {
-            watch.insert(conn, id).await?;
-        } else {
-            let attachments = serde_json::to_string(&p.attachments.as_deref().unwrap_or_default())?;
-            jeeves_state::dispatch::TaskDispatch::enqueue_on(
-                conn,
-                id,
-                &self.message,
-                &attachments,
-                Some(&p.message_id),
-            )
-            .await?;
-        }
+        let attachments = serde_json::to_string(&p.attachments.as_deref().unwrap_or_default())?;
+        jeeves_state::dispatch::TaskDispatch::enqueue_on(
+            conn,
+            id,
+            &self.message,
+            &attachments,
+            Some(&p.message_id),
+        )
+        .await?;
         Ok(())
     }
 }

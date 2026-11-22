@@ -19,13 +19,12 @@ struct Change {
 pub(crate) fn tool(server: Server, turn: String, message: String) -> Tool {
     Tool {
         name:"recurring_work".into(),
-        description:format!("Propose an owner's recurring responsibility. Local time {}. For a new trigger or action call capabilities first. Compare the exact field values shown by the source, including media types and units. Static action messages have no placeholder interpolation. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
+        description:format!("Propose an owner's recurring responsibility. Local time {}. Before creating a plan or replacing a plan element, call capabilities. Use plan for the complete trigger, action and delivery. For an old definition compose a complete plan from the capabilities. Compare the exact field values shown by the source, including media types and units. Static action messages have no placeholder interpolation. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
         input_schema:json!({"type":"object","required":["action"],"additionalProperties":false,"properties":{
             "action":{"type":"string","enum":["list","capabilities","create","amend","pause","resume"]},"id":{"type":"string","description":"Stable lowercase ASCII slug; list existing duties to find an id."},"expectedRevision":{"type":"integer"},
-            "fields":{"type":"object","description":"On amendment supply changed top-level fields only. For a weekly Feishu research report use existing research taskId, permitted evidence URLs and recipient instead of digest.","additionalProperties":false,"properties":{
-                "plan":{"type":"object","description":"Trigger, action and delivery. Call capabilities for supported kinds and event sources."},"purpose":{"type":"string"},"sources":{"type":"array","items":{"type":"string"},"description":"Digest: calendar, openTasks or unreadMail."},"cron":{"type":"string","description":"Five-field schedule."},"expiresAt":{"type":"string","description":"Optional RFC3339 end; defaults to one year for a new duty."},
-                "digest":{"type":"object","required":["timeZone","calendarWindow","layout"],"properties":{"timeZone":{"type":"string"},"calendarWindow":{"enum":["today","tomorrow","thisWeek","nextWeek"]},"layout":{"enum":["paragraphs","list"]}}},
-                "weeklyReport":{"type":"object","required":["taskId","recipient"],"properties":{"taskId":{"type":"string"},"recipient":{"type":"string"}}}
+            "fields":{"type":"object","description":"On amendment supply changed top-level fields only. Use the capabilities catalog to select the action and delivery.","additionalProperties":false,"properties":{
+                "plan":{"type":"object","description":"Complete trigger, action and delivery. Call capabilities for the supported kinds and sources."},
+                "purpose":{"type":"string"},"expiresAt":{"type":"string","description":"Optional RFC3339 end; defaults to one year for a new duty."}
             }}
         }}),
         handler:Arc::new(move |_ctx,args|{
@@ -54,6 +53,20 @@ async fn propose(
     }
     let id = c.id.as_deref().ok_or_else(|| invalid("Choose a duty id"))?;
     let existing = duties.into_iter().find(|r| r.contract.id == id);
+    if matches!(c.action.as_str(), "amend" | "resume")
+        && existing
+            .as_ref()
+            .is_some_and(|row| row.migration_note.is_some())
+        && (c.action == "resume"
+            || c.fields
+                .as_ref()
+                .and_then(|fields| fields.get("plan"))
+                .is_none_or(Value::is_null))
+    {
+        return Err(invalid(
+            "Review an updated plan before resuming this imported duty",
+        ));
+    }
     let original_action = existing
         .as_ref()
         .and_then(|row| row.contract.plan.as_ref())
@@ -63,12 +76,6 @@ async fn propose(
             json!({"id":id,"budget":{"tools":3,"wallMs":90000,"tokens":4096},"expiresAt":(now+chrono::Duration::days(365)).to_rfc3339()}),
             0,
         ),
-        ("amend", Some(row)) if row.clock != jeeves_protocol::ResponsibilityClock::Cron => {
-            return Err(invalid(match row.clock {
-                jeeves_protocol::ResponsibilityClock::PriceWatch => "Select the original price watch in My Work and state the new limit.",
-                _ => "The configured morning briefing uses its original clock. Offer a separate private digest for a different time or source selection.",
-            }));
-        }
         ("amend" | "pause" | "resume", Some(row)) if c.expected_revision == Some(row.revision) => (
             serde_json::to_value(row.contract).map_err(internal)?,
             row.revision,
@@ -84,24 +91,25 @@ async fn propose(
             .as_object()
             .ok_or_else(|| invalid("Expected changed fields"))?;
         if !matches!(c.action.as_str(), "create" | "amend")
-            || fields.keys().any(|k| {
-                !matches!(
-                    k.as_str(),
-                    "purpose"
-                        | "sources"
-                        | "cron"
-                        | "expiresAt"
-                        | "weeklyReport"
-                        | "digest"
-                        | "plan"
-                )
-            })
+            || fields
+                .keys()
+                .any(|k| !matches!(k.as_str(), "purpose" | "expiresAt" | "plan"))
         {
             return Err(invalid("Invalid fields for responsibility change"));
         }
         for (k, v) in fields {
             body[k] = v.clone();
         }
+    }
+    if body.get("plan").is_some_and(|value| !value.is_null())
+        && matches!(c.action.as_str(), "create" | "amend")
+    {
+        body.as_object_mut()
+            .expect("contract object")
+            .remove("weeklyReport");
+        body.as_object_mut()
+            .expect("contract object")
+            .remove("digest");
     }
     let mut requested: ResponsibilityContract = serde_json::from_value(body).map_err(invalid)?;
     if matches!(c.action.as_str(), "create" | "amend") {
@@ -115,12 +123,8 @@ async fn propose(
     } else {
         prepare(requested, now)?
     };
-    if matches!(c.action.as_str(), "create" | "amend")
-        && contract.plan.is_none()
-        && contract.digest.is_none()
-        && contract.weekly_report.is_none()
-    {
-        return Err(invalid("Select a supported recurring output"));
+    if matches!(c.action.as_str(), "create" | "amend") && contract.plan.is_none() {
+        return Err(invalid("Select a supported trigger, action and delivery"));
     }
     let review = ResponsibilityReview {
         id: turn.into(),
@@ -229,6 +233,10 @@ pub(crate) async fn decide(
 }
 
 fn catalog(server: &Server) -> Value {
+    let mut deliveries = vec![json!({"kind":"chat"}), json!({"kind":"draft"})];
+    deliveries.extend(crate::connector_settings::publish::enabled(
+        &server.settings().home,
+    ));
     json!({
         "triggers":[
             {"kind":"at","at":"ISO date-time with offset"},
@@ -240,7 +248,7 @@ fn catalog(server: &Server) -> Value {
         "actions":action::catalog(),
         "eventSources":super::events::catalog(server),
         "skills":super::model::catalog(server),
-        "deliveries":[{"kind":"chat"},{"kind":"draft"}]
+        "deliveries":deliveries
     })
 }
 

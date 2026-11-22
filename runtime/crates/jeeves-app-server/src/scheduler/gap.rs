@@ -86,14 +86,6 @@ pub(super) async fn reconcile(
                 at.format("%Y-%m-%d %H:%M")
             ),
             Verdict::Fire(at) => {
-                if job.name == super::morning::NAME
-                    && at.date() != now.date()
-                    && server.settings().morning_briefing.as_deref()
-                        .is_some_and(|raw| super::morning::Briefing::parse(raw).is_ok())
-                {
-                    eprintln!("(jeeves) no catch-up for a morning briefing from a prior local date");
-                    continue;
-                }
                 eprintln!(
                     "(jeeves) job '{}' missed its {} trigger while the clock jumped; running it once now",
                     job.name,

@@ -508,7 +508,6 @@ DDG Lite 使用其正常的 POST 搜索表单，优先用系统可用的 `curl` 
 |---|---|---|
 | `JEEVES_PORT` | `7777` | 私网 Runtime 端口。`just local-up` 和 Mac 开发版自行启动的 Runtime 设为 `0`，供本机网关自动发现。Kubernetes 示例在私网使用 `7777` |
 | `JEEVES_NOTIFY` | 关 | `1` / `true` / `yes` 才开；开了才读 `<home>/notify.json`（`{"slack": "webhook URL"}`）并往外推通知：**审批请求 / 后台作业收尾 / 目标终局**。完成通知先落盘，失败或重启后重试（见[投递边界](limitations.zh.md#通知与审计)）；批准提示仍为尽力发送。网络投递不阻塞 turn。URL 是管理员配的，指向内网自建端点（ntfy/Gotify 这类收 `{"text": …}` 的）是合法用法，不做 SSRF 护栏
-| `JEEVES_MORNING_BRIEFING` | 关闭 | 手动开启 08:00 晨报，值为渠道及 IANA 时区，如 `outbox@Asia/Shanghai`。见[晨报](operations.zh.md#晨报cron-友好)。 |
 | `JEEVES_OPS_HOST` | `127.0.0.1` | 私网 Runtime 的监听地址，容器默认使用 `0.0.0.0` |
 | `JEEVES_OPS_TOKEN` | — | 所有监听地址都要求私网 Bearer 凭据。也可提供 `<home>/runtime-token` 文件，权限限所有者。网关在服务端附加凭据，浏览器使用登录会话 |
 | `JEEVES_DISPATCHERS` | — | 逗号分隔的聊天发送者 id（飞书 `open_id`），只有他们能在群里派任务。其他人的消息照常回答，但没有 `task` 工具；留空表示谁都不行。本地视图不受影响。不在 `config/read` 里 |

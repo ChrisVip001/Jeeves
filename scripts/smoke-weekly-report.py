@@ -40,6 +40,13 @@ def evidence(path, mode):
         (path / 'claims.json').write_text(json.dumps(claims))
 
 
+def make_due(home, only=None):
+    now = int(datetime.now(timezone.utc).timestamp()) // 60 * 60_000
+    with sqlite3.connect(home / 'state.db') as db:
+        db.execute("""UPDATE responsibilities SET enabled_ms=?,next_due_ms=?
+            WHERE (? IS NULL OR id=?) AND status='active'""", (now, now, only, only))
+
+
 async def run(root, base, sends, crash_received):
     binary = ROOT / 'target/debug/jeeves'
     home = root / 'home'
@@ -61,6 +68,7 @@ async def run(root, base, sends, crash_received):
                 budget=dict(tools=1 if name == 'budget' else 2),
                 weeklyReport=dict(taskId=task['task']['id'], recipient='oc_' + name)))
         await app.kill()
+        make_due(home)
         app = await recovery.App.start(binary, home, root, approval='on-request')
         first_keys = {}
         finished = {}
@@ -97,7 +105,7 @@ async def run(root, base, sends, crash_received):
                             assert QUOTE in row['body'] and URL in row['body']
                         else:
                             assert row['body'] is None
-                        assert row['toolsUsed'] == (2 if name in ('confirmed','wrong-id','lost-post','crash') else 1)
+                        assert row['toolsUsed'] == (2 if name in ('confirmed','wrong-id','lost-post','crash') else 1), (name, row)
                         await app.request('responsibility/setPaused', {'id': name, 'paused': True})
                         finished[name] = row
                 await asyncio.sleep(.05)
@@ -111,6 +119,7 @@ async def run(root, base, sends, crash_received):
             sources=[URL], cron='* * * * *', expiresAt='2099-01-01T00:00:00Z', budget=dict(tools=1),
             weeklyReport=dict(taskId=task['task']['id'],recipient='oc_confirmed')))
         await app.kill()
+        make_due(home, 'draft')
         app = await recovery.App.start(binary, home, root)
         async def draft():
             while True:

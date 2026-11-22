@@ -1,7 +1,6 @@
 //! Long-lived human entry; task execution retains its own context and permissions.
 mod decision;
 pub(crate) mod handoff;
-pub(crate) mod price_watch;
 pub(crate) mod receipt;
 pub(crate) mod task_tool;
 #[cfg(test)]
@@ -230,12 +229,16 @@ async fn execute(
         task_tool::owned_task(server, p, task_id)
             .await
             .map_err(invalid)?;
-        if price_watch::exists(server, task_id)
-            .await
-            .map_err(internal)?
-        {
-            let tool = task_tool::build(server.clone(), p.clone(), sink.clone());
-            return receipt::conversation(server, p, id, sink, Some(&tool), tier).await;
+        let replacement: Option<String> = sqlx::query_scalar(
+            "SELECT responsibility_id FROM responsibility_predecessors WHERE task_id=?",
+        )
+        .bind(task_id)
+        .fetch_optional(&server.pool)
+        .await
+        .map_err(internal)?;
+        if let Some(replacement) = replacement {
+            let reply = format!("Manage this imported assignment in Recurring Work ({replacement}). Its old history is here. Ask in the main chat to review its new sources and conditions.");
+            return receipt::acknowledge(server, p, id, sink, reply, started).await;
         }
         let task = task_tool::continue_task(server, p, task_id, &p.message, sink, || {})
             .await

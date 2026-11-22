@@ -1,4 +1,6 @@
-//! Human-owned configuration for the built-in calendar and mail connectors.
+//! Human-owned configuration for native connectors.
+pub(crate) mod publish;
+
 use jeeves_connector::config::{self, ConnectorConfig, MailSecurity, MailServer};
 use jeeves_protocol::{
     CalendarConnectorSettings, ConnectorSettingsResponse, ConnectorSettingsSaveParams,

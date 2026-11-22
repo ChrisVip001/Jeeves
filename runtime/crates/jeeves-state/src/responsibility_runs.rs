@@ -63,10 +63,10 @@ pub async fn take_key(
     .await?;
     if let Some(work) = &candidate {
         sqlx::query(
-            "INSERT INTO responsibility_runs(wake_key,responsibility_id,status,tools_used,lease_until_ms,progress_ms)
-             VALUES(?,?,'preparing',?,?,?)",
+            "INSERT INTO responsibility_runs(wake_key,responsibility_id,status,lease_until_ms,progress_ms)
+             VALUES(?,?,'preparing',?,?)",
         ).bind(&work.wake_key).bind(&work.responsibility_id)
-            .bind(i32::from(work.plan_json.is_none() || (work.due_ms.is_none() && work.event_json.is_none()))).bind(now_ms + LEASE_MS).bind(now_ms)
+            .bind(now_ms + LEASE_MS).bind(now_ms)
             .execute(&mut *tx).await?;
     }
     tx.commit().await?;
@@ -102,9 +102,20 @@ pub async fn heartbeat(pool: &SqlitePool, key: &str, now_ms: i64) -> sqlx::Resul
     Ok(updated.rows_affected() == 1)
 }
 
-pub async fn proposal(pool: &SqlitePool, key: &str, body: &str) -> sqlx::Result<()> {
-    sqlx::query("UPDATE responsibility_runs SET body=?,status='awaiting',progress_ms=unixepoch('subsec')*1000 WHERE wake_key=? AND status='preparing'")
-        .bind(body).bind(key).execute(pool).await?;
+pub async fn record_tools(pool: &SqlitePool, key: &str, tools: i32) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE responsibility_runs SET tools_used=? WHERE wake_key=? AND status='preparing'",
+    )
+    .bind(tools)
+    .bind(key)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn proposal(pool: &SqlitePool, key: &str, body: &str, tools: i32) -> sqlx::Result<()> {
+    sqlx::query("UPDATE responsibility_runs SET body=?,tools_used=?,status='awaiting',progress_ms=unixepoch('subsec')*1000 WHERE wake_key=? AND status='preparing'")
+        .bind(body).bind(tools).bind(key).execute(pool).await?;
     Ok(())
 }
 
@@ -158,44 +169,6 @@ pub async fn admit_on(
         .await?;
     }
     Ok(inserted)
-}
-
-/// Store compatibility trigger observations for the same worker that claims timer and event wakes.
-pub async fn enqueue_bound(
-    conn: &mut sqlx::SqliteConnection,
-    id: &str,
-    key: &str,
-    slot_ms: i64,
-    context: Option<&str>,
-) -> sqlx::Result<()> {
-    let revision: i32 =
-        sqlx::query_scalar("SELECT revision FROM responsibilities WHERE id=? AND status='active'")
-            .bind(id)
-            .fetch_one(&mut *conn)
-            .await?;
-    if !admit_on(
-        conn,
-        Occurrence {
-            id,
-            key,
-            revision,
-            due_ms: Some(slot_ms),
-            data: context,
-            skip: None,
-        },
-    )
-    .await?
-    {
-        return Err(sqlx::Error::Protocol(
-            "Compatibility slot already exists".into(),
-        ));
-    }
-    sqlx::query("UPDATE responsibilities SET last_slot=? WHERE id=?")
-        .bind(slot_ms.div_euclid(60000))
-        .bind(id)
-        .execute(conn)
-        .await?;
-    Ok(())
 }
 
 /// The last local boundary before POST. Pausing and resuming holds the original wake permanently.
@@ -289,8 +262,6 @@ pub async fn recover_before(pool: &SqlitePool, cutoff: Option<i64>) -> sqlx::Res
          WHERE status IN ('preparing','awaiting','sending') AND (? IS NULL OR lease_until_ms<=?) RETURNING wake_key")
         .bind(cutoff).bind(cutoff).fetch_all(&mut *tx).await?;
     for key in &keys {
-        sqlx::query("UPDATE responsibilities SET status='paused',revision=revision+1 WHERE clock_owner='price-watch' AND status='active' AND id=(SELECT responsibility_id FROM responsibility_runs WHERE wake_key=?)")
-            .bind(key).execute(&mut *tx).await?;
         sqlx::query("UPDATE wake_inbox SET state='reconcile',settled_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
                      WHERE source_key=? AND state='pending'").bind(key).execute(&mut *tx).await?;
         sqlx::query("DELETE FROM pending_approvals WHERE turn_id=?")

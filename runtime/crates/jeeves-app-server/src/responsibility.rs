@@ -10,12 +10,9 @@ use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 pub(crate) mod action;
 pub(crate) mod digest;
 pub(crate) mod events;
-mod feishu;
 mod model;
-mod morning;
 #[cfg(test)]
 mod plans_tests;
-pub(crate) mod price;
 mod records;
 mod research;
 pub(crate) mod reviews;
@@ -54,6 +51,7 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
     };
     Ok(ResponsibilityView {
         clock,
+        migration_note: row.migration_note.clone(),
         revision: row.revision,
         status,
         last_due_at: row
@@ -64,7 +62,7 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
                     .and_then(timestamp)
             })
             .transpose()?,
-        presentation: if row.research_task_id.is_some() || row.clock_owner != "cron" {
+        presentation: if row.clock_owner != "cron" {
             None
         } else {
             plan(&row)?.as_ref().map(action::presentation)
@@ -84,12 +82,14 @@ fn plan(
 }
 
 fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObject> {
+    let plan = if row.clock_owner == "cron" {
+        plan(&row)?
+    } else {
+        None
+    };
+    let legacy = plan.is_none();
     Ok(ResponsibilityContract {
-        plan: if row.research_task_id.is_some() || row.clock_owner != "cron" {
-            None
-        } else {
-            plan(&row)?
-        },
+        plan,
         id: row.id,
         purpose: row.purpose,
         digest: row
@@ -104,6 +104,7 @@ fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObjec
         weekly_report: row
             .research_task_id
             .zip(row.feishu_recipient)
+            .filter(|_| legacy)
             .map(|(task_id, recipient)| jeeves_protocol::FeishuWeeklyReport { task_id, recipient }),
         budget: serde_json::from_str(&row.budget_json).map_err(internal)?,
     })
@@ -179,11 +180,11 @@ fn validated_row(
         if p.digest.is_some() || p.weekly_report.is_some() {
             return Err(invalid("Use either a plan or the legacy definition"));
         }
-        action::allow_proposal(plan).map_err(invalid)?;
         action::validate(plan, &p.budget).map_err(invalid)?;
         trigger::validate(&plan.trigger, now, expires_ms).map_err(invalid)?;
     }
     Ok(ResponsibilityRow {
+        migration_note: None,
         plan_json: p
             .plan
             .as_ref()
@@ -239,14 +240,16 @@ fn activate(
         trigger::anchor(&mut plan.trigger, now).map_err(invalid)?;
     }
     let mut row = validated_row(contract, now)?;
+    if let (Some(task), Some(recipient)) = (&row.research_task_id, &row.feishu_recipient) {
+        let time_zone = trigger::local_zone().map_err(invalid)?.to_string();
+        row.plan_json = Some(serde_json::json!({
+            "trigger":{"kind":"cron","expression":row.cron,"timeZone":time_zone},
+            "action":{"kind":"verifiedSummary","version":1,"config":{"taskId":task,"lookbackDays":7,"sources":serde_json::from_str::<serde_json::Value>(&row.sources_json).map_err(internal)?}},
+            "delivery":{"kind":"connector","connector":"feishu","recipient":recipient}
+        }).to_string());
+    }
     if let Some(plan) = plan(&row)? {
         row.next_due_ms = trigger::first(&plan.trigger, now).map_err(invalid)?;
-    } else if let (Some(task), Some(recipient)) = (&row.research_task_id, &row.feishu_recipient) {
-        row.plan_json = Some(serde_json::json!({
-            "trigger":{"kind":"cron","expression":row.cron,"timeZone":"UTC"},
-            "action":{"kind":"researchDigest","version":1,"config":{"taskId":task,"sources":serde_json::from_str::<serde_json::Value>(&row.sources_json).map_err(internal)?}},
-            "delivery":{"kind":"feishu","recipient":recipient}
-        }).to_string());
     }
     Ok(row)
 }
@@ -382,6 +385,11 @@ pub(crate) async fn set_paused(
         .await
         .map_err(internal)?
         .ok_or_else(|| invalid("unknown responsibility"))?;
+    if !p.paused && row.migration_note.is_some() {
+        return Err(invalid(
+            "Review the imported definition and confirm a change before resuming",
+        ));
+    }
     if row.status == "expired" {
         return Err(invalid("an expired responsibility cannot be changed"));
     }

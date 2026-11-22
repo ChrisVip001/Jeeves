@@ -534,7 +534,13 @@ pub struct ResponsibilityAction {
 pub enum ResponsibilityDelivery {
     Chat,
     Draft,
-    Feishu { recipient: String },
+    Connector {
+        connector: String,
+        recipient: String,
+    },
+    Feishu {
+        recipient: String,
+    },
 }
 
 /// A signed connector event. The transport supplies the authenticated source and event type.
@@ -718,6 +724,9 @@ pub struct ResponsibilityView {
     pub contract: ResponsibilityContract,
     pub status: ResponsibilityStatus,
     pub last_due_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub migration_note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub presentation: Option<ResponsibilityPresentation>,

@@ -4678,6 +4678,29 @@
         {
           "additionalProperties": false,
           "properties": {
+            "connector": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "connector"
+              ],
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "connector",
+            "kind",
+            "recipient"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
             "kind": {
               "enum": [
                 "feishu"
@@ -5061,6 +5084,12 @@
           "$ref": "#/definitions/ResponsibilityContract"
         },
         "lastDueAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "migrationNote": {
           "type": [
             "string",
             "null"

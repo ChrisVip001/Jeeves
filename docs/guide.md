@@ -115,7 +115,7 @@ The library is plain text under `<home>/memory`: edit a page by hand and `jeeves
 
 ## 7. Skills
 
-A skill is procedural memory: one `SKILL.md` describing **how** to do a class of task, loaded when a relevant message appears. A new home gets four starter skills once: `morning-briefing`, `weekly-review`, `summarize-document` and `tidy-folder`. They are plain files in `<home>/skills/`; edit or delete them and they stay that way.
+A skill is procedural memory: one `SKILL.md` describing **how** to do a class of task, loaded when a relevant message appears. A new home gets two starter skills once: `summarize-document` and `tidy-folder`. They are plain files in `<home>/skills/`; edit or delete them and they stay that way.
 
 The repository's `skills/` folder carries optional extras, loaded with `export JEEVES_SKILL_DIRS="$PWD/skills"`. Among them, `dashboard-verification` is the check list for changing the dashboard: it keeps a function map of what to prove, the commands that prove it, and the evidence to keep. Use it before calling a dashboard change done.
 
@@ -151,7 +151,7 @@ The dashboard's **Capabilities** center lists every loaded skill with version, p
 
 ## 8. Schedules
 
-Ask in chat: "run the morning-briefing skill every weekday at 8". Jeeves stores a scheduled job (cron, one prompt) that the running Runtime fires in its own session, writing the result to `<home>/outbox/`. The Capabilities center lists jobs next to skills and MCP connectors, and a skill with a `schedule:` line is itself a job. The Runtime must be up for jobs to fire: [operations](operations.md#scheduled-jobs) covers cron syntax, delivery, catch-up and recovery.
+Ask in chat, “At 8 each weekday, send my calendar for the day here.” Review the time, source and destination before activating it. Amend or pause it from the same conversation. [Recurring work](design/composable-responsibilities.md)
 
 ## 9. Credentials
 

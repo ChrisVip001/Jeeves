@@ -1,4 +1,4 @@
-//! Render only excerpts verified against the owner's named sources for this reporting week.
+//! Render excerpts verified against the owner’s named sources within an explicit time window.
 use super::{numbers, Claim};
 use chrono::{DateTime, Duration, Utc};
 use jeeves_state::verification::FileMeasurement;
@@ -19,16 +19,24 @@ fn read(root: &Path, relative: &str, limit: u64) -> Result<(String, FileMeasurem
     FileMeasurement::read_text_limited(&path, limit).map_err(|e| format!("{relative}: {e}"))
 }
 
-pub fn weekly_report(root: &Path, allowed: &[String], at: DateTime<Utc>) -> Result<String, String> {
+pub fn verified_summary(
+    root: &Path,
+    allowed: &[String],
+    at: DateTime<Utc>,
+    lookback_days: u32,
+) -> Result<String, String> {
+    if !(1..=90).contains(&lookback_days) {
+        return Err("The evidence window must be between 1 and 90 days".into());
+    }
     let (claims, _) = read(root, "claims.json", 64 * 1024)?;
     let claims: Vec<Claim> =
         serde_json::from_str(&claims).map_err(|e| format!("claims.json: {e}"))?;
     if claims.is_empty() || claims.len() > 20 {
-        return Err("a weekly report requires 1 to 20 sourced claims".into());
+        return Err("a verified summary requires 1 to 20 sourced claims".into());
     }
     let (index, _) = read(root, "sources/index.jsonl", 1024 * 1024)?;
     let mut snapshots = HashMap::new();
-    let since = at - Duration::days(7);
+    let since = at - Duration::days(i64::from(lookback_days));
     for line in index.lines().filter(|line| !line.trim().is_empty()) {
         let entry: Evidence =
             serde_json::from_str(line).map_err(|e| format!("source index: {e}"))?;
@@ -43,7 +51,7 @@ pub fn weekly_report(root: &Path, allowed: &[String], at: DateTime<Utc>) -> Resu
             snapshots.insert(entry.url.clone(), entry);
         }
     }
-    let mut body = format!("Weekly research report · {} UTC\n", at.date_naive());
+    let mut body = format!("Verified source summary · {} UTC\n", at.date_naive());
     let mut checked = HashMap::new();
     for claim in claims {
         let quoted_numbers = numbers(&claim.quote);
@@ -61,7 +69,7 @@ pub fn weekly_report(root: &Path, allowed: &[String], at: DateTime<Utc>) -> Resu
         for url in &claim.source_refs {
             let source = snapshots.get(url).ok_or_else(|| {
                 format!(
-                    "claim {} has no authorized snapshot this week",
+                    "claim {} has no authorized snapshot in the selected window",
                     claim.claim_id
                 )
             })?;
@@ -91,11 +99,11 @@ pub fn weekly_report(root: &Path, allowed: &[String], at: DateTime<Utc>) -> Resu
             claim.source_refs.join("\n")
         ));
         if body.len() > 12 * 1024 {
-            return Err("weekly report exceeds 12 KiB".into());
+            return Err("verified summary exceeds 12 KiB".into());
         }
     }
     if allowed.iter().any(|url| !checked.contains_key(url)) {
-        return Err("a named source is missing from the report".into());
+        return Err("a named source is missing from the summary".into());
     }
     Ok(body)
 }
@@ -127,15 +135,15 @@ mod tests {
         };
         let allowed = [URL.to_string()];
         index(1, &hash);
-        let body = weekly_report(root, &allowed, now).unwrap();
+        let body = verified_summary(root, &allowed, now, 7).unwrap();
         assert!(body.contains(quote) && body.contains(URL));
         assert!(!body.contains("verified"));
-        assert!(weekly_report(root, &["https://other.test".into()], now).is_err());
+        assert!(verified_summary(root, &["https://other.test".into()], now, 7).is_err());
         index(7, &hash);
-        assert!(weekly_report(root, &allowed, now).is_err());
+        assert!(verified_summary(root, &allowed, now, 7).is_err());
         index(-1, &hash);
-        assert!(weekly_report(root, &allowed, now).is_err());
+        assert!(verified_summary(root, &allowed, now, 7).is_err());
         index(1, "forged");
-        assert!(weekly_report(root, &allowed, now).is_err());
+        assert!(verified_summary(root, &allowed, now, 7).is_err());
     }
 }
