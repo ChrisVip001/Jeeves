@@ -5,8 +5,8 @@ English | [简体中文](protocol.zh.md)
 `jeeves app-server` speaks **newline-delimited JSON-RPC 2.0** on stdin/stdout:
 one request per line; responses and notifications interleave (notifications
 before the response). Every type is defined in
-`jeeves-protocol/src/protocol/v2.rs` (including JSON-RPC envelopes) and generated into TypeScript
-(`schema/typescript/v2/`).
+`protocol/src/protocol/v2.rs` and `protocol/src/rpc.rs` and generated into TypeScript
+(`protocol/schema/typescript/v2/`).
 **Changing the protocol requires `just write-app-server-schema`.**
 
 ## Methods

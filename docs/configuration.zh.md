@@ -123,6 +123,9 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
 - 应答是 `RunResponse`（`turnId` / `reply` / `model` / `provider` /
   `routeReason`），与任务 API 同一个形状（异步模式下它被推到 callback）。
 
+以下示例的 `RUNTIME_ORIGIN` 指向私网 Runtime。在通过 `just local-up` 启动的源码部署中，
+从 `<home>/runtime-endpoint.json` 读取系统分配的回环端口。在 Kubernetes 中，使用租户的私网 Runtime Service。
+
 ### 三个可选栅栏
 
 - **`signature: true` —— 防重放**。请求必须带 `X-Jeeves-Timestamp`（秒级整数）与
@@ -133,7 +136,7 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
   ```bash
   BODY='{"status":"failed"}'; TS=$(date +%s)
   SIG=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac "$JEEVES_HOOK_SECRET" -r | cut -d' ' -f1)
-  curl -X POST "http://127.0.0.1:7777/api/hook/deploy" \
+  curl -X POST "${RUNTIME_ORIGIN}/api/hook/deploy" \
     -H "x-jeeves-timestamp: $TS" -H "x-jeeves-signature: $SIG" -d "$BODY"
   ```
 
@@ -157,7 +160,7 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
 （与 `/api/turn` 同一个形状），不流式，等这一轮结束才返回：
 
 ```bash
-curl -sS -X POST http://127.0.0.1:7777/api/run \
+curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
   -H "Authorization: Bearer $JEEVES_OPS_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"message":"把昨天的日志总结成三点","tier":"reasoning"}'
@@ -165,7 +168,7 @@ curl -sS -X POST http://127.0.0.1:7777/api/run \
 
 - 驾驶舱仍走 SSE（人想看着字一个个出来），这个端点是给 CI / cron /
   另一个 agent 用的；
-- 走同一条 Bearer：它属于 dashboard，只是没有页面；
+- 使用与其他私网 Runtime API 相同的 Bearer 令牌；
 - `model` 与 `routeReason` 是「档位真的生效了吗」的可见证据。
 
 ## 非法值启动即失败
@@ -482,7 +485,7 @@ DDG Lite 使用其正常的 POST 搜索表单，优先用系统可用的 `curl` 
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `JEEVES_PORT` | `7777` | 私网 Runtime 端口。设为 `0` 时绑定回环，在数据目录中发布系统分配的端口，供本机网关发现 |
+| `JEEVES_PORT` | `7777` | 私网 Runtime 端口。`just local-up` 和 Mac 开发版自行启动的 Runtime 设为 `0`，供本机网关自动发现。Kubernetes 示例在私网使用 `7777` |
 | `JEEVES_NOTIFY` | 关 | `1` / `true` / `yes` 才开；开了才读 `<home>/notify.json`（`{"slack": "webhook URL"}`）并往外推通知：**审批请求 / 后台作业收尾 / 目标终局**。完成通知先落盘，失败或重启后重试（见[投递边界](limitations.zh.md#通知与审计)）；批准提示仍为尽力发送。网络投递不阻塞 turn。URL 是管理员配的，指向内网自建端点（ntfy/Gotify 这类收 `{"text": …}` 的）是合法用法，不做 SSRF 护栏
 | `JEEVES_MORNING_BRIEFING` | 关闭 | 手动开启 08:00 晨报，值为渠道及 IANA 时区，如 `outbox@Asia/Shanghai`。见[晨报](operations.zh.md#晨报cron-友好)。 |
 | `JEEVES_OPS_HOST` | `127.0.0.1` | 私网 Runtime 的监听地址，容器默认使用 `0.0.0.0` |

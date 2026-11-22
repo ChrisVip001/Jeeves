@@ -140,7 +140,7 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 ## Mac 桌面应用
 
-托管版 Mac 应用将电脑连接到云端账号。用安装服务的公网地址运行 `just desktop-device-build https://jeeves.example.com` 打包。打开应用，点击**连接**并在浏览器确认配对。任务需要操作电脑时，Jeeves 会在 Mac 上请求窗口访问权限。在账号的设备列表管理访问。通过浏览器或 iOS 打开工作区，与助理对话并跟进事项。
+托管版 Mac 应用将电脑连接到云端账号。用安装服务的公网地址运行 `just desktop-device-build https://jeeves.example.com` 打包。打开应用，点击**连接**并在浏览器确认配对。任务需要操作电脑时，Jeeves 会在 Mac 上请求窗口访问权限。在账号的设备列表管理访问。通过浏览器或 iOS PWA 打开工作区，与助理对话并跟进事项。
 
 下节命令适用于源码仓库中的 Runtime 开发应用。
 
@@ -321,6 +321,6 @@ SDK 宿主通过[操作协议](protocol.zh.md#操作日志与人工核对)检查
 
 ## 给多个用户运行 Jeeves
 
-Web 和 iOS 用户在公网 HTTPS 地址登录，Mac 设备端与同一账号配对。部署 [Go 统一网关](../gateway/README.zh.md)、私网 [Go 控制面](../control-plane/README.zh.md)，以及供租户 Pod 使用的 Rust Runtime 镜像。控制面、PostgreSQL 和 Runtime 均使用私网端点。
+Web 和 iOS PWA 用户在公网 HTTPS 地址登录，Mac 设备端与同一账号配对。部署 [Go 统一网关](../gateway/README.zh.md)、私网 [Go 控制面](../control-plane/README.zh.md)，以及供租户 Pod 使用的 Rust Runtime 镜像。控制面、PostgreSQL 和 Runtime 均使用私网端点。
 
 个人源码部署运行 `just local-up`，在这台电脑的浏览器中创建所有者。网关和单实例 Runtime 均监听回环接口。

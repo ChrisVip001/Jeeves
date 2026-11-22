@@ -10,7 +10,7 @@ contributors alike.
 
 ## Choosing the next agent improvement
 
-Choose work from the [long-task roadmap](docs/planning/long-task-roadmap.md). Start with an assignment, its constraints and the evidence the user will accept. Follow it across planning, execution, interruption, recovery and delivery. Preserve the same engine contract on personal machines, servers and hosted installations. Record scripted regressions, real-model performance and deployment tests separately.
+Use the local long-task roadmap under docs/planning/ when present. The published [main conversation and task design](docs/design/main-entry.md) describes the workflow. Start with an assignment, its constraints and the evidence the user will accept. Follow it across planning, execution, interruption, recovery and delivery. Preserve the same engine contract on personal machines, servers and hosted installations. Record scripted regressions, real-model performance and deployment tests separately.
 
 ## Repository layout
 

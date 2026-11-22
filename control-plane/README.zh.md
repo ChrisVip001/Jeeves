@@ -4,7 +4,15 @@
 
 ## 构建与安装
 
-使用网关的 Dockerfile 构建网关镜像，使用 `docker build -f control-plane/Dockerfile -t jeeves-control-plane .` 构建控制面，使用 `docker build -t jeeves .` 构建 Runtime。以上命令均从仓库根目录执行。可选的 TypeScript 渠道适配器随 Runtime 打包。
+从仓库根目录构建三个镜像。
+
+```bash
+docker build -f gateway/Dockerfile -t jeeves-gateway .
+docker build -f control-plane/Dockerfile -t jeeves-control-plane .
+docker build -t jeeves .
+```
+
+网关镜像含 Web 工作台。Runtime 镜像含渠道适配器及其 Node Runtime 客户端。
 
 使用 [Kubernetes 示例](../deploy/k8s/control-plane.yaml)，并准备私网 PostgreSQL、默认 StorageClass、支持 NetworkPolicy 的 CNI 和 HTTPS Ingress。替换示例中的域名、镜像和 IngressClass。在 Jeeves 命名空间配置 `gateway-env`、`cp-env` 和公网 TLS 证书。分别为网关和控制面设置不同的数据库或角色。生产环境启用数据库 TLS 和加密备份。示例只为网关 Service 配置公网入口。限制私网访问，在 Istio 环境可应用 [mTLS 示例](../deploy/k8s/runtime-mtls.yaml)。根据批准的工具和渠道政策限制租户出站流量。
 

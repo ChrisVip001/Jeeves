@@ -147,7 +147,7 @@ The unit pins `JEEVES_HOME` and `JEEVES_PORT` and logs to `<home>/jeeves.log`. B
 
 ## Mac desktop app
 
-The hosted Mac app connects a device to the cloud account. Build it with `just desktop-device-build https://jeeves.example.com` using the installation's public origin. Open the app, choose **Connect**, and approve the pairing in the browser. Jeeves requests window access on the Mac when a task needs it. Manage access in the account's device list. Open the workspace in a browser or on iOS to talk to the assistant and follow the task.
+The hosted Mac app connects a device to the cloud account. Build it with `just desktop-device-build https://jeeves.example.com` using the installation's public origin. Open the app, choose **Connect**, and approve the pairing in the browser. Jeeves requests window access on the Mac when a task needs it. Manage access in the account's device list. Open the workspace in a browser or the iOS PWA to talk to the assistant and follow the task.
 
 The following commands apply to the source checkout's Runtime development app.
 
@@ -346,6 +346,6 @@ SDK hosts can inspect and reconcile through the [operation protocol](protocol.md
 
 ## Running Jeeves for many users
 
-Web and iOS users sign in at the public HTTPS origin. The Mac device app pairs with the same account. Deploy the [Go unified gateway](../gateway/README.md), the private [Go control plane](../control-plane/README.md), and a Rust Runtime image for tenant Pods. Keep the control plane, PostgreSQL and Runtime endpoints private.
+Web and iOS PWA users sign in at the public HTTPS origin. The Mac device app pairs with the same account. Deploy the [Go unified gateway](../gateway/README.md), the private [Go control plane](../control-plane/README.md), and a Rust Runtime image for tenant Pods. Keep the control plane, PostgreSQL and Runtime endpoints private.
 
 For a personal source installation, run `just local-up` and create the owner in the browser on that machine. It runs the gateway and one Runtime on loopback.

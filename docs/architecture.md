@@ -24,12 +24,31 @@ per-layer implementation tutorial is under `docs/internals/`.
 
 ## Multi-tenancy
 
-A tenant has one workspace and one active Rust Runtime. The ingress forwards client
+A tenant has one workspace with a Rust Runtime started on demand. The ingress forwards client
 traffic to the [Go unified gateway](../gateway/README.md), which owns user
 accounts, sessions and Runtime routing. The private [Go control plane](../control-plane/README.md)
 reconciles one Pod and one persistent volume per tenant and meters platform model usage. The
 Runtime retains chat, tasks, checkpoints, memory and outputs in its own `JEEVES_HOME`. A source
 installation runs the same gateway and Runtime on loopback through `just local-up`.
+
+The hosted request path and adjacent services are:
+
+```mermaid
+flowchart LR
+    User["Browser or iOS PWA"] --> Ingress["HTTPS ingress"]
+    Ingress --> Gateway["Go gateway"]
+    Gateway -->|Authenticated workspace API and SSE| Runtime["Tenant Rust Runtime"]
+    Gateway -->|Resolve or wake tenant| Control["Private Go control plane"]
+    Control -.->|Provision or scale| Runtime
+    Runtime -->|Metered hosted model requests| Control
+    Channel["Channel adapter"] <-->|Private Runtime API| Runtime
+    Mac["Paired Mac executor"] <-->|Device pairing and operation messages| Gateway
+```
+
+In a source installation, the Go gateway listens on loopback port 8743 by default.
+The Runtime publishes its assigned loopback port in `<home>/runtime-endpoint.json`.
+The gateway verifies the Runtime instance before forwarding requests with its service credential.
+See [shared Mac and Web development](operations.md#mac-desktop-app).
 
 Engine-side pieces a host relies on:
 
@@ -46,7 +65,20 @@ Engine-side pieces a host relies on:
 
 ## Module responsibilities
 
-`jeeves-app-server`: `server/` holds shared server state (`runtime.rs` boot and recovery,
+Cargo, Go and npm use their workspace or module manifests at the repository root.
+
+| Source | Responsibility |
+| --- | --- |
+| [gateway/](../gateway/README.md) | Public Go entry for sign-in, account sessions, workspace routing and device pairing. Serves the Web build. |
+| [control-plane/](../control-plane/README.md) | Private Go service for tenant provisioning, resource limits and hosted model metering. |
+| [internal/cloudkit/](../internal/cloudkit) | Shared Go code for HTTP, persistence and Runtime endpoints. |
+| [runtime/crates/](../runtime/crates) | Rust execution engine, persistent state, private HTTP API, CLI and eval runner. |
+| [protocol/](../protocol) | Rust wire types, checked-in JSON Schema and TypeScript bindings, plus shared TypeScript event transport helpers. |
+| [web/](../web) · [desktop/](../desktop) | Browser and iOS PWA workbench, plus the Tauri Mac device app and source-development shell. |
+| [integrations/channels/](../integrations/channels) | Feishu, Telegram and WeChat adapters and their Node Runtime client in `runtime-client/`. |
+| [executors/browser/](../executors/browser) | Task browser worker launched and supervised by the Runtime. |
+
+Inside `runtime/crates/jeeves-app-server`, `server/` holds shared server state (`runtime.rs` boot and recovery,
 `tools.rs` tool assembly, `controls.rs` approvals, capacity and active-turn control,
 `settings.rs` configuration access); `dispatch.rs` and `stdio.rs` route JSON-RPC methods;
 `turn/` is one turn (entry, execution, continuation, finalization, history, prompt assembly,
@@ -203,7 +235,8 @@ conflict.
 
 ### Main conversation and tasks
 
-Web and desktop use the persistent `jeeves-main` session and `interaction/start`. The runtime
+Web, the Mac development shell and connected chat channels use the persistent
+`jeeves-main` session and `interaction/start`. The Runtime
 routes a human message into ordinary discussion, clarification, or up to four independent
 tasks, and owns admission, task directories, dispatch, retries and inherited permissions;
 clients render the shared task controls. One worker by default (configurable up to eight) executes tasks while main-conversation

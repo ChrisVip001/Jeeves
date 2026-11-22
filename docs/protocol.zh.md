@@ -4,8 +4,8 @@
 
 `jeeves app-server` 在 stdin/stdout 上说**换行分隔的 JSON-RPC 2.0**：一行一个
 请求，应答与通知混序写出（通知先于应答）。所有类型定义在
-`jeeves-protocol/src/protocol/v2.rs`（含 JSON-RPC 信封），并生成 TypeScript
-（`schema/typescript/v2/`）。
+`protocol/src/protocol/v2.rs` 和 `protocol/src/rpc.rs`，并生成 TypeScript
+（`protocol/schema/typescript/v2/`）。
 **改协议必须跑 `just write-app-server-schema`。**
 
 ## 方法一览

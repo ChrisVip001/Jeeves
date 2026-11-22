@@ -39,7 +39,7 @@ hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 流式文本立即打印，其他通知（记忆门、工具开始/结束、整合、回合摘要行）画成一行小字。回合没有流式输出时，
 整段回复一次性打印。
 
-斜杠命令：`/help`、`/new`、`/sessions`、`/memory [term]`、`/compact [focus]`、`/goal <condition>`
+斜杠命令包括 `/help`、`/memory [term]`、`/compact [focus]`、`/goal <condition>`
 （`/goal clear`）、`/cwd [path]`、`/model`（`use`、`add`）、`/route`（`auto`、`fixed`、`set <tier> <profile>`）、
 `/quit`（`/exit`、`/q`）。未知的 `/x` 会明确报告未知。
 
@@ -106,33 +106,35 @@ hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 每个签名只被接受一次；`limit` 限制每滚动分钟接受的请求数（429 加 `Retry-After`）；`callback` 先回 202，之后把结果 POST 过去。
 回合就是普通回合：工具保留各自的审批，而且没有人在场授予。
 
-`POST /api/gateway/rpc` 只转发 `turn/start`、`interaction/start`、`session/main`、`task/get`、`approval/pending` 和
+`POST /api/gateway/rpc` 只转发 `interaction/start`、`session/main`、`task/get`、`task/wake`、`approval/pending` 和
 `approval/respond`；其余方法一律回答 method-not-found。
 
 ## 7.5 `@jeeves/client`
 
-协议的 TypeScript 客户端。类型只通过 `protocol.ts` 引用生成产物（`jeeves-protocol/schema/typescript/v2`），其他文件都从它导入。
+Node Runtime 客户端位于 `integrations/channels/runtime-client/`。`protocol.ts` 转出
+`protocol/schema/typescript/v2/` 生成的类型。客户端与 Web 工作台共用 `protocol/typescript/` 下的
+SSE 解析器和事项事件游标。
 
 - `JeevesClient` 分配 id，维护以字符串化 id 为键的待决表，把每行解析为通知、错误或响应，传输关闭时拒绝所有待决请求。
   `JeevesError` 携带 `code` 和 `data`，并提供 `isProvider`、`isNotImplemented`、`isInvalidParams` 三个判断。
 - `StdioTransport` 启动 `jeeves app-server`，按行切分 stdout，把 stderr 转给 `onLog`，`close()` 只结束 stdin，让服务器写完剩余帧。
   `findJeevesBinary` 依次取 `JEEVES_BIN`、从包目录向上查找的 `target/{debug,release}/jeeves`、PATH 上的 `jeeves`。
-- `HttpTransport` 附着到已在运行的 Runtime 而不是再启动一个：读取 `/api/notifications`，发送时可带 Bearer 令牌。
+- `HttpTransport` 连接正在运行的 Runtime，向 `/api/gateway/rpc` 发起请求，订阅
+  `/api/notifications`，并在配置后携带 Runtime 的私网 Bearer 令牌。
 
 ## 7.6 `@jeeves/dashboard`
 
-Vue 和 Vite 将工作台及账号页面构建到 `dist/`。Go 网关在通过鉴权的工作区路径下提供工作台，浏览器使用同源会话 Cookie 调用对应的 Runtime API。运行 `just dashboard-build` 生成资源。
+Vue 和 Vite 将工作台及账号页面构建到 `web/dist/`。Go 网关在通过鉴权的工作区路径下提供工作台，浏览器使用同源会话 Cookie 调用对应的 Runtime API。运行 `just dashboard-build` 生成资源。
 
 | 部分 | 作用 |
 |---|---|
 | `main.ts`、`WebControls.vue`、`workspace.ts` | 挂载 Vue 控件并运行页面控制器 |
-| `api.ts` | 对上述路由的带类型 `fetch` 封装；`talk()` 手动读取 SSE 响应体 |
+| `api.ts`、`hosted.ts` | 工作区请求携带网关会话 Cookie，会话失效后返回登录页。流式响应使用共用 SSE 解析器。 |
 | `sync.ts` | 保持 `/api/events` 打开，把 500 ms 内的 ping 合并为一次刷新，永远重连；15 秒轮询（`POLL_MS`）作为后备 |
-| `token-dialog.ts` | 同时出现的 401 共用一个对话框，向用户索取部署令牌 |
 | `render.ts`、`timeline.ts`、`tasks.ts` | 不拼 HTML 字符串，直接构建 DOM |
 | `markdown.ts` | 手写的 Markdown 渲染器，为模型回复构建 DOM 节点；不用第三方解析器 |
 | `ui/` | 共享组件：`SetupWizard`、`SettingsPanel`、`TaskCenter`、`BrowserPanel`、`ModelPicker`、`PermissionPicker`、`WorkspacePicker`、`AttachmentPicker`，以及组合式函数 `useTasks`、`useBrowsers` |
-| `sw.js`、`manifest.webmanifest` | PWA：`/api/*` 从不缓存，页面优先网络，其他静态资源优先缓存；每次发布前端变更都要递增 `VERSION` |
+| `sw.js`、`manifest.webmanifest` | PWA 页面优先请求网络，API 响应不缓存。构建为入口与缓存生成同一版本标记。 |
 
 **设置向导**（`SetupWizard.vue`）在没有配置模型时从模型步骤开始（提供商、模型、API 密钥、基础 URL），
 然后询问权限模式和关于用户的可选备注，备注通过 `remember` 保存。
@@ -144,28 +146,28 @@ Vue 和 Vite 将工作台及账号页面构建到 `dist/`。Go 网关在通过�
 
 ## 7.7 聊天网关
 
-`@jeeves/channels` 包含 `JeevesBridge` 和两个平台适配器：Lark/飞书（`lark.ts`、`bin-lark.ts`）和微信公众号
-（`wechat.ts`、`bin-wechat.ts`）。独立运行：`just gateway-lark`、`just gateway-wechat`。
+`@jeeves/channels` 包含 `JeevesBridge` 以及飞书、微信公众号和 Telegram 适配器。可用
+`just gateway-lark`、`just gateway-wechat` 和 `just gateway-telegram` 独立启动。
+见[渠道适配器配置](../configuration.zh.md#渠道适配器)。
 
 | | Lark / 飞书 | 微信 |
 |---|---|---|
 | 连接 | 长连接 WebSocket，使用 Lark 私有 protobuf 帧（`pbbp2`，在 `lark-proto.ts` 手写） | HTTP 回调服务器（`WECHAT_PORT`，默认 8080；路径 `WECHAT_PATH`，默认 `/wechat`）；需要公网地址 |
 | 允许名单 | `LARK_ALLOW`：open_id（`ou_…`） | `WECHAT_ALLOW`：OpenID |
 | 消息上限 | 30000 字符 | 600 字符 |
-| 时序 | 数据帧先 ACK 再处理；心跳默认 120 秒（最小 10 秒）；重连退避翻倍，上限 30 秒 | 回合在 4000 ms 内完成才用被动回复，否则先回 `success`，答案随后以客服消息发出（需要 `WECHAT_APP_SECRET` 和已认证账号） |
+| 时序 | 收到的数据帧先持久化，再确认 ACK 并处理。心跳默认 120 秒（最小 10 秒），重连退避上限为 30 秒。 | 回合在 4000 ms 内完成才用被动回复，否则先回 `success`，答案随后以客服消息发出（需要 `WECHAT_APP_SECRET` 和已认证账号） |
 | 其他设置 | `LARK_APP_ID`、`LARK_APP_SECRET`、国际版用 `LARK_DOMAIN=lark`、`LARK_DISPATCHERS`、`LARK_CLAIM` | `WECHAT_TOKEN`、`WECHAT_APP_ID`、`WECHAT_AES_KEY`（43 个字符；明文、兼容、安全三种模式） |
 
 `bridge.ts`（`JeevesBridge`）承载与平台无关的部分：
 
-- **无状态会话**：`sessionIdFor(conversation)` 就是会话标识本身（例如 `lark:<id>`）。
-- **每个会话一条队列**（`#tails`）：同一会话的消息逐条执行。
-- 回合以 `stream: false` 启动；回合的 `turnId` 通过 `#inFlight` / `#completed` 与其通知配对，所以先于响应到达的通知不会丢失。
+- **唯一主会话。** 桥接器按顺序提交消息，在 `jeeves-main` 通过 `interaction/start` 发起回合。
+  平台会话 ID 用来定位回复与审批的来源。
+- 桥接器先用平台消息标识匹配提前到达的通知，再用返回的 `turnId` 跟踪回合直至结束。
 - `JeevesBridge` 自己启动 app-server，或在给定 `url` 和 `token`（`JEEVES_GATEWAY_URL`、`JEEVES_OPS_TOKEN`）时附着到 Runtime。
 - `explain(error)` 把 `JeevesError` 转成发给聊天的通俗句子。
-- **调度人**（`LARK_DISPATCHERS`，同步给 Runtime 的 `JEEVES_DISPATCHERS`）：调度人在群里的消息带着 `InteractionSource` 进入主会话
-  `jeeves-main`；平台消息 id（`safeId`）作为请求 id，所以重复投递的事件是重放而不是第二次派发。`reports.ts` 在被派发的任务到达
-  `done`、`failed`、`cancelled` 或 `needs_attention` 时回报到原线程；`approvals.ts` 把审批请求作为卡片发出，调度人的点击通过
-  `approval/respond` 只回答一次。
+- **调度人。** Runtime 按 `JEEVES_DISPATCHERS` 决定哪些群成员可以交办事项。桥接器携带
+  `InteractionSource`，并生成稳定的消息 ID 用于去重。`reports.ts` 将事项的结束状态回报给源线程。
+  `approvals.ts` 发送审批卡，获授权的决定经带版本的 `approval/respond` 写回。
 
 `splitMessage(text, limit)`（`text.ts`）只有一份实现：在过半位置之后的换行处切分，否则硬切。
 

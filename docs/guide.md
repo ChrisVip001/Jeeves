@@ -8,7 +8,7 @@ Jeeves carries long-running assignments across devices. Sign in at your installa
 
 | Use | Get started |
 |---|---|
-| Hosted Web and iOS | Open your deployment's HTTPS address and sign in or register. Wait for the workspace to start on first use. |
+| Hosted Web and iOS PWA | Open your deployment's HTTPS address and sign in or register. Wait for the workspace to start on first use. |
 | Self-hosted on one computer | Run `just local-up` from the checkout and create the owner account in the browser. |
 | Mac app | Approve device pairing in the browser for the hosted app. The development app opens the same Go gateway. See [Mac desktop app](operations.md#mac-desktop-app). |
 

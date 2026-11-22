@@ -144,6 +144,10 @@ never learns the hook exists:
   `routeReason`) — the same shape as the task API (pushed to the callback in async
   mode).
 
+Set `RUNTIME_ORIGIN` in the following examples to the private Runtime origin. On a source
+installation started with `just local-up`, use the assigned loopback port from
+`<home>/runtime-endpoint.json`. On Kubernetes, use the tenant's private Runtime Service.
+
 ### Three optional fences
 
 - **`signature: true` — no replays.** The request must carry `X-Jeeves-Timestamp`
@@ -155,7 +159,7 @@ never learns the hook exists:
   ```bash
   BODY='{"status":"failed"}'; TS=$(date +%s)
   SIG=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac "$JEEVES_HOOK_SECRET" -r | cut -d' ' -f1)
-  curl -X POST "http://127.0.0.1:7777/api/hook/deploy" \
+  curl -X POST "${RUNTIME_ORIGIN}/api/hook/deploy" \
     -H "x-jeeves-timestamp: $TS" -H "x-jeeves-signature: $SIG" -d "$BODY"
   ```
 
@@ -184,7 +188,7 @@ never learns the hook exists:
 (the same shape as `/api/turn`), no streaming, and it returns when the turn ends:
 
 ```bash
-curl -sS -X POST http://127.0.0.1:7777/api/run \
+curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
   -H "Authorization: Bearer $JEEVES_OPS_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"message":"Summarise yesterday in three points","tier":"reasoning"}'
@@ -546,7 +550,7 @@ requires verification, the configured backend chain continues.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JEEVES_PORT` | `7777` | Private Runtime port. With `0`, bind to loopback and publish the OS-assigned port for the local gateway |
+| `JEEVES_PORT` | `7777` | Private Runtime port. Both `just local-up` and a Runtime started by the Mac development app set it to `0` for automatic loopback discovery. The Kubernetes example uses `7777` on the private network |
 | `JEEVES_NOTIFY` | off | `1` / `true` / `yes` turns it on; then reads `<home>/notify.json` (`{"slack": "webhook URL"}`) and pushes notifications: **approval requests / background-job finish / goal outcomes**. Completion notices persist before delivery and retry after failures/restarts (see [delivery limits](limitations.md#notifications-and-audit)); approval prompts remain best-effort. Network delivery does not block the turn. The URL is admin-configured, so pointing it at a self-hosted intranet endpoint (ntfy/Gotify — anything accepting `{"text": …}`) is legitimate; no SSRF guard applies
 | `JEEVES_MORNING_BRIEFING` | off | Opt-in 08:00 proposal; set a channel and IANA zone, e.g. `outbox@Asia/Shanghai`. See [Morning brief](operations.md#morning-brief-cron-friendly). |
 | `JEEVES_OPS_HOST` | `127.0.0.1` | Private Runtime bind address. The container uses `0.0.0.0` |

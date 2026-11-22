@@ -19,11 +19,29 @@ Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状�
 
 ## 多租户
 
-每个租户有一个工作区和一个活跃的 Rust Runtime。云入口将请求交给
+每个租户有一个工作区，按需启动 Rust Runtime。云入口将请求交给
 [Go 统一网关](../gateway/README.zh.md)，由网关处理用户账号、会话和 Runtime 路由。
 私网中的 [Go 控制面](../control-plane/README.zh.md)为每个租户协调一个 Pod 和一块持久卷，并计量平台模型用量。
 聊天、事项、检查点、记忆和交付留在 Runtime 的 `JEEVES_HOME`。源码个人部署可通过 `just local-up`
 在回环地址运行相同的网关和 Runtime。
+
+托管部署的请求链路与相关服务如下。
+
+```mermaid
+flowchart LR
+    User["浏览器或 iOS PWA"] --> Ingress["HTTPS 入口"]
+    Ingress --> Gateway["Go 统一网关"]
+    Gateway -->|已鉴权的工作区 API 和 SSE| Runtime["租户 Rust Runtime"]
+    Gateway -->|查询或唤醒租户| Control["私网 Go 控制面"]
+    Control -.->|创建或伸缩| Runtime
+    Runtime -->|计量托管模型请求| Control
+    Channel["渠道适配器"] <-->|Runtime 私网 API| Runtime
+    Mac["已配对的 Mac 执行器"] <-->|配对与设备操作消息| Gateway
+```
+
+源码单机部署时，Go 网关默认监听回环地址的 8743 端口。Runtime 把系统分配的回环端口写入
+`<home>/runtime-endpoint.json`，网关先验证 Runtime 实例，再携带服务凭据转发请求。
+见 [Mac 与 Web 共用开发环境](operations.zh.md#mac-桌面应用)。
 
 引擎侧供宿主依赖的几样东西：
 
@@ -38,7 +56,20 @@ Jeeves 通过每个任务库独占的 Runtime 执行复杂长任务。任务状�
 
 ## 模块职责
 
-`jeeves-app-server`：`server/` 放共享服务状态（`runtime.rs` 启动与恢复、`tools.rs` 工具
+Cargo、Go 和 npm 的工作区或模块配置都在仓库根目录。
+
+| 源码目录 | 职责 |
+| --- | --- |
+| [gateway/](../gateway/README.zh.md) | Go 统一入口，负责登录、账号会话、工作区路由和设备配对，并提供 Web 构建产物。 |
+| [control-plane/](../control-plane/README.zh.md) | 私网 Go 服务，负责租户实例、资源限制和托管模型计量。 |
+| [internal/cloudkit/](../internal/cloudkit) | Go 服务共用的 HTTP、存储和 Runtime 端点代码。 |
+| [runtime/crates/](../runtime/crates) | Rust 执行引擎、持久状态、私网 HTTP API、CLI 和评测运行器。 |
+| [protocol/](../protocol) | Rust 协议类型、入库的 JSON Schema 和 TypeScript 绑定，以及共用的 TS 事件传输辅助代码。 |
+| [web/](../web) · [desktop/](../desktop) | 浏览器与 iOS PWA 工作台，以及 Tauri Mac 设备客户端和源码开发外壳。 |
+| [integrations/channels/](../integrations/channels) | 飞书、Telegram、微信适配器及 `runtime-client/` 下的 Node Runtime 客户端。 |
+| [executors/browser/](../executors/browser) | 由 Runtime 启动和管理的任务浏览器执行器。 |
+
+`runtime/crates/jeeves-app-server` 内的 `server/` 放共享服务状态（`runtime.rs` 启动与恢复、`tools.rs` 工具
 装配、`controls.rs` 审批/容量/活动 turn 控制、`settings.rs` 配置读取）；`dispatch.rs` 与
 `stdio.rs` 路由 JSON-RPC 方法；`turn/` 是一个 turn（入口、执行、续跑、收尾、历史、提示词
 装配、操作核对）；`task/` 是独立任务 worker；`interaction/` 是主会话入口；`scheduler/` 触发
@@ -171,7 +202,7 @@ future 被丢弃（HTTP 连接随之关闭）。部分回复如实存下，带 `
 
 ### 主会话与任务
 
-Web 和桌面使用常驻的 `jeeves-main` 会话和 `interaction/start`。运行时把人的消息路由为普通
+Web、Mac 开发外壳和已连接的聊天渠道使用常驻的 `jeeves-main` 会话和 `interaction/start`。Runtime 把人的消息路由为普通
 讨论、澄清，或最多四个独立任务，并负责准入、任务目录、分发、重试和继承的权限；客户端渲染
 共享的任务控制。默认一个 worker 执行任务，可配置至八个，主会话 turn 保持可用。主提示词带的是有界的
 任务进度，而不是 worker 的对话记录。协议细节见

@@ -1,10 +1,10 @@
 # Jeeves 统一网关
 
-云负载均衡或 Ingress 处理公网 HTTPS。Go 网关提供 Web 和 iOS 工作区，管理账号与会话，并将通过鉴权的请求转发给用户的 Rust Runtime。私网的 Go 控制面按已鉴权的租户返回 Runtime 地址。Mac 设备端使用同一个账号配对，并按需授权所选窗口。[架构](../docs/architecture.zh.md)
+云负载均衡或 Ingress 处理公网 HTTPS。Go 网关为浏览器和 iOS PWA 提供同一工作台，管理账号与会话，并将通过鉴权的请求转发给用户的 Rust Runtime。私网的 Go 控制面按已鉴权的租户返回 Runtime 地址。Mac 设备端使用同一个账号配对，并按需授权所选窗口。[架构](../docs/architecture.zh.md)
 
 ## 云端配置
 
-在仓库根目录运行 `docker build -f gateway/Dockerfile -t jeeves-gateway .`。镜像提供构建好的工作台，监听 8080 端口。其他镜像和基础设施见[托管部署手册](../control-plane/README.zh.md)。
+在仓库根目录运行 `docker build -f gateway/Dockerfile -t jeeves-gateway .`。镜像提供由 `web/` 构建的工作台，在 Ingress 后监听 8080 端口。其他镜像和基础设施见[托管部署手册](../control-plane/README.zh.md)。
 
 | 环境变量 | 用途 |
 | --- | --- |
@@ -21,7 +21,7 @@ SMTP 支持强制 STARTTLS 的 `smtp://`，以及连接即启用 TLS 的 `smtps:
 
 ## 路由与凭据
 
-浏览器会话 Cookie 仅限当前主机和 HTTPS，且禁止 JavaScript 读取。统一网关根据已鉴权的账号确定 Runtime 地址，并在服务端附加 Runtime 凭据。控制面、租户 Service 和数据库放在私网内。公网入口应支持流式响应、WebSocket 升级，并配置足够长的空闲连接超时。跨内部信任边界的连接使用 TLS 或服务网格。
+托管版浏览器会话 Cookie 仅限当前主机，设置 Secure 和 HttpOnly 标志。统一网关根据已鉴权的账号确定 Runtime 地址，并在服务端附加 Runtime 凭据。控制面、租户 Service 和数据库放在私网内。公网入口应支持流式响应、WebSocket 升级，并配置足够长的空闲连接超时。跨内部信任边界的连接使用 TLS 或服务网格。
 
 渠道适配器在获得授权的租户部署中运行。配置和受限渠道凭据见 [Runtime 外壳手册](../docs/internals/07-shells.zh.md#78-runtime-托管的-lark-网关)。
 

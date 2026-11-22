@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/github/license/ChrisVip001/Jeeves)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/ChrisVip001/Jeeves)](https://github.com/ChrisVip001/Jeeves/releases/latest)
 
-把要交付的结果告诉 Jeeves。例如，交办一次事故复盘，可以要求整理证据、核对数字并写出可供复核的报告。在主聊天里可以指定报告文件名、写明正文必须包含的原文。执行任务可以据此检查文件、补交缺少的内容，再把结果带回主聊天。从回执可以打开原任务继续跟进。[主聊天与任务会话](docs/design/main-entry.zh.md) · [复杂长任务路线图](docs/planning/long-task-roadmap.zh.md)
+把要交付的结果告诉 Jeeves。例如，交办一次事故复盘，可以要求整理证据、核对数字并写出可供复核的报告。在主聊天里可以指定报告文件名、写明正文必须包含的原文。执行任务可以据此检查文件、补交缺少的内容，再把结果带回主聊天。从回执可以打开原任务继续跟进。[主聊天与任务会话](docs/design/main-entry.zh.md)
 
 云端用户经统一网关登录。新工作区启动期间可以先写下要交办的事。Rust Runtime 按租户隔离任务与数据。源码可通过 `just local-up` 在本机浏览器使用。[架构](docs/architecture.zh.md) · [统一网关](gateway/README.zh.md) · [云端部署](control-plane/README.zh.md)
 
@@ -26,7 +26,7 @@
 
 从仓库根目录运行 `just build`、`just check` 和 `just release-package`。参见[仓库布局](AGENTS.zh.md#仓库布局)。
 
-**托管版**使用服务公开的 HTTPS 地址注册或登录。浏览器和 iOS 共用一个账号与任务工作台。Mac 客户端用同一账号配对，在任务需要时授权操作所选窗口。[云端部署](control-plane/README.zh.md)
+**托管版**使用服务公开的 HTTPS 地址注册或登录。浏览器和 iOS PWA 共用一个账号与任务工作台。Mac 客户端用同一账号配对，在任务需要时授权操作所选窗口。[云端部署](control-plane/README.zh.md)
 
 **单机自托管**可在仓库根目录运行 `just local-up`。首次在浏览器创建所有者账号，再连接模型。开发版 Mac App 和浏览器共用 `8743` 的 Go 网关。Runtime 的内部端口由系统分配。
 

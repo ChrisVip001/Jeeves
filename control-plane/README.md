@@ -4,7 +4,15 @@ The public HTTPS entry sends traffic to the [Go unified gateway](../gateway/READ
 
 ## Build and install
 
-Build the gateway image from its Dockerfile, the control-plane image with `docker build -f control-plane/Dockerfile -t jeeves-control-plane .`, and the Runtime image with `docker build -t jeeves .`. Run these commands from the repository root. Optional TypeScript channel adapters are packaged with the Runtime.
+Build all three images from the repository root.
+
+```bash
+docker build -f gateway/Dockerfile -t jeeves-gateway .
+docker build -f control-plane/Dockerfile -t jeeves-control-plane .
+docker build -t jeeves .
+```
+
+The gateway image contains the Web workbench. The Runtime image contains the channel adapters and their Node Runtime client.
 
 Use the [Kubernetes example](../deploy/k8s/control-plane.yaml) with a private PostgreSQL instance, a default StorageClass, a NetworkPolicy-capable CNI and an HTTPS ingress. Substitute the domain, image references and ingress class for the installation. Provision `gateway-env`, `cp-env` and the public TLS certificate in the Jeeves namespace. Use separate databases or roles for the gateway and control plane. Enable database TLS and encrypted backups in production. The example's ingress rules expose the gateway Service. Enforce private network access and apply [the mTLS example](../deploy/k8s/runtime-mtls.yaml) on an Istio installation. Restrict tenant egress according to the approved tool and connector policy.
 

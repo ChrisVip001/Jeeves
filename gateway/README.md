@@ -1,10 +1,10 @@
 # Jeeves unified gateway
 
-A cloud load balancer or ingress terminates public HTTPS. The Go gateway serves the Web and iOS workspaces, owns accounts and sessions, and routes authenticated requests to the user's Rust Runtime. The private Go control plane returns the Runtime endpoint for the authenticated tenant. The Mac device app pairs through the same account and grants access to a selected window. [Architecture](../docs/architecture.md)
+A cloud load balancer or ingress terminates public HTTPS. The Go gateway serves one Web workbench for browsers and the iOS PWA, owns accounts and sessions, and routes authenticated requests to the user's Rust Runtime. The private Go control plane returns the Runtime endpoint for the authenticated tenant. The Mac device app pairs through the same account and grants access to a selected window. [Architecture](../docs/architecture.md)
 
 ## Cloud configuration
 
-Build from the repository root with `docker build -f gateway/Dockerfile -t jeeves-gateway .`. The image serves the built dashboard and listens on port 8080. See the [hosted deployment guide](../control-plane/README.md) for the other images and infrastructure.
+Build from the repository root with `docker build -f gateway/Dockerfile -t jeeves-gateway .`. The image serves the bundle built from `web/` and listens on port 8080 behind the ingress. See the [hosted deployment guide](../control-plane/README.md) for the other images and infrastructure.
 
 | Environment | Purpose |
 | --- | --- |
@@ -21,7 +21,7 @@ SMTP accepts `smtp://` with required STARTTLS and `smtps://` for TLS on connecti
 
 ## Routing and credentials
 
-The gateway uses a host-only, HTTPS-only, HTTP-only cookie for browser sessions. It derives the Runtime destination from the authenticated account and supplies the Runtime credential server-side. Keep the control plane, tenant Services and database private. Preserve streaming responses, WebSocket upgrades and long enough idle timeouts at the public ingress. Use TLS or a service mesh for traffic crossing internal trust boundaries.
+Hosted browser sessions use a host-only cookie with the Secure and HttpOnly flags. It derives the Runtime destination from the authenticated account and supplies the Runtime credential server-side. Keep the control plane, tenant Services and database private. Preserve streaming responses, WebSocket upgrades and long enough idle timeouts at the public ingress. Use TLS or a service mesh for traffic crossing internal trust boundaries.
 
 Channel adapters run within an authorized tenant deployment. Their configuration and scoped credentials are documented in [the Runtime shell guide](../docs/internals/07-shells.md#78-runtime-hosted-lark-gateway).
 

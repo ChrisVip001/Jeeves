@@ -9,7 +9,9 @@ PATH_RE = re.compile(r"`((?:runtime|protocol|web|integrations|executors|gateway|
 SKIP = ("planning", "node_modules")  # planning notes are dated records, not live docs
 GENERATED_BY = {
     "target/debug/jeeves": "runtime/crates/jeeves-cli/Cargo.toml",
+    "web/dist": "web/package.json",
     "desktop/src-tauri/browser-runtime": "scripts/prepare-browser-runtime.py",
+    "desktop/src-tauri/target/release/bundle/macos/Jeeves.app": "desktop/src-tauri/tauri.conf.json",
 }
 
 

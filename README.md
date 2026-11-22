@@ -6,7 +6,7 @@ English | [简体中文](README.zh.md)
 [![License: MIT](https://img.shields.io/github/license/ChrisVip001/Jeeves)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/ChrisVip001/Jeeves)](https://github.com/ChrisVip001/Jeeves/releases/latest)
 
-Give Jeeves an outcome to deliver. For an incident review, that might mean gathering evidence, checking the figures and producing a report another person can verify. In main chat you can name an output file and quote text it must contain. The task can check the file, correct a missing result and bring the outcome back to the conversation. Open the original task from its receipt to follow up. [Main chat and task threads](docs/design/main-entry.md) · [Long-task roadmap](docs/planning/long-task-roadmap.md)
+Give Jeeves an outcome to deliver. For an incident review, that might mean gathering evidence, checking the figures and producing a report another person can verify. In main chat you can name an output file and quote text it must contain. The task can check the file, correct a missing result and bring the outcome back to the conversation. Open the original task from its receipt to follow up. [Main chat and task threads](docs/design/main-entry.md)
 
 Cloud users sign in through one Go gateway. A new workspace can start while you draft the first assignment. Rust Runtimes isolate tasks and data per tenant. Run a source installation in your local browser with `just local-up`. [Architecture](docs/architecture.md) · [Unified gateway](gateway/README.md) · [Hosted deployment](control-plane/README.md)
 
@@ -26,7 +26,7 @@ Coding tasks can run an approved CLI in a private Git worktree. A parent can int
 
 Develop from the repository root with `just build`, `just check` and `just release-package`. See the [repository layout](AGENTS.md#repository-layout).
 
-**Hosted** users register or sign in at the service's public HTTPS origin. Web and iOS share the same account and workspace. Pair the Mac app with that account to authorize work in selected windows. [Cloud deployment](control-plane/README.md)
+**Hosted** users register or sign in at the service's public HTTPS origin. The browser and iOS PWA share the same account and workspace. Pair the Mac app with that account to authorize work in selected windows. [Cloud deployment](control-plane/README.md)
 
 **Personal self-hosting** starts with `just local-up` from the checkout. Create the owner account in the browser and connect a model. The Mac development app and browser share the Go gateway on port `8743`. The OS assigns the private Runtime port.
 
@@ -89,7 +89,7 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 | Document | Content |
 |---|---|
 | [docs/guide.md](docs/guide.md) | getting started: install, wizard, models, permissions, chat gateways, skills |
-| [docs/architecture.md](docs/architecture.md) | principles, crate dependency graph, one turn's data flow, design decisions |
+| [docs/architecture.md](docs/architecture.md) | deployment topology, module responsibilities, dependencies and turn lifecycle |
 | [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, human responsibility controls and sourced Feishu weekly reports, notifications and error codes |
 | [docs/configuration.md](docs/configuration.md) | runtime settings, model key rotation and recovery, and every `JEEVES_*` variable |
 | [docs/operations.md](docs/operations.md) | running every shape, backups, troubleshooting |

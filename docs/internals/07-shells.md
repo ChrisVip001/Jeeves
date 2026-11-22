@@ -43,7 +43,7 @@ streamed text is printed immediately, and the other notifications (memory gate, 
 consolidation, turn summary line) are drawn as one-line small text. The reply is printed whole when the turn
 streamed nothing.
 
-Slash commands: `/help`, `/new`, `/sessions`, `/memory [term]`, `/compact [focus]`, `/goal <condition>`
+Slash commands: `/help`, `/memory [term]`, `/compact [focus]`, `/goal <condition>`
 (`/goal clear`), `/cwd [path]`, `/model` (`use`, `add`), `/route` (`auto`, `fixed`, `set <tier> <profile>`),
 `/quit` (`/exit`, `/q`). An unknown `/x` is reported as unknown.
 
@@ -115,13 +115,14 @@ file disables all hooks with a stderr line. With `signature: true` the caller se
 requests per rolling minute (429 with `Retry-After`); `callback` answers 202 and POSTs the result later. The turn is an
 ordinary turn: tools keep their approvals and nobody is present to grant them.
 
-`POST /api/gateway/rpc` forwards only `turn/start`, `interaction/start`, `session/main`, `task/get`, `approval/pending` and
+`POST /api/gateway/rpc` forwards only `interaction/start`, `session/main`, `task/get`, `task/wake`, `approval/pending` and
 `approval/respond`; every other method answers method-not-found.
 
 ## 7.5 `@jeeves/client`
 
-The TypeScript client of the protocol. Types come from the generated artifacts through `protocol.ts` alone
-(`jeeves-protocol/schema/typescript/v2`); every other file imports from it.
+The Node Runtime client lives in `integrations/channels/runtime-client/`. Its `protocol.ts` re-exports
+the generated types from `protocol/schema/typescript/v2/`. The client and Web workbench share the
+SSE parser and task event cursor in `protocol/typescript/`.
 
 - `JeevesClient` assigns ids, keeps a pending table keyed by the id normalized to a string, parses each line as a
   notification, an error or a response, and rejects every pending request when the transport closes. `JeevesError`
@@ -129,23 +130,22 @@ The TypeScript client of the protocol. Types come from the generated artifacts t
 - `StdioTransport` spawns `jeeves app-server`, splits stdout into lines, forwards stderr to `onLog`, and `close()` only ends stdin so
   the server flushes its remaining frames. `findJeevesBinary` resolves `JEEVES_BIN`, then `target/{debug,release}/jeeves` found by
   walking up from the package, then `jeeves` on PATH.
-- `HttpTransport` attaches to a running Runtime instead of spawning one: it reads `/api/notifications` and sends with an optional
-  Bearer token.
+- `HttpTransport` attaches to a running Runtime. It sends RPCs to `/api/gateway/rpc` and follows
+  `/api/notifications` with the private Runtime bearer token when configured.
 
 ## 7.6 `@jeeves/dashboard`
 
-Vue and Vite build the workbench and account pages into `dist/`. The Go gateway serves the workbench under the authenticated workspace path and forwards same-origin API requests to the tenant Runtime. Build the assets with `just dashboard-build`.
+Vue and Vite build the workbench and account pages into `web/dist/`. The Go gateway serves the workbench under the authenticated workspace path and forwards same-origin API requests to the tenant Runtime. Build the assets with `just dashboard-build`.
 
 | Piece | Role |
 |---|---|
 | `main.ts`, `WebControls.vue`, `workspace.ts` | Mount the Vue controls and run the page controller |
-| `api.ts` | Typed `fetch` wrappers over the routes above; `talk()` reads the SSE body by hand |
+| `api.ts`, `hosted.ts` | Typed workspace requests use the gateway session cookie. Expired sessions return to sign-in. Streams use the shared SSE parser. |
 | `sync.ts` | Holds `/api/events` open, coalesces pings within 500 ms into one refresh, reconnects forever; a 15 s poll (`POLL_MS`) backs it up |
-| `token-dialog.ts` | One dialog for simultaneous 401 responses, asking for the deployment token |
 | `render.ts`, `timeline.ts`, `tasks.ts` | DOM construction without HTML strings |
 | `markdown.ts` | Hand-written Markdown renderer that builds DOM nodes for model replies; no third-party parser |
 | `ui/` | Shared components: `SetupWizard`, `SettingsPanel`, `TaskCenter`, `BrowserPanel`, `ModelPicker`, `PermissionPicker`, `WorkspacePicker`, `AttachmentPicker`, with composables `useTasks` and `useBrowsers` |
-| `sw.js`, `manifest.webmanifest` | PWA: `/api/*` is never cached, pages are network-first, other static assets cache-first; `VERSION` is bumped with every shipped front-end change |
+| `sw.js`, `manifest.webmanifest` | PWA support with network-first pages and no API cache. The build stamps the entry and cache version together. |
 
 The **setup wizard** (`SetupWizard.vue`) starts at the model step (provider, model, API key, base URL) when no model is
 configured, then asks for a permission mode and optional notes about the user, saved with `remember`.
@@ -159,31 +159,30 @@ and placeholders match.
 
 ## 7.7 Chat gateways
 
-`@jeeves/channels` holds `JeevesBridge` and two platform adapters: Lark/Feishu (`lark.ts`, `bin-lark.ts`) and WeChat Official Account
-(`wechat.ts`, `bin-wechat.ts`). Standalone runs: `just gateway-lark`, `just gateway-wechat`.
+`@jeeves/channels` holds `JeevesBridge` and adapters for Lark/Feishu, WeChat Official Account and
+Telegram. The standalone commands are `just gateway-lark`, `just gateway-wechat` and
+`just gateway-telegram`. See the [adapter settings](../configuration.md#channel-adapters).
 
 | | Lark / Feishu | WeChat |
 |---|---|---|
 | Connection | Long-lived WebSocket with Lark's private protobuf frames (`pbbp2`, hand-written in `lark-proto.ts`) | HTTP callback server (`WECHAT_PORT`, default 8080; path `WECHAT_PATH`, default `/wechat`); needs a public address |
 | Allowlist | `LARK_ALLOW`: open_ids (`ou_…`) | `WECHAT_ALLOW`: OpenIDs |
 | Message limit | 30000 characters | 600 characters |
-| Timing | A data frame is ACKed first, then processed; heartbeat default 120 s (minimum 10 s); reconnect backoff doubles up to 30 s | Passive reply only if the turn finishes within 4000 ms, otherwise `success` first and the answer follows as customer-service messages (needs `WECHAT_APP_SECRET` and a verified account) |
+| Timing | Persist the incoming frame before ACK, then process it. Heartbeat default 120 s (minimum 10 s) and reconnect backoff up to 30 s. | Passive reply only if the turn finishes within 4000 ms, otherwise `success` first and the answer follows as customer-service messages (needs `WECHAT_APP_SECRET` and a verified account) |
 | Other settings | `LARK_APP_ID`, `LARK_APP_SECRET`, `LARK_DOMAIN=lark` for the international domain, `LARK_DISPATCHERS`, `LARK_CLAIM` | `WECHAT_TOKEN`, `WECHAT_APP_ID`, `WECHAT_AES_KEY` (43 characters; plain, compatible and secure modes) |
 
 `bridge.ts` (`JeevesBridge`) holds the platform-independent part:
 
-- **Stateless sessions**: `sessionIdFor(conversation)` is the conversation id itself (for example `lark:<id>`).
-- **One queue per conversation** (`#tails`): messages of a conversation run one at a time.
-- Turns start with `stream: false`; a turn's `turnId` is matched to its notifications through `#inFlight` / `#completed`,
-  so a notification that arrives before the response is not lost.
+- **One main conversation.** The bridge serializes incoming requests and calls `interaction/start` in
+  `jeeves-main`. The platform conversation ID is routing metadata for replies and approvals.
+- The bridge correlates early notifications with the platform message and then follows the returned
+  `turnId` to completion.
 - `JeevesBridge` spawns its own app-server, or attaches to a Runtime when given `url` and `token`
   (`JEEVES_GATEWAY_URL`, `JEEVES_OPS_TOKEN`).
 - `explain(error)` turns a `JeevesError` into a plain sentence for the chat.
-- **Dispatchers** (`LARK_DISPATCHERS`, mirrored to `JEEVES_DISPATCHERS` for the Runtime): a dispatcher's group message goes to the main
-  session `jeeves-main` with an `InteractionSource`; the platform message id (`safeId`) is the request id, so a redelivered event is a
-  replay, not a second dispatch. `reports.ts` reports a dispatched task back into its thread when it reaches `done`, `failed`,
-  `cancelled` or `needs_attention`; `approvals.ts` sends approval requests as cards, and a dispatcher's click answers once through
-  `approval/respond`.
+- **Dispatchers.** The Runtime checks `JEEVES_DISPATCHERS` before exposing task delegation to group senders. The bridge includes
+  the `InteractionSource` and derives a stable message ID for deduplication. `reports.ts` returns terminal task states to the originating thread.
+  `approvals.ts` sends cards and authorized decisions go through versioned `approval/respond`.
 
 `splitMessage(text, limit)` (`text.ts`) has one implementation: it cuts at a newline past the halfway point, else hard-cuts.
 

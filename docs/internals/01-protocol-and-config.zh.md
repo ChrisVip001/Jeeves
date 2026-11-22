@@ -6,9 +6,9 @@
 
 ## 1.1 协议：一处定义，生成副本
 
-契约是 `jeeves-protocol/src/protocol/v2.rs`（以及 `memory_center.rs`）里的 Rust 类型，加上 `rpc.rs` 里的 JSON-RPC 信封。信封遵循 JSON-RPC 规范，与业务类型分开，这样改字段时不必核对信封兼容性。
+契约是 `protocol/src/protocol/v2.rs`（以及 `memory_center.rs`）里的 Rust 类型，加上 `protocol/src/rpc.rs` 里的 JSON-RPC 信封。信封遵循 JSON-RPC 规范，与业务类型分开，这样改字段时不必核对信封兼容性。
 
-TypeScript 类型、JSON Schema 和常量表都由这些类型生成，并提交在 `jeeves-protocol/schema/` 下。CI 会重新生成并比对，改了类型没重新生成就构建失败。
+TypeScript 类型、JSON Schema 和常量表都由这些类型生成，并提交在 `protocol/schema/` 下。CI 会重新生成并比对，改了类型没重新生成就构建失败。
 
 ### 线上约定
 

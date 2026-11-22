@@ -6,9 +6,9 @@ Two small crates sit under everything else. `jeeves-protocol` is the only defini
 
 ## 1.1 Protocol: one definition, generated copies
 
-The contract is Rust types in `jeeves-protocol/src/protocol/v2.rs` (plus `memory_center.rs`) and the JSON-RPC envelope in `rpc.rs`. The envelope follows the JSON-RPC spec and is kept apart from the business types so a field change never has to be checked against envelope compatibility.
+The contract is Rust types in `protocol/src/protocol/v2.rs` (plus `memory_center.rs`) and the JSON-RPC envelope in `protocol/src/rpc.rs`. The envelope follows the JSON-RPC spec and is kept apart from the business types so a field change never has to be checked against envelope compatibility.
 
-TypeScript types, JSON Schema and the constant tables are generated from those types and committed under `jeeves-protocol/schema/`. CI regenerates and compares, so changing a type without regenerating fails the build.
+TypeScript types, JSON Schema and the constant tables are generated from those types and committed under `protocol/schema/`. CI regenerates and compares, so changing a type without regenerating fails the build.
 
 ### Wire conventions
 
