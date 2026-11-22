@@ -362,3 +362,27 @@ async fn chat_tool_only_proposes_and_each_human_decision_is_bound_to_a_review() 
     assert_eq!(row.contract.cron, "0 11 * * *");
     assert_eq!(row.revision, 3);
 }
+
+/// Advance the isolated Web smoke's database through the production clock and worker.
+#[tokio::test]
+#[ignore = "invoked by just smoke-recurring-work with the Web runtime stopped"]
+async fn advance_web_fixture_clock() -> anyhow::Result<()> {
+    let home = std::path::PathBuf::from(std::env::var("RECURRING_SMOKE_HOME")?).canonicalize()?;
+    anyhow::ensure!(home.starts_with(std::env::temp_dir().canonicalize()?));
+    let instant: DateTime<Utc> = std::fs::read_to_string(home.join("fixture-clock"))?
+        .trim()
+        .parse()?;
+    let host = crate::open(&jeeves_config::Settings {
+        home,
+        ..Default::default()
+    })
+    .await?;
+    let (sink, _rx) = crate::EventSink::channel();
+    tick(&host, instant).await?;
+    while let Some(work) =
+        jeeves_state::responsibility_runs::take(&host.pool, instant.timestamp_millis()).await?
+    {
+        worker::process(&host, &sink, &work).await?;
+    }
+    Ok(())
+}

@@ -22,6 +22,9 @@ mod research_case;
 #[path = "live_reliability/long_research.rs"]
 mod long_research;
 
+#[path = "live_reliability/recurring.rs"]
+mod recurring;
+
 #[derive(Default)]
 struct Account {
     calls: usize,
@@ -257,7 +260,8 @@ async fn main() -> Result<()> {
             "research",
             "research-guarded",
             "support",
-            "research-long"
+            "research-long",
+            "recurring"
         ]
         .contains(&suite.as_str()),
         "Unknown live eval suite"
@@ -355,6 +359,7 @@ async fn main() -> Result<()> {
             "waiting-chat-delivery",
             "expired-memory",
         ],
+        "recurring" => vec!["recurring-work"],
         "memory" => vec!["transient-memory"],
         "support" => support.iter().map(|case| case.id.as_str()).collect(),
         "research" | "research-guarded" => vec!["source-report", "source-unavailable"],
@@ -391,6 +396,7 @@ async fn main() -> Result<()> {
                 return expanded::support(&host, scenario).await;
             }
             match name {
+                "recurring-work" => recurring::run(&host).await,
                 "transient-memory" => memory_case::run(home, &resolved).await,
                 "source-report" | "source-unavailable" => research_case::run(&host, home, proof.as_ref().expect("research proof directory").path(), name == "source-unavailable", suite == "research-guarded").await,
                 "chinese-continuity" | "waiting-chat-delivery" | "expired-memory" => expanded::run(name, &host, home).await,

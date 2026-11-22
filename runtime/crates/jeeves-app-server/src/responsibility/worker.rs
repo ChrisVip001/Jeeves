@@ -63,7 +63,7 @@ pub(crate) async fn run(server: Server, sink: EventSink) -> Result<()> {
     }
 }
 
-async fn process(server: &Server, sink: &EventSink, work: &Work) -> Result<()> {
+pub(super) async fn process(server: &Server, sink: &EventSink, work: &Work) -> Result<()> {
     let started = Instant::now();
     let budget: BudgetView = serde_json::from_str(&work.budget_json)?;
     let remaining = (work.expires_ms - Utc::now().timestamp_millis()).max(0) as u64;

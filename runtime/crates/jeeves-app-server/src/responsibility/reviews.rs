@@ -19,7 +19,7 @@ struct Change {
 pub(crate) fn tool(server: Server, turn: String, message: String) -> Tool {
     Tool {
         name:"recurring_work".into(),
-        description:format!("Propose an owner's recurring responsibility. Local time {}. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. For private digests use the selected evidence sources. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
+        description:format!("Propose an owner's recurring responsibility. Local time {}. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
         input_schema:json!({"type":"object","required":["action"],"additionalProperties":false,"properties":{
             "action":{"type":"string","enum":["list","create","amend","pause","resume"]},"id":{"type":"string","description":"Stable lowercase ASCII slug; list existing duties to find an id."},"expectedRevision":{"type":"integer"},
             "fields":{"type":"object","description":"On amendment supply changed top-level fields only. For a weekly Feishu research report use existing research taskId, permitted evidence URLs and recipient instead of digest.","additionalProperties":false,"properties":{
@@ -56,6 +56,12 @@ async fn propose(
             json!({"id":id,"budget":{"tools":3,"wallMs":90000},"expiresAt":(now+chrono::Duration::days(365)).to_rfc3339()}),
             0,
         ),
+        ("amend", Some(row)) if row.clock != jeeves_protocol::ResponsibilityClock::Cron => {
+            return Err(invalid(match row.clock {
+                jeeves_protocol::ResponsibilityClock::PriceWatch => "Select the original price watch in My Work and state the new limit.",
+                _ => "The configured morning briefing uses its original clock. Offer a separate private digest for a different time or source selection.",
+            }));
+        }
         ("amend" | "pause" | "resume", Some(row)) if c.expected_revision == Some(row.revision) => (
             serde_json::to_value(row.contract).map_err(internal)?,
             row.revision,
@@ -178,7 +184,7 @@ pub(crate) async fn decide(
     }
     tx.commit().await.map_err(internal)?;
     if decision.accept && action == "pause" {
-        stop_notice(server, &id, "paused");
+        stop_notice(server, &id, "paused").await;
     }
     Ok(true)
 }

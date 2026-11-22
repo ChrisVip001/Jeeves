@@ -107,3 +107,19 @@ async fn root_service_discovers_collection_then_queries_it() {
     assert!(docs[0].contains("UID:fixture"));
     server.await.unwrap();
 }
+
+#[test]
+fn instant_at_week_boundary_belongs_only_to_the_new_week() {
+    let ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:at-midnight\nDTSTART:20241103T160000Z\nEND:VEVENT\nEND:VCALENDAR";
+    let slot = "2024-11-03T16:00:00Z".parse().unwrap();
+    let week = chrono::Duration::weeks(1);
+    assert!(events_in_range(ics, slot - week, slot, "Asia/Shanghai")
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        events_in_range(ics, slot, slot + week, "Asia/Shanghai")
+            .unwrap()
+            .len(),
+        1
+    );
+}

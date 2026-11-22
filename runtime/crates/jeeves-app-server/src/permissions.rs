@@ -138,6 +138,9 @@ impl ExecutionPolicy for Policies {
         let policy = self.snapshot(&ctx.session_id);
         let handoff = ctx.session_id == crate::interaction::MAIN_SESSION
             && name == crate::interaction::task_tool::NAME;
+        let owner_review = ctx.session_id == crate::interaction::MAIN_SESSION
+            && name == "recurring_work"
+            && effect == jeeves_tools::ToolEffect::Draft;
         Box::pin(async move {
             let Some((mode, revision)) = policy? else {
                 return Ok(Authorization {
@@ -145,7 +148,10 @@ impl ExecutionPolicy for Policies {
                     approved: false,
                 });
             };
-            let read = effect.is_read() || proven_read_call(&name, &args) || handoff;
+            let read = effect.is_read()
+                || proven_read_call(&name, &args)
+                || handoff
+                || (owner_review && args["action"] == "list");
             if mode == PermissionMode::ReadOnly && !read {
                 return Err(format!("Read-only session refuses {name}"));
             }
@@ -156,7 +162,10 @@ impl ExecutionPolicy for Policies {
                 );
             }
             let mut approved = false;
-            if mode == PermissionMode::Standard && !read && effect != jeeves_tools::ToolEffect::Send
+            if mode == PermissionMode::Standard
+                && !read
+                && !owner_review
+                && effect != jeeves_tools::ToolEffect::Send
             {
                 let broker = ctx
                     .approval

@@ -592,10 +592,21 @@ pub enum ResponsibilityStatus {
     Expired,
 }
 
+/// The clock which owns admission for this duty.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum ResponsibilityClock {
+    Cron,
+    Morning,
+    PriceWatch,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct ResponsibilityView {
+    pub clock: ResponsibilityClock,
     pub revision: i32,
     pub contract: ResponsibilityContract,
     pub status: ResponsibilityStatus,

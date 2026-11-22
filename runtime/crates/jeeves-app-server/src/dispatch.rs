@@ -1093,8 +1093,11 @@ fn to_message(row: jeeves_state::MessageRow) -> Option<jeeves_protocol::Message>
     };
     Some(jeeves_protocol::Message {
         id: narrow(row.id),
-        source: matches!(row.source.as_str(), "task_decision" | "task_completion")
-            .then_some(row.source),
+        source: match row.source.as_str() {
+            "task_decision" | "task_completion" => Some(row.source),
+            key if key.starts_with("responsibility:") => Some(row.source),
+            _ => None,
+        },
         task_id: row.task_id,
         receipt_status: row.receipt_status,
         approval_decisions: crate::completion_delivery::approval_decisions(row.approval_decisions),

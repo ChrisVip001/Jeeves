@@ -797,6 +797,12 @@ export function messageRow(message: Message, openTask: (id: string) => Promise<b
     row.setAttribute("role", "status");
     return row;
   }
+  if (message.role === "assistant" && message.source?.startsWith("responsibility:")) {
+    const row = el("div", { class: "msg jeeves", role: "status" },
+      el("div", { class: "bubble", text: message.content }));
+    row.dataset.noticeId = String(message.id);
+    return row;
+  }
   if (message.role === "user") {
     return el(
       "div",

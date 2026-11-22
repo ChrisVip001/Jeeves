@@ -182,12 +182,15 @@ pub(crate) async fn full_turn(
     if main_chat && !chat_operations.unresolved {
         if let Some(tool) = frame.interaction_tool.cloned() {
             if !channel_chat && !selected_watch {
-                turn_tools = turn_tools.without("schedule_job");
-                turn_tools.register_exclusive(crate::responsibility::reviews::tool(
-                    server.clone(),
-                    turn_id.into(),
-                    message.into(),
-                ));
+                turn_tools = turn_tools.without("schedule_job").without("recurring_work");
+                turn_tools.register_exclusive_with_effect(
+                    crate::responsibility::reviews::tool(
+                        server.clone(),
+                        turn_id.into(),
+                        message.into(),
+                    ),
+                    jeeves_tools::ToolEffect::Draft,
+                );
             }
             turn_tools.register_exclusive(tool);
         }

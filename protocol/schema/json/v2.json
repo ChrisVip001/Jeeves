@@ -4505,6 +4505,16 @@
       "title": "ResponsibilityAmendParams",
       "type": "object"
     },
+    "ResponsibilityClock": {
+      "description": "The clock which owns admission for this duty.",
+      "enum": [
+        "cron",
+        "morning",
+        "priceWatch"
+      ],
+      "title": "ResponsibilityClock",
+      "type": "string"
+    },
     "ResponsibilityContract": {
       "additionalProperties": false,
       "description": "A recurring duty registered by a human. Sources identify evidence, never tool grants.",
@@ -4724,6 +4734,9 @@
     },
     "ResponsibilityView": {
       "properties": {
+        "clock": {
+          "$ref": "#/definitions/ResponsibilityClock"
+        },
         "contract": {
           "$ref": "#/definitions/ResponsibilityContract"
         },
@@ -4742,6 +4755,7 @@
         }
       },
       "required": [
+        "clock",
         "contract",
         "revision",
         "status"

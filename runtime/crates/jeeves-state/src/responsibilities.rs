@@ -3,6 +3,7 @@ use sqlx::{FromRow, SqlitePool};
 
 #[derive(Debug, FromRow)]
 pub struct ResponsibilityRow {
+    pub clock_owner: String,
     pub revision: i32,
     pub digest_json: Option<String>,
     pub id: String,

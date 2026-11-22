@@ -410,3 +410,7 @@ smoke-weekly-report: build
 # Idle resident MCP OAuth renewal against a loopback token issuer.
 smoke-mcp-renewal: build
     {{ python }} {{ justfile_directory() }}/scripts/smoke-mcp-renewal.py
+
+smoke-recurring-work *args: gateway-build
+    cd {{ justfile_directory() }} && cargo build --bin jeeves
+    {{ python }} {{ justfile_directory() }}/scripts/smoke-recurring-work.py {{args}}

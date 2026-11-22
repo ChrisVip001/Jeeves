@@ -144,6 +144,7 @@ export type * from "./CalendarWindow";
 export type * from "./DigestLayout";
 export type * from "./ResponsibilityDigest";
 export type * from "./ResponsibilityStatus";
+export type * from "./ResponsibilityClock";
 export type * from "./ResponsibilityView";
 export type * from "./ResponsibilityListResponse";
 export type * from "./ResponsibilitySetPausedParams";

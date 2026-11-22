@@ -69,7 +69,7 @@ pub fn events_in_range(
                 let at = occurrence.with_timezone(&Utc);
                 out.push(event_view(&parsed, at, at + duration, display_zone));
             }
-        } else if parsed.start.utc < end && parsed.end > start {
+        } else if parsed.start.utc < end && (parsed.start.utc >= start || parsed.end > start) {
             out.push(event_view(
                 &parsed,
                 parsed.start.utc,

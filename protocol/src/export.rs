@@ -179,6 +179,7 @@ macro_rules! protocol_types {
             DigestLayout,
             ResponsibilityDigest,
             ResponsibilityStatus,
+            ResponsibilityClock,
             ResponsibilityView,
             ResponsibilityListResponse,
             ResponsibilitySetPausedParams,

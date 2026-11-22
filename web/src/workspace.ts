@@ -2147,7 +2147,7 @@ async function appendTaskNotices(): Promise<void> {
       const page = await fetchMessages(session, cursor);
       latest = Math.max(latest, page.data[0]?.id ?? 0);
       for (const row of page.data) {
-        if (row.id > from && taskNotice(row)) notices.push(row);
+        if (row.id > from && (taskNotice(row) || row.source?.startsWith("responsibility:"))) notices.push(row);
       }
       cursor = (page.data.at(-1)?.id ?? 0) > from ? page.nextCursor : null;
     } while (cursor);

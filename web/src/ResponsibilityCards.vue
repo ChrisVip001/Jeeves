@@ -41,6 +41,9 @@ function cadence(cron:string){
   return [phrase("分钟","Minute"),phrase("小时","Hour"),phrase("日期","Day"),phrase("月","Month"),phrase("星期","Weekday")].map((k,i)=>k+" "+(cron.split(/\s+/)[i]??"").replaceAll("*",phrase("每个","every"))).join(" · ");
 }
 function describe(c:ResponsibilityContract) {
+  const owner=duties.value.find(d=>d.contract.id===c.id)?.clock;
+  if (owner==="priceWatch") return [phrase("每小时检查，首次低于上限时在主聊天提醒","Check hourly and alert in main chat on the first price below the limit"), ...c.sources].join(" · ");
+  if (owner==="morning") return [cadence(c.cron),phrase("使用晨报设置中的时区和投递位置","Uses the time zone and destination in briefing settings")].join(" · ");
   const labels:Record<string,string>={calendar:phrase("日历","Calendar"),openTasks:phrase("未完成事项","Open tasks"),unreadMail:phrase("未读邮件","Unread mail"),today:phrase("今天","Today"),tomorrow:phrase("明天","Tomorrow"),thisWeek:phrase("本周","This week"),nextWeek:phrase("下周","Next week")};
   return [cadence(c.cron), c.digest?.timeZone ?? phrase("主机当地时间","Runtime local time"),
     c.sources.map(s=>labels[s]??s).join("、"), c.digest && c.sources.includes("calendar")?labels[c.digest.calendarWindow]:null,
@@ -60,7 +63,11 @@ async function inspect(id:string) {
     <article v-for="r in reviews" :key="r.id">
       <strong>{{ r.contract.purpose }}</strong>
       <p>{{ r.request }}</p>
-      <p>{{ describe(r.contract) }}</p>
+      <template v-if="r.action==='amend' && duties.some(d=>d.contract.id===r.contract.id)">
+        <p>{{ phrase("原安排","Current") }} · {{ describe(duties.find(d=>d.contract.id===r.contract.id)!.contract) }}</p>
+        <p>{{ phrase("改为","Proposed") }} · {{ describe(r.contract) }}</p>
+      </template>
+      <p v-else>{{ describe(r.contract) }}</p>
       <button v-if="r.contract.digest" :disabled="working" @click="act(async()=>{samples[r.id]=await responsibilityRequest<string>('/sample',r.contract)})">{{ phrase("预览一次","Preview once") }}</button>
       <button :disabled="working" @click="act(()=>responsibilityRequest('/decide',{id:r.id,accept:true}))">{{ actions[r.action] }}</button>
       <button :disabled="working" @click="act(()=>responsibilityRequest('/decide',{id:r.id,accept:false}))">{{ phrase("取消","Dismiss") }}</button>

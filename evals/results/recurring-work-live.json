@@ -1,0 +1,135 @@
+{
+  "budgetCny": 2.0,
+  "cases": [
+    {
+      "conversation": [
+        {
+          "message": "每周五下午把下周会议和当前未完成任务整理成两段发到这个聊天，带来源。",
+          "reply": "已提交一条每周任务，等你确认：每周五 15:00（Asia/Shanghai）生成两段摘要，一段是下周会议、一段是未完成任务，每段标注来源（日历、任务列表），发到这个聊天。\n\n时间是我假设的，想换点（比如 17:00）直接说。有效期到 2027-11-22。确认后才会生效。\n[tools used: recurring_work(2 chars: []); recurring_work(443 chars: {\"action\":\"create\",\"contract\":{\"budget\":{\"tools\":3,\"wallMs\":90000},\"cron\":\"0 15 * * 5\",\"digest\":{\"calendarWindow\":\"nextWeek\",\"layout\":\"paragraphs\",\"timeZone\":\"A…)]",
+          "review": {
+            "action": "create",
+            "contract": {
+              "budget": {
+                "tools": 3,
+                "wallMs": 90000
+              },
+              "cron": "0 15 * * 5",
+              "digest": {
+                "calendarWindow": "nextWeek",
+                "layout": "paragraphs",
+                "timeZone": "Asia/Shanghai"
+              },
+              "expiresAt": "2027-11-22T19:45:04.192+00:00",
+              "id": "friday-next-week-plan",
+              "purpose": "每周五下午整理下周会议和当前未完成任务，用两段发到这个聊天，并标注来源（日历 / 任务列表）。",
+              "sources": [
+                "calendar",
+                "openTasks"
+              ]
+            },
+            "expectedRevision": 0,
+            "id": "interaction-fixture-0-0",
+            "request": "每周五下午把下周会议和当前未完成任务整理成两段发到这个聊天，带来源。"
+          }
+        },
+        {
+          "message": "改到周四，还是上海时间下午三点，只保留会议。",
+          "reply": "已改成每周四 15:00（Asia/Shanghai），只发下周会议一段，带日历来源；未完成任务那段去掉了。改动已提交，等你确认后生效，有效期仍是 2027-11-22。\n\n内部 id 还叫 `friday-next-week-plan`，只是名字，不影响时间。\n[tools used: recurring_work(376 chars: [{\"contract\":{\"budget\":{\"tools\":3,\"wallMs\":90000},\"cron\":\"0 15 * * 5\",\"digest\":{\"calendarWindow\":\"nextWeek\",\"layout\":\"paragraphs\",\"timeZone\":\"Asia/Shanghai\"},\"e…); recurring_work(403 chars: {\"action\":\"amend\",\"contract\":{\"budget\":{\"tools\":3,\"wallMs\":90000},\"cron\":\"0 15 * * 4\",\"digest\":{\"calendarWindow\":\"nextWeek\",\"layout\":\"paragraphs\",\"timeZone\":\"As…)]",
+          "review": {
+            "action": "amend",
+            "contract": {
+              "budget": {
+                "tools": 3,
+                "wallMs": 90000
+              },
+              "cron": "0 15 * * 4",
+              "digest": {
+                "calendarWindow": "nextWeek",
+                "layout": "paragraphs",
+                "timeZone": "Asia/Shanghai"
+              },
+              "expiresAt": "2027-11-22T19:45:04.192+00:00",
+              "id": "friday-next-week-plan",
+              "purpose": "每周四下午整理下周会议，用一段发到这个聊天，并标注来源（日历）。",
+              "sources": [
+                "calendar"
+              ]
+            },
+            "expectedRevision": 1,
+            "id": "interaction-fixture-1-0",
+            "request": "改到周四，还是上海时间下午三点，只保留会议。"
+          }
+        },
+        {
+          "message": "暂停这项周期委托。",
+          "reply": "暂停已提交，等你确认后生效；确认之前，周四 15:00 的会议摘要仍可能照常发送。之后想恢复，说一声就能恢复，配置都还在。\n[tools used: recurring_work(349 chars: [{\"contract\":{\"budget\":{\"tools\":3,\"wallMs\":90000},\"cron\":\"0 15 * * 4\",\"digest\":{\"calendarWindow\":\"nextWeek\",\"layout\":\"paragraphs\",\"timeZone\":\"Asia/Shanghai\"},\"e…); recurring_work(390 chars: {\"action\":\"pause\",\"contract\":{\"budget\":{\"tools\":3,\"wallMs\":90000},\"cron\":\"0 15 * * 4\",\"digest\":{\"calendarWindow\":\"nextWeek\",\"layout\":\"paragraphs\",\"timeZone\":\"As…)]",
+          "review": {
+            "action": "pause",
+            "contract": {
+              "budget": {
+                "tools": 3,
+                "wallMs": 90000
+              },
+              "cron": "0 15 * * 4",
+              "digest": {
+                "calendarWindow": "nextWeek",
+                "layout": "paragraphs",
+                "timeZone": "Asia/Shanghai"
+              },
+              "expiresAt": "2027-11-22T19:45:04.192+00:00",
+              "id": "friday-next-week-plan",
+              "purpose": "每周四下午整理下周会议，用一段发到这个聊天，并标注来源（日历）。",
+              "sources": [
+                "calendar"
+              ]
+            },
+            "expectedRevision": 2,
+            "id": "interaction-fixture-2-0",
+            "request": "暂停这项周期委托。"
+          }
+        }
+      ],
+      "final": {
+        "responsibilities": [
+          {
+            "contract": {
+              "budget": {
+                "tools": 3,
+                "wallMs": 90000
+              },
+              "cron": "0 15 * * 4",
+              "digest": {
+                "calendarWindow": "nextWeek",
+                "layout": "paragraphs",
+                "timeZone": "Asia/Shanghai"
+              },
+              "expiresAt": "2027-11-22T19:45:04.192+00:00",
+              "id": "friday-next-week-plan",
+              "purpose": "每周四下午整理下周会议，用一段发到这个聊天，并标注来源（日历）。",
+              "sources": [
+                "calendar"
+              ]
+            },
+            "lastDueAt": null,
+            "revision": 3,
+            "status": "paused"
+          }
+        ]
+      },
+      "id": "recurring-work",
+      "latencyMs": 13105,
+      "passed": true
+    }
+  ],
+  "model": "deepseek-flash",
+  "peakRateEstimateCny": 0.077692,
+  "pricingSource": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing/",
+  "profile": "ds-flash",
+  "provider": "deepseek",
+  "reportedInputTokens": 32906,
+  "reportedOutputTokens": 1485,
+  "requests": 9,
+  "requestsWithoutUsage": 0,
+  "reservedUpperCny": 1.136968,
+  "suite": "recurring"
+}

@@ -35,7 +35,15 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
         "expired" => ResponsibilityStatus::Expired,
         _ => return Err(internal("invalid stored responsibility status")),
     };
+    use jeeves_protocol::ResponsibilityClock;
+    let clock = match row.clock_owner.as_str() {
+        "cron" => ResponsibilityClock::Cron,
+        "morning" => ResponsibilityClock::Morning,
+        "price-watch" => ResponsibilityClock::PriceWatch,
+        _ => return Err(internal("invalid stored responsibility clock")),
+    };
     Ok(ResponsibilityView {
+        clock,
         revision: row.revision,
         status,
         last_due_at: row
@@ -149,6 +157,7 @@ fn validated_row(
         }
     }
     Ok(ResponsibilityRow {
+        clock_owner: "cron".into(),
         revision: 1,
         digest_json: p
             .digest
@@ -235,9 +244,23 @@ pub(crate) async fn amend(
     view(changed)
 }
 
-fn stop_notice(server: &Server, id: &str, status: &str) {
+async fn stop_notice(server: &Server, id: &str, status: &str) {
     eprintln!("(jeeves) responsibility {id} {status}; future wakes stopped");
     if let Some(notifier) = server.notifier() {
+        match sqlx::query_scalar::<_, bool>(
+            "SELECT digest_json IS NULL AND clock_owner='cron' FROM responsibilities WHERE id=?",
+        )
+        .bind(id)
+        .fetch_one(&server.pool)
+        .await
+        {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(error) => {
+                eprintln!("(jeeves) could not check responsibility {id} notification destination: {error}");
+                return;
+            }
+        }
         notifier.notify(jeeves_tools::notify::NotifyEvent::ScheduleRan {
             name: format!("responsibility:{id}"),
             status: status.into(),
@@ -251,7 +274,7 @@ async fn expire(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx::Error> 
         .expire(now.timestamp_millis())
         .await?
     {
-        stop_notice(server, &id, "expired");
+        stop_notice(server, &id, "expired").await;
     }
     Ok(())
 }
@@ -287,7 +310,7 @@ pub(crate) async fn set_paused(
         return Err(invalid("an expired responsibility cannot be changed"));
     }
     if p.paused && changed {
-        stop_notice(server, &p.id, "paused")
+        stop_notice(server, &p.id, "paused").await
     }
     view(row)
 }
