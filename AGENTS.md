@@ -6,7 +6,7 @@ Jeeves is a general-purpose personal assistant for everyday requests and complex
 
 ## Choosing the next agent improvement
 
-Start with the [main conversation and task design](docs/design/main-entry.md). For each user request, identify the intended outcome, the constraints and the evidence of completion; when the instruction is vague, Jeeves summarises and clarifies it into a concrete goal before delivering a result. For improvements to recurring work, interruption recovery or delivery verification, use the [long-task roadmap](docs/planning/long-task-roadmap.md). Preserve the same engine contract across hosted and self-hosted installations. Record scripted regressions, real-model performance and deployment tests separately. Enable optional capabilities through human configuration and run shell commands within the sandbox.
+Start with the [main conversation and task design](docs/design/main-entry.md), which separates request (what the person says), goal (the clarified outcome) and delivery (the result). A task thread is only one way to execute a goal, not a synonym for it. For each user request, identify the intended outcome, the constraints and the evidence of completion; when the instruction is vague, Jeeves summarises and clarifies it into a concrete goal before delivering a result. For improvements to recurring work, interruption recovery or delivery verification, use the [long-task roadmap](docs/planning/long-task-roadmap.md). Preserve the same engine contract across hosted and self-hosted installations. Record scripted regressions, real-model performance and deployment tests separately. Enable optional capabilities through human configuration and run shell commands within the sandbox.
 
 ## Repository layout
 

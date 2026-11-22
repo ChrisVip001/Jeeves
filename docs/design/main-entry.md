@@ -16,11 +16,19 @@ The composer shows the working directory and the selected task for follow-ups. W
 
 ## 2. Design principles
 
-An assignment is a continuous thread: work begun in chat continues in the background, and decisions return to the person who asked. Every assignment therefore has a return address that opens on its latest outcome, pending decisions and deliverable files.
+Jeeves separates what a person asks from how the work is carried out:
 
-## 3. From assignment to delivery
+| Layer | What it is | Visible to the person |
+|---|---|---|
+| **Request** | Whatever the person says, in their own words — a question, a vague wish, a picture with a few words, or a detailed assignment | Their own words in the conversation |
+| **Goal** | The outcome Jeeves extracts from the request and, when needed, clarifies into something concrete | Confirmed in the conversation before work proceeds |
+| **Delivery** | The result: an answer, a sourced comparison, a file, tested code, or the receipt of an authorized action | Shown in the conversation |
 
-Jeeves identifies the intended outcome from the conversation and carries the person's constraints into the assignment. It can investigate and proceed on reversible assumptions. If a missing detail would materially change the outcome, cost or permission and the available context cannot resolve it, Jeeves asks a focused question.
+How a goal is executed is an internal scheduling decision, not a concept the person has to name. A quick reply happens in place. Work that needs several steps, outside sources or an approval can also run inside the conversation. Only work that must survive a restart, own a working directory, or be measured against durable checks becomes a **task thread** — a persistent record with a budget, checkpoints and its own return address. A task thread is one way to carry out a goal, not another word for the goal itself. Every thread opens on its latest outcome, pending decisions and deliverable files, and decisions return to the person who asked.
+
+## 3. From request to delivery
+
+Jeeves identifies the intended outcome from the conversation and carries the person's constraints into the goal. It can investigate and proceed on reversible assumptions. If a missing detail would materially change the outcome, cost or permission and the available context cannot resolve it, Jeeves asks a focused question. The choice between answering in place, executing inside the conversation, and opening a task thread follows from the goal, not from a button the person presses.
 
 The result fits the work. Jeeves brings back a conclusion with sources, a file, a new or updated program with verification, or the receipt for an authorized action. For an external action, the status comes from the service's response or confirmed record.
 
