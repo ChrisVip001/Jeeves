@@ -137,6 +137,8 @@ export type * from "./WeeklyReportView";
 export type * from "./ResponsibilityReportsParams";
 export type * from "./ResponsibilityReportsResponse";
 export type * from "./ResponsibilityContract";
+export type * from "./ResponsibilityReview";
+export type * from "./ResponsibilityDecision";
 export type * from "./ResponsibilityAmendParams";
 export type * from "./CalendarWindow";
 export type * from "./DigestLayout";

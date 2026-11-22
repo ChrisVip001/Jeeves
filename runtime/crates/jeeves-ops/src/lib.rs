@@ -382,6 +382,14 @@ pub fn router(gate: Gate) -> Router {
             post(api::responsibilities::amend),
         )
         .route(
+            "/api/responsibilities/reviews",
+            get(api::responsibilities::reviews),
+        )
+        .route(
+            "/api/responsibilities/decide",
+            post(api::responsibilities::decide),
+        )
+        .route(
             "/api/responsibilities/sample",
             post(api::responsibilities::sample),
         )

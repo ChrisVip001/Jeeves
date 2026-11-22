@@ -320,3 +320,45 @@ async fn private_digest_previews_do_not_consume_the_chat_delivery() {
     .unwrap();
     assert_eq!(rows, [body]);
 }
+
+#[tokio::test]
+async fn chat_tool_only_proposes_and_each_human_decision_is_bound_to_a_review() {
+    let home = tempfile::tempdir().unwrap();
+    let server = boot(&home, Default::default()).await;
+    let now = Utc::now();
+    let ctx = server.tool_ctx("jeeves-main", None, None);
+    let create = reviews::tool(server.clone(), "turn-a".into(), "只看未完成事项".into());
+    (create.handler)(ctx.clone(),json!({"action":"create","id":"my-items","fields":{"purpose":"我的事项","sources":["openTasks"],"cron":"0 10 * * *","digest":{"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"list"}}})).await.unwrap();
+    assert!(list(&server, now)
+        .await
+        .unwrap()
+        .responsibilities
+        .is_empty());
+    for (turn, action, rev) in [
+        ("turn-a", "create", 0),
+        ("turn-b", "amend", 1),
+        ("turn-c", "pause", 2),
+    ] {
+        if rev > 0 {
+            let tool = reviews::tool(server.clone(), turn.into(), "用户的新要求".into());
+            let mut request = json!({"action":action,"id":"my-items","expectedRevision":rev});
+            if rev == 1 {
+                request["fields"] = json!({"cron":"0 11 * * *"});
+            }
+            (tool.handler)(ctx.clone(), request).await.unwrap();
+        }
+        let pending = reviews::list(&server).await.unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].expected_revision, rev);
+        let answer = jeeves_protocol::ResponsibilityDecision {
+            id: turn.into(),
+            accept: true,
+        };
+        assert!(reviews::decide(&server, answer.clone()).await.unwrap());
+        assert!(reviews::decide(&server, answer).await.is_err());
+    }
+    let row = list(&server, now).await.unwrap().responsibilities.remove(0);
+    assert_eq!(row.status, ResponsibilityStatus::Paused);
+    assert_eq!(row.contract.cron, "0 11 * * *");
+    assert_eq!(row.revision, 3);
+}

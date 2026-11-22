@@ -481,6 +481,8 @@ Human-only `browser/list` accepts `BrowserListParams` and returns installation a
 
 ## Recurring responsibilities
 
+In the owner main chat, the model proposes changes with `recurring_work`. The cockpit reads `GET /api/responsibilities/reviews` and sends the selected card ID and boolean `accept` to `POST /api/responsibilities/decide`. Confirmation checks the revision and consumes the card in the same transaction.
+
 The authenticated cockpit can post a proposed contract to `/api/responsibilities/prepare` to review the normalized fields. Preparation only checks the definition. Registration revalidates the contract, checks its ID is available and activates it.
 
 The human cockpit can register a duty with `POST /api/responsibilities`, inspect it with `GET /api/responsibilities`, and send `{"id":"weekly","paused":true}` to `POST /api/responsibilities/pause`. These endpoints use the cockpit’s normal access controls. Models and chat gateways have no registration or pause method.

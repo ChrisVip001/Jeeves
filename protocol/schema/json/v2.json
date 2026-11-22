@@ -4587,6 +4587,23 @@
       "title": "ResponsibilityContract",
       "type": "object"
     },
+    "ResponsibilityDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "accept": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "accept",
+        "id"
+      ],
+      "title": "ResponsibilityDecision",
+      "type": "object"
+    },
     "ResponsibilityDigest": {
       "additionalProperties": false,
       "properties": {
@@ -4648,6 +4665,35 @@
         "reports"
       ],
       "title": "ResponsibilityReportsResponse",
+      "type": "object"
+    },
+    "ResponsibilityReview": {
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "contract": {
+          "$ref": "#/definitions/ResponsibilityContract"
+        },
+        "expectedRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "contract",
+        "expectedRevision",
+        "id",
+        "request"
+      ],
+      "title": "ResponsibilityReview",
       "type": "object"
     },
     "ResponsibilitySetPausedParams": {

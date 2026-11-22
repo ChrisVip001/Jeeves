@@ -10,6 +10,21 @@ pub async fn list(Extension(app): Extension<Arc<AppServer>>) -> Response {
     relay::<ResponsibilityListResponse>(&app, methods::RESPONSIBILITY_LIST, json!({})).await
 }
 
+pub async fn reviews(Extension(app): Extension<Arc<AppServer>>) -> Response {
+    relay::<Vec<jeeves_protocol::ResponsibilityReview>>(
+        &app,
+        methods::RESPONSIBILITY_REVIEWS,
+        json!({}),
+    )
+    .await
+}
+pub async fn decide(
+    Extension(app): Extension<Arc<AppServer>>,
+    Json(p): Json<jeeves_protocol::ResponsibilityDecision>,
+) -> Response {
+    relay::<bool>(&app, methods::RESPONSIBILITY_DECIDE, json!(p)).await
+}
+
 pub async fn sample(
     Extension(app): Extension<Arc<AppServer>>,
     Json(body): Json<Value>,

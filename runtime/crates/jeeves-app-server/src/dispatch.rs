@@ -601,6 +601,12 @@ async fn dispatch(
             parse(params, method)?,
             chrono::Utc::now(),
         )?),
+        methods::RESPONSIBILITY_REVIEWS => {
+            respond(crate::responsibility::reviews::list(server).await?)
+        }
+        methods::RESPONSIBILITY_DECIDE => {
+            respond(crate::responsibility::reviews::decide(server, parse(params, method)?).await?)
+        }
         methods::RESPONSIBILITY_SAMPLE => respond(
             crate::responsibility::sample(server, parse(params, method)?, chrono::Utc::now())
                 .await?,

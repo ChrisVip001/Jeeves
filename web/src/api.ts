@@ -832,3 +832,12 @@ export async function preferenceRequest<T>(
     throw new ApiError(data as ErrorObject);
   return data as T;
 }
+
+export async function responsibilityRequest<T>(route: string, body?: unknown): Promise<T> {
+  const response = await apiFetch("/api/responsibilities" + route, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const result = await jsonBody(response);
+  if (!response.ok) throw new Error((result as {error?: string}).error || response.statusText);
+  return result as T;
+}

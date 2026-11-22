@@ -157,6 +157,8 @@ pub mod methods {
     pub const SCHEDULE_SAVE: &str = "schedule/save";
     /// Delete one stored job (a skill-owned job is refused with the way out).
     pub const SCHEDULE_REMOVE: &str = "schedule/remove";
+    pub const RESPONSIBILITY_REVIEWS: &str = "responsibility/reviews";
+    pub const RESPONSIBILITY_DECIDE: &str = "responsibility/decide";
     pub const RESPONSIBILITY_SAMPLE: &str = "responsibility/sample";
     pub const RESPONSIBILITY_PREPARE: &str = "responsibility/prepare";
     pub const RESPONSIBILITY_AMEND: &str = "responsibility/amend";
@@ -448,6 +450,25 @@ pub struct CheckView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub artifact_sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct ResponsibilityReview {
+    pub id: String,
+    pub action: String,
+    pub request: String,
+    pub expected_revision: i32,
+    pub contract: ResponsibilityContract,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct ResponsibilityDecision {
+    pub id: String,
+    pub accept: bool,
 }
 
 /// A recurring duty registered by a human. Sources identify evidence, never tool grants.

@@ -3,6 +3,7 @@ import { accountKey } from "./hosted.ts";
 import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
 import ActivityPage from "./ActivityPage.vue";
+import ResponsibilityCards from "./ResponsibilityCards.vue";
 import ChatDecisions from "./ChatDecisions.vue";
 import ApprovalNotice from "./ApprovalNotice.vue";
 import DesktopPanel from "./ui/DesktopPanel.vue";
@@ -216,10 +217,12 @@ watch(
     </nav>
   </Teleport>
   <Teleport to="#activity-view">
+    <ResponsibilityCards v-if="state.view === 'activity'" :busy="state.busy" history />
     <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant" />
   </Teleport>
   <Teleport to="#chat-decisions">
     <button v-if="lastWork && state.view === 'chat' && state.sessionId === state.mainSessionId && !followingTask" class="return-work" type="button" @click="inspectActivity(lastWork.id)"><CornerUpLeft :size="15" /><span>{{ t("继续上次的事项") }}</span><strong>{{ lastWork.title }}</strong></button>
+    <ResponsibilityCards v-if="state.view === 'chat' && state.sessionId === state.mainSessionId" :busy="state.busy" />
     <ChatDecisions v-if="state.view === 'chat' && state.sessionId === state.mainSessionId" :center="webTasks" :main-busy="state.busy" />
   </Teleport>
   <Teleport to="#cowork-view">

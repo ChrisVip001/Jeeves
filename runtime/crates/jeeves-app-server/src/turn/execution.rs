@@ -181,6 +181,14 @@ pub(crate) async fn full_turn(
     }
     if main_chat && !chat_operations.unresolved {
         if let Some(tool) = frame.interaction_tool.cloned() {
+            if !channel_chat && !selected_watch {
+                turn_tools = turn_tools.without("schedule_job");
+                turn_tools.register_exclusive(crate::responsibility::reviews::tool(
+                    server.clone(),
+                    turn_id.into(),
+                    message.into(),
+                ));
+            }
             turn_tools.register_exclusive(tool);
         }
     }
@@ -263,7 +271,8 @@ pub(crate) async fn full_turn(
             .is_some()
         {
             concat!(
-                "Answer conversation, advice and progress questions here. ",
+                "Answer conversation, advice and progress questions here. Use recurring_work for recurring private summaries and reviews of existing duties. Price watching uses the verified quote workflow. ",
+
                 "Deliver the requested result here using the enabled tools and per-action approval. Compare matching specifications, include sources, retrieval time, shipping and unknown costs. For work requiring restart-safe follow-up, its own workspace, or independent acceptance checks, use task with the human's exact words. ",
                 "A request to continue developing a project or add a feature is an assignment even when the human does not say 'task'. ",
                 "Delegate before planning the implementation in chat: a missing implementation choice does not block handoff. ",

@@ -445,6 +445,8 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 
 ## 周期性责任
 
+所有者在主聊天提出创建、修改、暂停或恢复。模型通过 `recurring_work` 提议，工作台从 `GET /api/responsibilities/reviews` 读取卡片，向 `POST /api/responsibilities/decide` 提交所选 ID 和布尔值 `accept`。确认在同一事务检查版本并消费卡片。
+
 已认证的工作台可向 `/api/responsibilities/prepare` 提交待核对契约，查看规范化后的定义。核对只校验字段。正式登记时会重新校验契约、检查标识是否可用，并启用委托。
 
 人可以通过 `POST /api/responsibilities` 登记，通过 `GET /api/responsibilities` 查询，向 `POST /api/responsibilities/pause` 发送 `{"id":"weekly","paused":true}` 暂停。接口沿用控制台的访问控制。模型和聊天网关没有登记或暂停权限。

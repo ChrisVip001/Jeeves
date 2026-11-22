@@ -21,6 +21,14 @@ pub struct Responsibilities<'a>(pub &'a SqlitePool);
 
 impl Responsibilities<'_> {
     pub async fn register(&self, row: &ResponsibilityRow, now: i64) -> sqlx::Result<bool> {
+        Self::register_on(&mut *self.0.acquire().await?, row, now).await
+    }
+
+    pub async fn register_on(
+        conn: &mut sqlx::SqliteConnection,
+        row: &ResponsibilityRow,
+        now: i64,
+    ) -> sqlx::Result<bool> {
         let result = sqlx::query(
             "INSERT INTO responsibilities
              (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, weekly_report_json,digest_json)
@@ -35,7 +43,7 @@ impl Responsibilities<'_> {
         .bind(now)
         .bind(&row.weekly_report_json)
         .bind(&row.digest_json)
-        .execute(self.0)
+        .execute(conn)
         .await?;
         Ok(result.rows_affected() == 1)
     }
@@ -47,16 +55,26 @@ impl Responsibilities<'_> {
         now: i64,
     ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let mut tx = self.0.begin().await?;
+        let result = Self::amend_on(&mut tx, row, expected, now).await?;
+        tx.commit().await?;
+        Ok(result)
+    }
+
+    pub async fn amend_on(
+        conn: &mut sqlx::SqliteConnection,
+        row: &ResponsibilityRow,
+        expected: i32,
+        now: i64,
+    ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let updated = sqlx::query_as(
             "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,weekly_report_json=?,digest_json=?,
              revision=revision+1,enabled_ms=? WHERE id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
         ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
          .bind(&row.budget_json).bind(&row.weekly_report_json).bind(&row.digest_json).bind(now).bind(&row.id)
-         .bind(expected).bind(now).fetch_optional(&mut *tx).await?;
+         .bind(expected).bind(now).fetch_optional(&mut *conn).await?;
         if updated.is_some() {
-            Self::stop_wakes(&mut tx, &row.id).await?;
+            Self::stop_wakes(conn, &row.id).await?;
         }
-        tx.commit().await?;
         Ok(updated)
     }
 
@@ -125,27 +143,40 @@ impl Responsibilities<'_> {
         now: i64,
     ) -> sqlx::Result<Option<(ResponsibilityRow, bool)>> {
         let mut tx = self.0.begin().await?;
+        let result = Self::set_paused_on(&mut tx, id, paused, None, now).await?;
+        tx.commit().await?;
+        Ok(result)
+    }
+
+    pub async fn set_paused_on(
+        conn: &mut sqlx::SqliteConnection,
+        id: &str,
+        paused: bool,
+        expected: Option<i32>,
+        now: i64,
+    ) -> sqlx::Result<Option<(ResponsibilityRow, bool)>> {
         let state = if paused { "paused" } else { "active" };
         let result = sqlx::query(
             "UPDATE responsibilities SET status=?, revision=revision+1, enabled_ms=?
-             WHERE id=? AND expires_ms>? AND status!=? AND status!='expired'",
+             WHERE id=? AND expires_ms>? AND status!=? AND status!='expired' AND (? IS NULL OR revision=?)",
         )
         .bind(state)
         .bind(now)
         .bind(id)
         .bind(now)
         .bind(state)
-        .execute(&mut *tx)
+        .bind(expected)
+        .bind(expected)
+        .execute(&mut *conn)
         .await?;
         let changed = result.rows_affected() == 1;
         if paused && changed {
-            Self::stop_wakes(&mut tx, id).await?;
+            Self::stop_wakes(conn, id).await?;
         }
         let row = sqlx::query_as("SELECT * FROM responsibilities WHERE id=?")
             .bind(id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *conn)
             .await?;
-        tx.commit().await?;
         Ok(row.map(|row| (row, changed)))
     }
 
