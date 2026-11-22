@@ -21,9 +21,9 @@ pub(crate) fn tool(server: Server, turn: String, message: String) -> Tool {
         name:"recurring_work".into(),
         description:format!("Propose an owner's recurring responsibility. Local time {}. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
         input_schema:json!({"type":"object","required":["action"],"additionalProperties":false,"properties":{
-            "action":{"type":"string","enum":["list","create","amend","pause","resume"]},"id":{"type":"string","description":"Stable lowercase ASCII slug; list existing duties to find an id."},"expectedRevision":{"type":"integer"},
+            "action":{"type":"string","enum":["list","capabilities","create","amend","pause","resume"]},"id":{"type":"string","description":"Stable lowercase ASCII slug; list existing duties to find an id."},"expectedRevision":{"type":"integer"},
             "fields":{"type":"object","description":"On amendment supply changed top-level fields only. For a weekly Feishu research report use existing research taskId, permitted evidence URLs and recipient instead of digest.","additionalProperties":false,"properties":{
-                "purpose":{"type":"string"},"sources":{"type":"array","items":{"type":"string"},"description":"Digest: calendar, openTasks or unreadMail."},"cron":{"type":"string","description":"Five-field schedule."},"expiresAt":{"type":"string","description":"Optional RFC3339 end; defaults to one year for a new duty."},
+                "plan":{"type":"object","description":"Trigger, action and delivery. Call capabilities for supported kinds and event sources."},"purpose":{"type":"string"},"sources":{"type":"array","items":{"type":"string"},"description":"Digest: calendar, openTasks or unreadMail."},"cron":{"type":"string","description":"Five-field schedule."},"expiresAt":{"type":"string","description":"Optional RFC3339 end; defaults to one year for a new duty."},
                 "digest":{"type":"object","required":["timeZone","calendarWindow","layout"],"properties":{"timeZone":{"type":"string"},"calendarWindow":{"enum":["today","tomorrow","thisWeek","nextWeek"]},"layout":{"enum":["paragraphs","list"]}}},
                 "weeklyReport":{"type":"object","required":["taskId","recipient"],"properties":{"taskId":{"type":"string"},"recipient":{"type":"string"}}}
             }}
@@ -44,6 +44,9 @@ async fn propose(
     message: &str,
     c: Change,
 ) -> Result<Value, ErrorObject> {
+    if c.action == "capabilities" {
+        return Ok(catalog(server));
+    }
     let now = Utc::now();
     let duties = super::list(server, now).await?.responsibilities;
     if c.action == "list" {
@@ -53,7 +56,7 @@ async fn propose(
     let existing = duties.into_iter().find(|r| r.contract.id == id);
     let (mut body, revision) = match (c.action.as_str(), existing) {
         ("create", None) => (
-            json!({"id":id,"budget":{"tools":3,"wallMs":90000},"expiresAt":(now+chrono::Duration::days(365)).to_rfc3339()}),
+            json!({"id":id,"budget":{"tools":3,"wallMs":90000,"tokens":4096},"expiresAt":(now+chrono::Duration::days(365)).to_rfc3339()}),
             0,
         ),
         ("amend", Some(row)) if row.clock != jeeves_protocol::ResponsibilityClock::Cron => {
@@ -80,7 +83,13 @@ async fn propose(
             || fields.keys().any(|k| {
                 !matches!(
                     k.as_str(),
-                    "purpose" | "sources" | "cron" | "expiresAt" | "weeklyReport" | "digest"
+                    "purpose"
+                        | "sources"
+                        | "cron"
+                        | "expiresAt"
+                        | "weeklyReport"
+                        | "digest"
+                        | "plan"
                 )
             })
         {
@@ -92,6 +101,7 @@ async fn propose(
     }
     let contract = prepare(serde_json::from_value(body).map_err(invalid)?, now)?;
     if matches!(c.action.as_str(), "create" | "amend")
+        && contract.plan.is_none()
         && contract.digest.is_none()
         && contract.weekly_report.is_none()
     {
@@ -102,6 +112,7 @@ async fn propose(
         action: c.action,
         request: message.into(),
         expected_revision: revision,
+        presentation: contract.plan.as_ref().map(|plan| preview(server, plan)),
         contract,
     };
     let mut tx = server
@@ -123,12 +134,14 @@ pub(crate) async fn list(server: &Server) -> Result<Vec<ResponsibilityReview>, E
     let rows:Vec<(String,String,String,i32,String)>=sqlx::query_as("SELECT id,action,request,expected_revision,contract_json FROM responsibility_reviews WHERE state='pending' ORDER BY rowid DESC").fetch_all(&server.pool).await.map_err(internal)?;
     rows.into_iter()
         .map(|(id, action, request, expected_revision, json)| {
+            let contract: ResponsibilityContract = serde_json::from_str(&json).map_err(internal)?;
             Ok(ResponsibilityReview {
                 id,
                 action,
                 request,
                 expected_revision,
-                contract: serde_json::from_str(&json).map_err(internal)?,
+                presentation: contract.plan.as_ref().map(|plan| preview(server, plan)),
+                contract,
             })
         })
         .collect()
@@ -155,7 +168,17 @@ pub(crate) async fn decide(
         return Err(invalid("Review already closed or superseded"));
     };
     if decision.accept {
-        let row = validated_row(serde_json::from_str(&json).map_err(internal)?, now)?;
+        let contract: ResponsibilityContract = serde_json::from_str(&json).map_err(internal)?;
+        if action != "pause" {
+            if let Some(plan) = &contract.plan {
+                action::preflight(server, plan).map_err(invalid)?;
+            }
+        }
+        let row = if matches!(action.as_str(), "create" | "amend") {
+            activate(contract, now)?
+        } else {
+            validated_row(contract, now)?
+        };
         let changed = match action.as_str() {
             "create" => Responsibilities::register_on(&mut tx, &row, now.timestamp_millis())
                 .await
@@ -187,4 +210,32 @@ pub(crate) async fn decide(
         stop_notice(server, &id, "paused").await;
     }
     Ok(true)
+}
+
+fn catalog(server: &Server) -> Value {
+    json!({
+        "triggers":[
+            {"kind":"at","at":"ISO date-time with offset"},
+            {"kind":"after","delaySeconds":"positive integer"},
+            {"kind":"every","intervalSeconds":"integer >= 60"},
+            {"kind":"cron","expression":"five fields","timeZone":"IANA zone"},
+            {"kind":"event","source":"approved source","eventType":"approved event type"}
+        ],
+        "actions":action::catalog(),
+        "eventSources":super::events::catalog(server),
+        "deliveries":[{"kind":"chat"},{"kind":"draft"}]
+    })
+}
+
+fn preview(
+    server: &Server,
+    plan: &jeeves_protocol::ResponsibilityPlan,
+) -> jeeves_protocol::ResponsibilityPresentation {
+    let mut card = action::presentation(plan);
+    if card.blocked.is_none() {
+        card.blocked = action::preflight(server, plan)
+            .err()
+            .map(|error| error.to_string());
+    }
+    card
 }

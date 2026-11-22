@@ -58,7 +58,9 @@ pub struct Hook {
     pub secret: String,
     /// The prompt template. `{{payload}}` is replaced by the raw request body; without the
     /// placeholder the body is appended on its own line (a body silently dropped would be worse).
+    #[serde(default)]
     pub prompt: String,
+    pub event_type: Option<String>,
     /// Model tier pin (`fast` / `chat` / `reasoning`). A typo fails the turn loudly instead of
     /// quietly costing the wrong model.
     #[serde(default)]
@@ -128,7 +130,7 @@ pub fn load(home: &Path) -> Result<WebhooksConfig> {
     };
     let config: WebhooksConfig = serde_json::from_str(&raw).map_err(|e| {
         anyhow!(
-            "{} could not be read: {e} (the fields are name/secret/prompt/tier/enabled/signature/limit/callback)",
+            "{} could not be read: {e} (the fields are name/secret/prompt/tier/enabled/signature/limit/callback/event_type)",
             path.display()
         )
     })?;
@@ -143,7 +145,17 @@ pub fn load(home: &Path) -> Result<WebhooksConfig> {
                 hook.name
             ));
         }
-        if hook.prompt.trim().is_empty() {
+        if hook.event_type.is_some()
+            && (!hook.wants_signature()
+                || hook.callback_url().is_some()
+                || hook.tier.is_some()
+                || !hook.prompt.is_empty())
+        {
+            return Err(anyhow!(
+                "Event hooks require signatures and cannot run prompts, model tiers, or callbacks"
+            ));
+        }
+        if hook.event_type.is_none() && hook.prompt.trim().is_empty() {
             return Err(anyhow!(
                 "hook '{}' in {} has no prompt — it would have nothing to say when a request arrives",
                 path.display(),
@@ -357,6 +369,7 @@ mod webhooks_tests {
             name: "deploy".to_string(),
             secret: "env:JEEVES_TEST_HOOK_SECRET".to_string(),
             prompt: "handle this deployment event:\n{{payload}}".to_string(),
+            event_type: None,
             tier: Some("fast".to_string()),
             enabled: None,
             signature: None,

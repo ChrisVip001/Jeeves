@@ -6,6 +6,8 @@ pub struct ResponsibilityRow {
     pub clock_owner: String,
     pub revision: i32,
     pub digest_json: Option<String>,
+    pub plan_json: Option<String>,
+    pub next_due_ms: Option<i64>,
     pub id: String,
     pub purpose: String,
     pub sources_json: String,
@@ -33,8 +35,8 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<bool> {
         let result = sqlx::query(
             "INSERT INTO responsibilities
-             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, research_task_id,feishu_recipient,digest_json)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
+             (id, purpose, sources_json, cron, expires_ms, budget_json, enabled_ms, research_task_id,feishu_recipient,digest_json,plan_json,next_due_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING",
         )
         .bind(&row.id)
         .bind(&row.purpose)
@@ -45,6 +47,8 @@ impl Responsibilities<'_> {
         .bind(now)
         .bind(&row.research_task_id).bind(&row.feishu_recipient)
         .bind(&row.digest_json)
+        .bind(&row.plan_json)
+        .bind(row.next_due_ms)
         .execute(conn)
         .await?;
         Ok(result.rows_affected() == 1)
@@ -69,10 +73,10 @@ impl Responsibilities<'_> {
         now: i64,
     ) -> sqlx::Result<Option<ResponsibilityRow>> {
         let updated = sqlx::query_as(
-            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,research_task_id=?,feishu_recipient=?,digest_json=?,
+            "UPDATE responsibilities SET purpose=?,sources_json=?,cron=?,expires_ms=?,budget_json=?,research_task_id=?,feishu_recipient=?,digest_json=?,plan_json=?,next_due_ms=?,
              revision=revision+1,enabled_ms=? WHERE clock_owner='cron' AND id=? AND revision=? AND expires_ms>? AND status!='expired' RETURNING *"
         ).bind(&row.purpose).bind(&row.sources_json).bind(&row.cron).bind(row.expires_ms)
-         .bind(&row.budget_json).bind(&row.research_task_id).bind(&row.feishu_recipient).bind(&row.digest_json).bind(now).bind(&row.id)
+         .bind(&row.budget_json).bind(&row.research_task_id).bind(&row.feishu_recipient).bind(&row.digest_json).bind(&row.plan_json).bind(row.next_due_ms).bind(now).bind(&row.id)
          .bind(expected).bind(now).fetch_optional(&mut *conn).await?;
         if updated.is_some() {
             Self::stop_wakes(conn, &row.id).await?;
@@ -92,7 +96,7 @@ impl Responsibilities<'_> {
     ) -> sqlx::Result<Vec<(String, String, i32, Option<String>)>> {
         sqlx::query_as(
             "SELECT id, cron, revision, json_extract(digest_json,'$.timeZone') FROM responsibilities
-             WHERE clock_owner='cron' AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
+             WHERE clock_owner='cron' AND plan_json IS NULL AND status='active' AND enabled_ms<=? AND (last_slot IS NULL OR last_slot<?)
              ORDER BY id",
         )
         .bind(now)

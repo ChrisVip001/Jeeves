@@ -67,16 +67,21 @@ async function inspect(id:string) {
         <p>{{ phrase("原安排","Current") }} · {{ describe(duties.find(d=>d.contract.id===r.contract.id)!.contract) }}</p>
         <p>{{ phrase("改为","Proposed") }} · {{ describe(r.contract) }}</p>
       </template>
-      <p v-else>{{ describe(r.contract) }}</p>
-      <button v-if="r.contract.digest" :disabled="working" @click="act(async()=>{samples[r.id]=await responsibilityRequest<string>('/sample',r.contract)})">{{ phrase("预览一次","Preview once") }}</button>
-      <button :disabled="working" @click="act(()=>responsibilityRequest('/decide',{id:r.id,accept:true}))">{{ actions[r.action] }}</button>
+      <p v-else-if="!r.presentation">{{ describe(r.contract) }}</p>
+      <template v-if="r.presentation">
+        <p>{{ [r.presentation.trigger, r.presentation.action, ...r.presentation.details, r.presentation.delivery].join(" · ") }}</p>
+        <p v-if="r.presentation.usesModel">{{ phrase("运行时使用模型","Uses a model when run") }}</p>
+        <p v-if="r.presentation.blocked" role="status">{{ r.presentation.blocked }}</p>
+      </template>
+      <button v-if="r.contract.digest || (r.contract.plan && !r.presentation?.blocked)" :disabled="working" @click="act(async()=>{samples[r.id]=await responsibilityRequest<string>('/sample',r.contract)})">{{ phrase("预览一次","Preview once") }}</button>
+      <button :disabled="working || (Boolean(r.presentation?.blocked) && r.action !== 'pause')" @click="act(()=>responsibilityRequest('/decide',{id:r.id,accept:true}))">{{ actions[r.action] }}</button>
       <button :disabled="working" @click="act(()=>responsibilityRequest('/decide',{id:r.id,accept:false}))">{{ phrase("取消","Dismiss") }}</button>
       <pre v-if="samples[r.id]">{{ samples[r.id] }}</pre>
     </article>
     <template v-if="history">
       <article v-for="d in duties" :key="d.contract.id">
         <strong>{{ d.contract.purpose }}</strong>
-        <p>{{ describe(d.contract) }} · {{ d.status==='active'?phrase("已启用","Active"):d.status==='paused'?phrase("已暂停","Paused"):phrase("已到期","Expired") }}</p>
+        <p>{{ d.presentation ? [d.presentation.trigger, d.presentation.action, d.presentation.delivery, d.presentation.blocked].filter(Boolean).join(" · ") : describe(d.contract) }} · {{ d.status==='active'?phrase("已启用","Active"):d.status==='paused'?phrase("已暂停","Paused"):phrase("已到期","Expired") }}</p>
         <button :disabled="working" @click="act(()=>inspect(d.contract.id))">{{ phrase("运行记录","Run history") }}</button>
         <pre v-if="samples[d.contract.id]">{{ samples[d.contract.id] }}</pre>
       </article>

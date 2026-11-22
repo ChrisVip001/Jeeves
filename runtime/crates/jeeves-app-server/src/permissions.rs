@@ -151,7 +151,8 @@ impl ExecutionPolicy for Policies {
             let read = effect.is_read()
                 || proven_read_call(&name, &args)
                 || handoff
-                || (owner_review && args["action"] == "list");
+                || (owner_review
+                    && matches!(args["action"].as_str(), Some("list" | "capabilities")));
             if mode == PermissionMode::ReadOnly && !read {
                 return Err(format!("Read-only session refuses {name}"));
             }

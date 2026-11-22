@@ -604,6 +604,14 @@ async fn dispatch(
         methods::RESPONSIBILITY_REVIEWS => {
             respond(crate::responsibility::reviews::list(server).await?)
         }
+        methods::RESPONSIBILITY_EVENT => respond(
+            crate::responsibility::events::admit(
+                server,
+                parse(params, method)?,
+                chrono::Utc::now(),
+            )
+            .await?,
+        ),
         methods::RESPONSIBILITY_DECIDE => {
             respond(crate::responsibility::reviews::decide(server, parse(params, method)?).await?)
         }

@@ -1,4 +1,5 @@
 //! Consume scheduled research wakes without granting a model access to a connector.
+use super::action;
 use crate::{narrow, EventSink, Server};
 use anyhow::{ensure, Context, Result};
 use chrono::{DateTime, Utc};
@@ -6,7 +7,10 @@ use jeeves_connector::{
     config,
     feishu::{self, Delivery, TokenCache},
 };
-use jeeves_protocol::{BudgetView, ResponsibilityReportsResponse, WeeklyReportView};
+use jeeves_protocol::{
+    BudgetView, ResponsibilityDelivery, ResponsibilityPlan, ResponsibilityReportsResponse,
+    WeeklyReportView,
+};
 use jeeves_state::responsibility_runs::{self as store, Work};
 use std::{
     path::PathBuf,
@@ -44,8 +48,12 @@ pub(crate) async fn reports(server: &Server, id: &str) -> Result<ResponsibilityR
     Ok(ResponsibilityReportsResponse { reports })
 }
 
-pub(crate) async fn run(server: Server, sink: EventSink) -> Result<()> {
-    loop {
+pub(crate) async fn run(
+    server: Server,
+    sink: EventSink,
+    mut stop: tokio::sync::watch::Receiver<bool>,
+) -> Result<()> {
+    while !*stop.borrow() {
         match store::take(&server.pool, Utc::now().timestamp_millis()).await {
             Ok(Some(work)) => {
                 if let Err(error) = process(&server, &sink, &work).await {
@@ -59,8 +67,12 @@ pub(crate) async fn run(server: Server, sink: EventSink) -> Result<()> {
             Err(error) => eprintln!("(jeeves) responsibility inbox unavailable: {error}"),
             Ok(None) => {}
         }
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        tokio::select! {
+            _ = stop.changed() => break,
+            () = tokio::time::sleep(Duration::from_secs(2)) => {}
+        }
     }
+    Ok(())
 }
 
 pub(super) async fn process(server: &Server, sink: &EventSink, work: &Work) -> Result<()> {
@@ -70,7 +82,7 @@ pub(super) async fn process(server: &Server, sink: &EventSink, work: &Work) -> R
     let max_wall = budget
         .wall_ms
         .map_or(remaining, |limit| remaining.min(limit as u64));
-    let result = tokio::time::timeout(
+    let execution = tokio::time::timeout(
         Duration::from_millis(max_wall),
         execute(
             server,
@@ -79,8 +91,18 @@ pub(super) async fn process(server: &Server, sink: &EventSink, work: &Work) -> R
             &budget,
             started + Duration::from_millis(max_wall),
         ),
-    )
-    .await;
+    );
+    tokio::pin!(execution);
+    let result = loop {
+        tokio::select! {
+            result = &mut execution => break result,
+            () = tokio::time::sleep(Duration::from_secs(10)) => {
+                if !store::heartbeat(&server.pool, &work.wake_key, Utc::now().timestamp_millis()).await? {
+                    break Ok(Err(anyhow::anyhow!("Execution lease lost, responsibility changed, or no progress; review required")));
+                }
+            }
+        }
+    };
     let (status, detail) = match result {
         Ok(Ok(outcome)) => outcome,
         Ok(Err(error)) => ("review", error.to_string()),
@@ -121,6 +143,10 @@ async fn execute(
     budget: &BudgetView,
     deadline: Instant,
 ) -> Result<(&'static str, String)> {
+    if let Some(json) = &work.plan_json {
+        let plan = serde_json::from_str(json)?;
+        return execute_plan(server, work, &plan, budget, deadline).await;
+    }
     if let Some(options) = &work.digest_json {
         let instant = DateTime::from_timestamp(
             work.slot
@@ -238,4 +264,81 @@ async fn execute(
         } => ("confirmed", receipt),
         Delivery::Sent { receipt, .. } => ("review", receipt),
     })
+}
+
+async fn execute_plan(
+    server: &Server,
+    work: &Work,
+    plan: &ResponsibilityPlan,
+    budget: &BudgetView,
+    deadline: Instant,
+) -> Result<(&'static str, String)> {
+    let preflight = action::validate(plan, budget).and_then(|()| {
+        action::preflight(server, plan)?;
+        action::find(&plan.action)
+    });
+    let adapter = match preflight {
+        Ok(adapter) => adapter,
+        Err(error) => {
+            store::outcome(
+                &server.pool,
+                &work.wake_key,
+                "blocked",
+                &error.to_string(),
+                None,
+                0,
+            )
+            .await?;
+            return Ok(("blocked", error.to_string()));
+        }
+    };
+    let at = work
+        .due_ms
+        .and_then(DateTime::from_timestamp_millis)
+        .context("Occurrence has no timestamp")?;
+    let result = (adapter.run)(
+        action::Input {
+            server,
+            at,
+            wake_key: &work.wake_key,
+            event: work.event_json.as_deref(),
+            budget,
+        },
+        &plan.action.config,
+    )
+    .await?;
+    ensure!(Instant::now() < deadline, "Responsibility deadline reached");
+    if let Some(body) = result
+        .body
+        .as_deref()
+        .filter(|_| matches!(plan.delivery, ResponsibilityDelivery::Chat))
+    {
+        ensure!(
+            store::deliver_chat(
+                &server.pool,
+                &work.wake_key,
+                body,
+                result.tools_used,
+                Utc::now().timestamp_millis()
+            )
+            .await?,
+            "Responsibility was stopped or revised before delivery"
+        );
+        return Ok(("confirmed", "Delivered in main chat".into()));
+    }
+    let (status, detail) = if result.body.is_some() {
+        ("draft", "Private draft saved")
+    } else {
+        ("skipped", "No matching records")
+    };
+    store::outcome(
+        &server.pool,
+        &work.wake_key,
+        status,
+        detail,
+        result.body.as_deref(),
+        result.tools_used,
+    )
+    .await?;
+    Ok((status, detail.into()))
 }

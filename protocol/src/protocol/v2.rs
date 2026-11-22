@@ -158,6 +158,7 @@ pub mod methods {
     /// Delete one stored job (a skill-owned job is refused with the way out).
     pub const SCHEDULE_REMOVE: &str = "schedule/remove";
     pub const RESPONSIBILITY_REVIEWS: &str = "responsibility/reviews";
+    pub const RESPONSIBILITY_EVENT: &str = "responsibility/event";
     pub const RESPONSIBILITY_DECIDE: &str = "responsibility/decide";
     pub const RESPONSIBILITY_SAMPLE: &str = "responsibility/sample";
     pub const RESPONSIBILITY_PREPARE: &str = "responsibility/prepare";
@@ -461,6 +462,9 @@ pub struct ResponsibilityReview {
     pub request: String,
     pub expected_revision: i32,
     pub contract: ResponsibilityContract,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub presentation: Option<ResponsibilityPresentation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -471,6 +475,104 @@ pub struct ResponsibilityDecision {
     pub accept: bool,
 }
 
+/// An approved trigger, executable action and delivery destination.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export_to = "v2/")]
+pub struct ResponsibilityPlan {
+    pub trigger: ResponsibilityTrigger,
+    pub action: ResponsibilityAction,
+    pub delivery: ResponsibilityDelivery,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+#[ts(tag = "kind", rename_all = "camelCase", export_to = "v2/")]
+pub enum ResponsibilityTrigger {
+    At {
+        at: String,
+    },
+    After {
+        #[ts(rename = "delaySeconds")]
+        delay_seconds: i32,
+    },
+    Every {
+        #[ts(rename = "intervalSeconds")]
+        interval_seconds: i32,
+        anchor: Option<String>,
+    },
+    Cron {
+        expression: String,
+        #[ts(rename = "timeZone")]
+        time_zone: String,
+    },
+    Event {
+        source: String,
+        #[ts(rename = "eventType")]
+        event_type: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export_to = "v2/")]
+pub struct ResponsibilityAction {
+    pub kind: String,
+    pub version: i32,
+    #[ts(type = "Record<string, unknown>")]
+    pub config: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+#[ts(tag = "kind", rename_all = "camelCase", export_to = "v2/")]
+pub enum ResponsibilityDelivery {
+    Chat,
+    Draft,
+    Feishu { recipient: String },
+}
+
+/// A signed connector event. The transport supplies the authenticated source and event type.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export_to = "v2/")]
+pub struct ResponsibilityEvent {
+    pub source: String,
+    pub event_type: String,
+    pub event_id: String,
+    pub occurred_at: String,
+    pub previous_cursor: Option<String>,
+    pub cursor: String,
+    #[ts(type = "Record<string, unknown>")]
+    pub fields: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ResponsibilityEventReceipt {
+    pub admitted: i32,
+    pub duplicate: bool,
+}
+
+/// Server-authored labels and values to display in the owner review.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ResponsibilityPresentation {
+    pub trigger: String,
+    pub action: String,
+    pub details: Vec<String>,
+    pub delivery: String,
+    pub uses_model: bool,
+    pub blocked: Option<String>,
+}
+
 /// A recurring duty registered by a human. Sources identify evidence, never tool grants.
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -478,7 +580,9 @@ pub struct ResponsibilityDecision {
 pub struct ResponsibilityContract {
     pub id: String,
     pub purpose: String,
+    #[serde(default)]
     pub sources: Vec<String>,
+    #[serde(default)]
     pub cron: String,
     pub expires_at: String,
     #[serde(deserialize_with = "declared_budget")]
@@ -490,6 +594,9 @@ pub struct ResponsibilityContract {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub digest: Option<ResponsibilityDigest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub plan: Option<ResponsibilityPlan>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, JsonSchema)]
@@ -611,6 +718,9 @@ pub struct ResponsibilityView {
     pub contract: ResponsibilityContract,
     pub status: ResponsibilityStatus,
     pub last_due_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub presentation: Option<ResponsibilityPresentation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]

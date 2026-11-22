@@ -2,6 +2,7 @@
 import type { BudgetView } from "./BudgetView";
 import type { FeishuWeeklyReport } from "./FeishuWeeklyReport";
 import type { ResponsibilityDigest } from "./ResponsibilityDigest";
+import type { ResponsibilityPlan } from "./ResponsibilityPlan";
 
 /**
  * A recurring duty registered by a human. Sources identify evidence, never tool grants.
@@ -15,4 +16,5 @@ export type ResponsibilityContract = {
   budget: BudgetView;
   weeklyReport?: FeishuWeeklyReport;
   digest?: ResponsibilityDigest;
+  plan?: ResponsibilityPlan;
 };

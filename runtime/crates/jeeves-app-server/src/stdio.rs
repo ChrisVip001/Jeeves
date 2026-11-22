@@ -55,11 +55,14 @@ pub async fn run_stdio(server: Server) -> Result<()> {
     }
 
     let renewal = tokio::spawn(crate::mcp_renewal::run(server.clone()));
+    let (stop_recurring, drain) = tokio::sync::watch::channel(false);
     let weekly_host = server.clone();
     let weekly_sink = EventSink::new(tx.clone());
     let weekly = tokio::spawn(async move {
-        if let Err(error) = crate::responsibility::worker::run(weekly_host, weekly_sink).await {
-            eprintln!("(jeeves) weekly report worker stopped: {error}");
+        if let Err(error) =
+            crate::responsibility::worker::run(weekly_host, weekly_sink, drain).await
+        {
+            eprintln!("(jeeves) responsibility worker stopped: {error}");
         }
     });
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
@@ -95,8 +98,16 @@ pub async fn run_stdio(server: Server) -> Result<()> {
 
     renewal.abort();
     let _ = renewal.await;
-    weekly.abort();
-    let _ = weekly.await;
+    stop_recurring.send_replace(true);
+    let mut weekly = weekly;
+    if tokio::time::timeout(std::time::Duration::from_secs(12), &mut weekly)
+        .await
+        .is_err()
+    {
+        eprintln!("(jeeves) responsibility drain elapsed; interrupted work will require review");
+        weekly.abort();
+        let _ = weekly.await;
+    }
     drop(tx);
     let _ = writer.await;
     server.stop_memory_worker().await;

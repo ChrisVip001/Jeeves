@@ -54,6 +54,40 @@ struct Inbox {
     messages: Vec<Mail>,
 }
 
+pub(super) fn validate(sources: &[String], options: &ResponsibilityDigest) -> Result<()> {
+    let _: Tz = options.time_zone.parse()?;
+    let mut seen = std::collections::HashSet::new();
+    ensure!(
+        !sources.is_empty()
+            && sources.iter().all(|source| {
+                matches!(source.as_str(), "calendar" | "openTasks" | "unreadMail")
+                    && seen.insert(source)
+            }),
+        "Select distinct digest sources"
+    );
+    Ok(())
+}
+
+pub(super) fn preflight(server: &Server, sources: &[String]) -> Result<()> {
+    let settings = server.settings();
+    let tools = crate::enabled_tools(
+        &crate::connector_settings::apply(&settings.home, &server.tools),
+        &settings,
+    );
+    for source in sources {
+        let name = match source.as_str() {
+            "calendar" => "calendar_list",
+            "unreadMail" => "email_read",
+            _ => continue,
+        };
+        ensure!(
+            tools.effect(name).is_read(),
+            "Source {source} is unavailable"
+        );
+    }
+    Ok(())
+}
+
 async fn read<T: serde::de::DeserializeOwned>(
     server: &Server,
     name: &str,

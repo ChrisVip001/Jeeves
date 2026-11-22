@@ -4487,6 +4487,25 @@
       "description": "Request id: JSON-RPC allows a number or a string.\n\nThe number arm is `i32`, not `u64`: ts-rs maps `u64` to TypeScript `bigint`, while `JSON.parse` yields `number` — the client receives `1` typed as `bigint`: the kind of bug that never errors but only fails at runtime. Only `i32` crosses language boundaries — the same rule as v2.rs.",
       "title": "RequestId"
     },
+    "ResponsibilityAction": {
+      "additionalProperties": false,
+      "properties": {
+        "config": true,
+        "kind": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "config",
+        "kind",
+        "version"
+      ],
+      "type": "object"
+    },
     "ResponsibilityAmendParams": {
       "additionalProperties": false,
       "properties": {
@@ -4548,6 +4567,7 @@
           "type": "object"
         },
         "cron": {
+          "default": "",
           "type": "string"
         },
         "digest": {
@@ -4566,10 +4586,21 @@
         "id": {
           "type": "string"
         },
+        "plan": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ResponsibilityPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "purpose": {
           "type": "string"
         },
         "sources": {
+          "default": [],
           "items": {
             "type": "string"
           },
@@ -4588,11 +4619,9 @@
       },
       "required": [
         "budget",
-        "cron",
         "expiresAt",
         "id",
-        "purpose",
-        "sources"
+        "purpose"
       ],
       "title": "ResponsibilityContract",
       "type": "object"
@@ -4614,6 +4643,59 @@
       "title": "ResponsibilityDecision",
       "type": "object"
     },
+    "ResponsibilityDelivery": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "chat"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "draft"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "feishu"
+              ],
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "recipient"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "ResponsibilityDigest": {
       "additionalProperties": false,
       "properties": {
@@ -4634,6 +4716,61 @@
       ],
       "type": "object"
     },
+    "ResponsibilityEvent": {
+      "additionalProperties": false,
+      "description": "A signed connector event. The transport supplies the authenticated source and event type.",
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "eventType": {
+          "type": "string"
+        },
+        "fields": true,
+        "occurredAt": {
+          "type": "string"
+        },
+        "previousCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "cursor",
+        "eventId",
+        "eventType",
+        "fields",
+        "occurredAt",
+        "source"
+      ],
+      "title": "ResponsibilityEvent",
+      "type": "object"
+    },
+    "ResponsibilityEventReceipt": {
+      "properties": {
+        "admitted": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "duplicate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "admitted",
+        "duplicate"
+      ],
+      "title": "ResponsibilityEventReceipt",
+      "type": "object"
+    },
     "ResponsibilityListResponse": {
       "properties": {
         "responsibilities": {
@@ -4647,6 +4784,64 @@
         "responsibilities"
       ],
       "title": "ResponsibilityListResponse",
+      "type": "object"
+    },
+    "ResponsibilityPlan": {
+      "additionalProperties": false,
+      "description": "An approved trigger, executable action and delivery destination.",
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/ResponsibilityAction"
+        },
+        "delivery": {
+          "$ref": "#/definitions/ResponsibilityDelivery"
+        },
+        "trigger": {
+          "$ref": "#/definitions/ResponsibilityTrigger"
+        }
+      },
+      "required": [
+        "action",
+        "delivery",
+        "trigger"
+      ],
+      "type": "object"
+    },
+    "ResponsibilityPresentation": {
+      "description": "Server-authored labels and values to display in the owner review.",
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "blocked": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delivery": {
+          "type": "string"
+        },
+        "details": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "trigger": {
+          "type": "string"
+        },
+        "usesModel": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "delivery",
+        "details",
+        "trigger",
+        "usesModel"
+      ],
       "type": "object"
     },
     "ResponsibilityReportsParams": {
@@ -4692,6 +4887,16 @@
         "id": {
           "type": "string"
         },
+        "presentation": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ResponsibilityPresentation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "request": {
           "type": "string"
         }
@@ -4732,6 +4937,121 @@
       "title": "ResponsibilityStatus",
       "type": "string"
     },
+    "ResponsibilityTrigger": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "at": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "at"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "at",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delay_seconds": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "after"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "delay_seconds",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "anchor": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "interval_seconds": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "every"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "interval_seconds",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "expression": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "cron"
+              ],
+              "type": "string"
+            },
+            "time_zone": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "expression",
+            "kind",
+            "time_zone"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "event_type": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "event"
+              ],
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "event_type",
+            "kind",
+            "source"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "ResponsibilityView": {
       "properties": {
         "clock": {
@@ -4744,6 +5064,16 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "presentation": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ResponsibilityPresentation"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "revision": {

@@ -7,11 +7,16 @@ use jeeves_protocol::{
 };
 use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 
+pub(crate) mod action;
 pub(crate) mod digest;
+pub(crate) mod events;
+#[cfg(test)]
+mod plans_tests;
 pub(crate) mod price;
 pub(crate) mod reviews;
 #[cfg(test)]
 mod tests;
+pub(crate) mod trigger;
 pub(crate) mod worker;
 
 fn invalid(message: impl ToString) -> ErrorObject {
@@ -54,12 +59,24 @@ fn view(row: ResponsibilityRow) -> Result<ResponsibilityView, ErrorObject> {
                     .and_then(timestamp)
             })
             .transpose()?,
+        presentation: plan(&row)?.as_ref().map(action::presentation),
         contract: contract(row)?,
     })
 }
 
+fn plan(
+    row: &ResponsibilityRow,
+) -> Result<Option<jeeves_protocol::ResponsibilityPlan>, ErrorObject> {
+    row.plan_json
+        .as_deref()
+        .map(serde_json::from_str)
+        .transpose()
+        .map_err(internal)
+}
+
 fn contract(row: ResponsibilityRow) -> Result<ResponsibilityContract, ErrorObject> {
     Ok(ResponsibilityContract {
+        plan: plan(&row)?,
         id: row.id,
         purpose: row.purpose,
         digest: row
@@ -90,11 +107,11 @@ fn validated_row(
         return Err(invalid("a responsibility needs a purpose"));
     }
     let sources: Vec<&str> = p.sources.iter().map(|s| s.trim()).collect();
-    if sources.is_empty() || sources.contains(&"") {
+    if (p.plan.is_none() && sources.is_empty()) || sources.contains(&"") {
         return Err(invalid("each responsibility needs named sources"));
     }
     let cron = p.cron.trim();
-    if !jeeves_agent::cron::valid(cron) {
+    if p.plan.is_none() && !jeeves_agent::cron::valid(cron) {
         return Err(invalid("invalid five-field responsibility cron"));
     }
     let expires_ms = DateTime::parse_from_rfc3339(&p.expires_at)
@@ -156,7 +173,21 @@ fn validated_row(
             return Err(invalid("weekly report sources must be at most 20 HTTP(S) evidence URLs without credentials"));
         }
     }
+    if let Some(plan) = &p.plan {
+        if p.digest.is_some() || p.weekly_report.is_some() {
+            return Err(invalid("Use either a plan or the legacy definition"));
+        }
+        action::validate(plan, &p.budget).map_err(invalid)?;
+        trigger::validate(&plan.trigger, now, expires_ms).map_err(invalid)?;
+    }
     Ok(ResponsibilityRow {
+        plan_json: p
+            .plan
+            .as_ref()
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(internal)?,
+        next_due_ms: None,
         clock_owner: "cron".into(),
         revision: 1,
         digest_json: p
@@ -178,6 +209,20 @@ fn validated_row(
     })
 }
 
+fn activate(
+    mut contract: ResponsibilityContract,
+    now: DateTime<Utc>,
+) -> Result<ResponsibilityRow, ErrorObject> {
+    if let Some(plan) = &mut contract.plan {
+        trigger::anchor(&mut plan.trigger, now).map_err(invalid)?;
+    }
+    let mut row = validated_row(contract, now)?;
+    if let Some(plan) = plan(&row)? {
+        row.next_due_ms = trigger::first(&plan.trigger, now).map_err(invalid)?;
+    }
+    Ok(row)
+}
+
 pub(crate) fn prepare(
     p: ResponsibilityContract,
     now: DateTime<Utc>,
@@ -191,6 +236,9 @@ pub(crate) async fn sample(
     now: DateTime<Utc>,
 ) -> Result<String, ErrorObject> {
     let checked = prepare(p, now)?;
+    if let Some(plan) = &checked.plan {
+        return action::sample(server, plan, now).await.map_err(invalid);
+    }
     let options = checked
         .digest
         .as_ref()
@@ -219,7 +267,7 @@ pub(crate) async fn register(
     p: ResponsibilityContract,
     now: DateTime<Utc>,
 ) -> Result<ResponsibilityView, ErrorObject> {
-    let row = validated_row(p, now)?;
+    let row = activate(p, now)?;
     if !Responsibilities(&server.pool)
         .register(&row, now.timestamp_millis())
         .await
@@ -235,7 +283,7 @@ pub(crate) async fn amend(
     p: jeeves_protocol::ResponsibilityAmendParams,
     now: DateTime<Utc>,
 ) -> Result<ResponsibilityView, ErrorObject> {
-    let row = validated_row(p.contract, now)?;
+    let row = activate(p.contract, now)?;
     let changed = Responsibilities(&server.pool)
         .amend(&row, p.expected_revision, now.timestamp_millis())
         .await
@@ -248,7 +296,7 @@ async fn stop_notice(server: &Server, id: &str, status: &str) {
     eprintln!("(jeeves) responsibility {id} {status}; future wakes stopped");
     if let Some(notifier) = server.notifier() {
         match sqlx::query_scalar::<_, bool>(
-            "SELECT digest_json IS NULL AND clock_owner='cron' FROM responsibilities WHERE id=?",
+            "SELECT digest_json IS NULL AND plan_json IS NULL AND clock_owner='cron' FROM responsibilities WHERE id=?",
         )
         .bind(id)
         .fetch_one(&server.pool)
@@ -317,6 +365,7 @@ pub(crate) async fn set_paused(
 
 pub(crate) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx::Error> {
     expire(server, now).await?;
+    trigger::tick(server, now).await?;
     let rows = Responsibilities(&server.pool);
     for (id, cron, revision, zone) in rows.candidates(now.timestamp_millis()).await? {
         let local = match zone {

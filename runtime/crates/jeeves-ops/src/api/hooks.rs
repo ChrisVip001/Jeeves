@@ -56,6 +56,10 @@ pub async fn hook(
         return refusal_response(refusal);
     }
 
+    if let Some(event_type) = &hook.event_type {
+        return event(&app, &hook.name, event_type, &body).await;
+    }
+
     let hook_name = hook.name.clone();
     let params = TurnStartParams {
         request_id: None,
@@ -122,5 +126,44 @@ pub(super) fn refusal_response(refusal: webhooks::Refusal) -> Response {
             }
             response
         }
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct EventBody {
+    event_id: String,
+    occurred_at: String,
+    previous_cursor: Option<String>,
+    cursor: String,
+    fields: serde_json::Value,
+}
+
+async fn event(app: &crate::AppServer, source: &str, event_type: &str, body: &str) -> Response {
+    use jeeves_protocol::{methods, ResponsibilityEvent, ResponsibilityEventReceipt};
+    if body.len() > 12_000 {
+        return refuse(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "Event body exceeds the size limit",
+        );
+    }
+    let Ok(body) = serde_json::from_str::<EventBody>(body) else {
+        return refuse(StatusCode::BAD_REQUEST, "Invalid connector event");
+    };
+    let params = ResponsibilityEvent {
+        source: source.into(),
+        event_type: event_type.into(),
+        event_id: body.event_id,
+        occurred_at: body.occurred_at,
+        previous_cursor: body.previous_cursor,
+        cursor: body.cursor,
+        fields: body.fields,
+    };
+    match app
+        .request::<ResponsibilityEventReceipt>(methods::RESPONSIBILITY_EVENT, json!(params))
+        .await
+    {
+        Ok(receipt) => (StatusCode::ACCEPTED, Json(receipt)).into_response(),
+        Err(error) => failed(StatusCode::CONFLICT, error),
     }
 }
