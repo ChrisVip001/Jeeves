@@ -67,7 +67,7 @@ func configuration(ctx context.Context) (*gateway, error) {
 	}
 	g := &gateway{store: accounts, origin: origin, local: local, loopbackOnly: local || secureFixed, trustProxy: os.Getenv("GW_TRUST_PROXY") == "1", setup: os.Getenv("GW_SETUP_TOKEN"),
 		bundle:   cloudkit.Env("GW_DASHBOARD_DIR", "web/dist"),
-		http:     &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		http:     &http.Client{Timeout: 5 * time.Second, CheckRedirect: cloudkit.RejectRedirect},
 		mailJobs: make(chan mailJob, 32),
 	}
 	for _, entry := range []string{"/index.html", "/account/account.html"} {

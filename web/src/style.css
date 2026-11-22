@@ -404,30 +404,6 @@ code {
   color: var(--text-2);
   margin-bottom: 13px;
 }
-.welcome-sub {
-  font-size: 13px;
-  line-height: 1.9;
-  color: var(--text-3);
-  max-width: 390px;
-  margin: 0 auto;
-}
-.welcome-suggestions {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 28px;
-}
-.welcome-suggestions button {
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 10px 15px;
-  color: var(--text-2);
-  font-size: 12px;
-}
-.welcome-suggestions button:hover {
-  background: var(--surface-hover);
-}
 .composer-wrap {
   width: min(100% - 68px, 780px);
   margin: 0 auto;
@@ -646,9 +622,6 @@ body.sidebar-closed .mobile-menu {
   }
   .welcome-title {
     font-size: 25px;
-  }
-  .welcome-sub {
-    font-size: 12px;
   }
   .composer-wrap,
   .statusline {

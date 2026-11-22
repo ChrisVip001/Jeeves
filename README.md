@@ -16,7 +16,7 @@ A paired iPhone can open [task approval notifications](docs/protocol.md#task-app
 
 On a Mac, [select one window for a task](docs/protocol.md#macos-single-window-operation) to press buttons, edit a field, scroll a list or preview a screenshot before sharing it with a screen model.
 
-> Most agents keep memory in a black box. Jeeves writes **one append-only ledger row per turn**. Open any row and you see that turn's entry stream: which tools ran, which model answered, and what it cost. The memory library links back to source turns via `ledger:…` chips, and the FTS5 index can be rebuilt from the ledger.
+Open a turn in the memory center to review its recorded tool calls and results. [Memory center](docs/internals/05-memory.md#510-memory-center)
 
 ![The Cowork workspace in the Jeeves macOS app](docs/assets/mac-cowork.png)
 

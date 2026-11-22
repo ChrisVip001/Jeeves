@@ -13,7 +13,6 @@ import type {
   SkillStatsResponse,
   SessionMessagesResponse,
   SessionGetResponse,
-  SessionNewResponse,
   SessionUpdateParams,
   SessionUpdateResponse,
   TaskCreateParams,

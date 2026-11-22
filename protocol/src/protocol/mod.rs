@@ -1,6 +1,4 @@
-//! Protocol versions.
-//!
-//! v1 is the migration-era compatibility layer (read-only, no new methods); all new APIs go into v2.
+//! Wire types for app-server v2 and the memory center.
 
 pub mod memory_center;
 pub mod v2;

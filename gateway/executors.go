@@ -63,7 +63,7 @@ func runRelay() error {
 	if err != nil || !cloudkit.TenantPattern.MatchString(tenant) || len(token) < 16 {
 		return errors.New("desktop relay is not configured")
 	}
-	client := &http.Client{Timeout: 85 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Timeout: 85 * time.Second, CheckRedirect: cloudkit.RejectRedirect}
 	link := cloudkit.Token(16)
 	lines := bufio.NewScanner(os.Stdin)
 	lines.Buffer(make([]byte, 4096), 16<<10)
@@ -155,7 +155,7 @@ func saveDeviceKey(ctx context.Context, origin *url.URL, token string) error {
 }
 
 func runMac(ctx context.Context, origin *url.URL, helper string) error {
-	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	client := &http.Client{Timeout: 6 * time.Second, CheckRedirect: cloudkit.RejectRedirect}
 	token := deviceKey(ctx, origin)
 	var status struct{ Paired bool }
 	if token != "" {

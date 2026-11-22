@@ -165,7 +165,7 @@ jeeves-cli               `jeeves` 二进制                                   �
 | memory | 检索命中 + 知识包目录 + skill 目录 | `JEEVES_RETRIEVAL_TOP_K` |
 | skills | 命中本条消息的正文 | 无 |
 | tools | 已注册工具的 JSON schema | `JEEVES_TOOL_POLICY=deferred` 可缩小 |
-| history | 最近 N 轮，从账本读回 | `JEEVES_HISTORY_TURNS` |
+| history | 从 `chat_log` 读取最近 N 轮对话 | `JEEVES_HISTORY_TURNS` |
 | summary | 滚动压缩摘要 | `JEEVES_COMPACT_THRESHOLD` |
 
 尾部有四样东西刻意不计入六段仪表：时钟、todo 面板和能力说明（各几十个恒定 token），以及

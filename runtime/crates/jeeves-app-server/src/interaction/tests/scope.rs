@@ -45,6 +45,32 @@ async fn public_chat_methods_cannot_create_or_address_a_second_conversation() {
 }
 
 #[tokio::test]
+async fn missing_session_points_to_the_main_conversation() {
+    let (_home, server, _model) = setup().await;
+    let (sink, mut frames) = EventSink::channel();
+    crate::handle(
+        &server,
+        JsonRpcRequest {
+            jsonrpc: JSONRPC_VERSION.into(),
+            id: RequestId::Number(1),
+            method: jeeves_protocol::methods::SESSION_GET.into(),
+            params: Some(json!({"sessionId": "missing"})),
+        },
+        sink,
+    )
+    .await;
+    let Frame::Response(JsonRpcMessage::Error(response)) = frames.try_recv().unwrap() else {
+        panic!("expected a session lookup error");
+    };
+    assert_eq!(response.error.code, jeeves_protocol::codes::INVALID_PARAMS);
+    assert!(response.error.message.contains("missing"));
+    assert!(
+        response.error.message.contains("session/main"),
+        "{response:?}"
+    );
+}
+
+#[tokio::test]
 async fn task_handoff_distinguishes_past_execution_failures_from_current_capability() {
     let (_home, server, model) = setup().await;
     server

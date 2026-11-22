@@ -83,10 +83,9 @@ func configure(ctx context.Context) (*plane, error) {
 	if err != nil || idle < time.Minute {
 		return nil, errors.New("idle interval must be at least one minute")
 	}
-	rejectRedirect := func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	p := &plane{registry: registry{db, box}, gatewayKey: auth, quota: quota, idle: idle, desktopKey: cloudkit.MAC([]byte(key), "jeeves-desktop-v1"),
-		probe:     &http.Client{Timeout: 3 * time.Second, CheckRedirect: rejectRedirect},
-		modelHTTP: &http.Client{CheckRedirect: rejectRedirect}}
+		probe:     &http.Client{Timeout: 3 * time.Second, CheckRedirect: cloudkit.RejectRedirect},
+		modelHTTP: &http.Client{CheckRedirect: cloudkit.RejectRedirect}}
 	if fixed := os.Getenv("CP_TEST_RUNTIME_URL"); dev && fixed != "" {
 		u, err := cloudkit.Origin(fixed)
 		p.fixedTenant = os.Getenv("CP_TEST_TENANT")

@@ -16,6 +16,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"jeeves/internal/cloudkit"
 )
 
 type mailJob struct{ email, purpose, token, code string }
@@ -54,7 +56,7 @@ func configureMail(origin *url.URL) (func(context.Context, mailJob) error, error
 			return sendSMTP(ctx, u, user, password, from.Address, to, subject, text)
 		}
 	} else {
-		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		client := &http.Client{CheckRedirect: cloudkit.RejectRedirect}
 		key := os.Getenv("GW_RESEND_API_KEY")
 		endpoint := "https://api.resend.com/emails"
 		if os.Getenv("GW_DEVELOPMENT") == "1" && os.Getenv("GW_TEST_MAIL_URL") != "" {

@@ -1017,15 +1017,12 @@ pub(crate) fn internal(e: impl std::fmt::Display) -> ErrorObject {
 fn no_such_session(id: &str) -> ErrorObject {
     ErrorObject {
         code: codes::INVALID_PARAMS,
-        message: format!("No such session: {id} (call session/new first, or check the id)"),
+        message: format!("No such session: {id}. Call session/main for the main conversation ID."),
         data: None,
     }
 }
 
-/// Working-directory admission shared by `session/new` / `session/update`: absolute + exists,
-/// the same fail-closed rule as `turn/start`. A session must never be bound to a path the tools
-/// would then refuse to write into — that would look like "writes are broken" instead of
-/// "this folder is not the workspace".
+/// `session/update` accepts only an existing absolute working directory, as `turn/start` does.
 fn checked_cwd(cwd: Option<&str>) -> Result<Option<String>, ErrorObject> {
     let Some(text) = cwd.map(str::trim).filter(|text| !text.is_empty()) else {
         return Ok(None);

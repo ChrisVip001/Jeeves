@@ -189,7 +189,7 @@ the memory center's meter:
 | memory | retrieval hits + the bundle catalog + the skill catalog | `JEEVES_RETRIEVAL_TOP_K` |
 | skills | the bodies that matched this message | none |
 | tools | JSON schemas of the registered tools | `JEEVES_TOOL_POLICY=deferred` shrinks it |
-| history | the last N turns, read from the ledger | `JEEVES_HISTORY_TURNS` |
+| history | the last N conversation turns from `chat_log` | `JEEVES_HISTORY_TURNS` |
 | summary | the rolling compaction summary | `JEEVES_COMPACT_THRESHOLD` |
 
 Four things in the tail are deliberately outside the six-section meter: the clock, the todo

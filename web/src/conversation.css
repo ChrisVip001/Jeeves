@@ -230,13 +230,6 @@
   font-weight: 600;
 }
 
-.welcome-sub {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 13px;
-  max-width: 420px;
-}
-
 /* 消息下的附件条：图片缩略图，其余是名字 chip。 */
 
 .attach-strip {

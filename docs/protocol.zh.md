@@ -354,6 +354,8 @@ SHA-256 一致；助手文本或不匹配的引文被拒绝。到期时间从原
 
 `session/main`（无参数）幂等打开 `jeeves-main`，返回 `SessionNewResponse`；仅首次创建初始化标准权限。`interaction/start` 使用生成的 `InteractionStartParams`：`sessionId`、稳定 `messageId`、人的 `message`，可选 `taskId`、`cwd`、图片 `attachments`。返回 `TurnStartResponse` 与既有通知。Web 对应鉴权的 `GET /api/session/main` 与 `POST /api/interaction`（SSE）。驾驶舱和网关 HTTP 客户端支持跨网络分块的多行 SSE 事件，兼容 LF、CRLF 和 CR 换行。
 
+查询会话失败时，客户端可用 `session/main` 重新取得主会话 ID。
+
 主模型在主聊天里应答和澄清，可通过本次交互的 `task` 工具一次创建最多四项独立委托，或续办属于这条会话的任务。两种操作都使用当前用户消息中的原文片段。同一交互中，已经用于续办的片段不能再次建任务。新任务附带文档引用和有界主会话背景。显式 `taskId` 检查归属后跳过路由。排队任务追加要求，执行中任务在下次模型边界接收补充；已结束且无验收条件的单回合任务在原目录/上下文中以新运行续做，其他状态使用既有恢复/核对入口。排队/执行中的新增图片明确拒绝。
 
 任务在追加执行步数前，先计入本轮已消耗的 token、工具调用次数和耗时。旧检查点所属的回合能关联到任务，但缺少执行标识时，恢复流程会将其挂起待核对。工具结果已记录的普通对话检查点仍可续跑。

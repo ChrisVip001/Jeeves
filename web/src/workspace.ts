@@ -76,7 +76,6 @@ import {
   steerTurn,
   interact,
   taskAction,
-  updateSession,
   uploadFile,
 } from "./api";
 import { renderMarkdown, StreamMarkdown } from "./markdown";
@@ -2042,15 +2041,7 @@ function paintReply(bubble: HTMLElement, markdown: string): void {
   bubble.replaceChildren(renderMarkdown(markdown));
 }
 
-/**
- * Switch to a session: change the name, pull back the history, get ready to talk there.
- *
- * No switching while streaming — that turn's bytes would otherwise pour into another session.
- */
-/**
- * Create a server-owned session with standard permissions, then clear the composer
- * and show the welcome screen. Previous sessions remain available in the sidebar.
- */
+/** Open the server-owned main conversation and refresh its tasks. */
 async function openMain(): Promise<void> {
   if (busy) return;
   try {

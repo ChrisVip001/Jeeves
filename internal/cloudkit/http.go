@@ -52,9 +52,19 @@ func Bearer(r *http.Request) string {
 	return v
 }
 
+func EqualSecret(left, right string) bool {
+	a := sha256.Sum256([]byte(left))
+	b := sha256.Sum256([]byte(right))
+	return hmac.Equal(a[:], b[:])
+}
+
 func Authorized(r *http.Request, key string) bool {
 	token := Bearer(r)
-	return key != "" && token != "" && hmac.Equal([]byte(Digest(token)), []byte(Digest(key)))
+	return key != "" && token != "" && EqualSecret(token, key)
+}
+
+func RejectRedirect(*http.Request, []*http.Request) error {
+	return http.ErrUseLastResponse
 }
 
 func JSON(w http.ResponseWriter, status int, v any) {

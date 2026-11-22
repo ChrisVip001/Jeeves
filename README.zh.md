@@ -16,7 +16,7 @@
 
 在 Mac 上，可为一个任务[选择一个窗口](docs/protocol.zh.md#macos-单窗口操作)，点击按钮、填写字段、滚动列表，或预览截图并决定是否发送给屏幕模型。
 
-> 多数 Agent 的记忆是个黑盒。Jeeves **每一轮对话只追加一行账本**：点开这一行，能看到这一轮的条目流——跑了哪些工具、哪个模型答的、花了多少 token。记忆库用 `ledger:…` 回溯到原始轮次，FTS5 索引能从账本重建。
+在记忆中心打开某一轮，可查看记录的工具调用和结果。[记忆中心](docs/internals/05-memory.zh.md#510-记忆中心)
 
 ![Jeeves macOS 应用中的 Cowork 工作台](docs/assets/mac-cowork.png)
 

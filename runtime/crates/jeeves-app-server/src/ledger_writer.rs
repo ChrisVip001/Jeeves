@@ -1,11 +1,8 @@
-//! Turning a finished turn into ledger rows — and back.
+//! Records turn events for the ledger and memory center.
 //!
-//! The loop hands over its full working memory (`TurnRunOutcome::messages`: the user
-//! message, every assistant block, every tool call and tool result). `chat_log` keeps
-//! the folded one-line-per-speaker view; this module keeps the record, so the turn can
-//! be rebuilt exactly — for the memory worker, for a stronger model re-reading history,
-//! and for the memory center's "what actually happened" view.
-//!
+//! Conversation history comes from `chat_log`. The ledger retains details such as tool calls
+//! and results for review.
+
 //! **Big payloads do not go into the row.** A 200 KB tool result would bloat the
 //! database and every backup; instead it lands in `<home>/ledger/<session>/…` and the
 //! row keeps a pointer plus the content digest, so verification still works and the
@@ -17,7 +14,6 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
 use jeeves_provider::{ContentBlock, Message, Role};
 use jeeves_state::NewEntry;
 use serde_json::json;
@@ -93,8 +89,7 @@ fn safe_component(raw: &str) -> String {
 /// Build the ledger rows for one finished turn.
 ///
 /// `user_message` is recorded once from the caller (it is also inside `messages`, so the
-/// copy that matches is skipped — recording it twice would make every rebuild show the
-/// request twice).
+/// matching copy is skipped so the ledger shows the request once).
 pub fn entries_for_turn(
     sink: &LedgerSink<'_>,
     session_id: &str,
@@ -311,116 +306,6 @@ pub fn entries_for_turn(
         ));
     }
     entries
-}
-
-/// Resolve a row's payload into text, following the pointer when it was spilled.
-///
-/// Wired in when the reader lands (memory worker / `JEEVES_HISTORY_SOURCE=ledger`); kept
-/// here beside the writer so the two cannot drift while the read path is still to come.
-///
-/// A missing spill file is reported, never silently rendered as the pointer JSON — the
-/// caller (rebuild or the memory center) needs to know the record is incomplete.
-#[allow(dead_code)]
-pub fn payload_text(home: &Path, payload: &str) -> Result<String> {
-    let parsed: serde_json::Value = match serde_json::from_str(payload) {
-        Ok(value) => value,
-        Err(_) => return Ok(payload.to_string()),
-    };
-    let Some(ptr) = parsed.get("ptr").and_then(|value| value.as_str()) else {
-        return Ok(parsed
-            .get("text")
-            .and_then(|value| value.as_str())
-            .map(str::to_string)
-            .unwrap_or_else(|| payload.to_string()));
-    };
-    let path = home.join(ptr);
-    let text = std::fs::read_to_string(&path)
-        .with_context(|| format!("ledger content is missing: {}", path.display()))?;
-    if let Some(expected) = parsed.get("digest").and_then(|value| value.as_str()) {
-        let actual = jeeves_state::ledger::digest_of(text.as_bytes());
-        if actual != expected {
-            anyhow::bail!(
-                "ledger content was modified: {} (digest mismatch)",
-                path.display()
-            );
-        }
-    }
-    Ok(text)
-}
-
-/// Rebuild one turn as provider messages — the exact path `load_history` takes in stage 3.
-///
-/// Text and tool rows are restored as they were; a spilled payload is read back (and
-/// verified) on demand. `notice` rows and unknown kinds are skipped: they are commentary
-/// about the turn, not part of the conversation.
-#[allow(dead_code)]
-pub fn rebuild_turn(home: &Path, rows: &[jeeves_state::EntryRow]) -> Result<Vec<Message>> {
-    let mut messages: Vec<Message> = Vec::new();
-    for row in rows {
-        let text = payload_text(home, &row.payload)?;
-        match row.kind.as_str() {
-            "assistant" => push_block(&mut messages, Role::Assistant, ContentBlock::Text { text }),
-            "user" => push_block(&mut messages, Role::User, ContentBlock::Text { text }),
-            "tool_use" => {
-                let parsed: serde_json::Value = serde_json::from_str(&text)?;
-                push_block(
-                    &mut messages,
-                    Role::Assistant,
-                    ContentBlock::ToolUse {
-                        id: parsed
-                            .get("id")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string(),
-                        name: parsed
-                            .get("name")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string(),
-                        input: parsed
-                            .get("input")
-                            .cloned()
-                            .unwrap_or(serde_json::Value::Null),
-                        extra: None,
-                    },
-                );
-            }
-            "tool_result" => {
-                let parsed: serde_json::Value = serde_json::from_str(&text)?;
-                push_block(
-                    &mut messages,
-                    Role::User,
-                    ContentBlock::ToolResult {
-                        tool_use_id: parsed
-                            .get("toolUseId")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string(),
-                        content: parsed
-                            .get("content")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string(),
-                    },
-                );
-            }
-            _ => {}
-        }
-    }
-    Ok(messages)
-}
-
-/// Append a block, merging into the previous message when the role matches — the wires
-/// expect `assistant[tool_use…]` in one message, not one message per block.
-#[allow(dead_code)]
-fn push_block(messages: &mut Vec<Message>, role: Role, block: ContentBlock) {
-    match messages.last_mut() {
-        Some(last) if last.role == role => last.content.push(block),
-        _ => messages.push(Message {
-            role,
-            content: vec![block],
-        }),
-    }
 }
 
 #[cfg(test)]

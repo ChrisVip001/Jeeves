@@ -1,15 +1,8 @@
-//! Ledger writer tests: the record must be complete, spilled when big, and readable back.
+//! Ledger writer tests for entry order and spill files.
 
 use jeeves_provider::{ContentBlock, Message, Role};
 
-use crate::ledger_writer::{entries_for_turn, payload_text, rebuild_turn, LedgerSink};
-
-fn temp_home(name: &str) -> std::path::PathBuf {
-    let dir = tempfile::tempdir().expect("temporary directory");
-    let home = dir.path().join(name);
-    let _ = dir.keep();
-    home
-}
+use crate::ledger_writer::{entries_for_turn, LedgerSink};
 
 fn kinds(entries: &[jeeves_state::NewEntry]) -> Vec<&'static str> {
     entries.iter().map(|entry| entry.kind).collect()
@@ -17,8 +10,8 @@ fn kinds(entries: &[jeeves_state::NewEntry]) -> Vec<&'static str> {
 
 #[test]
 fn a_turn_becomes_ordered_rows() {
-    let home = temp_home("ledger_entries");
-    let sink = LedgerSink::new(&home, 32_768);
+    let home = tempfile::tempdir().expect("temporary directory");
+    let sink = LedgerSink::new(home.path(), 32_768);
     let messages = vec![
         Message {
             role: Role::User,
@@ -86,9 +79,9 @@ fn a_turn_becomes_ordered_rows() {
 }
 
 #[test]
-fn a_large_payload_spills_and_verifies() {
-    let home = temp_home("ledger_spill");
-    let sink = LedgerSink::new(&home, 64);
+fn a_large_payload_spills_with_a_digest() {
+    let home = tempfile::tempdir().expect("temporary directory");
+    let sink = LedgerSink::new(home.path(), 64);
     let big = "log line\n".repeat(200);
     let messages = vec![
         Message {
@@ -112,110 +105,20 @@ fn a_large_payload_spills_and_verifies() {
         .find(|entry| entry.kind == "tool_result")
         .expect("there is a tool result");
     assert!(
-        spilled.payload.contains(r#""ptr":"ledger/s1/"#),
-        "big content has to be spilled: {}",
-        &spilled.payload[..60.min(spilled.payload.len())]
-    );
-    assert!(
         spilled.payload.len() < big.len() / 2,
-        "the row keeps only the pointer, not a second copy of the body ({} vs {})",
-        spilled.payload.len(),
-        big.len()
+        "the row holds a pointer"
     );
-    assert!(
-        home.join("ledger/s1").exists(),
-        "the file really reached the disk"
-    );
+    let record: serde_json::Value =
+        serde_json::from_str(&spilled.payload).expect("parse spill pointer");
+    let pointer = record["ptr"].as_str().expect("spill path");
+    assert!(pointer.starts_with("ledger/s1/"));
 
-    let text = payload_text(&home, &spilled.payload).expect("read it back");
-    assert!(text.contains("log line"), "the content is complete");
-    assert!(
-        text.len() > big.len(),
-        "what reads back is the whole JSON with ids"
-    );
-
-    let dir = home.join("ledger/s1");
-    let file = std::fs::read_dir(&dir)
-        .expect("list the directory")
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .next()
-        .expect("there is a file");
-    let mut text = std::fs::read_to_string(&file).expect("read the file");
-    text.push_str("tampered");
-    std::fs::write(&file, text).expect("change the file");
-    assert!(
-        payload_text(&home, &spilled.payload).is_err(),
-        "once altered it has to report an error"
-    );
-}
-
-#[test]
-fn a_turn_rebuilds_into_messages() {
-    let home = temp_home("ledger_rebuild");
-    let sink = LedgerSink::new(&home, 32_768);
-    let messages = vec![
-        Message {
-            role: Role::User,
-            content: vec![ContentBlock::Text {
-                text: "take a look at this error".to_string(),
-            }],
-        },
-        Message {
-            role: Role::Assistant,
-            content: vec![
-                ContentBlock::Text {
-                    text: "read the log first".to_string(),
-                },
-                ContentBlock::ToolUse {
-                    id: "call-1".to_string(),
-                    name: "read_file".to_string(),
-                    input: serde_json::json!({"path": "app.log"}),
-                    extra: None,
-                },
-            ],
-        },
-        Message {
-            role: Role::User,
-            content: vec![ContentBlock::ToolResult {
-                tool_use_id: "call-1".to_string(),
-                content: "no such file".to_string(),
-            }],
-        },
-    ];
-
-    let entries = entries_for_turn(
-        &sink,
-        "s1",
-        "t1",
-        "take a look at this error",
-        &messages,
-        "",
-    );
-    let rows: Vec<jeeves_state::EntryRow> = entries
-        .iter()
-        .enumerate()
-        .map(|(index, entry)| jeeves_state::EntryRow {
-            seq: index as i64,
-            kind: entry.kind.to_string(),
-            payload: entry.payload.clone(),
-            digest: jeeves_state::ledger::digest_of(entry.payload.as_bytes()),
-            fidelity: entry.fidelity.to_string(),
-            at: String::new(),
-        })
-        .collect();
-
-    let rebuilt = rebuild_turn(&home, &rows).expect("rebuild");
-    assert_eq!(rebuilt.len(), 3, "user / assistant / user(tool_result)");
-    assert_eq!(rebuilt[1].role, Role::Assistant);
+    let bytes = std::fs::read(home.path().join(pointer)).expect("read the written spill");
+    let content: serde_json::Value = serde_json::from_slice(&bytes).expect("parse spill content");
     assert_eq!(
-        rebuilt[1].content.len(),
-        2,
-        "text and a tool call inside one message"
+        content,
+        serde_json::json!({"toolUseId": "call-9", "content": big})
     );
-    assert_eq!(rebuilt[0].content.len(), 1, "the request appears once only");
-    match &rebuilt[2].content[0] {
-        ContentBlock::ToolResult { content, .. } => assert_eq!(content, "no such file"),
-        other => panic!("this should be a tool result, actually {other:?}"),
-    }
+    assert_eq!(record["bytes"], bytes.len());
+    assert_eq!(record["digest"], jeeves_state::ledger::digest_of(&bytes));
 }
