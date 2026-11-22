@@ -493,10 +493,6 @@ code {
   font-size: 11px;
   padding: 3px 6px;
 }
-.save-skill {
-  font-size: 11px;
-  padding: 3px 6px;
-}
 .queue-toggle.on {
   color: var(--accent);
   background: var(--surface-hover);

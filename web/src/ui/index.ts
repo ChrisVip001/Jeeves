@@ -17,6 +17,4 @@ export type { UiTranslator } from "./translate";
 export { default as TaskCenter } from "./TaskCenter.vue";
 export { useTasks } from "./useTasks";
 export type { TaskActions } from "./useTasks";
-export { default as TodayPage } from "./TodayPage.vue";
 export { default as TaskDetail } from "./TaskDetail.vue";
-export { default as JeevesMark } from "./JeevesMark.vue";

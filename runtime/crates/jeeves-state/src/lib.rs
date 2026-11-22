@@ -66,7 +66,6 @@ pub use events::{EventRow, Events};
 pub use facts::{FactMeta, FactRow, Facts};
 pub use grants::{grant_covers, Grant, GrantRequest, Grants};
 pub use jobs::{JobRow, Jobs};
-pub use ledger::BackfillReport;
 pub use ledger::{EntryRow, Ledger, NewEntry, TurnRow};
 pub use plans::Plans;
 pub use queue::{Queue, QueuedMessage};

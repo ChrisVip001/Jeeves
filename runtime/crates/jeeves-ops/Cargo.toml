@@ -22,7 +22,7 @@ jeeves-memory = { workspace = true }
 jeeves-protocol = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
 # For token generation: already in the tree (pulled in transitively by sqlx/tokio), not a new
