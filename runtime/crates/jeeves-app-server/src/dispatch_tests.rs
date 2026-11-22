@@ -14,6 +14,7 @@ fn row(role: &str, meta: Option<&str>) -> MessageRow {
         source: "fixture".into(),
         task_id: None,
         receipt_status: None,
+        approval_decisions: None,
         role: role.to_string(),
         content: "hello".to_string(),
         at: "2026-09-19 16:46:49".to_string(),

@@ -31,12 +31,18 @@ export function taskEventText(event: TaskEventView, t: UiTranslator) {
   if (event.kind === "approval_decided" && detail) {
     const match = /^([^·]+) · (approved|denied|timeout|voided) · (.*)$/s.exec(detail);
     if (match) {
-      const outcomes: Record<string, string> = {
-        approved: t("已允许"), denied: t("已拒绝"),
-        timeout: t("已超时"), voided: t("确认已失效"),
-      };
-      detail = [match[1], outcomes[match[2]!], match[3]].filter(Boolean).join(" · ");
+      detail = [match[1], approvalOutcome(match[2]!, t), match[3]].filter(Boolean).join(" · ");
     }
   }
   return { label, detail, known };
+}
+
+export function approvalOutcome(outcome: string, t: UiTranslator): string {
+  switch (outcome) {
+    case "approved": return t("已允许");
+    case "denied": return t("已拒绝");
+    case "timeout": return t("已超时");
+    case "voided": return t("确认已失效");
+    default: return outcome;
+  }
 }

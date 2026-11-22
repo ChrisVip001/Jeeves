@@ -801,6 +801,8 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
 .chat-decisions { padding: 8px 12px; border-inline-start: 3px solid var(--accent); }
 .chat-decisions summary, .task-notice summary { cursor: pointer; }
 .chat-decisions .today-card { margin-top: 8px; }
+.receipt-decisions { padding-inline-start: 1.5em; overflow-wrap: anywhere; }
+.receipt-decisions small { color: var(--text-2); }
 .task-notice .today-btn { margin: 7px 7px 0 0; }
 #composer-target .workspace-picker { max-width: 100%; width: fit-content; }
 #composer-target .context-button { max-width: 100%; overflow-wrap: anywhere; }

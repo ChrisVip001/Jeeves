@@ -205,3 +205,105 @@ async fn edits_replace_the_written_version_even_if_the_file_size_is_unchanged() 
         .written_text
         .is_none());
 }
+
+#[tokio::test]
+async fn cockpit_delivery_reports_the_decisions_of_each_run_in_both_receipts() {
+    let home = tempfile::tempdir().unwrap();
+    let pool = crate::open(&home.path().join("state.db")).await.unwrap();
+    let tasks = Tasks::new(pool.clone());
+    let runs = crate::Runs::new(pool.clone());
+    let approvals = crate::Approvals::new(pool.clone());
+    let completions = Completions::new(pool.clone());
+    tasks
+        .create(NewTask {
+            id: "cockpit",
+            session_id: Some("jeeves-main"),
+            title: "驾驶舱交付验收",
+            goal_condition: None,
+            acceptance_json: "[]",
+            budget_json: "{}",
+            cwd: None,
+            max_rounds: 1,
+            tier: None,
+        })
+        .await
+        .unwrap();
+    for (run, turn, decisions) in [
+        (
+            "first-run",
+            "first-turn",
+            vec![
+                ("shell", "run_command", "denied"),
+                ("write", "write_file", "approved"),
+            ],
+        ),
+        (
+            "revision-run",
+            "revision-turn",
+            vec![("rewrite", "write_file", "approved")],
+        ),
+    ] {
+        runs.start(run, "cockpit", Some("worker"), Some(turn))
+            .await
+            .unwrap();
+        tasks.set_running("cockpit", turn).await.unwrap();
+        for (request, tool, outcome) in decisions {
+            approvals
+                .log(&crate::approvals::Decision {
+                    turn_id: turn,
+                    request_id: request,
+                    tool,
+                    outcome,
+                    args_preview: "private file contents",
+                    reason: "",
+                    actor: "owner",
+                })
+                .await
+                .unwrap();
+        }
+        tasks
+            .finish_run_with_summary(
+                "cockpit",
+                TaskStatus::Done,
+                None,
+                Some(run),
+                Some("cockpit-check.md 已交付，本次写入没有弹出审批卡。"),
+            )
+            .await
+            .unwrap();
+    }
+    let history = crate::Chat::new(pool)
+        .messages("jeeves-main", None, 10)
+        .await
+        .unwrap();
+    let receipts = history
+        .iter()
+        .filter(|msg| msg.source == "task_completion")
+        .collect::<Vec<_>>();
+    assert_eq!(receipts.len(), 2);
+    let audit =
+        |rows: &Vec<crate::completions::ReceiptApproval>| serde_json::to_value(rows).unwrap();
+    let expected = serde_json::json!([
+        {"requestId":"shell","tool":"run_command","outcome":"denied"},
+        {"requestId":"write","tool":"write_file","outcome":"approved"}
+    ]);
+    assert_eq!(
+        audit(receipts[1].approval_decisions.as_ref().unwrap()),
+        expected
+    );
+    let revision =
+        serde_json::json!([{"requestId":"rewrite","tool":"write_file","outcome":"approved"}]);
+    assert_eq!(
+        audit(receipts[0].approval_decisions.as_ref().unwrap()),
+        revision
+    );
+    let delivery = completions
+        .latest_delivery("cockpit")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        audit(delivery.approval_decisions.as_ref().unwrap()),
+        revision
+    );
+}

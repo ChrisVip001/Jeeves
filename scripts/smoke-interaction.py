@@ -116,6 +116,8 @@ def run(browser_channel=None):
             artifacts = web.request(base, '/api/task', {'action': 'artifacts', 'taskId': alpha['id']})
             assert artifacts['latestDelivery']['status'] == 'produced_unverified' and artifacts['latestDelivery']['runId'], artifacts
             assert artifacts['latestDelivery']['summary'], artifacts
+            assert artifacts['latestDelivery']['approvalDecisions'] == []
+            assert all(message['approvalDecisions'] == [] for message in receipts)
             assert artifacts['artifacts'][0]['writtenText'] == 'task-follow-fixture', artifacts
             process.terminate()
             process.wait(timeout=12)
@@ -185,6 +187,12 @@ def run(browser_channel=None):
             assert settled(base, alpha['id'])['runCount'] == 3
             assert not web.request(base, pending_path)['approvals']
             assert Path(alpha['cwd'], 'report.txt').read_text() == 'task-follow-fixture approved'
+            decisions = [dict(tool=event['tool'], requestId=event['requestId'], outcome='approved')]
+            delivery = web.request(base, '/api/task', {'action': 'artifacts', 'taskId': alpha['id']})['latestDelivery']
+            history = web.request(base, '/api/session?sessionId=jeeves-main')['data']
+            own_receipts = [m for m in history if m.get('source') == 'task_completion' and m['taskId'] == alpha['id']]
+            assert delivery['approvalDecisions'] == own_receipts[0]['approvalDecisions'] == decisions
+            assert all(m['approvalDecisions'] == [] for m in own_receipts[1:])
             # Ordinary turns and goal verification both produce durable task timeline events.
             verified_ids = []
             for index in range(3):

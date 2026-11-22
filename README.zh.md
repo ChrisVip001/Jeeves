@@ -10,7 +10,7 @@
 
 云端用户经统一网关登录。新工作区启动期间可以先写下要交办的事。Rust Runtime 按租户隔离任务与数据。源码可通过 `just local-up` 在本机浏览器使用。[架构](docs/architecture.zh.md) · [统一网关](gateway/README.zh.md) · [云端部署](control-plane/README.zh.md)
 
-在对话中选工作目录、交办或续办事项并处理审批。账号、设备和连接管理可从菜单打开。[工作台指南](docs/design/main-entry.zh.md)
+在对话中选工作目录、交办或续办事项并处理审批。事项回执列出本次执行中获准和被拒绝的操作。账号、设备和连接管理可从菜单打开。[工作台指南](docs/design/main-entry.zh.md)
 
 可以按公钥配对设备、撤销设备授权，见[设备协议](docs/protocol.zh.md#设备配对与撤销)。驾驶舱的[全局急停](docs/protocol.zh.md#全局急停)可冻结受管任务浏览器，重启后仍然生效。可从手机或桌面接管任务浏览器，并[将下载保存为该任务的产物](docs/protocol.zh.md#远程浏览器操作与下载)。
 

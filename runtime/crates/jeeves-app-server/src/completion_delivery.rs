@@ -4,6 +4,20 @@ use jeeves_state::completions::Completions;
 use jeeves_tools::notify::{Notifier, NotifyEvent};
 use std::sync::Arc;
 
+pub(crate) fn approval_decisions(
+    rows: Option<Vec<jeeves_state::completions::ReceiptApproval>>,
+) -> Option<Vec<jeeves_protocol::ReceiptApproval>> {
+    rows.map(|rows| {
+        rows.into_iter()
+            .map(|row| jeeves_protocol::ReceiptApproval {
+                request_id: row.request_id,
+                tool: row.tool,
+                outcome: row.outcome,
+            })
+            .collect()
+    })
+}
+
 pub(crate) fn start(
     rows: &Arc<Completions>,
     notifier: Option<&Arc<dyn Notifier>>,

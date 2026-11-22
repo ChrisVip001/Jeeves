@@ -995,11 +995,25 @@ pub struct ArtifactView {
     pub at: String,
 }
 
+/// One recorded decision for an approval requested during this execution.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct ReceiptApproval {
+    pub request_id: String,
+    pub tool: String,
+    pub outcome: String,
+}
+
 /// The most recent terminal execution, including while a later revision is running.
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct TaskDeliveryView {
+    /// Audit rows for this exact run. Empty means no decision was recorded. Absent if the run cannot be identified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub approval_decisions: Option<Vec<ReceiptApproval>>,
     pub status: String,
     pub summary: Option<String>,
     pub run_id: Option<String>,
@@ -1286,6 +1300,10 @@ pub struct Message {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub receipt_status: Option<String>,
+    /// Audit rows for this exact run. Empty means no decision was recorded. Absent if the run cannot be identified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub approval_decisions: Option<Vec<ReceiptApproval>>,
     pub role: MessageRole,
     pub content: String,
     /// ISO 8601 (UTC). When it was written.

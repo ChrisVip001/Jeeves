@@ -1079,6 +1079,7 @@ fn to_message(row: jeeves_state::MessageRow) -> Option<jeeves_protocol::Message>
             .then_some(row.source),
         task_id: row.task_id,
         receipt_status: row.receipt_status,
+        approval_decisions: crate::completion_delivery::approval_decisions(row.approval_decisions),
         role,
         content: row.content,
         at: iso(row.at),

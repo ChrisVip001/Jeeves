@@ -97,6 +97,14 @@ try {
           assert.equal(payload.remember, "once");
           assert.ok(payload.version >= 1);
           assert.equal((await response.json()).accepted, true);
+          const receiptCard = page.locator(".task_completion").filter({has: page.locator(".receipt-decisions").getByText(decisionId, {exact:true})});
+          await receiptCard.waitFor();
+          const actual = await receiptCard.locator(".receipt-decisions li").allTextContents();
+          assert.deepEqual(actual, [`已允许 · write_file · ${decisionId}`]);
+          assert.equal(await receiptCard.locator("details").evaluate(el => el.open), false);
+          await receiptCard.getByRole("button", {name:"继续这件事"}).click();
+          await work.locator(".receipt-decisions").getByText(decisionId, {exact:true}).waitFor();
+          assert.deepEqual(await work.locator(".receipt-decisions li").allTextContents(), actual);
         }
         continue;
       }

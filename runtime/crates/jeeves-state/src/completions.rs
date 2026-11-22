@@ -13,8 +13,20 @@ pub struct CompletionRow {
     pub reason: String,
     pub notify_target: Option<String>,
 }
+pub(crate) const RECEIPT_APPROVALS: &str = include_str!("receipt_approvals.sql");
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReceiptApproval {
+    pub request_id: String,
+    pub tool: String,
+    pub outcome: String,
+}
+
 #[derive(Debug, FromRow)]
 pub struct DeliveryRow {
+    #[sqlx(json(nullable))]
+    pub approval_decisions: Option<Vec<ReceiptApproval>>,
     pub status: String,
     pub summary: Option<String>,
     pub run_id: Option<String>,
@@ -37,10 +49,10 @@ impl Completions {
         Ok(())
     }
     pub async fn latest_delivery(&self, task_id: &str) -> Result<Option<DeliveryRow>> {
-        Ok(sqlx::query_as("SELECT CASE WHEN status='done' AND verification_id IS NULL THEN 'produced_unverified' ELSE status END AS status,
-                           summary, run_id, created_at AS at FROM task_completions
+        Ok(sqlx::query_as(&format!("SELECT {RECEIPT_APPROVALS} AS approval_decisions, CASE WHEN status='done' AND verification_id IS NULL THEN 'produced_unverified' ELSE status END AS status,
+                           summary, run_id, created_at AS at FROM task_completions c
                            WHERE task_id=? AND status IN ('done','produced_unverified','failed','cancelled')
-                           ORDER BY id DESC LIMIT 1")
+                           ORDER BY id DESC LIMIT 1"))
             .bind(task_id).fetch_optional(&self.pool).await?)
     }
     pub async fn pending(&self) -> Result<Vec<CompletionRow>> {

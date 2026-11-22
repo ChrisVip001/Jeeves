@@ -120,7 +120,7 @@ you>  /goal 让测试全绿
 
 `TurnStartParams.requestId`（可选，1-120 个 `[A-Za-z0-9_-]` 字符）标明这一轮回答的是哪条消息。同一会话里用同一个 id 再发 `turn/start`，会原样重放第一次那一轮的通知和应答，不再调用模型；同一个 id 配不同的消息或参数会被拒绝。回执存在 `interaction_receipts` 表里（键带 `turn:` 前缀），重启后依然有效。不带 `requestId` 时行为不变。
 
-`task/artifacts` 的 `latestDelivery` 返回最近一次结束的执行、结果状态、记录时间与摘要。新一轮运行中仍可查看上次回执。文件的可选 `writtenText` 是写入时记录的完整文本，局部编辑会清除旧文本。
+`task/artifacts` 的 `latestDelivery` 返回最近一次结束的执行、结果状态、记录时间与摘要。新一轮运行中仍可查看上次回执。`latestDelivery` 与对应的 `session/messages` 完成通知通过 `approvalDecisions` 按决定顺序列出该次执行的请求编号、工具和审批结果。空列表表示本轮没有已记录的决定，字段缺失表示无法关联到具体执行。任务原回复可单独查看。文件的可选 `writtenText` 是写入时记录的完整文本，局部编辑会清除旧文本。
 
 Git 隔离工作树任务在创建时记录基线提交，每次交付结束时保存相对基线的文件快照。旧交付可通过 `task/reviewCapture` 指定任务仓库中的两个完整提交 ID。受文本与快照体积上限影响的文件可能只有路径和变更类型。
 

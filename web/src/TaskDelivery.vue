@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Check, ChevronRight, FileText } from "lucide-vue-next";
+import { taskReceiptBody } from "./render";
+import type { TaskDeliveryView } from "./protocol";
 import { t } from "./i18n";
 import { renderMarkdown, stripToolFold } from "./markdown";
 import type { AgentTaskView, TaskReviewFile } from "./protocol";
@@ -42,6 +44,15 @@ function receiptStatus(value: string) {
     default: return t("已生成，待验收");
   }
 }
+const paintReceipt = (el: HTMLElement, delivery: TaskDeliveryView) =>
+  el.replaceChildren(taskReceiptBody(delivery.approvalDecisions, delivery.summary ?? ""));
+const vReceipt = {
+  mounted(el: HTMLElement, { value }: { value: TaskDeliveryView }) { paintReceipt(el, value); },
+  updated(el: HTMLElement, { value, oldValue }: { value: TaskDeliveryView; oldValue: TaskDeliveryView }) {
+    if (value.summary !== oldValue.summary || value.runId !== oldValue.runId ||
+        JSON.stringify(value.approvalDecisions) !== JSON.stringify(oldValue.approvalDecisions)) paintReceipt(el, value);
+  },
+};
 const paint = (el: HTMLElement, value: string) => el.replaceChildren(renderMarkdown(stripToolFold(value)));
 const vMarkdown = {
   mounted(el: HTMLElement, binding: { value: string }) { paint(el, binding.value); },
@@ -54,8 +65,9 @@ const vMarkdown = {
     <div v-if="delivery || reply" class="delivery-answer">
       <h3>{{ delivery ? live ? t("上次执行结果") : t("本次交付") : t("最近的回复") }}</h3>
       <p v-if="delivery" class="delivery-verdict">{{ receiptStatus(delivery.status) }}</p>
-      <div v-if="reply" v-markdown="reply" class="bubble md"></div>
-      <p v-else-if="!live && task.lastStopReason">{{ task.lastStopReason }}</p>
+      <div v-if="delivery" v-receipt="delivery"></div>
+      <div v-else-if="reply" v-markdown="reply" class="bubble md"></div>
+      <p v-if="!reply && !live && task.lastStopReason">{{ task.lastStopReason }}</p>
     </div>
     <section v-if="files.length || review?.omittedFiles" class="work-files">
       <h3>{{ t("已记录的文件") }}</h3>

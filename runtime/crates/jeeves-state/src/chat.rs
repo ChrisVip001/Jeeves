@@ -14,6 +14,8 @@ pub struct MessageRow {
     pub source: String,
     pub task_id: Option<String>,
     pub receipt_status: Option<String>,
+    #[sqlx(json(nullable))]
+    pub approval_decisions: Option<Vec<crate::completions::ReceiptApproval>>,
     /// Row number. **Also the paging cursor** — timestamps lie: one turn's two rows share a second.
     pub id: i64,
     pub role: String,
@@ -351,7 +353,7 @@ impl Chat {
         limit: u32,
     ) -> Result<Vec<MessageRow>> {
         sqlx::query_as::<_, MessageRow>(
-            "SELECT m.id, m.role, m.content, m.source, m.created_at AS at, m.meta,
+            &format!("SELECT {} AS approval_decisions, m.id, m.role, m.content, m.source, m.created_at AS at, m.meta,
                     CASE WHEN m.notice_key IS NOT NULL AND m.source IN ('task_decision','task_completion')
                          THEN m.task_id END AS task_id,
                     CASE WHEN c.status='done' AND c.verification_id IS NULL THEN 'produced_unverified'
@@ -361,7 +363,7 @@ impl Chat {
                     AND c.id=CAST(m.notice_key AS INTEGER) AND c.task_id=m.task_id AND c.session_id=m.session_id
               WHERE m.session_id = ? AND m.id < ?
               ORDER BY m.id DESC
-              LIMIT ?",
+              LIMIT ?", crate::completions::RECEIPT_APPROVALS),
         )
         .bind(session_id)
         .bind(before.unwrap_or(i64::MAX))

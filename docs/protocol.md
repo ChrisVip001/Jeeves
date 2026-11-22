@@ -123,7 +123,7 @@ metadata. `TurnMeta.routeReason` (optional) says how the model was chosen this t
 
 `TurnStartParams.requestId` (optional, 1-120 characters of `[A-Za-z0-9_-]`) names the message a turn answers. A second `turn/start` with the same id in the same session replays the first turn's notifications and response without calling the model again; the same id with a different message or parameters is refused. The receipt lives in `interaction_receipts` under a `turn:` key, so it survives a restart. Without `requestId` nothing changes.
 
-The optional `latestDelivery` on `task/artifacts` identifies the most recent terminal run and its recorded status, time and summary, including while a revision is running. An artifact’s optional `writtenText` is the complete text recorded at the write. A later partial edit clears it.
+The optional `latestDelivery` on `task/artifacts` identifies the most recent terminal run and its recorded status, time and summary, including while a revision is running. In `latestDelivery` and the corresponding `session/messages` completion notice, `approvalDecisions` lists each recorded request ID, tool and outcome in decision order for that run. An empty list means no decisions were logged. An absent field means the run could not be identified. The worker’s reply remains available separately. An artifact’s optional `writtenText` is the complete text recorded at the write. A later partial edit clears it.
 
 Tasks with an isolated Git worktree record their starting commit and snapshot changes against it at each delivery. An older delivery can attach two complete commit IDs from its repository through `task/reviewCapture`. Files outside the text and snapshot budgets may provide only a path and change type.
 

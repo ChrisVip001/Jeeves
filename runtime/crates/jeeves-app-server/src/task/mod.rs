@@ -500,6 +500,9 @@ pub(crate) async fn artifacts(
         latest_delivery: delivery.map(|row| jeeves_protocol::TaskDeliveryView {
             status: row.status,
             summary: row.summary,
+            approval_decisions: crate::completion_delivery::approval_decisions(
+                row.approval_decisions,
+            ),
             run_id: row.run_id,
             at: row.at,
         }),

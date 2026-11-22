@@ -259,6 +259,7 @@ export type * from "./RunView";
 export type * from "./TaskRunsResponse";
 export type * from "./ArtifactView";
 export type * from "./TaskArtifactsResponse";
+export type * from "./ReceiptApproval";
 export type * from "./TaskDeliveryView";
 export type * from "./TaskReviewFile";
 export type * from "./TaskReviewView";

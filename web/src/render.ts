@@ -1,5 +1,6 @@
 
 import { renderMarkdown, stripToolFold } from "./markdown.ts";
+import { approvalOutcome } from "./task-event-text.ts";
 import { t } from "./i18n.ts";
 import type {
   McpRow,
@@ -22,6 +23,7 @@ import type {
   MemoryPageSummary,
   MemoryPageView,
   Message,
+  ReceiptApproval,
   TodoListView,
   TokenUsage,
   ToolStartedNotification,
@@ -739,6 +741,30 @@ export function taskNoticeHeading(message: Message): string {
   }
 }
 
+/** Render the run's decisions independently of the worker's account of what happened. */
+export function taskReceiptBody(decisions: ReceiptApproval[] | undefined, reply: string): DocumentFragment {
+  const body = document.createDocumentFragment();
+  if (decisions?.length) {
+    body.append(el("strong", { text: t("本次审批结果") }));
+    const list = el("ul", { class: "receipt-decisions" });
+    for (const row of decisions) {
+      list.append(el("li", {}, el("strong", { text: approvalOutcome(row.outcome, t) }),
+        " · ", el("code", { text: row.tool }), " · ", el("small", { text: row.requestId })));
+    }
+    body.append(list);
+  } else {
+    body.append(el("p", { text: decisions ? t("本次执行没有已记录的审批决定。") : t("无法关联本次执行的审批记录。") }));
+  }
+  if (reply) {
+    const text = el("div", { class: "bubble md" });
+    text.append(renderMarkdown(stripToolFold(reply)));
+    const original = el("details", {}, el("summary", { text: t("查看任务原回复") }), text);
+    original.open = decisions?.length === 0;
+    body.append(original);
+  }
+  return body;
+}
+
 export function messageRow(message: Message, openTask: (id: string) => Promise<boolean>): HTMLElement {
   const notice = taskNotice(message);
   if (notice) {
@@ -751,11 +777,10 @@ export function messageRow(message: Message, openTask: (id: string) => Promise<b
     const title = message.taskId && firstLine.endsWith(suffix) ? firstLine.slice(0, -suffix.length) : "";
     const row = el("div", { class: `msg jeeves task-notice ${notice}` },
       el("strong", { text: title ? title + " · " + heading : heading }));
-    if (!decision && summary) {
-      const body = el("div", { class: "bubble md" });
-      body.append(renderMarkdown(summary));
-      row.append(body);
-    } else {
+    if (!decision) {
+      row.append(taskReceiptBody(message.approvalDecisions, summary));
+    }
+    if (decision || !summary) {
       row.append(el("details", {}, el("summary", { text: decision ? t("查看原始请求") : t("执行记录") }), el("div", { class: "bubble", text: message.content })));
     }
     const taskId = message.taskId;

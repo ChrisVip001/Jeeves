@@ -3898,6 +3898,16 @@
     "Message": {
       "description": "One message in session history: a row of `chat_log`.\n\nSame conversation, second viewpoint alongside the live stream (`turnStarted` / `textDelta` / `turnCompleted`): the live stream lives only for **this connection** (gone on refresh); this one makes \"refresh, switch devices, look back later\" possible.",
       "properties": {
+        "approvalDecisions": {
+          "description": "Audit rows for this exact run. Empty means no decision was recorded. Absent if the run cannot be identified.",
+          "items": {
+            "$ref": "#/definitions/ReceiptApproval"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "at": {
           "description": "ISO 8601 (UTC). When it was written.",
           "type": "string"
@@ -4379,6 +4389,26 @@
       ],
       "title": "PermissionMode",
       "type": "string"
+    },
+    "ReceiptApproval": {
+      "description": "One recorded decision for an approval requested during this execution.",
+      "properties": {
+        "outcome": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome",
+        "requestId",
+        "tool"
+      ],
+      "type": "object"
     },
     "RememberScope": {
       "description": "How long an approval answer lasts.\n\nThe distinction exists because \"yes\" is three different promises: *this time*, *until the process exits*, and *until revoked*. Conflating them either nags the human on every call or silently writes a standing rule they did not ask for.",
@@ -6203,6 +6233,16 @@
     "TaskDeliveryView": {
       "description": "The most recent terminal execution, including while a later revision is running.",
       "properties": {
+        "approvalDecisions": {
+          "description": "Audit rows for this exact run. Empty means no decision was recorded. Absent if the run cannot be identified.",
+          "items": {
+            "$ref": "#/definitions/ReceiptApproval"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "at": {
           "type": "string"
         },

@@ -294,6 +294,7 @@ macro_rules! protocol_types {
             TaskRunsResponse,
             ArtifactView,
             TaskArtifactsResponse,
+            ReceiptApproval,
             TaskDeliveryView,
             TaskReviewFile,
             TaskReviewView,

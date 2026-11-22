@@ -10,7 +10,7 @@ Tell Jeeves what you need in your own words. It can answer a quick question, com
 
 Cloud users sign in through one Go gateway. A new workspace can start while you draft the first assignment. Rust Runtimes isolate tasks and data per tenant. Run a source installation in your local browser with `just local-up`. [Architecture](docs/architecture.md) · [Unified gateway](gateway/README.md) · [Hosted deployment](control-plane/README.md)
 
-Choose a workspace, assign or follow up on a task, and review approvals in the conversation. The menu opens account, device and connection management. [Workbench guide](docs/design/main-entry.md)
+Choose a workspace, assign or follow up on a task, and review approvals in the conversation. A task receipt shows which operations were approved or denied in that run. The menu opens account, device and connection management. [Workbench guide](docs/design/main-entry.md)
 
 Pair a device by public key and revoke its grant through the [device protocol](docs/protocol.md#device-pairing-and-revocation). The cockpit’s [global emergency stop](docs/protocol.md#global-emergency-stop) freezes managed task browsers across restarts. Take over a task browser from your phone or desktop and [save a download to that task](docs/protocol.md#remote-browser-input-and-downloads).
 
