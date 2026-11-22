@@ -173,7 +173,7 @@ tail   = 时钟（按天）· 能力缺口 · 能力使用说明 · todo · 记�
 
 ## 主对话与任务
 
-`session/main` 打开 `jeeves-main`（只创建一次，默认策略 standard，无目录）。`interaction/start` 是它上面的一次普通轮。没有路由模型：当消息要求做事，这一轮调用 `task` 工具（`create` 最多四个独立项、`continue`、`cancel`、`list`）。工具只在该交互运行期间存在，且只给允许派发的发送者（本地视图即所有者；聊天发送者必须列在 `JEEVES_DISPATCHERS` 中，空列表谁也不放行；检查在 Runtime 内）。每条 `instruction` 必须是当前人类消息中逐字、互不重叠的片段，模型因此无法凭空造活。显式的 `taskId` 在所有权检查后直接续该任务。
+`session/main` 打开 `jeeves-main`（只创建一次，默认策略 standard，无目录）。`interaction/start` 是它上面的一次普通轮。没有路由模型：当目标需要持久线程时，这一轮才调用 `task` 工具（`create` 最多四个独立项、`continue`、`cancel`、`list`）；能在对话内做完的工作不调用。工具只在该交互运行期间存在，且只给允许派发的发送者（本地视图即所有者；聊天发送者必须列在 `JEEVES_DISPATCHERS` 中，空列表谁也不放行；检查在 Runtime 内）。每条 `instruction` 必须是当前人类消息中逐字、互不重叠的片段，模型因此无法凭空造活。显式的 `taskId` 在所有权检查后直接续该任务。
 
 幂等：`(sessionId, messageId)` 是持久化的回执（消息 id 为 1 到 120 个字母、数字、`-`、`_`；消息最多 64 000 字节）。相同且已完成的输入重放其存储的事件与结果、不做新工作；同一 id 下不同输入、或未完成或失败的回执，一律拒绝。带 `requestId` 的 `turn/start` 用同一张表，键前缀为 `turn:`。确认只说已排队，从不说已完成。
 

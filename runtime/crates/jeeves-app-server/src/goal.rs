@@ -3,8 +3,9 @@
 //! This module owns the **question**, not the state. The loop lives in `turn.rs`; the goal lives
 //! on the task row (`agent_tasks.goal_condition` / `rounds_used` / `max_rounds`). There used to be
 //! an in-process table here mirroring the row — a second copy of the truth, restored at boot and
-//! kept in step by hand. It is gone (0.17): "set a goal" and "create a task" are the same act, so
-//! there is one place to read and nothing to reconcile.
+//! kept in step by hand. It is gone (0.17): a goal that needs a durable loop is stored on the task
+//! row itself, so there is one place to read and nothing to reconcile. A goal resolved inside a
+//! conversation never creates a row here.
 //!
 //! Three constraints survive from the original design:
 //!

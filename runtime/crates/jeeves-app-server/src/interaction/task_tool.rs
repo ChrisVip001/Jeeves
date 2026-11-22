@@ -1,9 +1,9 @@
 //! The `task` tool: how the main conversation hands work to a task thread.
 //!
 //! There is no separate router model any more. The main conversation is one ordinary turn; when
-//! the human's message asks for real work, that turn calls this tool. The tool exists only for
-//! the human interaction that owns it, and it cannot invent work:
-//! every instruction must be a verbatim span of the human's current message.
+//! a goal needs a durable thread, that turn calls this tool. Work that can finish inside the
+//! conversation does not come here. The tool exists only for the human interaction that owns it,
+//! and it cannot invent work: every instruction must be a verbatim span of the human's current message.
 use crate::{EventSink, Server};
 use jeeves_protocol::{
     AcceptanceView, InteractionStartParams, TaskActionParams, TaskCreateParams, TaskStartParams,
