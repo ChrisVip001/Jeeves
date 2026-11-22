@@ -98,6 +98,8 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 `runtime/crates/jeeves-eval/examples/live_reliability.rs` 是显式调用、带预算的真实 provider 运行。必需参数：`--home`、`--budget-cny`（大于 0、至多 10）与 `--out`；`--suite` 选择 `baseline`、`expanded`、`memory`、`research`、`research-guarded`、`support` 或 `research-long`。保留的输出在 `evals/results/`。`just test-research-publication` 离线验证 research 用例的发布闸门。
 
+[11 月 14 日归档清单](../../evals/archive/2026-11-14/sources.json)记录了 4 份原件各自对应的验收报告和来源提交。在干净克隆的仓库根目录运行 `(cd evals/archive/2026-11-14 && shasum -a 256 -c SHA256SUMS)` 即可复验 SHA-256。
+
 ## 8.7 冒烟脚本
 
 冒烟使用真实的 `jeeves` 二进制，因为它们测的是进程内 eval 绕过的进程边界。

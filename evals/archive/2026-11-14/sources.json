@@ -1,0 +1,20 @@
+[
+  {
+    "sourceCommit": "fd5c78afe4bffad24b2f72354f192543acd44121",
+    "report": "evals/results/long-research-validation-2026-11-14.json",
+    "checksumField": "rawEvidenceSha256",
+    "files": [
+      "deepseek-flash-2026-11-14-long-research-repeat.json",
+      "long-research-preregistration-2026-11-14.json",
+      "analysis/long-research-review-2026-11-14.json"
+    ]
+  },
+  {
+    "sourceCommit": "2b9db407afe878a97d2645ec7e2a4e74671acc08",
+    "report": "evals/results/support-validation-2026-11-14.json",
+    "checksumField": "sourceSha256",
+    "files": [
+      "analysis/support-review-2026-11-14.json"
+    ]
+  }
+]

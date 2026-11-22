@@ -139,6 +139,10 @@ provider. Required flags: `--home`, `--budget-cny` (above 0, at most 10) and `--
 Retained outputs live in `evals/results/`. `just test-research-publication` exercises the research
 case's publication gate offline.
 
+The [November 14 archive manifest](../../evals/archive/2026-11-14/sources.json) identifies the
+validation report and source commit for each of the four originals. To verify their SHA-256 values in a fresh
+clone, run `(cd evals/archive/2026-11-14 && shasum -a 256 -c SHA256SUMS)` from the repository root.
+
 ## 8.7 Smoke Scripts
 
 Smokes use the real `jeeves` binary, because they test the process boundary that in-process evals skip.
