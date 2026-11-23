@@ -712,6 +712,18 @@ dashboard 或协议的 `config/write` 把补丁累计写入 `<home>/settings.jso
 启动时叠加在环境变量之上。清除模型覆盖：把字段写成空串后提交。校验失败
 的补丁整体拒绝——不合法的值不会进文件。
 
+### 自带模型自动救援
+
+`modelAutoSwitchToByok` 是这个补丁里仅限人工的开关（默认 `false`）：
+
+```json
+{"modelAutoSwitchToByok": true}
+```
+
+当**平台分配**的模型处于活动状态、且调用因额度耗尽（HTTP 429）或网络错误失败时，该轮可以回退到你自己的某个带密钥的模型
+profile。其它错误（5xx、401/402/403、流中断、上下文溢出，或已显示文本之后失败）绝不触发切换。开关关闭时，额度耗尽会明确
+报错，由你自己选另一个模型。模型不能改这个设置。
+
 ### 原生 OpenAI Responses
 
 内置 OpenAI 使用 `wire: "responses"` 与 `/responses`；其他 OpenAI 兼容厂商仍使用 `wire: "openai"` 与 `/chat/completions`。原生适配支持文本、图片、函数工具、SSE 文本流和加密推理接续。请求明确设置 `store: false`，接续数据保留在本地工作记忆与断点中。断流按错误处理，不执行未完整生成的函数调用。此适配未启用托管工具、WebSocket 引导或 API 异步工具调用。

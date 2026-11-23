@@ -28,6 +28,18 @@
   服务商结算。归属是结构性的（端点 + 凭据），不需要额外请求头；代理会拒绝没有有效租户 token 的请求，所以 BYOK profile 无法
   静默消耗平台额度。
   → `control-plane/provisioning.go`、`control-plane/meter.go`、`runtime/crates/jeeves-config/src/models.rs`
+* **边界** — 平台 profile 是锁定的：`model/save` 拒绝改写它的 provider、模型、端点或凭据，`model/remove` 拒绝删除它；
+  切换到它是允许的。额度耗尽时平台代理返回 429，文案为"额度用完，请充值或配置自己的模型"。可选的 `settings.json`
+  开关 `modelAutoSwitchToByok`（默认 false，仅限人工）允许**当轮**回退到用户某个带密钥的 BYOK profile——且只在
+  HTTP 429 或网络错误时触发，绝不在 5xx、401/402/403、流中断或已显示文本之后触发。开关关闭时只能手动切换。
+  救援 profile 在 fallback 链里带专门标记，因此普通显式 `fallback` 条目仍沿用较宽的切换规则。
+  → `runtime/crates/jeeves-provider/src/fallback.rs`、`runtime/crates/jeeves-app-server/src/route.rs`
+* **边界** — 平台可以提供多条能力线（语言、多模态、视频理解、视频生成、决策）。带视频附件的回合**仅在平台 profile
+  处于活动状态时**才会路由到平台的 `video-understanding` profile；活动 profile 是 BYOK/本地时绝不重定向到消耗额度的平台线。
+  视频附件以绝对路径传给模型，绝不当图片解码。活动 BYOK 模型缺少能力时直接明确拒绝（图片为"你的模型看不了图"，
+  视频为"你的模型看不了视频"），不静默借用平台。视频理解与生成最终取决于平台模型支持什么——Jeeves 负责路由和命名能力，
+  自身不实现视频推理。
+  → `runtime/crates/jeeves-app-server/src/turn/{capability,attachments,entry}.rs`、`route.rs`
 * **刻意** — 切换模型只重写进程内设置并重新解析 provider；配置存在 `<home>/models.json`，下次启动仍用上次的选择。
   模型不能切换模型：`model/*` 仅限人工，模型看不到密钥。
 * **刻意** — 模型目录（`<home>/models-catalog.json`）启动时读一次；新增条目需要重启。坏行各花一行 stderr 并被跳过；

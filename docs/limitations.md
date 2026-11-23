@@ -36,6 +36,25 @@ sandbox for hostile commands.
   structural (endpoint + credential), so no extra header is needed. The proxy rejects any request
   without a valid tenant token, so a BYOK profile cannot silently spend platform quota.
   → `control-plane/provisioning.go`, `control-plane/meter.go`, `runtime/crates/jeeves-config/src/models.rs`
+* **Boundary** — A platform profile is locked: `model/save` refuses to rewrite its provider, model,
+  endpoint or credentials and `model/remove` refuses to delete it; switching to it is allowed.
+  When quota is exhausted the platform proxy answers 429 with "额度用完，请充值或配置自己的模型".
+  The optional `settings.json` switch `modelAutoSwitchToByok` (default false, human-only) then lets
+  **that turn** fall through to one of the person's keyed BYOK profiles — and only on HTTP 429 or
+  a network error, never on 5xx, 401/402/403, a broken stream or after visible text. With the switch
+  off, switching is manual. A rescue profile is marked as such in the fallback chain, so ordinary
+  explicit `fallback` entries keep the broader switchable rule.
+  → `runtime/crates/jeeves-provider/src/fallback.rs`, `runtime/crates/jeeves-app-server/src/route.rs`
+* **Boundary** — The platform may serve several capability lines (language, multimodal,
+  video-understanding, video-generation, decision). A turn with a video attachment is routed to
+  the platform `video-understanding` profile **only when a platform profile is active**; a BYOK/local
+  active profile is never redirected onto a quota-consuming line. Video attachments are passed to
+  the model as an absolute path, never decoded as an image. If the active BYOK model lacks the
+  capability, the turn is refused plainly ("你的模型看不了图" for images, "你的模型看不了视频" for video)
+  instead of silently borrowing the platform. Video understanding and generation ultimately depend
+  on what the platform model accepts — Jeeves routes and names the capability, it does not implement
+  video inference itself.
+  → `runtime/crates/jeeves-app-server/src/turn/{capability,attachments,entry}.rs`, `route.rs`
 * **Deliberate** — Switching models rewrites in-process settings and re-resolves the provider;
   the configuration lives in `<home>/models.json`, so the next start keeps your last pick. The
   model cannot switch models: `model/*` is human-only and the model never sees a key.

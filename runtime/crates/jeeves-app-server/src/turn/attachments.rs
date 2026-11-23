@@ -51,28 +51,10 @@ pub(super) fn resolve_attachments(
         .map_err(|e| bad(format!("The home directory is unavailable: {e}")))?;
     let mut images = Vec::new();
     for attachment in attachments {
-        // Video attachments are not image blocks: a video-understanding model receives the
-        // absolute path as text and opens it through its own media pipeline. Never pretend a
-        // .mp4 is a PNG and ask `image_meta::size` to decode it.
         if super::capability::required_line(Some(std::slice::from_ref(attachment)))
             == "video-understanding"
         {
-            let raw = home.join(&attachment.path);
-            let path = raw.canonicalize().map_err(|_| {
-                bad(format!(
-                    "Attachment is missing or unreadable: {}",
-                    attachment.path
-                ))
-            })?;
-            if !path.starts_with(&home_real) {
-                return Err(bad(format!(
-                    "Attachment {} is outside home — an attachment may only reference a file under the upload directory (<home>/uploads/…).",
-                    attachment.path
-                )));
-            }
-            images.push(jeeves_provider::ContentBlock::Text {
-                text: format!("Video attachment: {}", path.display()),
-            });
+            images.push(video_path_block(&home, attachment).map_err(&bad)?);
             continue;
         }
         let raw = home.join(&attachment.path);
@@ -136,4 +118,29 @@ pub(super) fn resolve_attachments(
         });
     }
     Ok(images)
+}
+
+/// Turn a video attachment into a text block naming its absolute path. A video-understanding
+/// model receives the path and opens it through its own media pipeline; pretending a .mp4 is a
+/// PNG and asking `image_meta::size` to decode it would fail before the model ever saw it.
+fn video_path_block(
+    home: &std::path::Path,
+    attachment: &jeeves_protocol::TurnAttachment,
+) -> Result<jeeves_provider::ContentBlock, String> {
+    let home_real = home
+        .canonicalize()
+        .map_err(|e| format!("The home directory is unavailable: {e}"))?;
+    let path = home
+        .join(&attachment.path)
+        .canonicalize()
+        .map_err(|_| format!("Attachment is missing or unreadable: {}", attachment.path))?;
+    if !path.starts_with(&home_real) {
+        return Err(format!(
+            "Attachment {} is outside home — an attachment may only reference a file under the upload directory (<home>/uploads/…).",
+            attachment.path
+        ));
+    }
+    Ok(jeeves_provider::ContentBlock::Text {
+        text: format!("Video attachment: {}", path.display()),
+    })
 }

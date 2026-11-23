@@ -288,10 +288,6 @@ impl Server {
             seen.push(key);
             targets.push((id, resolved, false));
         }
-        // Optional automatic rescue (product decision 3): when the human enabled it in
-        // settings.json, a platform model's quota/network failure may fall through to the
-        // person's own profiles. These targets are guarded in `Fallback` — they are entered
-        // only on HTTP 429 or a network error, never on other switchable errors.
         let candidates: Vec<String> = {
             let file = self
                 .models

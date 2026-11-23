@@ -16,7 +16,7 @@ import (
 	"jeeves/internal/cloudkit"
 )
 
-var limitReached = errors.New("included model quota is exhausted")
+var limitReached = errors.New("额度用完，请充值或配置自己的模型")
 
 func period() string { return time.Now().UTC().Format("2006-01") }
 
@@ -146,7 +146,7 @@ func (p *plane) model(w http.ResponseWriter, r *http.Request) {
 	allowance := int64(len(body))*2 + input.MaxTokens + 256
 	if err := p.reserve(r.Context(), id, who, period(), allowance); err != nil {
 		if errors.Is(err, limitReached) {
-			cloudkit.Error(w, 429, "included model quota is exhausted")
+			cloudkit.Error(w, 429, "额度用完，请充值或配置自己的模型")
 			return
 		}
 		internalError(w, err)

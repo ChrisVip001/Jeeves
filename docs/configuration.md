@@ -791,6 +791,20 @@ environment variables at boot. To clear a model override, submit an empty
 string for the field. A patch failing validation is rejected wholesale —
 invalid values never reach the file.
 
+### Automatic BYOK rescue
+
+`modelAutoSwitchToByok` (default `false`) is a human-only switch in this patch:
+
+```json
+{"modelAutoSwitchToByok": true}
+```
+
+When a **platform-assigned** model is active and its call fails on quota exhaustion (HTTP 429)
+or a network error, that turn may fall through to one of your own keyed model profiles. Other
+errors (5xx, 401/402/403, a broken stream, context overflow, or a failure after text was shown)
+never trigger the switch. With the switch off, quota exhaustion surfaces plainly and you choose
+a different model yourself. The model cannot change this setting.
+
 ### Native OpenAI Responses
 
 The built-in OpenAI entry uses `wire: "responses"` and `/responses`. Other OpenAI-compatible providers retain `wire: "openai"` and `/chat/completions`. The native adapter supports text, images, function tools, SSE text streaming and encrypted reasoning continuation. Requests set `store: false`; continuation items remain in local working memory and checkpoints. An interrupted stream is an error, and incomplete function calls are never executed. Hosted tools, WebSocket steering and asynchronous API tool calls are not enabled by this adapter.
