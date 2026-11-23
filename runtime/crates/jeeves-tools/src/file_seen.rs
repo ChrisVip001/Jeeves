@@ -1,10 +1,11 @@
 //! What each session last saw of a file, so a write never lands on top of a change it never
 //! read.
 //!
-//! `read_file` and the write tools record the file's modification time and size after they
-//! touch it. Before `edit`, `write_file` or `apply_patch` change an existing file, `check`
-//! compares the disk with that record: when a person, an editor or a command changed the file
-//! since, the write is refused and the model is told to read it again. A file this session
+//! `read_file` and the write tools record the file's modification time, size and content digest
+//! after they touch it. Before `edit`, `write_file` or `apply_patch` change an existing file,
+//! `check` compares the disk with that record: when a person, an editor or a command changed the
+//! file since, the write is refused and the model is told to read it again. A new timestamp on
+//! the same bytes (a `touch`, a rewrite of identical text) is not a change. A file this session
 //! never read or wrote has no record and stays writable, so creating or overwriting a file
 //! still works in one step.
 use std::collections::HashMap;
@@ -16,10 +17,15 @@ use std::time::SystemTime;
 /// all only loosens the check, it never blocks a write.
 const MAX_RECORDS: usize = 4_096;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Files up to this size also carry a content digest. A larger file is judged by its
+/// timestamp and size alone, so a check never reads more than this to compare.
+const DIGEST_MAX_BYTES: u64 = 8 * 1024 * 1024;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct Stamp {
     modified: Option<SystemTime>,
     len: u64,
+    digest: Option<String>,
 }
 
 static SEEN: LazyLock<Mutex<HashMap<(String, PathBuf), Stamp>>> =
@@ -30,7 +36,16 @@ fn stamp(path: &Path) -> Option<Stamp> {
     Some(Stamp {
         modified: meta.modified().ok(),
         len: meta.len(),
+        digest: digest(path, meta.len()),
     })
+}
+
+fn digest(path: &Path, len: u64) -> Option<String> {
+    if len > DIGEST_MAX_BYTES {
+        return None;
+    }
+    let bytes = std::fs::read(path).ok()?;
+    Some(jeeves_state::ledger::digest_of(&bytes))
 }
 
 fn key(session: &str, path: &Path) -> (String, PathBuf) {
@@ -61,17 +76,27 @@ pub fn forget(session: &str, path: &Path) {
 pub fn check(session: &str, path: &Path, display: &str) -> Result<(), String> {
     let known = {
         let seen = SEEN.lock().unwrap_or_else(|poison| poison.into_inner());
-        seen.get(&key(session, path)).copied()
+        seen.get(&key(session, path)).cloned()
     };
     let Some(known) = known else {
         return Ok(());
     };
-    match stamp(path) {
-        Some(now) if now != known => Err(format!(
-            "{display} changed on disk since you last read it (an editor, a person or a command such as a formatter wrote it). Nothing was written. read_file it again and redo the change against the current text."
-        )),
-        _ => Ok(()),
+    let Ok(meta) = std::fs::metadata(path) else {
+        return Ok(());
+    };
+    if meta.len() == known.len && meta.modified().ok() == known.modified {
+        return Ok(());
     }
+    let same_bytes = meta.len() == known.len
+        && known.digest.is_some()
+        && digest(path, meta.len()) == known.digest;
+    if same_bytes {
+        record(session, path);
+        return Ok(());
+    }
+    Err(format!(
+        "{display} changed on disk since you last read it (an editor, a person or a command such as a formatter wrote it). Nothing was written. read_file it again and redo the change against the current text."
+    ))
 }
 
 /// The same check for a whole call, run by the registry before any approval is asked: a write

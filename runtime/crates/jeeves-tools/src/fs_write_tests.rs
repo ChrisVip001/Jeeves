@@ -732,3 +732,69 @@ async fn the_session_policy_is_not_consulted_for_a_stale_write() {
         .expect("read")
         .contains("third from the user"));
 }
+
+#[tokio::test]
+async fn a_new_timestamp_on_the_same_bytes_is_not_a_change() {
+    let ctx = test_ctx(None).await;
+    let mut reg = registry();
+    reg.register(crate::fs::read_file());
+    let path = ctx.home.join("touched.md");
+    std::fs::write(&path, "one\ntwo\n").expect("place the file");
+    reg.execute(
+        ctx.clone(),
+        "read_file",
+        json!({ "path": path.display().to_string() }),
+    )
+    .await;
+
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .and_then(|file| file.set_modified(later))
+        .expect("touch the file");
+    let out = reg
+        .execute(
+            ctx.clone(),
+            "edit",
+            json!({ "path": path.display().to_string(), "old_string": "two", "new_string": "2" }),
+        )
+        .await;
+    assert!(out.starts_with("Edited"), "{out}");
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), "one\n2\n");
+}
+
+#[tokio::test]
+async fn same_size_different_bytes_is_still_a_change() {
+    let ctx = test_ctx(None).await;
+    let mut reg = registry();
+    reg.register(crate::fs::read_file());
+    let path = ctx.home.join("swapped.md");
+    std::fs::write(&path, "one\ntwo\n").expect("place the file");
+    reg.execute(
+        ctx.clone(),
+        "read_file",
+        json!({ "path": path.display().to_string() }),
+    )
+    .await;
+
+    std::fs::write(&path, "one\nTWO\n").expect("same length, new text");
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    std::fs::File::options()
+        .write(true)
+        .open(&path)
+        .and_then(|file| file.set_modified(later))
+        .expect("move the timestamp");
+    let out = reg
+        .execute(
+            ctx,
+            "edit",
+            json!({ "path": path.display().to_string(), "old_string": "one", "new_string": "1" }),
+        )
+        .await;
+    assert!(
+        out.contains("changed on disk since you last read it"),
+        "{out}"
+    );
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), "one\nTWO\n");
+}
