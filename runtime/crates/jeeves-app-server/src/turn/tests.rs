@@ -1156,7 +1156,7 @@ async fn attachments_fail_up_front_on_a_non_vision_provider() {
         .as_ref()
         .expect("with vision off it has to stop at the door");
     assert!(
-        error.message.contains("cannot take images"),
+        error.message.contains("看不了图") && error.message.contains("多模态模型"),
         "{}",
         error.message
     );

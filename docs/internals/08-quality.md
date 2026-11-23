@@ -135,7 +135,7 @@ instead of entering the average. Without an API key the whole group is skipped a
 ## 8.6 Research Quality
 
 Entry: `jeeves research [path]` (default `evals/research`; `just eval-research`). This suite exists because
-the [November 14 study](../planning/long-task-roadmap.md) collapsed three distinct failures into one
+the November 14 study recorded in `evals/results/long-research-validation-2026-11-14.json` collapsed three distinct failures into one
 `comprehensiveQualityPassed: false`: five-of-six exact quotes, a review round that failed response
 decoding, and a failed overall check. Each now scores on its own, on sources the earlier study never used:
 

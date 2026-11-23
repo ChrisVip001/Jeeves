@@ -97,7 +97,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 ## 8.6 Research 质量评测
 
-入口：`jeeves research [path]`（默认 `evals/research`；`just eval-research`）。这一层存在的原因是 [11 月 14 日研究](../planning/long-task-roadmap.md)把三种不同失败揉成了一个 `comprehensiveQualityPassed: false`：六条引文只精确命中五条、审查回合响应解码失败、综合检查失败。现在三者各算各的分，且用的是那次研究没用过的材料：
+入口：`jeeves research [path]`（默认 `evals/research`；`just eval-research`）。这一层存在的原因是 `evals/results/long-research-validation-2026-11-14.json` 里记录的 11 月 14 日研究把三种不同失败揉成了一个 `comprehensiveQualityPassed: false`：六条引文只精确命中五条、审查回合响应解码失败、综合检查失败。现在三者各算各的分，且用的是那次研究没用过的材料：
 
 - **引文**——每个来源至少要出现该来源点名的一句逐字原文；模型引了同一来源的另一句原文也算命中。机器判定，不采信模型自报。
 - **审查**——独立回合必须返回可解析的 JSON verdict；传输或解码失败只扣这一维。

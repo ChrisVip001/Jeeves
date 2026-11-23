@@ -41,9 +41,10 @@ pub(super) fn resolve_attachments(
         data: None,
     };
     if !vision {
-        return Err(bad(format!(
-            "The model on this configuration ({provider_id}) cannot take images. Declare vision for it: /model add <name> {provider_id} <model> --vision (the same as adding \"vision\": true to that entry in <home>/models.json); to make it true of the whole provider, add \"vision\": true to its row in <home>/models-catalog.json and restart."
-        )));
+        let line = super::capability::required_line(Some(attachments));
+        let reason = super::capability::refusal_for_missing_line(line)
+            .unwrap_or_else(|| "你的模型看不了图。".to_string());
+        return Err(bad(format!("{reason}（当前配置 {provider_id}）")));
     }
     let home = server.settings().home;
     let home_real = home

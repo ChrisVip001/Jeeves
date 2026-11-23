@@ -44,6 +44,7 @@ pub(crate) use prompt::capability_note;
 pub(crate) use prompt::load_soul;
 pub(crate) use prompt::thin_soul_for;
 mod attachments;
+mod capability;
 use attachments::resolve_attachments;
 mod history;
 mod title;

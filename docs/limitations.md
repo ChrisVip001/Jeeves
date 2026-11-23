@@ -283,7 +283,10 @@ straight from the file header.
 * **Deliberate** — The runtime speaks English to the model and to the human. Data stays in the
   language it was written in (model output, session titles, task text, memory pages,
   `AGENTS.md`, a hand-edited `SOUL.md`). The only switcher is the dashboard's zh/en button;
-  there is no server-side localisation of error messages.
+  there is no server-side localisation of error messages. **Exception** (product decision 7):
+  capability refusals — when the active model cannot serve what the turn needs, e.g. "你的模型看不了图"
+  — are written directly in Chinese so the meaning cannot be diluted by translation. This is not
+  general error localisation.
 
 ## Turns and tasks
 
