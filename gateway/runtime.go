@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"jeeves/internal/cloudkit"
@@ -126,12 +128,28 @@ func (g *gateway) workspace(w http.ResponseWriter, r *http.Request, a user, toke
 			}
 			return nil
 		},
-		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
-			cloudkit.Error(w, 502, "workspace connection interrupted")
-		},
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) { proxyFailure(w, err) },
 	}
 	proxy.ServeHTTP(w, r.WithContext(ctx))
 }
+
+// proxyFailure answers a request the Runtime never served. A refused connection means the
+// Runtime is restarting and the request never reached it, so the client may safely retry;
+// anything else broke mid-flight and is reported as interrupted.
+func proxyFailure(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return
+	case errors.Is(err, syscall.ECONNREFUSED):
+		log.Printf("workspace Runtime refused the connection; telling the client it is starting")
+		w.Header().Set("Retry-After", "2")
+		cloudkit.Error(w, 503, "workspace is starting")
+	default:
+		log.Printf("workspace proxy failed (%T)", err)
+		cloudkit.Error(w, 502, "workspace connection interrupted")
+	}
+}
+
 func (g *gateway) liveRequest(parent context.Context, token string) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(parent)
 	stop := func() bool { return false }
