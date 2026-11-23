@@ -975,6 +975,7 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
 .work-screen-frame { margin:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--surface); }
 .work-screen-frame img { display:block; width:100%; height:auto; }
 .work-screen-frame figcaption { padding:4px 8px; font-size:10px; color:var(--text-3); }
+.work-screen-frame-loading { display:flex; align-items:center; justify-content:center; aspect-ratio:16/10; color:var(--text-3); font-size:12px; }
 .work-screen-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .work-screen-empty { display:grid; justify-items:center; gap:10px; margin:auto 0; padding:24px 8px; text-align:center; color:var(--text-3); font-size:12px; line-height:1.6; }
 .work-screen-tools:empty { display:none; }

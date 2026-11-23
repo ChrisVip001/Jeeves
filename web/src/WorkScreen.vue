@@ -65,7 +65,7 @@ function label(status: string) {
         <img :src="frame.dataUrl" :alt="t('浏览器当前画面')" />
         <figcaption>{{ t("画面更新于 {time}", { time: new Date(frame.observedAt).toLocaleTimeString() }) }}</figcaption>
       </figure>
-      <p v-else class="work-screen-empty">{{ t("正在取得画面…") }}</p>
+      <div v-else class="work-screen-frame work-screen-frame-loading" role="status">{{ t("正在取得画面…") }}</div>
       <div class="work-screen-actions">
         <button v-if="row.status !== 'human'" type="button" class="primary-button" :disabled="busy"
           @click="takeover">{{ t("接管") }}</button>
