@@ -21,6 +21,107 @@ fn profile(id: &str, provider: &str, key: Option<&str>) -> cfg::ModelProfile {
     }
 }
 
+fn save_params(id: &str) -> ModelSaveParams {
+    ModelSaveParams {
+        id: id.to_string(),
+        provider: None,
+        model: None,
+        small_model: None,
+        base_url: None,
+        api_key: None,
+        key_env: None,
+        vision: None,
+        capabilities: None,
+        make_active: None,
+    }
+}
+
+#[test]
+fn a_platform_profile_rejects_rewrites_but_allows_a_plain_switch() {
+    let platform = cfg::ModelProfile {
+        origin: cfg::ModelOrigin::Platform,
+        line: cfg::ModelLine::language(),
+        ..profile("included", "anthropic", None)
+    };
+    let switch = ModelSaveParams {
+        id: "included".into(),
+        make_active: Some(true),
+        ..save_params("included")
+    };
+    assert!(
+        locked_save_error(Some(&platform), &switch).is_none(),
+        "switching to the platform model must stay allowed"
+    );
+
+    for (label, change) in [
+        (
+            "model",
+            ModelSaveParams {
+                model: Some("other".into()),
+                ..switch.clone()
+            },
+        ),
+        (
+            "provider",
+            ModelSaveParams {
+                provider: Some("openai".into()),
+                ..switch.clone()
+            },
+        ),
+        (
+            "base_url",
+            ModelSaveParams {
+                base_url: Some("https://elsewhere".into()),
+                ..switch.clone()
+            },
+        ),
+        (
+            "key",
+            ModelSaveParams {
+                api_key: Some("sk-x".into()),
+                ..switch.clone()
+            },
+        ),
+        (
+            "vision",
+            ModelSaveParams {
+                vision: Some(true),
+                ..switch.clone()
+            },
+        ),
+    ] {
+        let error = locked_save_error(Some(&platform), &change)
+            .unwrap_or_else(|| panic!("{label} must be refused"));
+        assert!(error.contains("locked"), "{label}: {error}");
+    }
+
+    let byok = profile("mine", "deepseek", None);
+    let change = ModelSaveParams {
+        model: Some("deepseek-reasoner".into()),
+        ..switch
+    };
+    assert!(
+        locked_save_error(Some(&byok), &change).is_none(),
+        "BYOK profiles stay fully editable"
+    );
+    assert!(
+        locked_save_error(None, &change).is_none(),
+        "a new profile is never locked"
+    );
+}
+
+#[test]
+fn a_platform_profile_cannot_be_removed_but_a_byok_one_can() {
+    let platform = cfg::ModelProfile {
+        origin: cfg::ModelOrigin::Platform,
+        line: cfg::ModelLine::language(),
+        ..profile("included", "anthropic", None)
+    };
+    let error = locked_remove_error(&platform).expect("platform profile is protected");
+    assert!(error.contains("cannot be removed"), "{error}");
+    assert!(locked_remove_error(&profile("mine", "deepseek", None)).is_none());
+}
+
 #[test]
 fn views_carry_the_key_pointer_but_never_the_secret() {
     let mut file = cfg::ModelsFile::default();

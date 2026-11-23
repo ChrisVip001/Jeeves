@@ -91,6 +91,39 @@ fn pick(incoming: Option<String>, existing: Option<String>) -> Option<String> {
     }
 }
 
+/// A platform-assigned profile is locked: the tenant may switch to it (id + make_active only),
+/// but cannot rewrite what the platform chose. Self-hosted homes have no Platform profile, so
+/// this never fires there. Kept pure so the rule can be pinned without a live Server.
+fn locked_save_error(existing: Option<&cfg::ModelProfile>, p: &ModelSaveParams) -> Option<String> {
+    let platform = existing?;
+    if platform.origin != cfg::ModelOrigin::Platform {
+        return None;
+    }
+    let attempted_change = p.provider.is_some()
+        || p.model.is_some()
+        || p.small_model.is_some()
+        || p.base_url.is_some()
+        || p.key_env.is_some()
+        || p.api_key.is_some()
+        || p.vision.is_some()
+        || p.capabilities.is_some();
+    attempted_change.then(|| {
+        format!(
+            "'{}' is a platform-provided model; its provider, model and credentials are locked. Use model/use to switch to it, or add your own model.",
+            platform.id
+        )
+    })
+}
+
+fn locked_remove_error(profile: &cfg::ModelProfile) -> Option<String> {
+    (profile.origin == cfg::ModelOrigin::Platform).then(|| {
+        format!(
+            "'{}' is a platform-provided model and cannot be removed. You can add your own model and switch to it, but the platform model stays available.",
+            profile.id
+        )
+    })
+}
+
 fn provider_entry<'a>(
     catalog: &'a jeeves_provider::catalog::Catalog,
     provider: &str,
@@ -333,6 +366,10 @@ impl Server {
         let (mut file, _) = self.read_models_for_edit(&home, &mut live)?;
         let existing = cfg::find(&file, &id).cloned();
 
+        if let Some(error) = locked_save_error(existing.as_ref(), &p) {
+            return Err(error);
+        }
+
         let provider = match (p.provider.as_deref(), existing.as_ref()) {
             (Some(v), _) => v.trim().to_string(),
             (None, Some(e)) => e.provider.clone(),
@@ -429,7 +466,10 @@ impl Server {
             .write()
             .expect("the models lock should not be poisoned");
         let (mut file, finished) = self.read_models_for_edit(&home, &mut live)?;
-        let removed = if cfg::find(&file, &p.id).is_some() {
+        let removed = if let Some(profile) = cfg::find(&file, &p.id) {
+            if let Some(error) = locked_remove_error(profile) {
+                return Err(error);
+            }
             let result = cfg::remove_profile(
                 &home,
                 &mut file,
