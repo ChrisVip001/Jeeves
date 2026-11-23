@@ -86,7 +86,8 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
     <div class="cowork-thread">
       <ol v-if="steps.length" class="work-steps" :aria-label="t('步骤')">
         <li v-for="(step, index) in steps" :key="index" :class="step.state" :title="step.detail">
-          <span class="work-step-mark" aria-hidden="true">{{ step.state === "done" ? "✓" : step.state === "failed" ? "✕" : step.state === "doing" ? "◐" : "○" }}</span>{{ step.label }}
+          <span class="work-step-mark" aria-hidden="true">{{ step.state === "done" ? "✓" : step.state === "failed" ? "✕" : step.state === "doing" ? "◐" : "○" }}</span>
+          <span class="work-step-text">{{ step.label }}<small v-if="step.detail && step.state === 'failed'" class="work-step-detail">{{ step.detail }}</small></span>
         </li>
       </ol>
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
