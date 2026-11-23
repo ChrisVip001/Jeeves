@@ -16,6 +16,8 @@ fn profile(id: &str, provider: &str, key: Option<&str>) -> cfg::ModelProfile {
         key_source: key.map(|k| k.to_string()),
         vision: None,
         capabilities: None,
+        origin: cfg::ModelOrigin::default(),
+        line: cfg::ModelLine::language(),
     }
 }
 

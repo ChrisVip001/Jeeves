@@ -378,6 +378,8 @@ impl Server {
             credential_slot: Default::default(),
             vision: None,
             capabilities: None,
+            origin: cfg::ModelOrigin::default(),
+            line: cfg::ModelLine::language(),
         });
         let profile = cfg::ModelProfile {
             id: id.clone(),
@@ -395,6 +397,8 @@ impl Server {
             },
             vision: p.vision.or(existing_fields.vision),
             capabilities: p.capabilities.or(existing_fields.capabilities),
+            origin: existing_fields.origin,
+            line: existing_fields.line,
         };
         let key_stored_in = cfg::save_profile(
             &home,

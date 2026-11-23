@@ -1,5 +1,5 @@
 use super::*;
-use jeeves_config::models::{ModelProfile, SecretStore};
+use jeeves_config::models::{ModelLine, ModelOrigin, ModelProfile, SecretStore};
 
 const KEY: &str = "sk-test-SECRET-123456";
 
@@ -14,6 +14,8 @@ fn profile(id: &str, source: Option<&str>) -> ModelProfile {
         key_source: source.map(String::from),
         vision: None,
         capabilities: None,
+        origin: ModelOrigin::default(),
+        line: ModelLine::language(),
     }
 }
 

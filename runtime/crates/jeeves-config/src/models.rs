@@ -28,6 +28,48 @@ pub use changes::{
     CredentialSlot, JOURNAL as MODEL_CHANGE_FILE, recover_change, remove_profile, save_profile,
 };
 
+/// Who owns a profile and pays for its use. Config-local only — not a wire type.
+///
+/// `Byok` is the default so every existing `models.json` keeps its meaning. `Platform` profiles
+/// are written by the platform seeder and are locked in `model/*` handlers; a self-hosted home has
+/// none, which is how the same binary serves both products without a build flag.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ModelOrigin {
+    /// Assigned by the platform, routed through its proxy, metered against tenant quota.
+    Platform,
+    /// The person's own key; billed by their vendor, never consumes platform quota.
+    #[default]
+    Byok,
+    /// A local model (ollama, LM Studio); no key, no quota.
+    Local,
+}
+
+/// Capability line a profile serves. Also config-local; orthogonal to tier and origin.
+///
+/// The platform may seed one locked profile per line (language, multimodal, video-understanding,
+/// video-generation, decision, …). An ordinary BYOK profile stays `language`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelLine(pub String);
+
+impl Default for ModelLine {
+    fn default() -> Self {
+        Self::language()
+    }
+}
+
+impl ModelLine {
+    pub const LANGUAGE: &'static str = "language";
+
+    pub fn language() -> Self {
+        Self(Self::LANGUAGE.to_string())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// One model profile.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ModelProfile {
@@ -57,6 +99,24 @@ pub struct ModelProfile {
     pub vision: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub capabilities: Option<jeeves_protocol::ModelCapabilities>,
+    /// Who owns and pays for this profile. Absent = `byok` (backward compatible).
+    #[serde(default, skip_serializing_if = "ModelOrigin::is_default")]
+    pub origin: ModelOrigin,
+    /// Capability line this profile serves. Absent or empty = `language`.
+    #[serde(default, skip_serializing_if = "ModelLine::is_language")]
+    pub line: ModelLine,
+}
+
+impl ModelOrigin {
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+impl ModelLine {
+    fn is_language(&self) -> bool {
+        self.0 == Self::LANGUAGE
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -799,7 +859,47 @@ mod models_tests {
             credential_slot: CredentialSlot::Legacy,
             vision: None,
             capabilities: None,
+            origin: ModelOrigin::default(),
+            line: ModelLine::language(),
         }
+    }
+
+    #[test]
+    fn a_profile_without_origin_or_line_is_byok_language() {
+        let raw = r#"{"active":"ds","profiles":[{"id":"ds","provider":"deepseek"}]}"#;
+        let parsed: ModelsFile = serde_json::from_str(raw).expect("old models.json still parses");
+        let p = &parsed.profiles[0];
+        assert_eq!(p.origin, ModelOrigin::Byok);
+        assert_eq!(p.line.as_str(), "language");
+    }
+
+    #[test]
+    fn explicit_origin_and_line_round_trip() {
+        let raw = r#"{"active":"platform-video","profiles":[
+            {"id":"platform-video","provider":"anthropic","origin":"platform","line":"video-generation"}
+        ]}"#;
+        let parsed: ModelsFile = serde_json::from_str(raw).expect("explicit values parse");
+        let p = &parsed.profiles[0];
+        assert_eq!(p.origin, ModelOrigin::Platform);
+        assert_eq!(p.line.as_str(), "video-generation");
+        let saved = serde_json::to_string(&parsed).expect("serialize");
+        assert!(saved.contains("\"origin\":\"platform\""), "{saved}");
+        assert!(saved.contains("\"line\":\"video-generation\""), "{saved}");
+    }
+
+    #[test]
+    fn default_origin_and_language_are_not_written_back() {
+        let raw = r#"{"active":"ds","profiles":[{"id":"ds","provider":"deepseek"}]}"#;
+        let parsed: ModelsFile = serde_json::from_str(raw).unwrap();
+        let saved = serde_json::to_string(&parsed).expect("serialize");
+        assert!(
+            !saved.contains("\"origin\""),
+            "default origin must stay invisible: {saved}"
+        );
+        assert!(
+            !saved.contains("\"line\""),
+            "default line must stay invisible: {saved}"
+        );
     }
 
     /// The Vault trait is the only seam: a full store/read/delete round works through
