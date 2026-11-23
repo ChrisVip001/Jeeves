@@ -118,6 +118,31 @@ async fn classify_tier(cheap: &Resolved, message: &str) -> Option<String> {
     parse_tier_reply(&text).map(str::to_string)
 }
 
+/// BYOK profiles eligible for automatic quota/network rescue (product decision 3).
+/// Rescue only makes sense when a **platform** model is active: otherwise there is no platform
+/// quota to exhaust. A profile needs its own credential source, so a keyless local model is not
+/// silently chosen as a paid fallback. Pure so the policy is pinned without a live Server.
+fn byok_rescue_ids(file: &jeeves_config::models::ModelsFile, enabled: bool) -> Vec<String> {
+    if !enabled {
+        return Vec::new();
+    }
+    let active_is_platform = file
+        .active
+        .as_deref()
+        .and_then(|id| jeeves_config::models::find(file, id))
+        .is_some_and(|p| p.origin == jeeves_config::models::ModelOrigin::Platform);
+    if !active_is_platform {
+        return Vec::new();
+    }
+    file.profiles
+        .iter()
+        .filter(|p| {
+            p.origin != jeeves_config::models::ModelOrigin::Platform && p.key_source.is_some()
+        })
+        .map(|p| p.id.clone())
+        .collect()
+}
+
 impl Server {
     /// Run once per turn: decide which profile this turn uses. `base` is the active profile's resolution —
     /// in fixed mode, when the same profile is selected, or on any failure, it is returned as-is
@@ -190,7 +215,7 @@ impl Server {
     /// An entry that no longer resolves, or that names the model this turn already uses, is
     /// skipped with a stderr line: a broken backup must not block the turn, and asking the same
     /// model twice is just a slower failure.
-    pub(crate) fn fallback_targets(&self, current: &Resolved) -> Vec<(String, Resolved)> {
+    pub(crate) fn fallback_targets(&self, current: &Resolved) -> Vec<(String, Resolved, bool)> {
         let routes = load_routes(&self.settings().home);
         let mut seen = vec![(current.provider_id.clone(), current.model.clone())];
         let mut targets = Vec::new();
@@ -211,7 +236,35 @@ impl Server {
                 continue;
             }
             seen.push(key);
-            targets.push((id, resolved));
+            targets.push((id, resolved, false));
+        }
+        // Optional automatic rescue (product decision 3): when the human enabled it in
+        // settings.json, a platform model's quota/network failure may fall through to the
+        // person's own profiles. These targets are guarded in `Fallback` — they are entered
+        // only on HTTP 429 or a network error, never on other switchable errors.
+        let candidates: Vec<String> = {
+            let file = self
+                .models
+                .read()
+                .expect("the models lock should not be poisoned");
+            byok_rescue_ids(&file, self.settings().model_auto_switch_to_byok)
+        };
+        if !candidates.is_empty() {
+            for id in candidates {
+                let resolved = match self.resolved_profile(&id) {
+                    Ok(resolved) => resolved,
+                    Err(why) => {
+                        eprintln!("(jeeves) BYOK rescue profile skipped: {why}");
+                        continue;
+                    }
+                };
+                let key = (resolved.provider_id.clone(), resolved.model.clone());
+                if seen.contains(&key) {
+                    continue;
+                }
+                seen.push(key);
+                targets.push((id, resolved, true));
+            }
         }
         targets
     }

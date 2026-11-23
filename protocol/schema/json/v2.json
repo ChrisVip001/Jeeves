@@ -6467,6 +6467,13 @@
             "null"
           ]
         },
+        "modelAutoSwitchToByok": {
+          "description": "When true, a platform model's quota exhaustion (HTTP 429) or a network error may fall through to one of the person's own models for the same turn. Never switches on other errors. Human-only, default false.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "retrievalTopK": {
           "format": "int32",
           "type": [

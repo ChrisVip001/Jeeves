@@ -1590,6 +1590,11 @@ pub struct SettingsPatch {
     /// writable boundary — the containment check still runs first.
     #[ts(optional = nullable)]
     pub write_allow_dirs: Option<Vec<String>>,
+    /// When true, a platform model's quota exhaustion (HTTP 429) or a network error may fall
+    /// through to one of the person's own models for the same turn. Never switches on other
+    /// errors. Human-only, default false.
+    #[ts(optional = nullable)]
+    pub model_auto_switch_to_byok: Option<bool>,
     /// The three capability switches (`JEEVES_EXEC` / `JEEVES_WRITE` / `JEEVES_DELEGATE`). A saved value
     /// overrides the environment, and takes effect on the next turn without a restart.
     #[ts(optional = nullable)]
@@ -1614,6 +1619,7 @@ impl SettingsPatch {
             && p.retrieval_top_k.is_none()
             && p.exec_allow.is_none()
             && p.write_allow_dirs.is_none()
+            && p.model_auto_switch_to_byok.is_none()
             && p.exec_enabled.is_none()
             && p.write_enabled.is_none()
             && p.delegate_enabled.is_none()
@@ -1640,6 +1646,9 @@ impl SettingsPatch {
         }
         if p.write_allow_dirs.is_some() {
             self.write_allow_dirs = p.write_allow_dirs.clone();
+        }
+        if p.model_auto_switch_to_byok.is_some() {
+            self.model_auto_switch_to_byok = p.model_auto_switch_to_byok;
         }
         if p.exec_enabled.is_some() {
             self.exec_enabled = p.exec_enabled;

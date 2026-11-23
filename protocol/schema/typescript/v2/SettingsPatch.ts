@@ -19,6 +19,12 @@ export type SettingsPatch = {
    */
   writeAllowDirs?: Array<string> | null;
   /**
+   * When true, a platform model's quota exhaustion (HTTP 429) or a network error may fall
+   * through to one of the person's own models for the same turn. Never switches on other
+   * errors. Human-only, default false.
+   */
+  modelAutoSwitchToByok?: boolean | null;
+  /**
    * The three capability switches (`JEEVES_EXEC` / `JEEVES_WRITE` / `JEEVES_DELEGATE`). A saved value
    * overrides the environment, and takes effect on the next turn without a restart.
    */

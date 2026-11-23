@@ -25,6 +25,7 @@ fn target(label: &str, mock: &Arc<Mock>, vision: bool) -> Target {
         small_model: format!("{label}-small"),
         vision,
         max_output_tokens: Some(8),
+        rescue_only: false,
     }
 }
 
@@ -140,6 +141,7 @@ async fn a_stream_that_already_showed_text_does_not_switch() {
             small_model: "main-small".into(),
             vision: false,
             max_output_tokens: None,
+            rescue_only: false,
         },
         vec![target("spare", &backup, false)],
     );
@@ -260,4 +262,53 @@ async fn a_backup_that_refuses_the_request_is_skipped_and_the_first_error_kept()
         1,
         "the chain went on"
     );
+}
+
+fn rescue_target(label: &str, mock: &Arc<Mock>) -> Target {
+    Target {
+        rescue_only: true,
+        ..target(label, mock, false)
+    }
+}
+
+#[tokio::test]
+async fn a_rescue_target_is_not_entered_on_a_server_fault() {
+    let primary = Arc::new(Mock::with_outcomes(vec![Err(http(500))]));
+    let rescue = Arc::new(Mock::new(vec![Mock::text("own model")]));
+    let chain = Fallback::new(
+        target("main", &primary, false),
+        vec![rescue_target("mine", &rescue)],
+    );
+    let error = chain
+        .create(request("main-main"))
+        .await
+        .expect_err("a 500 must not spend the person's own model");
+    assert!(matches!(error, ProviderError::Http { status: 500, .. }));
+    assert!(
+        rescue.received.lock().expect("lock").is_empty(),
+        "rescue only fires on quota/network, not on 5xx"
+    );
+}
+
+#[tokio::test]
+async fn a_quota_failure_enters_the_rescue_target() {
+    let primary = Arc::new(Mock::with_outcomes(vec![Err(http(429))]));
+    let rescue = Arc::new(Mock::new(vec![Mock::text("own model")]));
+    let chain = Fallback::new(
+        target("main", &primary, false),
+        vec![rescue_target("mine", &rescue)],
+    );
+    let out = chain.create(request("main-main")).await.expect("rescued");
+    assert_eq!(reply_text(&out), "own model");
+    assert_eq!(rescue.received.lock().expect("lock").len(), 1);
+}
+
+#[test]
+fn rescue_admits_only_quota_and_network() {
+    assert!(Target::rescue_admits(&http(429)));
+    assert!(!Target::rescue_admits(&http(500)));
+    assert!(!Target::rescue_admits(&http(401)));
+    assert!(!Target::rescue_admits(&http(402)));
+    assert!(!Target::rescue_admits(&http(403)));
+    assert!(!Target::rescue_admits(&ProviderError::Api("x".into())));
 }

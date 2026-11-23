@@ -138,3 +138,59 @@ fn tier_reply_parsing_fails_open() {
         "extra explanation does not count — one word only"
     );
 }
+
+#[test]
+fn byok_rescue_needs_the_switch_and_a_platform_primary() {
+    use jeeves_config::models::{ModelLine, ModelOrigin, ModelProfile, ModelsFile};
+
+    let platform = ModelProfile {
+        id: "included".into(),
+        provider: "anthropic".into(),
+        model: None,
+        small_model: None,
+        base_url: Some("https://model.internal".into()),
+        key_source: Some("env:JEEVES_MODEL_TOKEN".into()),
+        credential_slot: Default::default(),
+        vision: None,
+        capabilities: None,
+        origin: ModelOrigin::Platform,
+        line: ModelLine::language(),
+    };
+    let byok = ModelProfile {
+        id: "mine".into(),
+        provider: "deepseek".into(),
+        key_source: Some("keychain".into()),
+        origin: ModelOrigin::Byok,
+        ..platform.clone()
+    };
+    let local = ModelProfile {
+        id: "ollama".into(),
+        provider: "ollama".into(),
+        key_source: None,
+        origin: ModelOrigin::Local,
+        ..platform.clone()
+    };
+    let file = ModelsFile {
+        active: Some("included".into()),
+        profiles: vec![platform.clone(), byok, local],
+    };
+
+    assert!(
+        super::byok_rescue_ids(&file, false).is_empty(),
+        "off by default"
+    );
+    assert_eq!(
+        super::byok_rescue_ids(&file, true),
+        vec!["mine"],
+        "only the keyed BYOK profile is eligible; the keyless local one is not"
+    );
+
+    let byok_active = ModelsFile {
+        active: Some("mine".into()),
+        ..file.clone()
+    };
+    assert!(
+        super::byok_rescue_ids(&byok_active, true).is_empty(),
+        "no platform primary to rescue from"
+    );
+}

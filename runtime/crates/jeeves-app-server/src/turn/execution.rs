@@ -545,23 +545,33 @@ fn with_fallback(
     if backups.is_empty() {
         return metered;
     }
-    let target = |label: String, resolved: &Resolved, client| jeeves_provider::fallback::Target {
-        label,
-        client,
-        model: resolved.model.clone(),
-        small_model: resolved.small_model.clone(),
-        vision: resolved.vision,
-        max_output_tokens: Some(server.catalog.output_ceiling(
-            &resolved.provider_id,
-            &resolved.model,
-            server.settings().max_tokens,
-        )),
+    let target = |label: String, resolved: &Resolved, client, rescue_only| {
+        jeeves_provider::fallback::Target {
+            label,
+            client,
+            model: resolved.model.clone(),
+            small_model: resolved.small_model.clone(),
+            vision: resolved.vision,
+            max_output_tokens: Some(server.catalog.output_ceiling(
+                &resolved.provider_id,
+                &resolved.model,
+                server.settings().max_tokens,
+            )),
+            rescue_only,
+        }
     };
     let chain = jeeves_provider::fallback::Fallback::new(
-        target(primary.provider_id.clone(), primary, metered.client.clone()),
+        target(
+            primary.provider_id.clone(),
+            primary,
+            metered.client.clone(),
+            false,
+        ),
         backups
             .iter()
-            .map(|(label, resolved)| target(label.clone(), resolved, meter(resolved).client))
+            .map(|(label, resolved, rescue)| {
+                target(label.clone(), resolved, meter(resolved).client, *rescue)
+            })
             .collect(),
     );
     Resolved {

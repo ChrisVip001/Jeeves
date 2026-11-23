@@ -541,13 +541,14 @@ async fn fallback_targets_skip_unknown_ids_and_the_model_in_use() {
 
     let targets = server.fallback_targets(&current);
 
-    let labels: Vec<&str> = targets.iter().map(|(id, _)| id.as_str()).collect();
+    let labels: Vec<&str> = targets.iter().map(|(id, _, _)| id.as_str()).collect();
     assert_eq!(
         labels,
         ["spare"],
         "gone does not exist and same repeats the primary"
     );
     assert_eq!(targets[0].1.model, "llama4");
+    assert!(!targets[0].2, "an explicit fallback is not a rescue target");
 
     server
         .model_routes_save(ModelRoutesSaveParams {

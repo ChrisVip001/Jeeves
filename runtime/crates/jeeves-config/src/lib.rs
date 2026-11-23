@@ -233,6 +233,10 @@ pub struct Settings {
     /// its first round, and re-plan after a failed round. Off by default: it is one more model
     /// call per task and it changes the prompt — a capability pressed by hand, like every other.
     pub plan_enabled: bool,
+    /// Human-only switch (settings.json `modelAutoSwitchToByok`, default false): a platform
+    /// model's quota exhaustion or network error may fall through to the person's own profile.
+    /// Guarded to those two errors in jeeves-provider::fallback; never switches on other failures.
+    pub model_auto_switch_to_byok: bool,
     /// `JEEVES_LLM_RETRIES`: max backoff retries on rate limits / transient faults (default
     /// 2, cap 5, 0 = off). Only retries errors where "try again" makes sense, and
     /// **always sends a notification per retry** — see retry.rs in jeeves-provider.
@@ -403,6 +407,7 @@ impl Default for Settings {
             home: PathBuf::from(".jeeves"),
             goal_max_rounds: 5,
             plan_enabled: false,
+            model_auto_switch_to_byok: false,
             llm_retries: 2,
             thinking_budget: 0,
             llm_timeout_secs: 120,
@@ -468,6 +473,7 @@ impl Settings {
             home: env("JEEVES_HOME").map(PathBuf::from).unwrap_or(d.home),
             goal_max_rounds: env_int("JEEVES_GOAL_MAX_ROUNDS", d.goal_max_rounds),
             plan_enabled: env_bool("JEEVES_PLAN"),
+            model_auto_switch_to_byok: false,
             llm_retries: env_int("JEEVES_LLM_RETRIES", d.llm_retries),
             thinking_budget: env_int("JEEVES_THINKING_BUDGET", d.thinking_budget),
             llm_timeout_secs: env_int("JEEVES_LLM_TIMEOUT", d.llm_timeout_secs as i32) as i64,
@@ -806,6 +812,9 @@ pub fn apply_patch(patch: &jeeves_protocol::SettingsPatch, settings: &mut Settin
     if let Some(v) = &p.write_allow_dirs {
         settings.write_allow_dirs = v.iter().map(std::path::PathBuf::from).collect();
     }
+    if let Some(v) = p.model_auto_switch_to_byok {
+        settings.model_auto_switch_to_byok = v;
+    }
     if let Some(v) = p.exec_enabled {
         settings.exec_enabled = v;
     }
@@ -922,18 +931,40 @@ mod config_tests {
         assert_eq!(s.max_tokens, 4096);
     }
 
+    #[test]
+    fn the_byok_rescue_switch_is_applied_from_the_saved_patch() {
+        let mut s = Settings::default();
+        assert!(!s.model_auto_switch_to_byok, "off by default");
+        let patch = jeeves_protocol::SettingsPatch {
+            model_auto_switch_to_byok: Some(true),
+            ..Default::default()
+        };
+        apply_patch(&patch, &mut s);
+        assert!(s.model_auto_switch_to_byok);
+    }
+
     /// Models and keys are **not** in this patch — change them via `model/*`; keys go only into
     /// models.json / the keychain. This assertion pins "the patch has no such gaps".
     #[test]
     fn the_patch_has_no_model_or_key_fields_to_leak() {
         let patch = jeeves_protocol::SettingsPatch::default();
         let serialized = serde_json::to_string(&patch).expect("serialise");
-        for leaked in ["provider", "model", "smallModel", "apiKey", "baseUrl"] {
+        for leaked in [
+            "\"provider\":",
+            "\"model\":",
+            "\"smallModel\":",
+            "\"apiKey\":",
+            "\"baseUrl\":",
+        ] {
             assert!(
                 !serialized.contains(leaked),
                 "a patch must not carry model or key fields: {serialized}"
             );
         }
+        assert!(
+            serialized.contains("\"modelAutoSwitchToByok\":"),
+            "a safety switch is allowed; only model identity and keys are not: {serialized}"
+        );
     }
 
     #[test]

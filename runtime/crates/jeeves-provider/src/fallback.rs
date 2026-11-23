@@ -42,6 +42,22 @@ pub struct Target {
     /// This model's output ceiling. The turn sized `max_tokens` for the primary, and a backup
     /// with a smaller limit would refuse the request outright.
     pub max_output_tokens: Option<i32>,
+    /// A rescue target (the person's own model, switched to automatically) is entered ONLY on
+    /// quota exhaustion (HTTP 429) or a network error reaching the platform proxy. It never
+    /// fires on 5xx, 401/402/403, a broken stream or other errors: switching a person's billing
+    /// to their own vendor needs an explicit reason they agreed to. Explicit `fallback` entries
+    /// keep the ordinary `switchable` rule.
+    pub rescue_only: bool,
+}
+
+impl Target {
+    /// Whether the error that triggered this switch may enter a rescue-only target.
+    pub fn rescue_admits(error: &ProviderError) -> bool {
+        matches!(
+            error,
+            ProviderError::Http { status: 429, .. } | ProviderError::Network(_)
+        )
+    }
 }
 
 pub struct Fallback {
@@ -157,6 +173,9 @@ impl Fallback {
         };
         for (index, target) in self.chain.iter().enumerate().skip(start + 1) {
             if has_image && !target.vision {
+                continue;
+            }
+            if target.rescue_only && !Target::rescue_admits(&error) {
                 continue;
             }
             retry::note_fallback(&error, index as u32, &target.label);
