@@ -10,6 +10,7 @@
 //! Uses a fresh, unseen source set in `evals/research/quality.jsonl`. Needs a key;
 //! without one it skips honestly. Scores are recorded, never a release gate.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -25,8 +26,9 @@ pub struct ResearchCase {
     pub description: String,
     pub task: String,
     pub sources: Vec<Source>,
+    /// Source id -> verbatim snippets from that source; any one hit means the source was cited.
     #[serde(rename = "expect_citations", default)]
-    pub expect_citations: Vec<String>,
+    pub expect_citations: BTreeMap<String, Vec<String>>,
     pub judge: CaseJudge,
 }
 
@@ -98,8 +100,8 @@ fn citation_score(case: &ResearchCase, draft: &str) -> (usize, usize) {
     let total = case.expect_citations.len();
     let hits = case
         .expect_citations
-        .iter()
-        .filter(|quote| draft.contains(quote.as_str()))
+        .values()
+        .filter(|quotes| quotes.iter().any(|quote| draft.contains(quote.as_str())))
         .count();
     (hits, total)
 }
@@ -314,12 +316,18 @@ mod tests {
     use super::*;
 
     fn case() -> ResearchCase {
+        let mut expect = BTreeMap::new();
+        expect.insert("S1".into(), vec!["exact phrase".into()]);
+        expect.insert(
+            "S2".into(),
+            vec!["another phrase".into(), "second option".into()],
+        );
         ResearchCase {
             id: "t".into(),
             description: String::new(),
             task: "t".into(),
             sources: vec![],
-            expect_citations: vec!["exact phrase".into(), "another phrase".into()],
+            expect_citations: expect,
             judge: CaseJudge {
                 criteria: String::new(),
                 min_scores: MinScores::default(),
@@ -332,7 +340,7 @@ mod tests {
         let c = case();
         assert_eq!(citation_score(&c, "an exact phrase here"), (1, 2));
         assert_eq!(
-            citation_score(&c, "exact phrase and another phrase"),
+            citation_score(&c, "exact phrase and a second option"),
             (2, 2)
         );
         assert_eq!(citation_score(&c, "a paraphrase of it"), (0, 2));

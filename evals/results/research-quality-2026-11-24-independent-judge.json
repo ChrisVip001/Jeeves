@@ -1,0 +1,73 @@
+{
+  "observedAt": "2026-11-23T16:58:26.337512Z",
+  "gitRevision": "28f4732db73032d1ac22305f8e8541ed6dad7360",
+  "suite": "research-quality",
+  "player_model": "deepseek-flash",
+  "judge_model": "deepseek-v4-pro",
+  "independent_judge": true,
+  "citation_rule": "per source: any named verbatim snippet from that source counts",
+  "unseenSources": true,
+  "result": {
+    "all_passed": true,
+    "cases": [
+      {
+        "citation": {
+          "expected": 4,
+          "hits": 4
+        },
+        "description": "四源研究：咖啡因摄入时点对睡眠的影响",
+        "draft": "Yes—caffeine timing can affect sleep. “Caffeine has a half-life of roughly five hours in healthy adults,” so a late-afternoon dose can still be active at bedtime [S1]. A controlled trial found that “caffeine ingested six hours before bedtime reduced total sleep time by about 41 minutes compared with placebo” [S2]. Effects can vary because “some people clear caffeine far more slowly” [S3]. Also, “The sleep-disruption effect is dose dependent,” and regular use produces tolerance that “does not fully protect sleep architecture” [S4]. Thus, later timing—especially with higher doses or slower metabolism—can worsen sleep.",
+        "id": "research-caffeine-sleep",
+        "overall": {
+          "reason": "The brief directly answers the question, uses only the four sources, quotes each verbatim with source tags, and does not add unsupported numbers.",
+          "score": 10
+        },
+        "passed": true,
+        "review": {
+          "decoded": true,
+          "error": ""
+        },
+        "review_reply": "{\"verdict\":\"pass\",\"issues\":[]}"
+      },
+      {
+        "citation": {
+          "expected": 3,
+          "hits": 3
+        },
+        "description": "三源研究：北欧铁路夜间线路的运营取舍",
+        "draft": "The sources do not give Nordic-specific figures, but they identify three trade-offs shaping overnight rail:\n\n- **Affordability vs. occupancy:** Night trains can replace hotel nights and cut emissions, but cheap fares depend on filling berths. [S1] states: “Night trains save hotel nights and lower door-to-door emissions, but low fares require high occupancy that is hard to sustain outside peak season.” [S1]\n\n- **Service expansion vs. infrastructure scarcity:** The main constraint is track capacity and charges, not available sleeper stock. [S2] states: “Track access charges and scarce night-time path slots on busy corridors are the main operational constraint, not rolling-stock availability.” [S2]\n\n- **Through-running vs. border dwell time:** Cross-border sleeper operation is complicated by differing national approval rules, which can erode the speed advantage. [S3] states: “Sleeper homologation differs by country, so a through train often changes traction or crew at borders, adding dwell time that erodes the time advantage.” [S3]\n\nOverall, overnight rail is shaped by trade-offs between low fares and high occupancy [S1], between adding services and scarce night-time paths/access charges [S2], and between seamless through trains and border-related dwell time [S3].",
+        "id": "research-nordic-rail",
+        "overall": {
+          "reason": "The brief accurately covers economics, track access, and border procedures, quotes all three sources verbatim with correct tags, and introduces no outside facts.",
+          "score": 10
+        },
+        "passed": true,
+        "review": {
+          "decoded": true,
+          "error": ""
+        },
+        "review_reply": "{\"verdict\":\"pass\",\"issues\":[]}"
+      },
+      {
+        "citation": {
+          "expected": 5,
+          "hits": 5
+        },
+        "description": "五源研究：城市骑行基础设施的可衡量效果",
+        "draft": "# Decision Brief: Cycling infrastructure measures with measurable effects\n\n**Issue.** Which cycling infrastructure measures show measurable effects, and what should decision-makers prioritize?\n\n**Bottom line.** The five sources support a bundled approach: protected lanes and connected networks are the core ridership measures; speed-limit reductions are a safety complement; transit bike parking is a multimodal complement sized to demand; and equity audits are a planning safeguard. The only explicit numeric effect size in the sources is for protected lanes. [S1]–[S5]\n\n## Evidence and decisions\n\n1. **Protected lanes — measurable cyclist-count gains.**  \n   > “Protected lanes raise cyclist counts on the treated street by 20 to 70 percent in before-after studies, with the largest gains where car traffic was heavy.” [S1]  \n   **Decision:** Prioritize protected lanes on high-car-traffic streets and evaluate them with before-after cyclist counts. [S1]\n\n2. **Connected city-wide network — larger mode-share effect than isolated segments.**  \n   > “A city-wide network of connected lanes produces larger mode-share shifts than isolated segments, because trip chaining becomes practical.” [S2]  \n   **Decision:** Fund network continuity and connectivity rather than isolated segments. [S2]\n\n3. **Reduced speed limits on mixed streets — safety-severity effect, not equivalent ridership.**  \n   > “Reduced speed limits on mixed streets lower conflict severity, but alone they do not attract the same ridership as physically separated facilities.” [S3]  \n   **Decision:** Use reduced speed limits as a safety complement to separated facilities, not as a standalone ridership strategy. [S3]\n\n4. **Bike parking near transit — multimodal trip effect with saturation.**  \n   > “Bike parking near transit stops increases multimodal trips, yet the effect saturates once racks exceed roughly the station's peak arrival count.” [S4]  \n   **Decision:** Provide bike parking near transit, but size it to the station’s peak arrival count and avoid overbuilding beyond saturation. [S4]\n\n5. **Equity audits — distributional measurement and planning control.**  \n   > “Equity audits show that lane investment concentrates in central districts unless the planning process weights underserved neighbourhoods explicitly.” [S5]  \n   **Decision:** Build explicit underserved-neighbourhood weighting into planning and audit lane investment distribution. [S5]\n\n## Recommendation\n\nAdopt a package: protected lanes on high-traffic streets [S1], connected network design [S2], reduced speed limits on mixed streets as a safety complement [S3], transit bike parking sized to peak arrival counts [S4], and equity-weighted planning and audits [S5]. The sources report measurable effects for protected lanes [S1], connected networks [S2], reduced speed limits on conflict severity [S3], and transit bike parking on multimodal trips [S4]; S5 is not an infrastructure effect but a governance safeguard against central-district concentration [S5].",
+        "id": "research-urban-cycling",
+        "overall": {
+          "reason": "The brief accurately separates strong ridership evidence from conditional safety, saturation, and governance measures, quotes all five sources verbatim with tags, and avoids unsupported causal certainty.",
+          "score": 10
+        },
+        "passed": true,
+        "review": {
+          "decoded": true,
+          "error": ""
+        },
+        "review_reply": "{\"verdict\":\"pass\",\"issues\":[]}"
+      }
+    ]
+  },
+  "note": "Rerun with a separate pro judge; first pass exposed that a fixed single-quote-per-source assertion misjudged a correct quote from a different sentence of the same source, so citation is now per-source with multiple accepted verbatim snippets."
+}

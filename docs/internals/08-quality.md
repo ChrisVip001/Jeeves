@@ -139,8 +139,9 @@ the [November 14 study](../planning/long-task-roadmap.md) collapsed three distin
 `comprehensiveQualityPassed: false`: five-of-six exact quotes, a review round that failed response
 decoding, and a failed overall check. Each now scores on its own, on sources the earlier study never used:
 
-- **citation** — exact-substring hits against every source passage the case names; machine-checked,
-  never the model's own claim.
+- **citation** — for each source, at least one of its named verbatim snippets must appear in the
+  brief; a source the model quoted from a different sentence still counts. Machine-checked, never
+  the model's own claim.
 - **review** — a separate round must return a parseable JSON verdict; a transport or decoding failure
   scores only this dimension.
 - **overall** — an independent referee scores the brief 0-10 against the case's criteria.
