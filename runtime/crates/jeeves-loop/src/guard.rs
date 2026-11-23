@@ -12,6 +12,12 @@
 //!    names against a wall burns its budget the same way. This one only warns: a failing test
 //!    command is ordinary output, so it never counts toward stopping the turn.
 //!
+//! A successful poll (reading a running background job's output) is left out of criteria 1
+//! and 2: waiting on a long build returns the same text each time, and that is not a loop.
+//!
+//! A successful file change (`write_file`, `edit`, `apply_patch`) clears the window, so an
+//! edit followed by the same test run starts counting again.
+//!
 //! Criterion 2 must be judged separately, because every alternation **resets** criterion 1's
 //! consecutive count — with consecutive detection alone, a model replaying the same 2–4 calls
 //! each round could run the budget down without ever tripping the alarm.
@@ -117,6 +123,12 @@ impl StallGuard {
         let failures = self.failures.entry(name.to_string()).or_default();
         *failures = if success { 0 } else { *failures + 1 };
         let failures = *failures;
+        if success && is_poll(name, args) {
+            return GuardVerdict::Ok;
+        }
+        if success && FILE_CHANGES.contains(&name) {
+            self.recent.clear();
+        }
         let call = Call {
             name: name.to_string(),
             args: hash(&args.to_string()),
@@ -168,6 +180,23 @@ impl StallGuard {
             }
         }
         GuardVerdict::Ok
+    }
+}
+
+/// File tools whose success changes what the next call can see. After one lands, rerunning
+/// the same test command is a new experiment even when its output has not changed yet, so
+/// the repeat and cycle window starts over.
+const FILE_CHANGES: [&str; 3] = ["write_file", "edit", "apply_patch"];
+
+/// A call that is meant to be repeated unchanged: reading a background job's output while it
+/// runs returns the same "still running" text until the job moves, and a wait is the right
+/// move, not a loop. Covers `job` with `action=output`, `job_output`, and tools named like
+/// pollers (`…_poll`, `…_get_result`, the MCP convention). Failures still count per tool.
+fn is_poll(name: &str, args: &Value) -> bool {
+    match name {
+        "job_output" => true,
+        "job" => args.get("action").and_then(Value::as_str) == Some("output"),
+        _ => name.ends_with("_poll") || name.ends_with("_get_result"),
     }
 }
 

@@ -177,6 +177,8 @@ When the context estimate crosses its threshold, the request keeps the current i
 | Cyclic | The last `2p` calls are pairwise identical for `p` in 2 to 4 (alternation resets the consecutive count, so it needs its own test); a window that is all one call is "repeated", not a cycle |
 | Failing | The same tool failed a 3rd consecutive time with any arguments; a success of that tool resets its count |
 
+Two kinds of call are left out of the repeat and cycle rows. A successful poll (`job` with `action=output`, `job_output`, or a tool named `…_poll` or `…_get_result`) is not counted, because waiting on a running job returns the same text until it moves. A successful `write_file`, `edit` or `apply_patch` clears the window, so rerunning the same test after a change starts counting again.
+
 On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard`. Three successive batches with exclusively repeated or cyclic calls stop for review. A failing streak only adds a reminder to check the assumption behind the error; it never counts toward that stop, because a failing test command is ordinary output.
 
 ## 3.16 Tool-result budget

@@ -156,3 +156,53 @@ fn a_success_or_another_tool_resets_the_failure_streak() {
         "streaks are per tool: two read_file failures since its last success"
     );
 }
+
+#[test]
+fn waiting_on_a_running_job_is_not_a_loop() {
+    let mut guard = StallGuard::new();
+    let poll = json!({"action": "output", "id": "j1", "wait": true});
+    for _ in 0..6 {
+        assert!(feed(
+            &mut guard,
+            "job",
+            poll.clone(),
+            "job is still running (0 read so far)"
+        )
+        .is_ok());
+    }
+    for _ in 0..4 {
+        assert!(feed(
+            &mut guard,
+            "job_output",
+            json!({"id": "j1"}),
+            "still running"
+        )
+        .is_ok());
+    }
+    assert_eq!(guard.hits(), 0);
+
+    let list = json!({"action": "list"});
+    feed(&mut guard, "job", list.clone(), "jobs");
+    feed(&mut guard, "job", list.clone(), "jobs");
+    assert_eq!(
+        feed(&mut guard, "job", list, "jobs"),
+        GuardVerdict::Repeated { times: 3 },
+        "only the output action is a poll"
+    );
+}
+
+#[test]
+fn a_landed_edit_starts_the_repeat_count_over() {
+    let mut guard = StallGuard::new();
+    let test = json!({"command": "cargo test"});
+    feed(&mut guard, "run_command", test.clone(), "1 failed");
+    feed(&mut guard, "run_command", test.clone(), "1 failed");
+    feed(&mut guard, "edit", json!({"path": "a.rs"}), "edited");
+    assert!(feed(&mut guard, "run_command", test.clone(), "1 failed").is_ok());
+    assert!(feed(&mut guard, "run_command", test.clone(), "1 failed").is_ok());
+    assert_eq!(
+        feed(&mut guard, "run_command", test, "1 failed"),
+        GuardVerdict::Repeated { times: 3 },
+        "three unchanged reruns after the edit still trip it"
+    );
+}
