@@ -41,6 +41,8 @@ import type {
 } from "./api";
 import { applyStatic, getLang, initLang, setLang, t } from "./i18n";
 import { createTimeline } from "./timeline";
+import { taskCards } from "./task-card";
+import { queuedTasks } from "./task-queued";
 import { taskOperationForm, chatOperationForm } from "./task-operation";
 import { taskInputForm } from "./task-input";
 import { startSync } from "./sync";
@@ -1875,8 +1877,9 @@ async function send(
   const bubble = el("div", { class: "bubble md streaming" });
   const stream = new StreamMarkdown(bubble);
   const foot = el("div", { class: "foot" });
+  const cards = el("div", { class: "chat-task-slot" });
   dom.messages.append(
-    el("div", { class: "msg jeeves" }, timeline.root, trace, bubble, foot),
+    el("div", { class: "msg jeeves" }, timeline.root, trace, bubble, cards, foot),
   );
   scrollToEnd(true);
 
@@ -2045,6 +2048,10 @@ async function send(
             notification.durationMs,
             notification.output,
           );
+          if (notification.tool === "task" && notification.status === "ok") {
+            const started = taskCards(queuedTasks(notification.output), webTasks, openWorkFromReceipt);
+            if (started) { cards.append(started); void webTasks.refresh(); }
+          }
           scrollToEnd(true);
           break;
         }

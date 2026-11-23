@@ -994,3 +994,10 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
    rail is hidden (the same 900px breakpoint). */
 .cowork-back { display:none; flex:none; }
 @media (max-width: 900px) { .cowork-back { display:inline-flex; } }
+
+/* Tasks a chat turn started: one card each, live status, a way into work mode. */
+.chat-task-slot:empty { display:none; }
+.chat-task-cards { display:grid; gap:8px; margin-top:10px; }
+.chat-task-card { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
+.chat-task-card strong { flex:1; min-width:8em; font-weight:500; overflow-wrap:anywhere; }
+.chat-task-status { color:var(--text-3); font-size:12px; }
