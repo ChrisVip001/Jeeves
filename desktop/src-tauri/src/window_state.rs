@@ -118,6 +118,7 @@ pub(crate) fn remember(window: &WebviewWindow) {
         window.inner_size(),
         window.scale_factor(),
     ) else {
+        eprintln!("(jeeves) could not read the window frame; it will not be remembered");
         return;
     };
     let frame = Frame {
@@ -127,6 +128,7 @@ pub(crate) fn remember(window: &WebviewWindow) {
         height: f64::from(size.height) / scale,
     };
     let Some(path) = store(window.app_handle()) else {
+        eprintln!("(jeeves) no app config directory; the window frame will not be remembered");
         return;
     };
     let saved = path

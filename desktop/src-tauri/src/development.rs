@@ -232,12 +232,13 @@ pub(super) fn main() {
         .run(|app, event| match event {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => window_state::reveal(app),
-            tauri::RunEvent::ExitRequested { .. } => {
+            tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
                 if let Some(main) = app.get_webview_window("main") {
                     window_state::remember(&main);
                 }
-            }
-            tauri::RunEvent::Exit => {
+                if !matches!(event, tauri::RunEvent::Exit) {
+                    return;
+                }
                 let child = app
                     .state::<Runtime>()
                     .0
