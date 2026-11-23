@@ -423,7 +423,7 @@ onUnmounted(() => {
           autocomplete="username"
           required
       /></label>
-      <small v-if="mode === 'verify' || mode === 'reset'">{{
+      <small v-if="['verify', 'reset', 'setup'].includes(mode)">{{
         t("密码至少 10 个字符。")
       }}</small>
       <small v-if="mode === 'verify'">{{
