@@ -7,10 +7,17 @@ const props = defineProps<{ center: TaskCenter; selected: string }>();
 defineEmits<{ inspect: [id: string]; all: [] }>();
 const groups = computed(() => {
   const { waiting, working, past } = workSections(props.center);
+  // Cap 已结束 at 8, but never drop the open task: if it is an older finished one (reached from
+  // the full list), keep it on the end so the rail still marks where you are.
+  let recent = past.slice(0, 8);
+  if (!recent.some(task => task.id === props.selected)) {
+    const open = past.find(task => task.id === props.selected);
+    if (open) recent = [...recent, open];
+  }
   return [
     { label: t("等你决定"), rows: waiting },
     { label: t("进行中"), rows: working },
-    { label: t("已结束"), rows: past.slice(0, 8) },
+    { label: t("已结束"), rows: recent },
   ].filter(group => group.rows.length);
 });
 </script>
