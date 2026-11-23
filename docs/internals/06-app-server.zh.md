@@ -111,7 +111,7 @@ std 锁只守一次读改写，绝不跨 await。每会话写段锁覆盖历史�
 3. `fold_tool_activity` 在存储的回复后为每个调用追加一行：`[tools used: name(N chars[, full output at spill/…]; first line…)]`。超过 `FOLD_SPILL_CHARS`（2000）且自身没有地址的输出，在折叠时溢出到 `<home>/spill/`。这是阻止下一轮重复动作的证据；`turnCompleted.reply` 带的是未折叠文本。模型照着历史抄在自己回复末尾的这行会先被去掉（`strip_echoed_footer`），所以列出的只有本轮真正运行的调用。
 4. 写一行 trace 与一行用量（失败只记日志）。
 5. 在会话写段锁下：追加 `chat_log`（浏览器任务的来源为 `browser-task`，记忆提取会跳过）、追加账本（`ledger_writer.rs`）、保存（实测、估算）输入 token 对、武装作业或输入等待。
-6. 唤醒记忆 worker 并 spawn 预压缩；没有 worker 则内联整理并发 `consolidationCompleted`。
+6. 唤醒记忆 worker 并 spawn 预压缩；没有 worker 则内联整理并发 `consolidationCompleted`。有 worker 时，刚拿到第一条回复的未命名会话（id 不含 `:`）还会发起一次小模型起标题调用（`turn/title.rs`，计量用途为 `title`）。只有会话仍未命名且只有一条回复时才写入，所以改名或第二轮总是优先；像回答而不像标题的结果会被拒绝，名称仍是第一条消息。
 7. 发 `turnCompleted`，然后才发 JSON-RPC 响应，使客户端在答复前收齐所有通知。续跑路径使用同一个 `finalize_turn`。
 
 ## 提示装配

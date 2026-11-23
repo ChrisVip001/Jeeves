@@ -46,6 +46,7 @@ pub(crate) use prompt::thin_soul_for;
 mod attachments;
 use attachments::resolve_attachments;
 mod history;
+mod title;
 use history::FORCED_RETRY_TURNS;
 pub(crate) use history::HistoryStats;
 pub(crate) use history::Loaded;

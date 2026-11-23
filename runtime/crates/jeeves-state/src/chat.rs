@@ -445,7 +445,40 @@ impl Chat {
         query.bind(id).execute(&self.pool).await?;
         Ok(())
     }
+
+    /// The opening ask of a session that may get a generated title: nobody named it, and it has
+    /// exactly one reply so far (the first exchange just landed). `None` otherwise.
+    pub async fn untitled_opening(&self, id: &str) -> Result<Option<String>> {
+        let opening: Option<String> = sqlx::query_scalar(&format!(
+            "SELECT (SELECT c.content FROM chat_log c WHERE c.session_id = s.id AND c.role = 'user'
+                     ORDER BY c.id LIMIT 1)
+               FROM sessions s WHERE s.id = ? AND {UNTITLED_AFTER_ONE_REPLY}"
+        ))
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .flatten();
+        Ok(opening)
+    }
+
+    /// Stores a generated title under the same condition as [`Self::untitled_opening`], checked
+    /// again in the write: a rename or a second turn that landed while the model was thinking
+    /// wins. `false` = the session no longer qualified, nothing was written.
+    pub async fn set_generated_title(&self, id: &str, title: &str) -> Result<bool> {
+        let done = sqlx::query(&format!(
+            "UPDATE sessions AS s SET title = ? WHERE s.id = ? AND {UNTITLED_AFTER_ONE_REPLY}"
+        ))
+        .bind(title)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(done.rows_affected() == 1)
+    }
 }
+
+/// A session row `s` with no stored title and exactly one assistant reply.
+const UNTITLED_AFTER_ONE_REPLY: &str = "(s.title IS NULL OR s.title = '')
+    AND (SELECT COUNT(*) FROM chat_log c WHERE c.session_id = s.id AND c.role = 'assistant') = 1";
 
 /// One expression for a session's readable fields, shared by the list and the single read, so
 /// "the title is the first user message" cannot drift into two different implementations.

@@ -250,6 +250,20 @@ pub(crate) async fn finalize_turn(
 
     if let Some(worker) = server.memory_worker.as_ref() {
         worker.wake();
+        if super::title::wants_title(&session_id) {
+            let titler = super::meter::metered(
+                &server.pool,
+                resolved,
+                &session_id,
+                &turn_id,
+                run_id.as_deref(),
+                "title",
+            );
+            let (server, session_id) = (server.clone(), session_id.clone());
+            tokio::spawn(
+                async move { super::title::name_session(&server, &titler, &session_id).await },
+            );
+        }
         let resolved = super::meter::metered(
             &server.pool,
             resolved,

@@ -60,7 +60,7 @@ before the response). Every type is defined in
 | `session/main` | none → `SessionNewResponse` | idempotently open the persistent `jeeves-main` session |
 | `session/list` | `SessionListParams` → `SessionListResponse` | the sole public conversation |
 | `session/get` | `SessionGetParams` → `SessionGetResponse` | one session's metadata, using the same [SessionSummary](../protocol/schema/typescript/v2/SessionSummary.ts) as `session/list` |
-| `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | rename / change directory (`null` = leave alone, `""` = clear) |
+| `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | rename / change directory (`null` = leave alone, `""` = clear). An unnamed session may get a short generated title after its first exchange; a name set here is never replaced |
 | `session/messages` | `SessionMessagesParams` → `SessionMessagesResponse` | messages, newest first. On the newest task page, optional `activeInputs` lists the current instruction and accepted follow-ups until the turn enters history |
 | `memory/search` | `MemorySearchParams` → `MemorySearchResponse` | keyword search over facts + episodes |
 | `memory/list` | `MemoryListParams` → `MemoryListResponse` | recent facts (cursor-paged) |

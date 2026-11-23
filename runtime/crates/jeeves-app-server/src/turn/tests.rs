@@ -2020,3 +2020,36 @@ fn only_trailing_footer_lines_are_dropped() {
         ""
     );
 }
+
+#[tokio::test]
+async fn an_unnamed_session_is_titled_once_after_its_first_exchange() {
+    let mock = Arc::new(Mock::with_outcomes(vec![Ok(Mock::text(
+        "{\"title\": \"Postgres pool exhaustion\"}",
+    ))]));
+    let server = server(mock.clone()).await;
+    server
+        .chat
+        .append_exchange(
+            "my postgres pool keeps running out, log below ...",
+            "raise max_connections",
+            "test",
+            "cli",
+            None,
+        )
+        .await
+        .expect("write the session");
+    let resolved = server.resolved().expect("a model is configured");
+    crate::turn::title::name_session(&server, &resolved, "test").await;
+    let row = server.chat.session("test").await.unwrap().unwrap();
+    assert_eq!(row.title, "Postgres pool exhaustion");
+    let request = mock.received.lock().unwrap()[0].clone();
+    assert_eq!(request.model, "test-small", "titles use the small model");
+    assert!(request.tools.is_empty(), "the titler has no tools");
+
+    crate::turn::title::name_session(&server, &resolved, "test").await;
+    assert_eq!(
+        mock.received.lock().unwrap().len(),
+        1,
+        "a titled session is not asked again"
+    );
+}

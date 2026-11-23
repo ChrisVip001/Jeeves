@@ -111,7 +111,7 @@ Conversation and task runs use one loop, driven by tool results, user input and 
 3. `fold_tool_activity` appends one line per call to the stored reply: `[tools used: name(N chars[, full output at spill/…]; first line…)]`. Output over `FOLD_SPILL_CHARS` (2000) with no address of its own is spilled to `<home>/spill/` at fold time. This is the evidence that stops the next turn from repeating an action; `turnCompleted.reply` carries the unfolded text. A footer the model copied from history onto the end of its own reply is dropped first (`strip_echoed_footer`), so only calls that ran this turn are listed.
 4. Write one trace line and one usage row (failures only log).
 5. Under the session write lock: append to `chat_log` (source `browser-task` for browser tasks so memory extraction skips them), append the ledger (`ledger_writer.rs`), save the (observed, estimated) input-token pair, arm job or input waits.
-6. Wake the memory worker and spawn pre-compaction; without a worker, consolidate inline and send `consolidationCompleted`.
+6. Wake the memory worker and spawn pre-compaction; without a worker, consolidate inline and send `consolidationCompleted`. With a worker, an unnamed session (an id without `:`) that just got its first reply also gets one small-model title call (`turn/title.rs`, metered as `title`). The write only lands while the session is still unnamed with one reply, so a rename or a second turn wins; an answer-shaped reply is refused and the first message stays the name.
 7. Send `turnCompleted`, then, only then, the JSON-RPC response, so a client has every notification before the answer. The resume path uses the same `finalize_turn`.
 
 ## Prompt assembly

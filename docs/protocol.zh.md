@@ -58,7 +58,7 @@
 | `session/main` | 无 → `SessionNewResponse` | 幂等打开常驻的 `jeeves-main` 会话 |
 | `session/list` | `SessionListParams` → `SessionListResponse` | 唯一公开会话 |
 | `session/get` | `SessionGetParams` → `SessionGetResponse` | 单个会话的元数据，与 `session/list` 共用 [SessionSummary](../protocol/schema/typescript/v2/SessionSummary.ts) |
-| `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | 改名 / 改工作目录（`null` = 不动，`""` = 清空） |
+| `session/update` | `SessionUpdateParams` → `SessionUpdateResponse` | 改名 / 改工作目录（`null` = 不动，`""` = 清空）。未命名会话在首轮对话后可能得到一个生成的短标题；这里设的名字永远不会被替换 |
 | `session/messages` | `SessionMessagesParams` → `SessionMessagesResponse` | 会话消息按从新到旧分页。任务最新页的可选字段 `activeInputs` 列出尚未归入历史的本轮指令与已接收的补充 |
 | `memory/search` | `MemorySearchParams` → `MemorySearchResponse` | facts + episodes 关键词检索 |
 | `memory/list` | `MemoryListParams` → `MemoryListResponse` | 最近事实（游标分页） |

@@ -1404,3 +1404,62 @@ async fn database_path_with_url_punctuation_is_a_literal_filename() {
         crate::db::known_schema_version()
     );
 }
+
+#[tokio::test]
+async fn a_generated_title_lands_only_on_an_unnamed_session_after_its_first_reply() {
+    let pool = temp_db("sessions_generated_title.db").await;
+    let chat = Chat::new(pool);
+    assert_eq!(chat.untitled_opening("s1").await.unwrap(), None);
+    chat.append_exchange(
+        "here is my long pasted error log",
+        "answer",
+        "s1",
+        "cli",
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        chat.untitled_opening("s1").await.unwrap().as_deref(),
+        Some("here is my long pasted error log")
+    );
+    assert!(
+        chat.set_generated_title("s1", "Pasted error log")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        chat.session("s1").await.unwrap().unwrap().title,
+        "Pasted error log"
+    );
+    assert!(
+        !chat
+            .set_generated_title("s1", "Another guess")
+            .await
+            .unwrap(),
+        "a stored title is never replaced by a generated one"
+    );
+
+    chat.create_session("named", Some("my name"), None)
+        .await
+        .unwrap();
+    chat.append_exchange("hi", "hello", "named", "cli", None)
+        .await
+        .unwrap();
+    assert_eq!(chat.untitled_opening("named").await.unwrap(), None);
+    assert!(!chat.set_generated_title("named", "Greeting").await.unwrap());
+
+    chat.append_exchange("one", "two", "busy", "cli", None)
+        .await
+        .unwrap();
+    chat.append_exchange("three", "four", "busy", "cli", None)
+        .await
+        .unwrap();
+    assert!(
+        !chat
+            .set_generated_title("busy", "Late title")
+            .await
+            .unwrap(),
+        "a title that arrives after the second turn is dropped"
+    );
+}
