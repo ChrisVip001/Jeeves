@@ -143,7 +143,57 @@ fn byok_rescue_ids(file: &jeeves_config::models::ModelsFile, enabled: bool) -> V
         .collect()
 }
 
+/// Which platform profile serves a capability line. Only when a platform profile is active —
+/// a BYOK/local active profile never silently inherits a platform line and its quota.
+fn profile_id_for_line(file: &jeeves_config::models::ModelsFile, line: &str) -> Option<String> {
+    let active_is_platform = file
+        .active
+        .as_deref()
+        .and_then(|id| jeeves_config::models::find(file, id))
+        .is_some_and(|p| p.origin == jeeves_config::models::ModelOrigin::Platform);
+    if !active_is_platform {
+        return None;
+    }
+    file.profiles
+        .iter()
+        .find(|p| {
+            p.origin == jeeves_config::models::ModelOrigin::Platform && p.line.as_str() == line
+        })
+        .map(|p| p.id.clone())
+}
+
 impl Server {
+    /// Capability-line routing (WP5b): when a turn carries a video, use the platform's
+    /// `video-understanding` profile if one exists. The person cannot choose or switch these
+    /// platform profiles; the platform decides per capability. Never redirects a BYOK/local
+    /// active profile — that would silently spend quota they did not agree to.
+    pub(crate) fn resolved_for_line(
+        &self,
+        base: Resolved,
+        line: &str,
+    ) -> (Resolved, Option<String>) {
+        if line == "language" {
+            return (base, None);
+        }
+        let chosen = {
+            let file = self
+                .models
+                .read()
+                .expect("the models lock should not be poisoned");
+            profile_id_for_line(&file, line)
+        };
+        let Some(id) = chosen else {
+            return (base, None);
+        };
+        match self.resolved_profile(&id) {
+            Ok(resolved) => (resolved, Some(format!("line:{line} → {id}"))),
+            Err(why) => {
+                eprintln!("(jeeves) capability-line profile '{id}' unavailable: {why}");
+                (base, None)
+            }
+        }
+    }
+
     /// Run once per turn: decide which profile this turn uses. `base` is the active profile's resolution —
     /// in fixed mode, when the same profile is selected, or on any failure, it is returned as-is
     /// (fail-open; routing must never blow up a turn; the fallback reason goes into `route_reason`, unhidden).

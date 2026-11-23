@@ -13,6 +13,12 @@ use jeeves_protocol::TurnAttachment;
 /// design document. A file with one of these is a video-understanding request, not an image.
 const VIDEO_EXTENSIONS: [&str; 8] = ["mp4", "mov", "webm", "mkv", "avi", "m4v", "wmv", "flv"];
 
+/// Whether any attachment is an image. Used for the vision gate independently of the
+/// chosen capability line (a turn may carry both a video and an image).
+pub(crate) fn has_image(attachments: Option<&[TurnAttachment]>) -> bool {
+    attachments.is_some_and(|items| items.iter().any(is_image_attachment))
+}
+
 /// The capability line this turn needs, derived from its attachments only.
 /// `language` when there is nothing special; video takes precedence over image.
 pub(crate) fn required_line(attachments: Option<&[TurnAttachment]>) -> &'static str {

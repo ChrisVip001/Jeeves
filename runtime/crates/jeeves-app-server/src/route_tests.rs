@@ -194,3 +194,60 @@ fn byok_rescue_needs_the_switch_and_a_platform_primary() {
         "no platform primary to rescue from"
     );
 }
+
+#[test]
+fn capability_line_selects_a_platform_profile_only() {
+    use jeeves_config::models::{ModelLine, ModelOrigin, ModelProfile, ModelsFile};
+
+    let base = ModelProfile {
+        id: "included".into(),
+        provider: "anthropic".into(),
+        model: None,
+        small_model: None,
+        base_url: Some("https://model.internal".into()),
+        key_source: Some("env:JEEVES_MODEL_TOKEN".into()),
+        credential_slot: Default::default(),
+        vision: None,
+        capabilities: None,
+        origin: ModelOrigin::Platform,
+        line: ModelLine::language(),
+    };
+    let video = ModelProfile {
+        id: "platform-video".into(),
+        line: ModelLine("video-understanding".into()),
+        ..base.clone()
+    };
+    let file = ModelsFile {
+        active: Some("included".into()),
+        profiles: vec![base.clone(), video],
+    };
+    assert_eq!(
+        super::profile_id_for_line(&file, "video-understanding").as_deref(),
+        Some("platform-video")
+    );
+    assert_eq!(
+        super::profile_id_for_line(&file, "language").as_deref(),
+        Some("included"),
+        "the active language profile is itself the language line"
+    );
+    assert!(
+        super::profile_id_for_line(&file, "decision").is_none(),
+        "an unserved line keeps the active model"
+    );
+
+    let byok_active = ModelsFile {
+        active: Some("mine".into()),
+        profiles: vec![
+            base,
+            ModelProfile {
+                id: "mine".into(),
+                origin: ModelOrigin::Byok,
+                ..file.profiles[1].clone()
+            },
+        ],
+    };
+    assert!(
+        super::profile_id_for_line(&byok_active, "video-understanding").is_none(),
+        "a BYOK active profile must not be redirected to a quota-consuming platform line"
+    );
+}

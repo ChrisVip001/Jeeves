@@ -40,9 +40,8 @@ pub(super) fn resolve_attachments(
         message,
         data: None,
     };
-    if !vision {
-        let line = super::capability::required_line(Some(attachments));
-        let reason = super::capability::refusal_for_missing_line(line)
+    if super::capability::has_image(Some(attachments)) && !vision {
+        let reason = super::capability::refusal_for_missing_line("multimodal")
             .unwrap_or_else(|| "你的模型看不了图。".to_string());
         return Err(bad(format!("{reason}（当前配置 {provider_id}）")));
     }
@@ -52,6 +51,30 @@ pub(super) fn resolve_attachments(
         .map_err(|e| bad(format!("The home directory is unavailable: {e}")))?;
     let mut images = Vec::new();
     for attachment in attachments {
+        // Video attachments are not image blocks: a video-understanding model receives the
+        // absolute path as text and opens it through its own media pipeline. Never pretend a
+        // .mp4 is a PNG and ask `image_meta::size` to decode it.
+        if super::capability::required_line(Some(std::slice::from_ref(attachment)))
+            == "video-understanding"
+        {
+            let raw = home.join(&attachment.path);
+            let path = raw.canonicalize().map_err(|_| {
+                bad(format!(
+                    "Attachment is missing or unreadable: {}",
+                    attachment.path
+                ))
+            })?;
+            if !path.starts_with(&home_real) {
+                return Err(bad(format!(
+                    "Attachment {} is outside home — an attachment may only reference a file under the upload directory (<home>/uploads/…).",
+                    attachment.path
+                )));
+            }
+            images.push(jeeves_provider::ContentBlock::Text {
+                text: format!("Video attachment: {}", path.display()),
+            });
+            continue;
+        }
         let raw = home.join(&attachment.path);
         let path = raw.canonicalize().map_err(|_| {
             bad(format!(

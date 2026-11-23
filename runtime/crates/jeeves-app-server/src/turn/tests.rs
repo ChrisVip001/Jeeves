@@ -2068,3 +2068,54 @@ fn the_live_ask_carries_the_minute_and_offset_it_was_sent() {
     );
     assert!(stamp.ends_with(']'), "{stamp}");
 }
+
+#[tokio::test]
+async fn a_video_attachment_is_a_path_in_the_message_not_a_fake_image() {
+    let attachments = Some(vec![jeeves_protocol::TurnAttachment {
+        path: "uploads/clip.mp4".to_string(),
+        media_type: None,
+    }]);
+    let ran = run_with_attachments(
+        Mock::new(vec![Mock::text("a short clip about the sea.")]),
+        false,
+        "what happens in this video?",
+        attachments,
+        |home| {
+            let dir = home.join("uploads");
+            std::fs::create_dir_all(&dir).expect("create the upload directory");
+            std::fs::write(dir.join("clip.mp4"), b"not a real mp4, but never decoded")
+                .expect("place the video");
+        },
+    )
+    .await;
+    assert!(
+        ran.error.is_none(),
+        "a video must not hit the image-only decoding path: {:?}",
+        ran.error
+    );
+    let texts: Vec<String> = ran
+        .requests
+        .iter()
+        .flat_map(|r| r.messages.iter())
+        .filter(|m| matches!(m.role, jeeves_provider::Role::User))
+        .flat_map(|m| m.content.iter())
+        .filter_map(|b| match b {
+            jeeves_provider::ContentBlock::Text { text } => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        texts
+            .iter()
+            .any(|t| t.contains("Video attachment") && t.contains("clip.mp4")),
+        "the model receives the video path: {texts:?}"
+    );
+    let images: Vec<_> = ran
+        .requests
+        .iter()
+        .flat_map(|r| r.messages.iter())
+        .flat_map(|m| m.content.iter())
+        .filter(|b| matches!(b, jeeves_provider::ContentBlock::Image { .. }))
+        .collect();
+    assert!(images.is_empty(), "a .mp4 must never become an Image block");
+}

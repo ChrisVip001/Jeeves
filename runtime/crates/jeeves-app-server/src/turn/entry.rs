@@ -112,6 +112,10 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         .resolved_for_turn(resolved, &classifier, &params.message, tier.as_deref())
         .await;
 
+    let line = super::capability::required_line(params.attachments.as_deref());
+    let (resolved, line_route) = server.resolved_for_line(resolved, line);
+    let turn_route = line_route.or(turn_route);
+
     let user_images = resolve_attachments(server, &params, &resolved.provider_id, resolved.vision)?;
 
     let task_lock = task
