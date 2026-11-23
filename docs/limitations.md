@@ -329,7 +329,7 @@ straight from the file header.
   callback is fixed at `127.0.0.1:41766/callback`, which must be registered in the console.
   Renewal rotates the refresh token, so a long-lived app-server renews ten minutes before
   expiry; with every process stopped nothing renews and an expired refresh token needs a new
-  login. A personal WeChat account has no programmable outbound API.
+  login.
   → `runtime/crates/jeeves-connector/src/feishu_oauth.rs`
 * **Deliberate** — Connector allowlists are exact matches: no wildcards, no regex, no domain
   suffix entries. Only the human edits them, and a change takes effect on the next turn.
@@ -341,8 +341,8 @@ straight from the file header.
   each body. Sending is plain text; attachments are not supported. Connectors have no automatic
   retry, so an uncertain SMTP result is reported rather than replayed.
   → `runtime/crates/jeeves-connector/src/{calendar,email}.rs`
-* **Gap** — The WeChat Official Account and Lark gateways have never been pointed at the real platforms; they
-  are tested against fakes only. WhatsApp and voice gateways do not exist.
+* **Gap** — The Lark gateway has never been pointed at the real platform; it is tested against
+  fakes only. Voice gateways do not exist.
   → `integrations/channels/`
 
 ## Operations

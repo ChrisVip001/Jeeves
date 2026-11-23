@@ -3,8 +3,8 @@
  *
  * This is **Lark's private protobuf**: the official `.proto` isn't published on the docs site;
  * it only exists inside the vendors' SDK artifacts. So the codec is handwritten against the
- * protobuf wire format — this one message only, no protobuf runtime (same reason this project
- * doesn't pull in `discord.js`: a code generator for one message costs more than it buys).
+ * protobuf wire format — this one message only, no protobuf runtime: a code generator for one
+ * message costs more than it buys.
  *
  * Field numbers were cross-checked against three independent implementations, which agree:
  *

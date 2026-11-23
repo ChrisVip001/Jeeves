@@ -32,7 +32,7 @@ test("dedupe: first claim wins, second is a duplicate, expiry frees it", () => {
   const seen = new Dedupe({ ttlMs: 100, max: 10, now: () => now });
   assert.equal(seen.claim("lark:m1"), true);
   assert.equal(seen.claim("lark:m1"), false);
-  assert.equal(seen.claim("wechat:m1"), true, "other channel, same id");
+  assert.equal(seen.claim("telegram:m1"), true, "other channel, same id");
   now += 101;
   assert.equal(seen.claim("lark:m1"), true);
 });

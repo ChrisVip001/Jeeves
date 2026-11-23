@@ -158,17 +158,17 @@ and placeholders match.
 
 ## 7.7 Chat gateways
 
-`@jeeves/channels` holds `JeevesBridge` and adapters for Lark/Feishu, WeChat Official Account and
-Telegram. The standalone commands are `just gateway-lark`, `just gateway-wechat` and
-`just gateway-telegram`. See the [adapter settings](../configuration.md#channel-adapters).
+`@jeeves/channels` holds `JeevesBridge` and adapters for Lark/Feishu and Telegram. The standalone
+commands are `just gateway-lark` and `just gateway-telegram`. See the
+[adapter settings](../configuration.md#channel-adapters).
 
-| | Lark / Feishu | WeChat |
+| | Lark / Feishu | Telegram |
 |---|---|---|
-| Connection | Long-lived WebSocket with Lark's private protobuf frames (`pbbp2`, hand-written in `lark-proto.ts`) | HTTP callback server (`WECHAT_PORT`, default 8080; path `WECHAT_PATH`, default `/wechat`); needs a public address |
-| Allowlist | `LARK_ALLOW`: open_ids (`ou_…`) | `WECHAT_ALLOW`: OpenIDs |
-| Message limit | 30000 characters | 600 characters |
-| Timing | Persist the incoming frame before ACK, then process it. Heartbeat default 120 s (minimum 10 s) and reconnect backoff up to 30 s. | Passive reply only if the turn finishes within 4000 ms, otherwise `success` first and the answer follows as customer-service messages (needs `WECHAT_APP_SECRET` and a verified account) |
-| Other settings | `LARK_APP_ID`, `LARK_APP_SECRET`, `LARK_DOMAIN=lark` for the international domain, `LARK_DISPATCHERS`, `LARK_CLAIM` | `WECHAT_TOKEN`, `WECHAT_APP_ID`, `WECHAT_AES_KEY` (43 characters; plain, compatible and secure modes) |
+| Connection | Long-lived WebSocket with Lark's private protobuf frames (`pbbp2`, hand-written in `lark-proto.ts`) | Long polling; no public address needed |
+| Allowlist | `LARK_ALLOW`: open_ids (`ou_…`) | `TELEGRAM_ALLOW`: numeric user ids |
+| Message limit | 30000 characters | Platform limit |
+| Timing | Persist the incoming frame before ACK, then process it. Heartbeat default 120 s (minimum 10 s) and reconnect backoff up to 30 s. | Poll the bot API; answer through the same Runtime turn |
+| Other settings | `LARK_APP_ID`, `LARK_APP_SECRET`, `LARK_DOMAIN=lark` for the international domain, `LARK_DISPATCHERS`, `LARK_CLAIM` | `TELEGRAM_BOT_TOKEN` from the environment |
 
 `bridge.ts` (`JeevesBridge`) holds the platform-independent part:
 

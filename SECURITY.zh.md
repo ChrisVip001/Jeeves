@@ -70,9 +70,9 @@
 
 账号网关把第一方登录会话绑定到一个 Runtime。账号会话、Runtime Bearer 和设备审批授权各有独立的生命周期。部署、加密密钥与会话撤销见[账号网关手册](control-plane/README.zh.md)。
 
-* 飞书与微信：白名单（`LARK_ALLOW` / `WECHAT_ALLOW`）不设时任何人可用——
+* 飞书：白名单（`LARK_ALLOW`）不设时任何人可用——
   文档与启动行为都会明确提示这一点。
-* 微信：签名验证 + `MsgId` 去重（防三次重试造成重复回复）。
+* Telegram：不设 `TELEGRAM_ALLOW` 时任何人都可与 bot 对话。
 * 每个网关会话 id 从平台身份派生，会话之间历史互不可见。
 
 ## 失败开放的安全含义

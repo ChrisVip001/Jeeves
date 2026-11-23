@@ -1,8 +1,9 @@
 /**
  * The little bit of text processing shared by chat platforms.
  *
- * One thing only: split a long reply into pieces the platform accepts. WeChat and Lark each cap a message at a different size — the numbers differ, the splitting is identical, so it's written once and
- * the limit is passed in by each adapter.
+ * One thing only: split a long reply into pieces the platform accepts. Each platform caps a
+ * message at a different size — the numbers differ, the splitting is identical, so it's written
+ * once and the limit is passed in by each adapter.
  */
 
 /**

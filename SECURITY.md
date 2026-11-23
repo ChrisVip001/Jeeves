@@ -85,10 +85,9 @@ The full list, with the file to open for each, is
 
 The account gateway binds a first-party login to one Runtime. Its owner session, the Runtime bearer and device approval grants have different lifetimes. Deployment, encryption keys and session revocation are documented in the [account gateway guide](control-plane/README.md).
 
-* Lark and WeChat: without the `LARK_ALLOW` / `WECHAT_ALLOW` allowlist anyone can talk —
+* Lark: without the `LARK_ALLOW` allowlist anyone can talk —
   startup behavior and docs both say so explicitly.
-* WeChat: signature verification + `MsgId` deduplication (the three retries
-  cannot produce duplicate replies).
+* Telegram: without `TELEGRAM_ALLOW` anyone can talk to the bot.
 * Each gateway derives session ids from platform identity; conversations
   never leak across gateways or users.
 

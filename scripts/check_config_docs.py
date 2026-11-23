@@ -71,7 +71,6 @@ INTERNAL = {
     "JEEVES_BRIDGE_URL": "smoke-gateway points at the bridge module under test",
     "JEEVES_LARK_URL": "smoke-gateway points at the lark module under test",
     "JEEVES_LARK_PROTO_URL": "smoke-gateway points at the lark-proto module under test",
-    "JEEVES_WECHAT_URL": "smoke-gateway points at the wechat module under test",
 }
 
 # Below this count the extraction has stopped working (the code was rewritten, a directory

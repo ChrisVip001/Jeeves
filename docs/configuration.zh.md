@@ -633,12 +633,12 @@ CLI 自己的惰性路径。
 
 | 平台 | 变量 |
 |---|---|
-| 微信 | `WECHAT_TOKEN`、`WECHAT_APP_ID`（必填）；`WECHAT_APP_SECRET`、`WECHAT_AES_KEY`、`WECHAT_ALLOW`、`WECHAT_PATH`（默认 `/wechat`）、`WECHAT_PORT`（默认 `8080`） |
 | 飞书 | `LARK_APP_ID`、`LARK_APP_SECRET`、`LARK_ALLOW`（open_id）、`LARK_DISPATCHERS`、`LARK_DOMAIN=lark`、`LARK_CLAIM=1`（Runtime 托管网关时由它设置） |
+| Telegram | `TELEGRAM_BOT_TOKEN`、`TELEGRAM_ALLOW` |
 
 `JEEVES_GATEWAY_BIN` 是 Runtime 托管的网关脚本（设置 → 渠道连接），Docker 镜像已设好。飞书网关的 `JEEVES_GATEWAY_URL` 指向已有 Web 运行时；不设置则启动独立 app-server。
 访问私网 Runtime 时还需相同的 `JEEVES_OPS_TOKEN`。飞书入口（`bin-lark.ts`）读取仓库根目录 `.env`，
-不覆盖已导出的环境变量，接法见[上手指南](guide.zh.md#渠道微信与飞书)。
+不覆盖已导出的环境变量，接法见[上手指南](guide.zh.md#渠道飞书与-telegram)。
 
 ## MCP 外挂（`<home>/mcp.json`）
 

@@ -6,10 +6,8 @@
   "description": "Brings a chat platform to Jeeves: one app-server child process, shared by several people.",
   "exports": {
     ".": "./src/bridge.ts",
-    "./wechat": "./src/wechat.ts",
     "./lark": "./src/lark.ts",
-    "./telegram": "./src/telegram.ts",
-    "./wechat-crypto": "./src/wechat-crypto.ts"
+    "./telegram": "./src/telegram.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

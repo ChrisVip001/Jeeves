@@ -15,7 +15,6 @@
     "test": "node --test --test-timeout=30000 \"web/test/*.test.*\" \"integrations/channels/test/*.test.*\" \"integrations/channels/runtime-client/test/*.test.*\" \"executors/browser/test/*.test.*\"",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "gateway:wechat": "node integrations/channels/src/bin-wechat.ts",
     "gateway:lark": "node integrations/channels/src/bin-lark.ts",
     "gateway:telegram": "node integrations/channels/src/bin-telegram.ts"
   },

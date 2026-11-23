@@ -4,9 +4,8 @@
 # In the gateways' unit tests the app-server is a stand-in — that proves queuing, notification
 # folding and long-message splitting, but not the real "@jeeves/client + stdio + app-server" chain.
 # The Runtime uses one canonical conversation and receives a verified channel identity
-# (`telegram:42`, `wechat:openid`, `lark:oc_…`) with the message.
-# The wechat section also proves the "real HTTP server + signature verify + XML reply" half;
-# the lark section proves the "private binary frames + ACK echoed verbatim" half.
+# (`telegram:42`, `lark:oc_…`) with the message.
+# The lark section proves the "private binary frames + ACK echoed verbatim" half.
 #
 #   ./scripts/smoke-gateway.sh
 #
@@ -21,8 +20,8 @@ fail() { echo "✗ $1" >&2; exit 1; }
 need_bin
 
 # Fake SSE endpoint: completes the "SSE → full reply" chain without a real key.
-# The three chains below each ask once, so it must serve three streaming replies.
-python3 "$REPO/scripts/fake_sse_server.py" 3 >"$WORK/port" &
+# The two chains below each ask once, so it must serve two streaming replies.
+python3 "$REPO/scripts/fake_sse_server.py" 2 >"$WORK/port" &
 FAKE_PID=$!
 track_pid "$FAKE_PID"
 for _ in $(seq 1 50); do
@@ -73,105 +72,9 @@ grep -q '"model":"[^"]' "$OUT" \
 
 echo "  ✓ canonical conversation + real stdio + notifications folded → the full reply"
 
-# ---- The wechat section: a real HTTP server ----------------------------------------------
-#
-# The section above proves "gateway → app-server", independent of transport; this one adds the
-# wechat-specific half — a real HTTP server, real signature verification, real XML parsing and
-# reply. WeChat wants a public address, but **this layer doesn't**: hit it on localhost directly.
-WX_PORT="$(python3 -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
-WX_OUT="$WORK/wechat.json"
-WECHAT_TOKEN="smoke-token" \
-WECHAT_APP_ID="wxsmoke0000000000" \
-WECHAT_PORT="$WX_PORT" \
-JEEVES_BIN="$BIN" \
-JEEVES_HOME="$WORK/.jeeves" \
-JEEVES_PROVIDER=anthropic JEEVES_API_KEY=test JEEVES_BASE_URL="http://127.0.0.1:$PORT" \
-JEEVES_BRIDGE_URL="file://$BRIDGE" \
-JEEVES_WECHAT_URL="file://$REPO/integrations/channels/src/wechat.ts" \
-node --input-type=module -e '
-  const { createHash } = await import("node:crypto");
-  const { JeevesBridge } = await import(process.env.JEEVES_BRIDGE_URL);
-  const { WeChatAdapter } = await import(process.env.JEEVES_WECHAT_URL);
-
-  const bridge = new JeevesBridge({ env: process.env });
-  const seen = [];
-  const adapter = new WeChatAdapter(
-    {
-      token: process.env.WECHAT_TOKEN,
-      appId: process.env.WECHAT_APP_ID,
-      port: Number(process.env.WECHAT_PORT),
-      onLog: (text) => console.error("  [wechat] " + text),
-    },
-    async (conversation, text) => {
-      seen.push(conversation + "|" + text);
-      return (await bridge.ask(conversation, text)).reply;
-    },
-  );
-
-  const running = adapter.run();
-  const timestamp = "1714112445";
-  const nonce = "415670741";
-  const signature = createHash("sha1")
-    .update([process.env.WECHAT_TOKEN, timestamp, nonce].sort().join(""))
-    .digest("hex");
-  const query = new URLSearchParams({ signature, timestamp, nonce });
-  const base = "http://127.0.0.1:" + process.env.WECHAT_PORT + "/wechat";
-
-  // The server-configuration step: WeChat verifies this address is yours.
-  let verify;
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    try {
-      verify = await fetch(base + "?" + new URLSearchParams({ ...Object.fromEntries(query), echostr: "echo-ok" }));
-      break;
-    } catch {
-      await new Promise((r) => setTimeout(r, 50));
-    }
-  }
-
-  const xml =
-    "<xml>" +
-    "<ToUserName><![CDATA[gh_smoke]]></ToUserName>" +
-    "<FromUserName><![CDATA[openid-smoke]]></FromUserName>" +
-    "<CreateTime>1713424427</CreateTime>" +
-    "<MsgType><![CDATA[text]]></MsgType>" +
-    "<Content><![CDATA[hello]]></Content>" +
-    "<MsgId>1</MsgId>" +
-    "</xml>";
-  const reply = await fetch(base + "?" + query, { method: "POST", body: xml });
-
-  console.log(
-    JSON.stringify({
-      verify: verify.status + " " + (await verify.text()),
-      status: reply.status,
-      body: await reply.text(),
-      seen,
-    }),
-  );
-
-  adapter.stop();
-  await running;
-  bridge.close();
-  await new Promise((r) => setTimeout(r, 400));
-' > "$WX_OUT"
-
-echo "  wechat got: $(cat "$WX_OUT")"
-
-grep -q '"verify":"200 echo-ok"' "$WX_OUT" \
-  || fail "URL verification did not echo echostr back verbatim"
-grep -q '"status":200' "$WX_OUT" \
-  || fail "pushing a message did not get a 200"
-grep -q 'wechat:openid-smoke' "$WX_OUT" \
-  || fail "WeChat did not preserve the platform identity"
-grep -q 'hello, world' "$WX_OUT" \
-  || fail "the reply never reached the passive-reply XML"
-grep -q 'ToUserName><!\[CDATA\[openid-smoke' "$WX_OUT" \
-  || fail "the reply ToUserName has to be the person who wrote, not the account"
-
-echo "  ✓ real HTTP + signature check + XML parsing → passive reply"
-
 # ---- The lark section: real binary frames ------------------------------------------------
 #
-# The two sections above prove "gateway → app-server", transport-agnostic; this one adds the
+# The section above proves "gateway → app-server", transport-agnostic; this one adds the
 # lark-specific half: trade AppID/AppSecret for a ticketed wss URL, decode **binary frames** into
 # events, ACK before answering, and send the reply out over HTTP. Real Lark needs a published
 # enterprise app, unavailable locally and in CI, so only the two remote addresses are stubbed

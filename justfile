@@ -165,11 +165,6 @@ ts-check: ts-install
 smoke-gateway: build
     {{ justfile_directory() }}/scripts/smoke-gateway.sh
 
-# Start the WeChat gateway. Needs WECHAT_TOKEN and WECHAT_APP_ID; WeChat wants a public address
-# (only 80 / 443), so run local tunnels first for local runs.
-gateway-wechat *args:
-    cd {{ root }} && npm run gateway:wechat {{args}}
-
 # Start the Lark gateway. Needs LARK_APP_ID and LARK_APP_SECRET; LARK_ALLOW takes open_ids
 # (the ou_… string, not the App ID); add LARK_DOMAIN=lark for the international Lark.
 # The app also needs bot capability enabled, a subscription to im.message.receive_v1, and

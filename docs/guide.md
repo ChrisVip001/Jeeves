@@ -37,7 +37,7 @@ Declare image support when you add a profile (`--vision` / `--no-vision`), other
 
 Review the action, working directory and preview on the approval card in the conversation, then allow it once or deny it. The operator manages the Runtime switches for commands, file writes and delegation. See the [protocol](protocol.md) for session modes and [security](../SECURITY.md) for sandbox boundaries.
 
-## 5. Channels: Lark and WeChat Official Account
+## 5. Channels: Lark and Telegram
 
 Both gateways talk to a Jeeves Runtime and derive session ids from the platform identity.
 
@@ -82,20 +82,6 @@ export JEEVES_EXEC=1 JEEVES_EXEC_NETWORK=1 JEEVES_APPROVAL=on-request
 ```
 
 Restart the Runtime with these exported. Unmatched commands ask for approval; do not grant full access just for the CLI. The CLI keeps its own account and credentials, independent of `LARK_*` and `connectors.json`. If a token refresh needs a writable cache directory, add only that directory to `JEEVES_EXEC_WRITABLE_ROOTS`.
-
-### WeChat Official Account
-
-(This is the Official Account callback API, not personal WeChat.)
-
-The Official Account has no outbound connection: it pushes to an HTTP server you expose, on port 80 or 443 only (terminate TLS in a reverse proxy in front). In the official platform, under Settings & Development → Basic Configuration → Server Configuration, set the callback URL to `http://your.domain/wechat` and note Token, AppID, AppSecret and EncodingAESKey. Then:
-
-```bash
-WECHAT_TOKEN=… WECHAT_APP_ID=wx… WECHAT_APP_SECRET=… just gateway-wechat
-```
-
-The gateway listens on `WECHAT_PORT` (default 8080) at `WECHAT_PATH` (default `/wechat`); put your proxy on 80/443 in front of it. Set `WECHAT_AES_KEY` if WeChat's side uses compatible or safe mode; a mismatch shows as "URL verification failed". `WECHAT_ALLOW` is an allowlist; unset means anyone who follows the account can use it.
-
-WeChat retries a push after 5 seconds and drops the message after three failures, and a Jeeves turn is usually slower. So the gateway waits 4 seconds: a short answer goes back as the passive reply; otherwise it answers `success` at once and pushes the reply through the customer-service message API, skipping retried `MsgId`s. That API needs a **verified** official account and is quota-limited (5 messages within 48 hours per user message); an unverified account only gets the fast replies. This gateway has not been run against a real WeChat account.
 
 ### Telegram
 

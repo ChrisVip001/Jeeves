@@ -37,7 +37,7 @@
 
 在对话内核对审批卡的动作、工作目录和预览，再选择允许一次或拒绝。Runtime 的命令、写文件和委派开关由部署方管理。会话权限模式见[权限协议](protocol.zh.md)，沙箱边界见[安全模型](../SECURITY.zh.md)。
 
-## 5. 渠道：飞书与微信公众号
+## 5. 渠道：飞书与 Telegram
 
 两个网关都连到 Jeeves Runtime，会话 id 从平台身份派生。
 
@@ -82,20 +82,6 @@ export JEEVES_EXEC=1 JEEVES_EXEC_NETWORK=1 JEEVES_APPROVAL=on-request
 ```
 
 带着这些变量重启 Runtime。没匹配的命令会请求审批；不要只为 CLI 就授予完全访问。CLI 有自己的账号与凭据，与 `LARK_*`、`connectors.json` 无关。如果令牌刷新需要可写缓存目录，只把那个目录加进 `JEEVES_EXEC_WRITABLE_ROOTS`。
-
-### 微信公众号
-
-（这里指公众号回调接口，不是个人微信。）
-
-公众号没有出站连接：它推送到你暴露的 HTTP 服务，且只接受 80 或 443 端口（TLS 交给前面的反向代理）。在官方平台“设置与开发 → 基本配置 → 服务器配置”里，把回调 URL 设为 `http://your.domain/wechat`，并记下 Token、AppID、AppSecret 与 EncodingAESKey。然后：
-
-```bash
-WECHAT_TOKEN=… WECHAT_APP_ID=wx… WECHAT_APP_SECRET=… just gateway-wechat
-```
-
-网关监听 `WECHAT_PORT`（默认 8080）的 `WECHAT_PATH`（默认 `/wechat`）；把你的代理放在它前面接 80/443。若微信一侧用兼容或安全模式，请设 `WECHAT_AES_KEY`；两边不一致会表现为“URL 验证失败”。`WECHAT_ALLOW` 是白名单；不设则任何关注该账号的人都能用。
-
-微信 5 秒后重试推送，三次失败就丢消息，而 Jeeves 一轮通常更慢。所以网关等 4 秒：短回答作为被动回复返回；否则立刻回 `success`，再通过客服消息接口推送回复，并跳过重试的 `MsgId`。该接口需要**已认证**的公众号且有额度限制（每条用户消息 48 小时内可发 5 条）；未认证的账号只有快速回复。这个网关还没有在真实微信账号上跑过。
 
 ### Telegram
 

@@ -703,12 +703,12 @@ The CLI keeps its lazy path ("expired, will refresh on the next send" in
 
 | Platform | Variables |
 |---|---|
-| WeChat | `WECHAT_TOKEN`, `WECHAT_APP_ID` (required); `WECHAT_APP_SECRET`, `WECHAT_AES_KEY`, `WECHAT_ALLOW`, `WECHAT_PATH` (default `/wechat`), `WECHAT_PORT` (default `8080`) |
 | Lark | `LARK_APP_ID`, `LARK_APP_SECRET`, `LARK_ALLOW` (open_id), `LARK_DISPATCHERS`, `LARK_DOMAIN=lark`, `LARK_CLAIM=1` (set by the Runtime when it hosts the gateway) |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOW` |
 
 `JEEVES_GATEWAY_BIN` is the gateway script the Runtime hosts (Settings → Connections); the Docker image sets it. `JEEVES_GATEWAY_URL` attaches the Lark gateway to an existing Web runtime; unset starts
 a standalone app-server. Authenticated Web runtimes also require `JEEVES_OPS_TOKEN`.
-The Lark entry point (`bin-lark.ts`) reads the repository-root `.env` without overriding exported values. Setup walkthroughs: [guide](guide.md#channels).
+The Lark entry point (`bin-lark.ts`) reads the repository-root `.env` without overriding exported values. Setup walkthroughs: [guide](guide.md#channels-lark-and-telegram).
 
 ## MCP servers (`<home>/mcp.json`)
 

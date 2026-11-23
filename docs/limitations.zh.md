@@ -33,8 +33,8 @@
 
 * **边界** — 开启 `JEEVES_NOTIFY` 后，作业、定时任务和目标的结果在投递前先提交到 `<home>/outbox/notifications/`。
   失败每 30 秒及重启时重试，每轮最多 32 条回执。投递是至少一次：远端确认后崩溃可能重复。待发回执保持绑定到配置的
-  目的地；改了 webhook，旧回执会保留而不是转发到新目标。审批提示尽力而为，从不重放。支持 Slack 兼容的
-  `{"text": …}` 端点；钉钉/企业微信渠道暂缓（人 2026-11-18 决定），签名格式不实现。outbox 记录的是传输确认，不是用户已读。
+  目的地；改了 webhook，旧回执会保留而不是转发到新目标。审批提示尽力而为，从不重放。支持接收
+  `{"text": …}` 的 webhook 端点。outbox 记录的是传输确认，不是用户已读。
   → `runtime/crates/jeeves-tools/src/notify_queue.rs`
 * **刻意** — 跨设备同步是敲门，不是推流：`/api/events` 的 ping 只说「有事发生」，客户端自己重新拉取所显示的内容。
   任务事件是例外：`task/events` 可以从游标读取。聊天没有消息级增量协议、没有离线聊天队列或通用聊天推送。已配对设备可接收[任务审批通知](protocol.zh.md#任务审批通知)。
@@ -231,7 +231,6 @@ L1 分类器只看消息文本。
 * **边界** — 飞书默认以应用身份（`tenant_access_token`）发送；以个人身份行事需要一次浏览器授权
   （`jeeves connector feishu login`）。该流程没有 PKCE，回调固定为 `127.0.0.1:41766/callback`，必须在控制台登记。
   续期会轮换 refresh token，所以长驻的 app-server 在到期前十分钟续期；所有进程都停了就没人续期，refresh token 过期后需要重新登录。
-  个人微信没有可编程的外发 API。
   → `runtime/crates/jeeves-connector/src/feishu_oauth.rs`
 * **刻意** — 连接器允许名单都是精确匹配：没有通配符、正则或域名后缀条目。只有人能改，改动在下一回合生效。
   → `runtime/crates/jeeves-connector/src/config.rs`
@@ -240,7 +239,7 @@ L1 分类器只看消息文本。
   邮件的纯文本，不保存附件，每封正文最多保留 16,000 字符。发送是纯文本，不支持附件。连接器没有自动重试，
   所以 SMTP 结果未知时只报告，不重放。
   → `runtime/crates/jeeves-connector/src/{calendar,email}.rs`
-* **未做** — 微信公众号和 Lark 网关从未对接过真实平台，只对假服务测试过。WhatsApp 和语音网关不存在。
+* **未做** — Lark 网关从未对接过真实平台，只对假服务测试过。语音网关不存在。
   → `integrations/channels/`
 
 ## 运维

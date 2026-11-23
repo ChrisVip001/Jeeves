@@ -145,17 +145,17 @@ Vue 和 Vite 将工作台及账号页面构建到 `web/dist/`。Go 网关在通�
 
 ## 7.7 聊天网关
 
-`@jeeves/channels` 包含 `JeevesBridge` 以及飞书、微信公众号和 Telegram 适配器。可用
-`just gateway-lark`、`just gateway-wechat` 和 `just gateway-telegram` 独立启动。
+`@jeeves/channels` 包含 `JeevesBridge` 以及飞书和 Telegram 适配器。可用
+`just gateway-lark` 和 `just gateway-telegram` 独立启动。
 见[渠道适配器配置](../configuration.zh.md#渠道适配器)。
 
-| | Lark / 飞书 | 微信 |
+| | Lark / 飞书 | Telegram |
 |---|---|---|
-| 连接 | 长连接 WebSocket，使用 Lark 私有 protobuf 帧（`pbbp2`，在 `lark-proto.ts` 手写） | HTTP 回调服务器（`WECHAT_PORT`，默认 8080；路径 `WECHAT_PATH`，默认 `/wechat`）；需要公网地址 |
-| 允许名单 | `LARK_ALLOW`：open_id（`ou_…`） | `WECHAT_ALLOW`：OpenID |
-| 消息上限 | 30000 字符 | 600 字符 |
-| 时序 | 收到的数据帧先持久化，再确认 ACK 并处理。心跳默认 120 秒（最小 10 秒），重连退避上限为 30 秒。 | 回合在 4000 ms 内完成才用被动回复，否则先回 `success`，答案随后以客服消息发出（需要 `WECHAT_APP_SECRET` 和已认证账号） |
-| 其他设置 | `LARK_APP_ID`、`LARK_APP_SECRET`、国际版用 `LARK_DOMAIN=lark`、`LARK_DISPATCHERS`、`LARK_CLAIM` | `WECHAT_TOKEN`、`WECHAT_APP_ID`、`WECHAT_AES_KEY`（43 个字符；明文、兼容、安全三种模式） |
+| 连接 | 长连接 WebSocket，使用 Lark 私有 protobuf 帧（`pbbp2`，在 `lark-proto.ts` 手写） | 长轮询；不需要公网地址 |
+| 允许名单 | `LARK_ALLOW`：open_id（`ou_…`） | `TELEGRAM_ALLOW`：数字用户 id |
+| 消息上限 | 30000 字符 | 平台限制 |
+| 时序 | 收到的数据帧先持久化，再确认 ACK 并处理。心跳默认 120 秒（最小 10 秒），重连退避上限为 30 秒。 | 轮询 bot API；答案走同一个 Runtime 回合 |
+| 其他设置 | `LARK_APP_ID`、`LARK_APP_SECRET`、国际版用 `LARK_DOMAIN=lark`、`LARK_DISPATCHERS`、`LARK_CLAIM` | `TELEGRAM_BOT_TOKEN`，仅从环境变量读取 |
 
 `bridge.ts`（`JeevesBridge`）承载与平台无关的部分：
 
