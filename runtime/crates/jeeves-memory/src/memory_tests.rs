@@ -682,3 +682,60 @@ async fn a_broken_preference_lookup_still_returns_search_hits() {
         .unwrap();
     assert!(text.contains("**alex**"), "{text}");
 }
+
+#[test]
+fn a_task_id_or_workspace_path_marks_a_receipt() {
+    use super::consolidation::task_receipt;
+    assert!(task_receipt("驾驶舱交付验收 task1795341409619294-1"));
+    assert!(task_receipt(
+        "cockpit-check.md was revised in `.jeeves/workspaces/2026-11-22-x/`"
+    ));
+    assert!(!task_receipt("Alex prefers the task list in the morning"));
+    assert!(!task_receipt("Ticket task42 is a placeholder name"));
+}
+
+#[tokio::test]
+async fn consolidation_keeps_task_receipts_out_of_memory() {
+    let (facts, episodes, chat) = stores().await;
+    for i in 0..6 {
+        chat.append_exchange(
+            &format!("msg{i}"),
+            &format!("reply{i}"),
+            "default",
+            "cli",
+            None,
+        )
+        .await
+        .unwrap();
+    }
+    let mock = Mock::new(vec![Mock::text(
+        r#"{"facts": [
+              {"subject": "驾驶舱交付验收 task1795341409619294-1", "content": "The user required creating the task", "kind": "project"},
+              {"subject": "cockpit-check.md", "content": "written at .jeeves/workspaces/2026-11-22-a/cockpit-check.md", "kind": "fact"},
+              {"subject": "user", "content": "prefers short replies", "kind": "feedback"}
+            ],
+            "episode": "checked a task"}"#,
+    )]);
+
+    let written = consolidate_if_due(&chat, &facts, &episodes, &mock, "small", 6)
+        .await
+        .unwrap();
+    assert_eq!(written, 1, "only the durable preference is new memory");
+    let kept: Vec<String> = facts
+        .recent(10, 0)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.subject)
+        .collect();
+    assert_eq!(kept, vec!["user".to_string()], "{kept:?}");
+    let prompt = &mock.received.lock().unwrap()[0];
+    assert!(
+        prompt
+            .system
+            .as_deref()
+            .unwrap_or("")
+            .contains("Skip task progress"),
+        "the distiller is told up front"
+    );
+}

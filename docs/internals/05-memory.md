@@ -68,7 +68,10 @@ Source: `runtime/crates/jeeves-memory/src/`.
    content over 4096, and an episode over 4096.
 4. `persist` writes the result. A fact is skipped when its `lifetime` is not `durable`, when
    `temporary_marker` matches (case-insensitive substring from a fixed Chinese/English list such as
-   "for now" or "this session"), or when suppressed. Facts go through `add_consolidated_from` (source
+   "for now" or "this session"), when `task_receipt` matches (the subject or content names a task id,
+   `task` followed by ten or more digits, or a path under `/workspaces/`; the task ledger keeps those),
+   or when suppressed. The prompt also tells the distiller to skip task progress, completed-work
+   receipts, verification runs and working-file contents. Facts go through `add_consolidated_from` (source
    `consolidation`, with source refs), states through `add_transient_from` (time-bounded, with the quoted
    observation), the episode through `add_consolidated` dated today. Each skip is a stderr line.
 5. `replaces`: an old id is retired with `Facts::supersede` only when it was among the known facts shown,

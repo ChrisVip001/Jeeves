@@ -61,7 +61,9 @@
    `facts[{subject, content, kind, replaces[]}]`、`states[{subject, content, observation}]`、`episode`。
    `Distillation::validate` 拒绝超过 128 条事实或 32 条状态、主语超过 256 字符、内容超过 4096、情景超过 4096 的结果。
 4. `persist` 写入结果。事实在 `lifetime` 不是 `durable`、`temporary_marker` 命中（固定的中英文列表做不区分大小写的子串匹配，
-   如 “for now”、“this session”）或被抑制时被跳过。事实走 `add_consolidated_from`（来源 `consolidation`，带来源引用），
+   如 “for now”、“this session”）、`task_receipt` 命中（主题或内容带任务编号，即 `task` 后跟十位以上数字，
+   或含 `/workspaces/` 下的路径；这些由任务账本保存）或被抑制时被跳过。提示词也要求提炼时跳过任务进度、
+   完成回执、验证运行和工作文件内容。事实走 `add_consolidated_from`（来源 `consolidation`，带来源引用），
    状态走 `add_transient_from`（带时限，附引用的观察），情景走 `add_consolidated`，日期为当天。每次跳过都是一行 stderr。
 5. `replaces`：仅当旧 id 在展示给模型的已知事实之中、来源为 `consolidation`、与新事实同主语且无时限时，
    才用 `Facts::supersede` 退役。退役会让其有效期在此刻结束、保留该行，并抑制其措辞。
