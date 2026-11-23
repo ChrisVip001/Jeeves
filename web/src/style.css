@@ -983,3 +983,7 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
   .work-columns > .cowork-layout { border-inline:0; }
   .work-screen { border-top:1px solid var(--line); }
 }
+
+/* The middle column names where the task stands, the same label the rail and list show. */
+.cowork-head .work-title { display:flex; align-items:baseline; gap:10px; min-width:0; flex-wrap:wrap; }
+.cowork-status { font-size:12px; color:var(--text-3); }

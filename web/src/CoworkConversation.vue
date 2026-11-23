@@ -7,6 +7,7 @@ import { interact } from "./api";
 import { workspaceActions } from "./controls";
 import { t } from "./i18n";
 import { webTasks } from "./tasks";
+import { workStatus } from "./work-status";
 import { submissionTracker } from "./ui/submission";
 import TaskDelivery from "./TaskDelivery.vue";
 import TaskFileReview from "./TaskFileReview.vue";
@@ -79,7 +80,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
   <div class="cowork-layout" :class="{ 'with-file-review': reviewFile }">
   <section class="cowork-detail" :aria-label="task.title" :data-task-id="task.id">
     <header class="cowork-head">
-      <div class="work-title"><h2>{{ task.title }}</h2></div>
+      <div class="work-title"><h2>{{ task.title }}</h2><small class="cowork-status">{{ workStatus(webTasks, task) }}</small></div>
       <button id="cowork-details" type="button" class="icon-action" :aria-label="t('任务详情')" :title="t('任务详情')" @click="emit('details')"><Ellipsis :size="21" /></button>
     </header>
     <div class="cowork-thread">
