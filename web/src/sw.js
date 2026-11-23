@@ -13,7 +13,7 @@ const scope = self.registration.scope;
 const cachePrefix = `jeeves:${scope}:`;
 // copy-assets stamps the same entry as index.html so a first install can boot offline.
 const ENTRY = "./main.js";
-const VERSION = `${cachePrefix}v55:${ENTRY}`;
+const VERSION = `${cachePrefix}v56:${ENTRY}`;
 const CORE = [ENTRY, "./", "./index.html", "./style.css", "./icon.svg", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

@@ -69,7 +69,7 @@ async function send() {
       }
     }
     feedback.value=t("未收到任务回执，可重试这条补充。");
-  } catch(error) { feedback.value=String(error); }
+  } catch(error) { feedback.value = error instanceof Error ? error.message : String(error); }
   finally { sending.value=false; }
 }
 watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed, props.task.runCount, revision.value],
