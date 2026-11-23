@@ -33,8 +33,10 @@ Equivalent to, in order: `fmt-check` → `check-app-server-schema` → `check-do
 4. **Tool errors are text, not exceptions**: `ToolRegistry::execute` never
    returns Err.
 5. **Fail-open paths need pinned tests**: cover lookup failures and timeouts alongside successful local memory retrieval.
-6. **No heavy new dependencies**: check the workspace for an equivalent first
-   (URL codecs, hashing, and similar small utilities already exist here).
+6. **New dependencies are allowed when justified**: add one when it meets the
+   task better than hand-rolled code or the standard library. Check the workspace
+   for an equivalent first (URL codecs, hashing, and similar small utilities
+   already exist here), keep it scoped, and say which requirement it serves.
 
 ## Commits
 
