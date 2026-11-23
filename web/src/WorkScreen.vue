@@ -53,7 +53,7 @@ function label(status: string) {
       <p class="work-screen-url" :title="row.url"><Globe :size="14" aria-hidden="true" />{{ row.title || row.url }}</p>
       <figure v-if="frame" class="work-screen-frame">
         <img :src="frame.dataUrl" :alt="t('浏览器当前画面')" />
-        <figcaption>{{ new Date(frame.observedAt).toLocaleTimeString() }}</figcaption>
+        <figcaption>{{ t("画面更新于 {time}", { time: new Date(frame.observedAt).toLocaleTimeString() }) }}</figcaption>
       </figure>
       <p v-else class="work-screen-empty">{{ t("正在取得画面…") }}</p>
       <div class="work-screen-actions">
