@@ -12,6 +12,16 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+/// The last message as the person typed it: the live ask carries a `[Sent …]` line first.
+fn asked(r: &CreateRequest) -> String {
+    let text = r.messages.last().map_or_default(|m| m.text());
+    match text.strip_prefix("[Sent ") {
+        Some(rest) => rest
+            .split_once('\n')
+            .map_or(text.clone(), |(_, ask)| ask.to_string()),
+        None => text,
+    }
+}
 type Reply<'a> = Pin<Box<dyn Future<Output = Result<CreateResponse, ProviderError>> + Send + 'a>>;
 #[derive(Default)]
 struct Model {
@@ -28,13 +38,13 @@ impl Provider for Model {
                     .any(|b| matches!(b, jeeves_provider::ContentBlock::ToolResult { .. }))
             });
             if !has_result {
-                let message = r.messages.last().map_or_default(|m| m.text());
+                let message = asked(&r);
                 if let Some(response) = deliverables::reply(is_main, &message) {
                     return Ok(response);
                 }
             }
             if is_main && !has_result {
-                let message = r.messages.last().map_or_default(|m| m.text());
+                let message = asked(&r);
                 if message == lookup::QUERY {
                     return Ok(jeeves_provider::mock::Mock::tool_use(
                         "list",
@@ -99,7 +109,7 @@ impl Provider for Model {
             }) {
                 return Ok(jeeves_provider::mock::Mock::text("文件已生成。"));
             }
-            let text = r.messages.last().map_or_default(|m| m.text());
+            let text = asked(&r);
             if text.contains("生成alpha") || text.contains("生成beta") || text.contains("补充alpha")
             {
                 return Ok(jeeves_provider::mock::Mock::tool_use(

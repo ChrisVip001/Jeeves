@@ -11,3 +11,4 @@
 {"id":"prompt-shape/full-soul-when-asked","description":"full：保留原来那份长脚手架（本地小模型仍需手把手）","message":"你好","settings":{"soul_mode":"full"},"responses":[{"text":"你好。"}],"expect":{"last_prompt_contains":["补充说明"]}}
 
 {"id":"prompt-shape/skill-catalog-rides-but-not-the-body","description":"技能目录常驻提示（名字 + 说明），正文只有被选中时才进请求","message":"你好","files":{"skills/demo-skill/SKILL.md":"---\nname: demo-skill\ndescription: 一段不相干的演示流程\ndependencies: none\n---\n这段正文只在被选中时才该出现。\n"},"responses":[{"text":"你好。"}],"expect":{"last_prompt_contains":["Skills (catalog only","- demo-skill — 一段不相干的演示流程"],"last_prompt_not_contains":["这段正文只在被选中时才该出现。"]}}
+{"id":"the-live-ask-carries-the-minute-it-was-sent","description":"the user message the model sees starts with a [Sent YYYY-MM-DD HH:MM …] line so relative times can be worked out","message":"remind me in two hours","responses":[{"text":"Noted."}],"expect":{"last_prompt_contains":["[Sent ","remind me in two hours"],"reply_contains":["Noted"]}}

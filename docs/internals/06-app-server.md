@@ -125,7 +125,7 @@ tail   = clock (day granularity) · capability gaps · capability-use note · to
          (then, appended by full_turn: unresolved-operation note, session permission note)
 ```
 
-- Nothing that changes per turn goes in `stable`; the clock is day-granular so the prefix does not break hourly.
+- Nothing that changes per turn goes in `stable`; the clock is day-granular so the prefix does not break hourly. The minute rides on the live ask instead: a fresh turn's user message starts with `[Sent YYYY-MM-DD HH:MM (Weekday), UTC±hh:mm]` (`prompt::sent_stamp`), so "in two hours" and `run_at` can be worked out. Stored history keeps the bare text, and a resumed turn is not re-stamped, so earlier messages never change.
 - The capability note appears only when something is off (`JEEVES_EXEC` / `JEEVES_WRITE`, or no tools at all): without it a model cannot tell "tool absent" from "not found yet". With all switches on it is absent. Stored credential names (never values) are listed when exec is on.
 - `SOUL.md` is user-owned. `load_soul` replaces it with the current seed only when it is byte-for-byte a built-in seed (current or legacy); once edited it is never touched. `JEEVES_SOUL_MODE` (`auto`/`thin`/`full`) selects the seed; `auto` gives local providers (`ollama`, `lmstudio`) the full one.
 - The soul seeds, tail sections, planner prompt and engine error wording are written in one language; user content (replies, titles, memory pages, `AGENTS.md`, an edited `SOUL.md`) stays as written.

@@ -241,6 +241,18 @@ fn vault_note(settings: &jeeves_config::Settings) -> Option<String> {
     ))
 }
 
+/// The minute a message was sent, put in front of the live ask. The system prompt carries only
+/// the day so its cached prefix holds; "in two hours" or a `run_at` needs the minute, and it
+/// rides on the one message that is new this turn. Stored history keeps the bare text.
+pub(crate) fn sent_stamp(now: chrono::DateTime<Local>) -> String {
+    format!(
+        "[Sent {} ({}), UTC{}]",
+        now.format("%Y-%m-%d %H:%M"),
+        now.format("%A"),
+        now.format("%:z")
+    )
+}
+
 pub(crate) fn build_system(parts_in: PromptParts<'_>) -> SystemPrompt {
     let PromptParts {
         soul,

@@ -111,6 +111,14 @@ pub(crate) async fn full_turn(
     } else {
         format!("{}\n\n{}", skill_hits.hints.join("\n"), skill_hits.message)
     };
+    let prompt_message = if resume.is_some() {
+        prompt_message
+    } else {
+        format!(
+            "{}\n{prompt_message}",
+            super::prompt::sent_stamp(chrono::Local::now())
+        )
+    };
 
     let memory_context = format!(
         "{}{}{}",

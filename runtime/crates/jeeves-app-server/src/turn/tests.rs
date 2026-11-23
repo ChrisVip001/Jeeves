@@ -2053,3 +2053,18 @@ async fn an_unnamed_session_is_titled_once_after_its_first_exchange() {
         "a titled session is not asked again"
     );
 }
+
+#[test]
+fn the_live_ask_carries_the_minute_and_offset_it_was_sent() {
+    use chrono::TimeZone;
+    let at = chrono::Local
+        .with_ymd_and_hms(2026, 11, 24, 15, 7, 0)
+        .single()
+        .expect("an unambiguous local time");
+    let stamp = crate::turn::prompt::sent_stamp(at);
+    assert!(
+        stamp.starts_with("[Sent 2026-11-24 15:07 (Tuesday), UTC"),
+        "{stamp}"
+    );
+    assert!(stamp.ends_with(']'), "{stamp}");
+}

@@ -190,7 +190,7 @@ fn schedule_job() -> Tool {
             "properties": {
                 "name": {"type": "string", "description": "The job name: lowercase letters, digits, hyphens, e.g. morning-news"},
                 "cron": {"type": "string", "description": "Five-field cron: minute hour day month weekday, e.g. `0 8 * * 1-5` for 08:00 on weekdays. Leave empty when run_at is set"},
-                "run_at": {"type": "string", "description": "Run once at this local time, `YYYY-MM-DD HH:MM` (e.g. 2026-11-25 15:00); work it out from the current time in the prompt. Give this or cron, not both"},
+                "run_at": {"type": "string", "description": "Run once at this local time, `YYYY-MM-DD HH:MM` (e.g. 2026-11-25 15:00); work it out from the [Sent …] time on the user's message. Give this or cron, not both"},
                 "prompt": {"type": "string", "description": "The sentence sent to Jeeves when it fires"},
                 "delivery": {
                     "type": "string",
