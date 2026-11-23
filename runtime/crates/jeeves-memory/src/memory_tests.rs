@@ -620,3 +620,65 @@ fn the_starter_skills_are_seeded_once_and_all_parse() {
     assert!(std::fs::read_to_string(&edited).unwrap().contains("mine"));
     assert!(!home.path().join("skills/summarize-document").exists());
 }
+
+#[tokio::test]
+async fn a_stated_preference_rides_along_when_the_words_do_not_match() {
+    let (facts, episodes, _chat) = stores().await;
+    facts
+        .add("user", "prefers green tea", "user", "fact")
+        .await
+        .unwrap();
+    facts
+        .add("guess", "might like coffee", "consolidation", "user")
+        .await
+        .unwrap();
+    facts
+        .add("acme", "the Acme demo is on Friday", "user", "project")
+        .await
+        .unwrap();
+
+    let text = retrieve_context(
+        &facts,
+        &episodes,
+        "what beverage should you order for me?",
+        4,
+    )
+    .await
+    .unwrap();
+    assert!(text.contains("- **user**: prefers green tea"), "{text}");
+    assert!(
+        !text.contains("coffee"),
+        "a guess is not a stated preference: {text}"
+    );
+    assert!(
+        !text.contains("Acme"),
+        "project facts still need a match: {text}"
+    );
+
+    let text = retrieve_context(&facts, &episodes, "green tea", 4)
+        .await
+        .unwrap();
+    assert_eq!(text.matches("prefers green tea").count(), 1, "{text}");
+}
+
+#[tokio::test]
+async fn a_broken_preference_lookup_still_returns_search_hits() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let pool = jeeves_state::open(&dir.path().join("state.db"))
+        .await
+        .expect("open the store");
+    let (facts, episodes) = (Facts::new(pool.clone()), Episodes::new(pool.clone()));
+    facts
+        .add("alex", "Alex prefers morning meetings", "user", "user")
+        .await
+        .unwrap();
+    sqlx::query("DROP VIEW durable_facts")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let text = retrieve_context(&facts, &episodes, "alex", 4)
+        .await
+        .unwrap();
+    assert!(text.contains("**alex**"), "{text}");
+}

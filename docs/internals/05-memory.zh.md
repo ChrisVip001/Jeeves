@@ -40,7 +40,11 @@
 `turn/context.rs` 传入用户消息的前 300 个字符和 `retrieval_top_k`
 （`JEEVES_RETRIEVAL_TOP_K`，默认 4），带超时，续跑的回合跳过检索。
 
-- 事实：`Facts::search(query, top_k)`，渲染为 `- **subject**: content`；事实有 `valid_until` 时加上
+- 常驻偏好：`Facts::personal_preferences()` 每回合排在最前，与消息内容无关：最多六条用户亲口说的
+  （`source = user`）持久事实，类型为 `user` 或 `feedback`，或主题是 `user`。关键词检索没法把
+  “该给我点什么？”和“喜欢绿茶”联系起来。提炼出的推测和有时限的说法仍需匹配才出现。
+  查询失败只打一行 stderr，检索结果照常返回。
+- 事实：`Facts::search(query, top_k)`，跳过已列出的偏好，渲染为 `- **subject**: content`；事实有 `valid_until` 时加上
   “temporary claim, valid until ...” 后缀。
 - 情景：`Episodes::search(query, 3)`，渲染在 “Historical episode summaries” 行之下，形如 `- (date) summary`。
 - 结果为空就是空字符串，提示里不加记忆段。出错或超时同样得到空字符串。

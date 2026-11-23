@@ -43,7 +43,12 @@ Source: `runtime/crates/jeeves-memory/src/`.
 `turn/context.rs` passes the first 300 characters of the user message and `retrieval_top_k`
 (`JEEVES_RETRIEVAL_TOP_K`, default 4), under a timeout, and skips it on a resumed turn.
 
-- Facts: `Facts::search(query, top_k)`, each rendered `- **subject**: content`, with a
+- Standing preferences: `Facts::personal_preferences()` comes first on every turn, whatever the
+  message says: up to six durable facts the user stated (`source = user`) of kind `user` or
+  `feedback`, or filed under subject `user`. Keyword search cannot link "what should you order
+  for me?" to "prefers green tea". Consolidation guesses and bounded claims still need a match.
+  A lookup failure prints one stderr line and the search hits still arrive.
+- Facts: `Facts::search(query, top_k)`, skipping any preference already listed, each rendered `- **subject**: content`, with a
   "temporary claim, valid until ..." suffix when the fact has a `valid_until`.
 - Episodes: `Episodes::search(query, 3)`, rendered under a "Historical episode summaries" line as `- (date) summary`.
 - An empty result is an empty string and the prompt adds no memory section. An error or timeout also yields an empty string.

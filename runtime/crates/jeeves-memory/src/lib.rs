@@ -35,12 +35,20 @@ use jeeves_state::{Episodes, Facts};
 
 /// The memory context spliced into the system prompt. Empty string = nothing found
 /// this time; the caller then skips the "relevant memories" header.
+///
+/// The user's own standing preferences ([`Facts::personal_preferences`]) come first on every
+/// turn, whatever the message says: keyword search cannot connect "what should you order for
+/// me?" to "prefers green tea". Search hits follow, without repeating a preference.
 pub async fn retrieve_context(
     facts: &Facts,
     episodes: &Episodes,
     query: &str,
     top_k: u32,
 ) -> anyhow::Result<String> {
+    let preferences = facts.personal_preferences().await.unwrap_or_else(|e| {
+        eprintln!("(jeeves) standing preferences unavailable this turn: {e}");
+        Vec::new()
+    });
     let (found, episodes) = match (
         facts.search(query, top_k).await,
         episodes.search(query, 3).await,
@@ -57,8 +65,12 @@ pub async fn retrieve_context(
         (Err(f), Err(e)) => anyhow::bail!("fact and episode recall unavailable: {f}; {e}"),
     };
 
+    let mut seen = std::collections::HashSet::new();
     let mut lines = Vec::new();
-    for fact in &found {
+    for fact in preferences.iter().chain(&found) {
+        if !seen.insert(fact.id) {
+            continue;
+        }
         let until = match facts.validity(fact.id).await {
             Ok((_, until)) => until,
             Err(e) => {

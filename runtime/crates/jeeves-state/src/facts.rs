@@ -283,10 +283,11 @@ impl Facts {
         .map_err(Into::into)
     }
 
-    /// Bounded personal context for tool-free chat; consolidated inferences and bounded
-    /// claims need the full retrieval path rather than becoming standing preferences.
+    /// What the user said about themselves and how they want things done, newest first and
+    /// at most six: facts the user stated (never consolidation guesses) of kind `user` or
+    /// `feedback`, or filed under the subject `user`. Bounded claims are left to search.
     pub async fn personal_preferences(&self) -> Result<Vec<FactRow>> {
-        Ok(sqlx::query_as("SELECT id,subject,content,source,kind,created_at FROM durable_facts WHERE source='user' AND kind IN ('user','feedback') ORDER BY last_confirmed_at DESC,id DESC LIMIT 6")
+        Ok(sqlx::query_as("SELECT id,subject,content,source,kind,created_at FROM durable_facts WHERE source='user' AND (kind IN ('user','feedback') OR lower(trim(subject))='user') ORDER BY last_confirmed_at DESC,id DESC LIMIT 6")
             .fetch_all(&self.pool).await?)
     }
 
