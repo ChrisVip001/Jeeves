@@ -1250,7 +1250,13 @@ export function renderSchedules(
         "div",
         { class: "cap-row-head" },
         el("span", { class: "cap-name", text: job.name }),
-        el("span", { class: "tag sched-cron", text: job.cron }),
+        el("span", {
+          class: "tag sched-cron",
+          text:
+            job.runAt !== null
+              ? t("一次 {runAt}", { runAt: job.runAt })
+              : job.cron,
+        }),
         job.source === "skill"
           ? el("span", { class: "tag cap-builtin-tag", text: t("随技能") })
           : document.createDocumentFragment(),
@@ -1279,6 +1285,7 @@ export function renderSchedules(
           : null,
         t("投递 {delivery}", { delivery: job.delivery }),
         job.catchUp ? null : t("错过不补跑"),
+        job.runAt !== null ? t("跑完自动删除") : null,
       ]),
     );
     fragment.append(row);

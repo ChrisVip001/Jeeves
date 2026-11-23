@@ -648,6 +648,8 @@ export interface ScheduleJob {
   nextRun: string | null;
   /** Why `nextRun` is null, when the reason is worth saying. */
   nextRunNote: string | null;
+  /** Local `YYYY-MM-DD HH:MM` for a one-shot job (removed after it runs); null repeats on `cron`. */
+  runAt: string | null;
 }
 
 export interface SchedulesView {
@@ -669,6 +671,8 @@ export interface ScheduleSpec {
   prompt: string;
   delivery: string;
   catchUp?: boolean;
+  /** Run once at this local `YYYY-MM-DD HH:MM` instead of on `cron` (then `cron` is empty). */
+  runAt?: string;
 }
 
 export async function saveSchedule(spec: ScheduleSpec): Promise<Outcome> {

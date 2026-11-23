@@ -1565,6 +1565,22 @@ async function scheduleAddOverlay(): Promise<void> {
     placeholder: "0 8 * * 1-5",
     "aria-label": t("cron 表达式"),
   });
+  const runAt = el("input", {
+    type: "datetime-local",
+    "aria-label": t("提醒时间"),
+  });
+  runAt.hidden = true;
+  const kind = el(
+    "select",
+    { "aria-label": t("重复还是一次") },
+    el("option", { value: "cron", text: t("重复（cron）") }),
+    el("option", { value: "once", text: t("只一次") }),
+  );
+  kind.addEventListener("change", () => {
+    const once = kind.value === "once";
+    cron.hidden = once;
+    runAt.hidden = !once;
+  });
   const prompt = el("textarea", {
     class: "cap-textarea",
     rows: 4,
@@ -1590,11 +1606,17 @@ async function scheduleAddOverlay(): Promise<void> {
     type: "button",
   });
   save.addEventListener("click", () => {
+    const once = kind.value === "once";
+    if (once && runAt.value === "") {
+      runAt.focus();
+      return;
+    }
     const spec: ScheduleSpec = {
       name: name.value.trim(),
-      cron: cron.value.trim(),
+      cron: once ? "" : cron.value.trim(),
       prompt: prompt.value.trim(),
       delivery: delivery.value,
+      ...(once ? { runAt: runAt.value.replace("T", " ") } : {}),
     };
     save.disabled = true;
     void capabilityWrite(() => saveSchedule(spec), dom.schedulesBody).then(
@@ -1618,8 +1640,19 @@ async function scheduleAddOverlay(): Promise<void> {
         "cron 五段：分 时 日 月 周。`0 8 * * 1-5` 是工作日八点，`30 19 * * *` 是每天十九点半。触发时会在自己的会话里跑一轮。",
       ),
     }),
+    el("p", {
+      class: "hint",
+      text: t("选「只一次」就填一个本地时间：到点跑一轮，跑完自动删除。"),
+    }),
     el("label", { class: "cap-field" }, el("span", { text: t("名称") }), name),
-    el("label", { class: "cap-field" }, el("span", { text: t("时间") }), cron),
+    el("label", { class: "cap-field" }, el("span", { text: t("方式") }), kind),
+    el(
+      "label",
+      { class: "cap-field" },
+      el("span", { text: t("时间") }),
+      cron,
+      runAt,
+    ),
     el(
       "label",
       { class: "cap-field" },
