@@ -127,7 +127,6 @@ impl Loaded {
 /// stored with the session, and spliced into the system prompt every turn. Returns `(working memory, summary)`.
 /// `token_budget` is the approximate token count this turn **may spend on history**; `window_override`
 /// is the "force compaction after context overflow" path: it pins how many turns to keep, ignoring the budget.
-#[allow(clippy::too_many_arguments)]
 pub(super) async fn load_history(
     chat: &jeeves_state::Chat,
     resolved: &Resolved,

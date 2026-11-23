@@ -25,7 +25,7 @@ fn has_class(tag: &str, class: &str) -> bool {
     attr(tag, "class").is_some_and(|value| value.split_whitespace().any(|item| item == class))
 }
 
-fn links(page: &str) -> impl Iterator<Item = (usize, usize, &str, &str)> {
+fn links<'a>(page: &'a str) -> impl Iterator<Item = (usize, usize, &'a str, &'a str)> + 'a {
     page.match_indices("<a").filter_map(|(start, _)| {
         let tag = &page[start..];
         if !tag.as_bytes().get(2)?.is_ascii_whitespace() {

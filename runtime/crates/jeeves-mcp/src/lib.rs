@@ -138,11 +138,10 @@ impl Connection {
     /// One try on the current transport.
     async fn attempt(&self, tool: &str, args: &Value) -> Result<jeeves_tools::ToolOutput, Failure> {
         let mut transport = self.transport.lock().await;
-        match tokio::time::timeout(TIMEOUT, transport.call_tool(tool, args.clone())).await {
-            Ok(Ok(text)) => Ok(text),
-            Ok(Err(error)) => Err(Failure::Transport(error)),
-            Err(_) => Err(Failure::Timeout),
-        }
+        tokio::time::timeout(TIMEOUT, transport.call_tool(tool, args.clone()))
+            .await
+            .map_err(|_| Failure::Timeout)?
+            .map_err(Failure::Transport)
     }
 
     /// End the server-side session (HTTP `DELETE`; a no-op for stdio). Best effort.
