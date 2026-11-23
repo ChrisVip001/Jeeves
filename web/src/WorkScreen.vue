@@ -10,6 +10,7 @@ const row = computed(() => browser.value?.state.sessions.find(item => item.taskI
 const live = computed(() => !!row.value && !["closed", "needsAttention"].includes(row.value.status));
 const frame = computed(() => browser.value?.state.frames[props.task.id]);
 const busy = computed(() => !!browser.value?.state.busy[props.task.id]);
+const controlError = computed(() => browser.value?.state.errors[props.task.id]);
 
 /** How often the live screen refreshes while Jeeves is driving the browser. */
 const FRAME_MS = 3000;
@@ -62,6 +63,7 @@ function label(status: string) {
           :disabled="busy || task.status === 'cancelled'" @click="browser?.control(row, 'return')">{{ t("交还给 Jeeves") }}</button>
         <button v-if="row.status !== 'agent'" type="button" class="quiet-button" :disabled="busy" @click="pull">{{ t("刷新画面") }}</button>
       </div>
+      <p v-if="controlError" class="task-error" role="status">{{ controlError }}</p>
     </template>
     <div v-else class="work-screen-empty">
       <Monitor :size="28" aria-hidden="true" />
