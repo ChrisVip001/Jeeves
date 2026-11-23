@@ -150,6 +150,12 @@ bench: build
 judge: build
     cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ root }}/Cargo.toml --bin jeeves -- judge
 
+# research-quality: real model researches unseen sources, a separate review round is decoded,
+# and an independent judge scores the brief — each failure mode scored on its own. Needs a key;
+# recorded only, never blocks a release. Cases live in evals/research/.
+eval-research: build
+    cd {{ justfile_directory() }} && cargo run -q --manifest-path {{ root }}/Cargo.toml --bin jeeves -- research
+
 # ---- TypeScript ------------------------------------------------------------
 # Install TS-side deps (npm workspace: client, gateways and dashboard frontend in one go)
 ts-install:

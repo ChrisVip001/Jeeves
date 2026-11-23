@@ -24,7 +24,7 @@
 | `jeeves skill [list\|export\|install\|update]` | 技能（7.3） |
 | `jeeves mcp [list\|login <name>\|serve]` | MCP 客户端配置与记忆 MCP 服务（7.3） |
 | `jeeves connector [list\|feishu …]` | 人自己使用飞书连接器的入口（7.3） |
-| `jeeves eval [path]` / `eval --replay [path]` / `judge [path]` / `bench [path]` | 质量命令，见 [08-quality](08-quality.zh.md)；退出码即结论（`bench` 恒为 0） |
+| `jeeves eval [path]` / `eval --replay [path]` / `judge [path]` / `research [path]` / `bench [path]` | 质量命令，见 [08-quality](08-quality.zh.md)；退出码即结论（`research` 与 `bench` 恒为 0） |
 | `jeeves --version` / `-V` | `jeeves <version>` |
 
 其他参数输出用法并失败。在 Windows 上二进制拒绝启动（退出码 2）：执行沙箱只有 macOS 和 Linux 后端，

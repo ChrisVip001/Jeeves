@@ -17,6 +17,9 @@ pub mod jsonl;
 pub mod judge;
 pub mod replay;
 pub mod report;
+pub mod research;
+
+pub use research::run_research;
 pub mod scenario;
 
 use std::path::{Path, PathBuf};

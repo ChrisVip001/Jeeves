@@ -17,6 +17,7 @@ Locations: `runtime/crates/jeeves-eval/`, `evals/`, `scripts/`, `justfile`, `.gi
 | Replay eval | `evals/replay/*.jsonl` | recorded dialogue plus an expected event sequence, same runner | yes |
 | Long-task benchmark | `evals/long/tasks.jsonl` | same harness, asks whether autonomous task work got better | never |
 | Judge | `evals/judge/quality.jsonl` | a real model answers, a judge model scores 0-10 | never |
+| Research quality | `evals/research/quality.jsonl` | real model, unseen sources; citation / review / overall scored separately | never |
 | Smoke | `scripts/smoke*` | real processes, real stdio and HTTP | release gate runs a subset |
 | Coverage | `cargo llvm-cov` in CI | line-coverage floor of 60% | yes |
 
@@ -131,7 +132,25 @@ be the model under test; `JEEVES_JUDGE_MODEL` overrides the default. A score out
 instead of entering the average. Without an API key the whole group is skipped and the command returns
 0.
 
-## 8.6 Live Reliability Example
+## 8.6 Research Quality
+
+Entry: `jeeves research [path]` (default `evals/research`; `just eval-research`). This suite exists because
+the [November 14 study](../planning/long-task-roadmap.md) collapsed three distinct failures into one
+`comprehensiveQualityPassed: false`: five-of-six exact quotes, a review round that failed response
+decoding, and a failed overall check. Each now scores on its own, on sources the earlier study never used:
+
+- **citation** — exact-substring hits against every source passage the case names; machine-checked,
+  never the model's own claim.
+- **review** — a separate round must return a parseable JSON verdict; a transport or decoding failure
+  scores only this dimension.
+- **overall** — an independent referee scores the brief 0-10 against the case's criteria.
+
+The referee should not be the model under test; `JEEVES_JUDGE_MODEL` overrides the configured small
+model (when player and small model are the same profile, the report shows one model for both). Each
+case records its draft and review reply in `eval_report_research.json`. Without a key the group skips
+honestly; it always exits 0 and never blocks a release.
+
+## 8.7 Live Reliability Example
 
 `runtime/crates/jeeves-eval/examples/live_reliability.rs` is an explicitly invoked, budgeted run against a real
 provider. Required flags: `--home`, `--budget-cny` (above 0, at most 10) and `--out`; `--suite` picks
@@ -143,7 +162,7 @@ The [November 14 archive manifest](../../evals/archive/2026-11-14/sources.json) 
 validation report and source commit for each of the four originals. To verify their SHA-256 values in a fresh
 clone, run `(cd evals/archive/2026-11-14 && shasum -a 256 -c SHA256SUMS)` from the repository root.
 
-## 8.7 Smoke Scripts
+## 8.8 Smoke Scripts
 
 Smokes use the real `jeeves` binary, because they test the process boundary that in-process evals skip.
 
@@ -163,7 +182,7 @@ Smokes use the real `jeeves` binary, because they test the process boundary that
 
 Shared helpers are in `scripts/lib.sh`. All smokes run offline with isolated homes.
 
-## 8.8 CI and `just check`
+## 8.9 CI and `just check`
 
 `.github/workflows/ci.yml` jobs:
 
@@ -201,7 +220,7 @@ local recipes only.
 `jeeves-protocol`; `just check-app-server-schema` is the drift check. See
 [01-protocol-and-config](01-protocol-and-config.md).
 
-## 8.9 Known Gaps
+## 8.10 Known Gaps
 
 See [limitations](../limitations.md). The judge needs a real key and is not run in CI. Smokes outside
 the release gate are not run in CI.

@@ -25,7 +25,7 @@ Directories: `runtime/crates/jeeves-cli/`, `runtime/crates/jeeves-ops/`, `web/`,
 | `jeeves skill [list\|export\|install\|update]` | Skills (7.3) |
 | `jeeves mcp [list\|login <name>\|serve]` | MCP client config and the memory MCP server (7.3) |
 | `jeeves connector [list\|feishu …]` | The human's own path to the Feishu connector (7.3) |
-| `jeeves eval [path]` / `eval --replay [path]` / `judge [path]` / `bench [path]` | Quality commands, see [08-quality](08-quality.md); the exit code is the verdict (`bench` always exits 0) |
+| `jeeves eval [path]` / `eval --replay [path]` / `judge [path]` / `research [path]` / `bench [path]` | Quality commands, see [08-quality](08-quality.md); the exit code is the verdict (`research` and `bench` always exit 0) |
 | `jeeves --version` / `-V` | `jeeves <version>` |
 
 Anything else fails with the usage text. On Windows the binary refuses to start (exit code 2): the exec

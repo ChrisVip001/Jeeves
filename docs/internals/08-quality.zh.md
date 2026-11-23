@@ -15,6 +15,7 @@
 | 回放 eval | `evals/replay/*.jsonl` | 录制对话加期望事件序列，同一个 runner | 是 |
 | 长任务基准 | `evals/long/tasks.jsonl` | 同一套装置，问自主任务能力有没有变好 | 从不 |
 | Judge | `evals/judge/quality.jsonl` | 真实模型作答，裁判模型打 0-10 分 | 从不 |
+| 研究质量 | `evals/research/quality.jsonl` | 真实模型、未见过的材料；引文／审查／综合各自评分 | 从不 |
 | 冒烟 | `scripts/smoke*` | 真实进程、真实 stdio 与 HTTP | 发布闸门跑其中一部分 |
 | 覆盖率 | CI 中的 `cargo llvm-cov` | 行覆盖率下限 60% | 是 |
 
@@ -94,13 +95,23 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 入口：`jeeves judge [path]`（默认 `evals/judge`；`just judge`）。用例含 `message` 与 `judge.criteria`。从环境解析出的真实 provider 回答一轮；裁判模型按固定 rubric 打分，返回 JSON `{"score": 0-10, "reason": …}`。裁判不应是被测模型；`JEEVES_JUDGE_MODEL` 可覆盖默认值。超出 0-10 的分数使评判失败，而不是计入平均。没有 API key 时整组跳过并返回 0。
 
-## 8.6 真实可靠性示例
+## 8.6 Research 质量评测
+
+入口：`jeeves research [path]`（默认 `evals/research`；`just eval-research`）。这一层存在的原因是 [11 月 14 日研究](../planning/long-task-roadmap.md)把三种不同失败揉成了一个 `comprehensiveQualityPassed: false`：六条引文只精确命中五条、审查回合响应解码失败、综合检查失败。现在三者各算各的分，且用的是那次研究没用过的材料：
+
+- **引文**——用例点名的每段材料必须逐字命中；机器判定，不采信模型自报。
+- **审查**——独立回合必须返回可解析的 JSON verdict；传输或解码失败只扣这一维。
+- **综合**——独立裁判按用例判据给简报打 0-10 分。
+
+裁判不应是被测模型；`JEEVES_JUDGE_MODEL` 可覆盖默认小模型（若选手与小模型是同一个 profile，报告里会如实显示两者同名）。每例的草稿与审查回复都记进 `eval_report_research.json`。无 key 时整组诚实跳过；命令始终 exit 0，不拦发版。
+
+## 8.7 真实可靠性示例
 
 `runtime/crates/jeeves-eval/examples/live_reliability.rs` 是显式调用、带预算的真实 provider 运行。必需参数：`--home`、`--budget-cny`（大于 0、至多 10）与 `--out`；`--suite` 选择 `baseline`、`expanded`、`memory`、`research`、`research-guarded`、`support` 或 `research-long`。保留的输出在 `evals/results/`。`just test-research-publication` 离线验证 research 用例的发布闸门。
 
 [11 月 14 日归档清单](../../evals/archive/2026-11-14/sources.json)记录了 4 份原件各自对应的验收报告和来源提交。在干净克隆的仓库根目录运行 `(cd evals/archive/2026-11-14 && shasum -a 256 -c SHA256SUMS)` 即可复验 SHA-256。
 
-## 8.7 冒烟脚本
+## 8.8 冒烟脚本
 
 冒烟使用真实的 `jeeves` 二进制，因为它们测的是进程内 eval 绕过的进程边界。
 
@@ -120,7 +131,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 共用辅助在 `scripts/lib.sh`。所有冒烟都离线、使用隔离 home。
 
-## 8.8 CI 与 `just check`
+## 8.9 CI 与 `just check`
 
 `.github/workflows/ci.yml` 的 job：
 
@@ -152,7 +163,7 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 
 `just write-app-server-schema` 从 `jeeves-protocol` 重新生成 TypeScript 类型与 JSON Schema；`just check-app-server-schema` 是漂移检查。见 [01-protocol-and-config](01-protocol-and-config.zh.md)。
 
-## 8.9 已知缺口
+## 8.10 已知缺口
 
 见 [limitations](../limitations.zh.md)。Judge 需要真实 key，不在 CI 中运行。发布闸门之外的冒烟不在 CI 中运行。
 
