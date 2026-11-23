@@ -271,6 +271,20 @@ If you were writing a large file or command, split the work into smaller pieces.
 /// Stands in for a cut-off reply that kept no text, so the transcript stays well formed.
 const CUT_OFF_PLACEHOLDER: &str = "(This reply was cut off by the output limit.)";
 
+/// Sent once per turn after the model ended its turn with no text and no tool call (a bare
+/// thinking block, or nothing after a tool round), so the person is not left with an empty reply.
+const ANSWER_AFTER_EMPTY: &str = "(Your last reply contained no visible text and no tool call, so the user saw nothing.) \
+Reply to the user now in plain text. If tool results above already answer the request, report them; \
+if something failed or is missing, say so.";
+
+/// Replaces an empty reply's blank text in the transcript, so the nudge after it is well formed
+/// (some wires reject an empty text block outright).
+const EMPTY_PLACEHOLDER: &str = "(This reply had no visible text.)";
+
+/// What the person sees when the model stays empty after the nudge.
+const EMPTY_AFTER_NUDGE: &str = "(The model ended this turn without any text, even after being asked to answer. \
+Try sending the request again, or switch to another model.)";
+
 /// A tool-free reply can report progress when a turn exhausts its token budget.
 const WRAP_UP_TOKENS: &str = "(Budget note: this turn's token budget is spent; the tools have been put away.)\
 Answer in three sentences: what is done, where you are stuck, what you need from me next —\
@@ -487,6 +501,7 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
     let mut stalled_batches = 0;
     let mut continuations = 0u32;
     let mut continued_reply = String::new();
+    let mut empty_nudged = false;
     let stop_detail = loop {
         let iteration = iterations.saturating_add(1);
         if turn
@@ -711,13 +726,45 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         {
             continue;
         }
+        let silent = tools_allowed
+            && uses.is_empty()
+            && response.stop_reason == StopReason::EndTurn
+            && continued_reply.trim().is_empty()
+            && response.text().trim().is_empty();
+        if silent && !empty_nudged {
+            empty_nudged = true;
+            eprintln!("(jeeves) the model ended its turn with no text; asking it once to answer");
+            if let Some(last) = messages.last_mut() {
+                last.content.retain(
+                    |block| !matches!(block, ContentBlock::Text { text } if text.trim().is_empty()),
+                );
+                last.content.push(ContentBlock::Text {
+                    text: EMPTY_PLACEHOLDER.to_string(),
+                });
+            }
+            messages.push(Message {
+                role: Role::User,
+                content: vec![ContentBlock::Text {
+                    text: ANSWER_AFTER_EMPTY.to_string(),
+                }],
+            });
+            continue;
+        }
         if uses.is_empty() || !tools_allowed {
+            let reply = if silent {
+                eprintln!(
+                    "(jeeves) the model stayed empty after the nudge; ending the turn with a notice"
+                );
+                EMPTY_AFTER_NUDGE.to_string()
+            } else {
+                format!("{continued_reply}{}", response.text())
+            };
             return Ok(LoopResult {
                 stop_reason: response.stop_reason,
                 token_budget_reached: out_of_tokens,
                 stop_detail: None,
                 round_id: round_id.clone(),
-                reply: format!("{continued_reply}{}", response.text()),
+                reply,
                 tool_calls,
                 iterations: iteration,
                 usage,

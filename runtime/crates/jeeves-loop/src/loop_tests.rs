@@ -1456,3 +1456,77 @@ async fn continuation_after_the_output_limit_is_bounded() {
     assert_eq!(result.reply, "more more more ");
     assert_eq!(mock.received.lock().expect("lock").len(), 3);
 }
+
+/// A reply that only thought: no visible text, no tool call.
+fn thinking_only() -> jeeves_provider::CreateResponse {
+    jeeves_provider::CreateResponse {
+        stop_reason: StopReason::EndTurn,
+        usage: Usage::default(),
+        content: vec![ContentBlock::Thinking {
+            thinking: "the answer is in the tool result".to_string(),
+            signature: String::new(),
+        }],
+    }
+}
+
+#[tokio::test]
+async fn an_empty_reply_after_a_tool_round_is_asked_once_to_answer() {
+    let mock = Mock::new(vec![
+        Mock::tool_use(
+            "tu_1",
+            "memory",
+            json!({"action": "save", "subject": "alex", "content": "likes morning meetings"}),
+        ),
+        Mock::text(""),
+        Mock::text("Saved: alex likes morning meetings."),
+    ]);
+    let tools = handlers::build_default();
+    let result = turn(&mock, &tools, ctx().await, None).await;
+
+    assert_eq!(result.reply, "Saved: alex likes morning meetings.");
+    let received = mock.received.lock().unwrap();
+    assert_eq!(received.len(), 3, "one extra call, no more");
+    let nudge = received[2].messages.last().expect("a last message").text();
+    assert!(nudge.contains("no visible text"), "{nudge}");
+    let blank_text = received[2]
+        .messages
+        .iter()
+        .flat_map(|m| &m.content)
+        .any(|block| matches!(block, ContentBlock::Text { text } if text.trim().is_empty()));
+    assert!(
+        !blank_text,
+        "no empty text block is sent back to the provider"
+    );
+}
+
+#[tokio::test]
+async fn a_model_that_stays_empty_ends_the_turn_with_a_notice() {
+    let mock = Mock::new(vec![thinking_only(), thinking_only(), Mock::text("unused")]);
+    let tools = handlers::build_default();
+    let result = turn(&mock, &tools, ctx().await, None).await;
+
+    assert!(
+        result.reply.contains("without any text"),
+        "the person is told why nothing came back: {}",
+        result.reply
+    );
+    assert_eq!(
+        mock.received.lock().unwrap().len(),
+        2,
+        "only one nudge per turn"
+    );
+    let roles: Vec<Role> = result.messages.iter().map(|m| m.role).collect();
+    assert!(
+        roles.windows(2).all(|pair| pair[0] != pair[1]),
+        "the transcript alternates roles: {roles:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_reply_with_text_is_never_nudged() {
+    let mock = Mock::new(vec![Mock::text("done."), Mock::text("unused")]);
+    let tools = handlers::build_default();
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.reply, "done.");
+    assert_eq!(mock.received.lock().unwrap().len(), 1);
+}
