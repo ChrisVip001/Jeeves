@@ -44,6 +44,12 @@ use jeeves_provider::{CreateRequest, CreateResponse, Resolved};
 
 use scenario::{Expectations, Scenario};
 
+/// The referee for `jeeves judge` and the research benchmark: `JEEVES_JUDGE_MODEL`, else the small
+/// model, so the model under test never grades itself by default.
+pub(crate) fn judge_model(resolved: &Resolved) -> String {
+    std::env::var("JEEVES_JUDGE_MODEL").unwrap_or_else(|_| resolved.small_model.clone())
+}
+
 /// The harvest after one case runs (shared by deterministic and judge).
 #[derive(Debug, Default)]
 pub struct TurnOutput {
@@ -1017,8 +1023,7 @@ pub async fn run_judge(paths: &[PathBuf], report_home: &Path) -> Result<i32> {
     let resolved = server
         .resolved()
         .expect("resolved was just checked to exist above");
-    let judge_model =
-        std::env::var("JEEVES_JUDGE_MODEL").unwrap_or_else(|_| resolved.small_model.clone());
+    let judge_model = judge_model(&resolved);
     println!(
         "judge: player {}, judge {} ({} cases)",
         resolved.model,

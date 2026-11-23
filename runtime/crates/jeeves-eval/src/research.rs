@@ -17,7 +17,7 @@ use anyhow::Result;
 use jeeves_provider::{CreateRequest, Message, Provider, Resolved};
 use serde::Deserialize;
 
-use crate::{report, server_from_env};
+use crate::{judge_model, report, server_from_env};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResearchCase {
@@ -249,8 +249,7 @@ pub async fn run_research(paths: &[PathBuf], report_home: &Path) -> Result<i32> 
         .resolved()
         .expect("resolved was checked by server_from_env")
         .clone();
-    let judge_model =
-        std::env::var("JEEVES_JUDGE_MODEL").unwrap_or_else(|_| resolved.small_model.clone());
+    let judge_model = judge_model(&resolved);
 
     println!(
         "research-quality: player {}, reviewer/judge {} ({} cases)",
