@@ -114,6 +114,7 @@ const DICT: Record<string, string> = {
   "正在取得画面…": "Getting the screen…",
   "画面更新于 {time}": "Updated {time}",
   "接管": "Take over",
+  "继续操作": "Keep driving",
   "刷新画面": "Refresh screen",
   "这件事还没用到浏览器或你的 Mac。Jeeves 开始操作时，画面会显示在这里。": "This work hasn't used a browser or your Mac yet. When Jeeves starts, its screen shows here.",
   "步骤": "Steps",
