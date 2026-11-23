@@ -2,6 +2,7 @@
 import { renderMarkdown, stripToolFold } from "./markdown.ts";
 import { approvalOutcome } from "./task-event-text.ts";
 import { t } from "./i18n.ts";
+import { readableMinute } from "./when.ts";
 import type {
   McpRow,
   McpView,
@@ -1300,8 +1301,9 @@ export function renderSchedules(
           class: "tag sched-cron",
           text:
             job.runAt !== null
-              ? t("一次 {runAt}", { runAt: job.runAt })
+              ? t("一次 {runAt}", { runAt: readableMinute(job.runAt) })
               : job.cron,
+          title: job.runAt ?? job.cron,
         }),
         job.source === "skill"
           ? el("span", { class: "tag cap-builtin-tag", text: t("随技能") })
@@ -1319,11 +1321,11 @@ export function renderSchedules(
       el("p", { class: "cap-desc", text: job.prompt }),
       capMeta([
         job.nextRun !== null
-          ? t("下次 {nextRun}", { nextRun: job.nextRun })
+          ? t("下次 {nextRun}", { nextRun: readableMinute(job.nextRun) })
           : job.nextRunNote,
         job.lastFiredMinute !== null
           ? t("上次 {lastFiredMinute}", {
-              lastFiredMinute: job.lastFiredMinute,
+              lastFiredMinute: readableMinute(job.lastFiredMinute),
             })
           : t("还没跑过"),
         job.claimedMinute !== null
