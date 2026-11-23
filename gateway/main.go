@@ -211,6 +211,12 @@ func (g *gateway) serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !strings.EqualFold(r.Host, g.origin.Host) || (!g.local && r.TLS == nil && !(g.trustProxy && r.Header.Get("X-Forwarded-Proto") == "https")) {
+		if g.local && (r.Method == "GET" || r.Method == "HEAD") && loopbackAlias(r.Host, g.origin) {
+			target := *g.origin
+			target.Path, target.RawQuery = r.URL.Path, r.URL.RawQuery
+			http.Redirect(w, r, target.String(), http.StatusPermanentRedirect)
+			return
+		}
 		cloudkit.Error(w, 403, "use the configured gateway")
 		return
 	}
