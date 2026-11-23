@@ -36,6 +36,6 @@ pub(crate) fn lock(home: &Path, name: &str) -> io::Result<File> {
         .create(true)
         .truncate(false)
         .open(home.join(name))?;
-    fs2::FileExt::lock_exclusive(&file)?;
+    file.lock()?;
     Ok(file)
 }

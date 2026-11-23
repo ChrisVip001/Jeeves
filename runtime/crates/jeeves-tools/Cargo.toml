@@ -15,7 +15,6 @@ doctest = false
 jeeves-protocol = { workspace = true }
 anyhow = { workspace = true }
 base64 = "0.22"
-fs2.workspace = true
 chrono = { workspace = true }
 jeeves-agent = { workspace = true }
 jeeves-memory = { workspace = true }

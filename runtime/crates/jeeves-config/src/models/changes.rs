@@ -74,7 +74,7 @@ fn prepare(home: &Path, change: &Change) -> Result<(), String> {
 }
 
 fn lock_record(file: File) -> Result<Arc<File>, String> {
-    fs2::FileExt::try_lock_exclusive(&file)
+    file.try_lock()
         .map_err(|e| format!("could not lock the model change record: {e}"))?;
     Ok(Arc::new(file))
 }

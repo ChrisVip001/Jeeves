@@ -20,7 +20,7 @@ pub struct DaemonLock {
 impl Drop for DaemonLock {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
-        if let Err(error) = fs2::FileExt::unlock(&self._ownership) {
+        if let Err(error) = self._ownership.unlock() {
             eprintln!("(jeeves) runtime ownership unlock failed: {error}");
         }
     }
@@ -67,13 +67,8 @@ pub fn acquire(home: &Path) -> Result<DaemonLock, String> {
             lock_path.display()
         )
     })?;
-    if let Err(error) = fs2::FileExt::try_lock_exclusive(&ownership) {
-        let contended = fs2::lock_contended_error();
-        if error.kind() == std::io::ErrorKind::WouldBlock
-            || error
-                .raw_os_error()
-                .is_some_and(|code| Some(code) == contended.raw_os_error())
-        {
+    if let Err(error) = ownership.try_lock() {
+        if matches!(error, std::fs::TryLockError::WouldBlock) {
             let pid = std::fs::read_to_string(home.join(LOCK_FILE))
                 .ok()
                 .and_then(|text| text.trim().parse::<u32>().ok())

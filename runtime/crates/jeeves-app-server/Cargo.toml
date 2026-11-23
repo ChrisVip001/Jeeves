@@ -17,7 +17,6 @@ ring = "0.17"
 base64 = "0.22"
 reqwest = { workspace = true }
 anyhow = { workspace = true }
-fs2 = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = "=0.10.4"
 iana-time-zone = "0.1"

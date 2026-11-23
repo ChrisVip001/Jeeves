@@ -27,8 +27,6 @@ license = "MIT"
 [workspace.dependencies]
 # ---- Runtime dependencies: deliberately tiny ---------------------------------
 anyhow = "1"
-# Kernel-backed runtime ownership, compatible with the workspace Rust 1.100 minimum.
-fs2 = "0.4.3"
 thiserror = "2"
 chrono = { version = "0.4", features = ["clock"] }
 serde = { version = "1", features = ["derive"] }

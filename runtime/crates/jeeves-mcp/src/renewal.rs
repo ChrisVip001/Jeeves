@@ -21,7 +21,7 @@ impl TokenStore {
             .write(true)
             .open(self.path().with_extension("lock"))
             .map_err(|e| e.to_string())?;
-        fs2::FileExt::try_lock_exclusive(&file)
+        file.try_lock()
             .map_err(|_| "concurrent OAuth credential update".to_string())?;
         Ok(file)
     }

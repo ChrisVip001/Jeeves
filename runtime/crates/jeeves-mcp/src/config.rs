@@ -80,7 +80,7 @@ pub fn edit(
         .write(true)
         .open(home.join("mcp-config.lock"))
         .map_err(|e| e.to_string())?;
-    fs2::FileExt::lock_exclusive(&lock).map_err(|e| e.to_string())?;
+    lock.lock().map_err(|e| e.to_string())?;
     let path = home.join("mcp.json");
     let mut cfg = match std::fs::read_to_string(&path) {
         Ok(text) => Config::parse(&text)?,

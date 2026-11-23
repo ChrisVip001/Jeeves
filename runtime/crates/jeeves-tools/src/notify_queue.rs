@@ -106,7 +106,7 @@ impl Queue {
             .truncate(false)
             .write(true)
             .open(self.dir.join(".admission.lock"))?;
-        fs2::FileExt::lock_exclusive(&file)?;
+        file.lock()?;
         Ok(file)
     }
 
@@ -165,7 +165,7 @@ impl Queue {
             let Ok(file) = std::fs::File::open(&path) else {
                 continue;
             };
-            if fs2::FileExt::try_lock_exclusive(&file).is_err() {
+            if file.try_lock().is_err() {
                 continue;
             }
             let delivered = match path.with_extension("delivered").try_exists() {
