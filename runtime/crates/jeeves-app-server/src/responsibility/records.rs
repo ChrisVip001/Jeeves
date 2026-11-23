@@ -14,6 +14,7 @@ struct Conditions {
     include: Vec<String>,
     message: String,
     snapshot: Option<Snapshot>,
+    source: Option<super::fetch::Fetch>,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +54,8 @@ enum Operator {
 
 fn config(value: &Value) -> Result<Conditions> {
     let config: Conditions = serde_json::from_value(value.clone())?;
+    let sources = usize::from(config.snapshot.is_some()) + usize::from(config.source.is_some());
+    ensure!(sources <= 1, "Choose one record source");
     ensure!(
         (1..=8).contains(&config.all.len()) && config.include.len() <= 8,
         "Choose up to eight conditions and output fields"
@@ -126,6 +129,9 @@ pub(super) const ADAPTER: Adapter = Adapter {
     check_source: Some(|server, value, fields| {
         use events::Field;
         let config = config(value)?;
+        if config.source.is_some() {
+            return Ok(());
+        }
         let snapshot_fields = match &config.snapshot {
             Some(source) => {
                 ensure!(
@@ -185,7 +191,8 @@ pub(super) const ADAPTER: Adapter = Adapter {
                 }},
                 "include":{"type":"array","maxItems":8,"items":{"type":"string"}},
                 "message":{"type":"string","description":"Literal introduction. The selected include fields are added separately; do not use placeholders."},
-                "snapshot":{"type":"object","description":"Use with a timer to check the latest signed record from an enabled event source.","required":["source","eventType","maxAgeSeconds"],"additionalProperties":false,"properties":{"source":{"type":"string"},"eventType":{"type":"string"},"maxAgeSeconds":{"type":"integer","minimum":60,"maximum":86400}}}
+                "snapshot":{"type":"object","description":"Use with a timer to check the latest signed record from an enabled event source.","required":["source","eventType","maxAgeSeconds"],"additionalProperties":false,"properties":{"source":{"type":"string"},"eventType":{"type":"string"},"maxAgeSeconds":{"type":"integer","minimum":60,"maximum":86400}}},
+                "source":{"type":"object","description":"Fetch a structured record from an approved read-only tool before checking conditions.","required":["tool","args"],"additionalProperties":false,"properties":{"tool":{"type":"string"},"args":{"type":"object"}}}
             }
         })
     },
@@ -197,6 +204,9 @@ pub(super) const ADAPTER: Adapter = Adapter {
                 "Latest {} / {} within {} seconds",
                 source.source, source.event_type, source.max_age_seconds
             ));
+        }
+        if let Some(source) = config.source {
+            details.push(format!("Read {} {}", source.tool, source.args));
         }
         for filter in config.all {
             let operation = match filter.op {
@@ -213,11 +223,20 @@ pub(super) const ADAPTER: Adapter = Adapter {
         }
         Ok(details)
     },
-    preflight: |_, _| Ok(()),
+    preflight: |server, value| {
+        if let Some(source) = config(value)?.source {
+            super::fetch::validate(server, &source)?;
+        }
+        Ok(())
+    },
     run: |input, value| {
         Box::pin(async move {
             let config = config(value)?;
-            let (record, reference) = if let Some(source) = config.snapshot {
+            let fetched = config.source.is_some();
+            let (record, reference) = if let Some(source) = config.source {
+                let record = super::fetch::read(input.server, input.wake_key, &source).await?;
+                (serde_json::to_string(&record)?, format!("{} {}", source.tool, source.args))
+            } else if let Some(source) = config.snapshot {
                 let (record, event_id) = events::latest(
                     input.server,
                     &source.source,
@@ -249,7 +268,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
             if checks.contains(&false) {
                 return Ok(Output {
                     body: None,
-                    tools_used: 0,
+                    tools_used: i32::from(fetched),
                 });
             }
             let mut body = config.message;
@@ -270,7 +289,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
             }
             Ok(Output {
                 body: Some(body),
-                tools_used: 0,
+                tools_used: i32::from(fetched),
             })
         })
     },

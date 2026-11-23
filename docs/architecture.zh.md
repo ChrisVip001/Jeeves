@@ -72,15 +72,16 @@ Cargo、Go 和 npm 的工作区或模块配置都在仓库根目录。
 | [runtime/crates/](../runtime/crates) | Rust 执行引擎、持久状态、私网 HTTP API、CLI 和评测运行器。 |
 | [protocol/](../protocol) | Rust 协议类型、入库的 JSON Schema 和 TypeScript 绑定，以及共用的 TS 事件传输辅助代码。 |
 | [web/](../web) · [desktop/](../desktop) | 浏览器与 iOS PWA 工作台，以及 Tauri Mac 设备客户端和源码开发外壳。 |
-| [integrations/channels/](../integrations/channels) | 飞书、Telegram、微信适配器及 `runtime-client/` 下的 Node Runtime 客户端。 |
+| [integrations/channels/](../integrations/channels) | 飞书、Telegram 适配器及 `runtime-client/` 下的 Node Runtime 客户端。 |
 | [executors/browser/](../executors/browser) | 由 Runtime 启动和管理的任务浏览器执行器。 |
 
 `runtime/crates/jeeves-app-server` 内的 `server/` 放共享服务状态（`runtime.rs` 启动与恢复、`tools.rs` 工具
 装配、`controls.rs` 审批/容量/活动 turn 控制、`settings.rs` 配置读取）；`dispatch.rs` 与
 `stdio.rs` 路由 JSON-RPC 方法；`turn/` 是一个 turn（入口、执行、收尾、历史、提示词
 装配、操作核对）；`task/` 是独立任务 worker；`interaction/` 是主会话入口；`scheduler/` 触发
-定时任务；`memory_worker.rs`、`ledger_writer.rs`、`memory_center.rs` 分别是后台记忆
-worker、账本写入器和记忆中心的只读面。HTTP 处理器在 `jeeves-ops/src/api/` 下，按资源分组。
+定时任务；`responsibility/` 是持久化的周期工作引擎——审阅后的计划、触发器与动作适配器、
+事件准入和共享运行 worker；`memory_worker.rs`、`ledger_writer.rs`、`memory_center.rs` 分别是
+后台记忆 worker、账本写入器和记忆中心的只读面。HTTP 处理器在 `jeeves-ops/src/api/` 下，按资源分组。
 
 ## crate 依赖图
 

@@ -287,7 +287,16 @@ pub(super) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx
         let (selected, next) = slot(&plan.trigger, due, now, window)
             .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let recent = selected >= enabled && ms - selected <= window;
-        if claim(&server.pool, &id, revision, due, selected, next, ms, recent).await? {
+        let claim = claim::Claim {
+            id: &id,
+            revision,
+            due,
+            selected,
+            next,
+            now: ms,
+            recent,
+        };
+        if claim::admit(&server.pool, claim).await? {
             if recent {
                 eprintln!("(jeeves) responsibility {id} admitted slot {selected}");
             } else {
@@ -298,47 +307,60 @@ pub(super) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn claim(
-    pool: &SqlitePool,
-    id: &str,
-    revision: i32,
-    due: i64,
-    selected: i64,
-    next: Option<i64>,
-    now: i64,
-    recent: bool,
-) -> Result<bool, sqlx::Error> {
-    let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
-    let changed = sqlx::query(
-        "UPDATE responsibilities SET next_due_ms=?,last_slot=? WHERE id=? AND revision=?
-         AND status='active' AND expires_ms>? AND next_due_ms=?",
-    )
-    .bind(next)
-    .bind(selected.div_euclid(60_000))
-    .bind(id)
-    .bind(revision)
-    .bind(now)
-    .bind(due)
-    .execute(&mut *tx)
-    .await?
-    .rows_affected()
-        == 1;
-    if changed {
-        use jeeves_state::responsibility_runs::{admit_on, Occurrence};
-        admit_on(
-            &mut tx,
-            Occurrence {
-                id,
-                key: &format!("responsibility:{id}:time:{selected}"),
-                revision,
-                due_ms: Some(selected),
-                data: None,
-                skip: (!recent).then_some("Outside the catch-up window or paused at this slot"),
-            },
-        )
-        .await?;
+mod claim {
+    use super::*;
+    use jeeves_state::responsibility_runs::{admit_on, Occurrence};
+
+    pub(super) struct Claim<'a> {
+        pub id: &'a str,
+        pub revision: i32,
+        pub due: i64,
+        pub selected: i64,
+        pub next: Option<i64>,
+        pub now: i64,
+        pub recent: bool,
     }
-    tx.commit().await?;
-    Ok(changed)
+
+    pub(super) async fn admit(pool: &SqlitePool, claim: Claim<'_>) -> Result<bool, sqlx::Error> {
+        let Claim {
+            id,
+            revision,
+            due,
+            selected,
+            next,
+            now,
+            recent,
+        } = claim;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+        let changed = sqlx::query(
+            "UPDATE responsibilities SET next_due_ms=?,last_slot=? WHERE id=? AND revision=?
+             AND status='active' AND expires_ms>? AND next_due_ms=?",
+        )
+        .bind(next)
+        .bind(selected.div_euclid(60_000))
+        .bind(id)
+        .bind(revision)
+        .bind(now)
+        .bind(due)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected()
+            == 1;
+        if changed {
+            admit_on(
+                &mut tx,
+                Occurrence {
+                    id,
+                    key: &format!("responsibility:{id}:time:{selected}"),
+                    revision,
+                    due_ms: Some(selected),
+                    data: None,
+                    skip: (!recent).then_some("Outside the catch-up window or paused at this slot"),
+                },
+            )
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(changed)
+    }
 }

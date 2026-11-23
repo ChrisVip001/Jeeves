@@ -19,7 +19,17 @@ struct Change {
 pub(crate) fn tool(server: Server, turn: String, message: String) -> Tool {
     Tool {
         name:"recurring_work".into(),
-        description:format!("Propose an owner's recurring responsibility. Local time {}. Before creating a plan or replacing a plan element, call capabilities. Use plan for the complete trigger, action and delivery. For an old definition compose a complete plan from the capabilities. Compare the exact field values shown by the source, including media types and units. Static action messages have no placeholder interpolation. Always list before choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. Describe the pending change. Never claim activation, pausing or delivery before human confirmation. The owner reviews the card. Keep the reply brief. Paragraph layout renders exactly one paragraph per selected source, including a single paragraph when one source remains. Describe only fields on the card. Use an explicit time zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
+        description:format!("Propose an owner's recurring responsibility. Local time {}. 
+        Before creating a plan or replacing a plan element, call capabilities: it lists triggers, 
+        actions, readTools, eventSources, skills and deliveries. Use plan for the complete trigger, 
+        action and delivery. For an old definition compose a complete plan from the capabilities. 
+        To watch a source, use the fetch action or records.evaluate with a source built from readTools; 
+        never hardcode a bundled duty. Compare the exact field values shown by the source, including media
+        types and units. Static action messages have no placeholder interpolation. Always list before 
+        choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. 
+        Describe the pending change. Never claim activation, pausing or delivery before human confirmation. 
+        The owner reviews the card. Keep the reply brief. Describe only fields on the card. Use an explicit time 
+        zone and tell the person any assumed time or expiry.",Local::now().to_rfc3339()),
         input_schema:json!({"type":"object","required":["action"],"additionalProperties":false,"properties":{
             "action":{"type":"string","enum":["list","capabilities","create","amend","pause","resume"]},"id":{"type":"string","description":"Stable lowercase ASCII slug; list existing duties to find an id."},"expectedRevision":{"type":"integer"},
             "fields":{"type":"object","description":"On amendment supply changed top-level fields only. Use the capabilities catalog to select the action and delivery.","additionalProperties":false,"properties":{
@@ -246,6 +256,7 @@ fn catalog(server: &Server) -> Value {
             {"kind":"event","source":"approved source","eventType":"approved event type"}
         ],
         "actions":action::catalog(),
+        "readTools":super::fetch::catalog(server),
         "eventSources":super::events::catalog(server),
         "skills":super::model::catalog(server),
         "deliveries":deliveries

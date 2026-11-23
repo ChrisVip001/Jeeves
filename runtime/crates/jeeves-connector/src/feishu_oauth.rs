@@ -107,7 +107,7 @@ pub fn status(home: &Path) -> Option<(bool, i64)> {
 
 /// The token to send with, refreshed when it is (about to be) stale.
 ///
-/// Five minutes of slack: a token that expires mid-request is a 401 the user did not
+/// Five minutes of headroom: a token that expires mid-request is a 401 the user did not
 /// cause and cannot explain.
 pub async fn access_token(config: &FeishuConfig, home: &Path) -> Result<String> {
     let Some(token) = load(home) else {

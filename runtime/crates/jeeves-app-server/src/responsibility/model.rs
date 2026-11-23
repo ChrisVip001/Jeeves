@@ -25,14 +25,6 @@ struct Snapshot {
     body: String,
 }
 
-fn sha256(body: &str) -> String {
-    ring::digest::digest(&ring::digest::SHA256, body.as_bytes())
-        .as_ref()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 fn config(value: &Value) -> Result<Config> {
     let config: Config = serde_json::from_value(value.clone())?;
     ensure!(
@@ -46,7 +38,7 @@ fn config(value: &Value) -> Result<Config> {
             .as_ref()
             .context("Review the skill before activation")?;
         ensure!(
-            snapshot.body.len() <= 3500 && sha256(&snapshot.body) == snapshot.sha256,
+            snapshot.body.len() <= 3500 && super::sha256_hex(&snapshot.body) == snapshot.sha256,
             "Invalid reviewed skill version"
         );
     } else {
@@ -100,7 +92,7 @@ pub(super) fn pin(
             "Choose a skill of at most 3500 bytes"
         );
         Some(Snapshot {
-            sha256: sha256(&body),
+            sha256: super::sha256_hex(&body),
             body,
         })
     } else {

@@ -14,7 +14,7 @@ use jeeves_provider::{ContentBlock, Message, Resolved, Role};
 /// Turns force-kept on overflow retry: keep the newest two turns verbatim, fold the rest into the summary.
 pub(super) const FORCED_RETRY_TURNS: usize = 2;
 
-/// Reserve for the summary section: the summary model's cap (700 tokens) + section header and slack.
+/// Reserve for the summary section: the summary model's cap (700 tokens) + section header and headroom.
 /// The summary is generated inside load_history; at budget time it does not exist yet, so it must be set aside up front.
 pub(super) const SUMMARY_RESERVE_TOKENS: usize = 800;
 

@@ -250,6 +250,64 @@ async fn scheduled_records_check_the_latest_signed_observation() {
 }
 
 #[test]
+fn the_catalog_exposes_fetch_and_read_tools_without_hardcoded_sources() {
+    let catalog = super::action::catalog();
+    let kinds: Vec<&str> = catalog
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["kind"].as_str().unwrap())
+        .collect();
+    assert!(kinds.contains(&"fetch"), "generic fetch must be available");
+    assert!(
+        !kinds.contains(&"morningBriefing") && !kinds.contains(&"productQuote"),
+        "bundled duties must stay out of the action catalog"
+    );
+}
+
+#[test]
+fn digest_accepts_generic_fetch_sources_alongside_named_ones() {
+    let config = json!({
+        "sources":[
+            {"label":"Recent mail","tool":"email_read","args":{"limit":5}}
+        ],
+        "options":{"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"list"}
+    });
+    let adapter = super::action::find(&jeeves_protocol::ResponsibilityAction {
+        kind: "digest".into(),
+        version: 1,
+        config: config.clone(),
+    })
+    .unwrap();
+    let details = (adapter.describe)(&config).unwrap();
+    assert!(details.iter().any(|line| line.contains("Recent mail")));
+}
+
+#[test]
+fn records_accept_a_generic_fetch_source_as_its_record() {
+    let with_source = json!({
+        "all":[{"field":"price","op":"lt","value":100}],
+        "include":["price"],
+        "message":"Below target",
+        "source":{"tool":"web_search","args":{"query":"price"}}
+    });
+    let details = (super::records::ADAPTER.describe)(&with_source).unwrap();
+    assert!(details.iter().any(|line| line.contains("web_search")));
+
+    let both_sources = json!({
+        "all":[{"field":"price","op":"lt","value":100}],
+        "include":["price"],
+        "message":"Below target",
+        "source":{"tool":"web_search","args":{"query":"price"}},
+        "snapshot":{"source":"inbox","eventType":"received","maxAgeSeconds":3600}
+    });
+    assert!(
+        (super::records::ADAPTER.describe)(&both_sources).is_err(),
+        "mutually exclusive sources must be rejected"
+    );
+}
+
+#[test]
 fn a_cron_slot_is_on_the_minute_regardless_of_approval_time() {
     let approved: DateTime<Utc> = "2030-08-06T00:17:34.567Z".parse().unwrap();
     let expected: DateTime<Utc> = "2030-08-06T07:00:00Z".parse().unwrap();

@@ -50,7 +50,7 @@ use fire::fire;
 pub enum Delivery {
     /// Writes `<home>/outbox/` (default — scheduled output is a file read at leisure).
     Outbox,
-    /// Writes the file **and** pushes a notifier (Slack/ntfy) — off-screen too.
+    /// Writes the file **and** pushes a configured webhook notification — off-screen too.
     Notify,
     /// Logs only: high-frequency jobs (watching CI every 15 min) shouldn't spray files.
     Quiet,

@@ -10,6 +10,7 @@ use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 pub(crate) mod action;
 pub(crate) mod digest;
 pub(crate) mod events;
+mod fetch;
 mod model;
 #[cfg(test)]
 mod plans_tests;
@@ -20,6 +21,14 @@ pub(crate) mod reviews;
 mod tests;
 pub(crate) mod trigger;
 pub(crate) mod worker;
+
+fn sha256_hex(body: &str) -> String {
+    ring::digest::digest(&ring::digest::SHA256, body.as_bytes())
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
 fn invalid(message: impl ToString) -> ErrorObject {
     ErrorObject {

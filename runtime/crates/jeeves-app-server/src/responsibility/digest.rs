@@ -5,7 +5,7 @@ use chrono::{DateTime, Datelike, Days, NaiveDate, TimeZone, Utc};
 use chrono_tz::Tz;
 use jeeves_protocol::{CalendarWindow, DigestLayout, ResponsibilityDigest};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{json, Value};
 
 fn date_range(date: NaiveDate, window: CalendarWindow) -> Result<(NaiveDate, NaiveDate)> {
     let week = date.weekday().num_days_from_monday() as u64;
@@ -54,6 +54,14 @@ struct Inbox {
     messages: Vec<Mail>,
 }
 
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct Source {
+    pub(super) label: String,
+    #[serde(flatten)]
+    pub(super) fetch: super::fetch::Fetch,
+}
+
 pub(super) fn validate(sources: &[String], options: &ResponsibilityDigest) -> Result<()> {
     let _: Tz = options.time_zone.parse()?;
     let mut seen = std::collections::HashSet::new();
@@ -65,6 +73,18 @@ pub(super) fn validate(sources: &[String], options: &ResponsibilityDigest) -> Re
             }),
         "Select distinct digest sources"
     );
+    Ok(())
+}
+
+pub(super) fn validate_generic(sources: &[Source], options: &ResponsibilityDigest) -> Result<()> {
+    let _: Tz = options.time_zone.parse()?;
+    ensure!((1..=8).contains(&sources.len()), "Choose one to eight sources");
+    for source in sources {
+        ensure!(
+            !source.label.trim().is_empty() && source.label.len() <= 96,
+            "Each source needs a short label"
+        );
+    }
     Ok(())
 }
 
@@ -84,6 +104,13 @@ pub(super) fn preflight(server: &Server, sources: &[String]) -> Result<()> {
             tools.effect(name).is_read(),
             "Source {source} is unavailable"
         );
+    }
+    Ok(())
+}
+
+pub(super) fn preflight_generic(server: &Server, sources: &[Source]) -> Result<()> {
+    for source in sources {
+        super::fetch::validate(server, &source.fetch)?;
     }
     Ok(())
 }
@@ -184,6 +211,54 @@ pub(crate) async fn render(
         });
     }
     Ok(sections.join("\n\n"))
+}
+
+pub(super) async fn render_generic(
+    server: &Server,
+    options: &ResponsibilityDigest,
+    sources: &[Source],
+    wake_key: &str,
+) -> Result<String> {
+    let mut sections = Vec::new();
+    for source in sources {
+        let record = super::fetch::read(server, wake_key, &source.fetch).await?;
+        let items = record_items(&record);
+        let items = if items.is_empty() {
+            vec!["无匹配记录 / No matches".into()]
+        } else {
+            items
+        };
+        sections.push(match options.layout {
+            DigestLayout::Paragraphs => format!("{} — {}", source.label, items.join(" · ")),
+            DigestLayout::List => format!("{}\n- {}", source.label, items.join("\n- ")),
+        });
+    }
+    Ok(sections.join("\n\n"))
+}
+
+fn record_items(record: &Value) -> Vec<String> {
+    let render = |v: &Value| match v {
+        Value::String(s) => plain(s, 160),
+        _ => plain(&v.to_string(), 160),
+    };
+    let arrays: Vec<&Vec<Value>> = record
+        .as_object()
+        .into_iter()
+        .flat_map(|map| map.values())
+        .filter_map(Value::as_array)
+        .take(1)
+        .collect();
+    if let Some(items) = arrays.first() {
+        return items.iter().take(30).map(render).collect();
+    }
+    if let Some(map) = record.as_object() {
+        return map
+            .iter()
+            .take(30)
+            .map(|(k, v)| format!("{k}: {}", render(v)))
+            .collect();
+    }
+    vec![render(record)]
 }
 
 pub(crate) fn plain(text: &str, max: usize) -> String {

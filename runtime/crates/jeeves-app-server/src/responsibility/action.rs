@@ -48,9 +48,16 @@ struct Reminder {
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+enum DigestSources {
+    Named(Vec<String>),
+    Generic(Vec<super::digest::Source>),
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Digest {
-    sources: Vec<String>,
+    sources: DigestSources,
     options: ResponsibilityDigest,
 }
 
@@ -94,37 +101,55 @@ const DIGEST: Adapter = Adapter {
     check_source: None,
     schema: || {
         json!({"type":"object","required":["sources","options"],"properties":{
-        "sources":{"type":"array","items":{"enum":["calendar","openTasks","unreadMail"]}},
+        "sources":{"type":"array","minItems":1,"maxItems":8,"items":{"anyOf":[
+          {"enum":["calendar","openTasks","unreadMail"]},
+          {"type":"object","required":["label","tool","args"],"additionalProperties":false,"properties":{"label":{"type":"string"},"tool":{"type":"string"},"args":{"type":"object"}}}
+        ]}},
         "options":{"type":"object","required":["timeZone","calendarWindow","layout"],"additionalProperties":false,
           "properties":{"timeZone":{"type":"string"},"calendarWindow":{"enum":["today","tomorrow","thisWeek","nextWeek"]},"layout":{"enum":["paragraphs","list"]}}}
     },"additionalProperties":false})
     },
     describe: |value| {
         let config: Digest = decode(value)?;
-        digest::validate(&config.sources, &config.options)?;
-        Ok(vec![
-            config.sources.join(", "),
-            format!("{:?}", config.options.calendar_window),
-        ])
+        let labels = match &config.sources {
+            DigestSources::Named(s) => {
+                digest::validate(s, &config.options)?;
+                s.clone()
+            }
+            DigestSources::Generic(s) => {
+                digest::validate_generic(s, &config.options)?;
+                s.iter().map(|source| source.label.clone()).collect()
+            }
+        };
+        Ok(vec![labels.join(", "), format!("{:?}", config.options.calendar_window)])
     },
-    preflight: |server, value| digest::preflight(server, &decode::<Digest>(value)?.sources),
+    preflight: |server, value| {
+        let config: Digest = decode(value)?;
+        match &config.sources {
+            DigestSources::Named(s) => digest::preflight(server, s),
+            DigestSources::Generic(s) => digest::preflight_generic(server, s),
+        }
+    },
     run: |input, value| {
         Box::pin(async move {
             let config: Digest = decode(value)?;
-            ensure!(
-                input
-                    .budget
-                    .tools
-                    .is_none_or(|n| n as usize >= config.sources.len()),
-                "Tool budget does not cover the sources"
-            );
-            Ok(Output {
-                body: Some(
-                    digest::render(input.server, &config.options, &config.sources, input.at)
-                        .await?,
-                ),
-                tools_used: config.sources.len() as i32,
-            })
+            let (count, body) = match &config.sources {
+                DigestSources::Named(sources) => {
+                    ensure!(
+                        input.budget.tools.is_none_or(|n| n as usize >= sources.len()),
+                        "Tool budget does not cover the sources"
+                    );
+                    (sources.len(), digest::render(input.server, &config.options, sources, input.at).await?)
+                }
+                DigestSources::Generic(sources) => {
+                    ensure!(
+                        input.budget.tools.is_none_or(|n| n as usize >= sources.len()),
+                        "Tool budget does not cover the sources"
+                    );
+                    (sources.len(), digest::render_generic(input.server, &config.options, sources, input.wake_key).await?)
+                }
+            };
+            Ok(Output { body: Some(body), tools_used: count as i32 })
         })
     },
 };
@@ -133,6 +158,7 @@ fn adapters() -> &'static [Adapter] {
     &[
         REMINDER,
         DIGEST,
+        super::fetch::ADAPTER,
         super::model::ADAPTER,
         super::research::ADAPTER,
         super::records::ADAPTER,

@@ -84,7 +84,7 @@ Cargo, Go and npm use their workspace or module manifests at the repository root
 | [runtime/crates/](../runtime/crates) | Rust execution engine, persistent state, private HTTP API, CLI and eval runner. |
 | [protocol/](../protocol) | Rust wire types, checked-in JSON Schema and TypeScript bindings, plus shared TypeScript event transport helpers. |
 | [web/](../web) · [desktop/](../desktop) | Browser and iOS PWA workbench, plus the Tauri Mac device app and source-development shell. |
-| [integrations/channels/](../integrations/channels) | Feishu, Telegram and WeChat adapters and their Node Runtime client in `runtime-client/`. |
+| [integrations/channels/](../integrations/channels) | Feishu and Telegram adapters and their Node Runtime client in `runtime-client/`. |
 | [executors/browser/](../executors/browser) | Task browser worker launched and supervised by the Runtime. |
 
 Inside `runtime/crates/jeeves-app-server`, `server/` holds shared server state (`runtime.rs` boot and recovery,
@@ -92,9 +92,11 @@ Inside `runtime/crates/jeeves-app-server`, `server/` holds shared server state (
 `settings.rs` configuration access); `dispatch.rs` and `stdio.rs` route JSON-RPC methods;
 `turn/` is one turn (entry, execution, finalization, history, prompt assembly,
 operation review); `task/` is the independent-task worker; `interaction/` is the main
-conversation entry; `scheduler/` fires jobs; `memory_worker.rs`, `ledger_writer.rs` and
-`memory_center.rs` are the background memory worker, the ledger writer and the memory-center
-read surface. HTTP handlers live under `jeeves-ops/src/api/`, grouped by resource.
+conversation entry; `scheduler/` fires jobs; `responsibility/` is the durable recurring-work
+engine — reviewed plans, trigger and action adapters, event admission, and the shared run
+worker; `memory_worker.rs`, `ledger_writer.rs` and `memory_center.rs` are the background memory
+worker, the ledger writer and the memory-center read surface. HTTP handlers live under
+`jeeves-ops/src/api/`, grouped by resource.
 
 ## Crate dependency graph
 

@@ -153,14 +153,7 @@ pub(crate) async fn admit(
     if occurred > ms + 60_000 {
         return Err(invalid("Event timestamp is in the future"));
     }
-    let fingerprint: String = ring::digest::digest(
-        &ring::digest::SHA256,
-        format!("{occurred}:{body}").as_bytes(),
-    )
-    .as_ref()
-    .iter()
-    .map(|byte| format!("{byte:02x}"))
-    .collect();
+    let fingerprint = super::sha256_hex(&format!("{occurred}:{body}"));
     let mut tx = server
         .pool
         .begin_with("BEGIN IMMEDIATE")
