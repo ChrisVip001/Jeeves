@@ -21,6 +21,7 @@ type kubernetes struct {
 	client                                 dynamic.Interface
 	namespace, image, modelURL, gatewayURL string
 	desktopKey                             []byte
+	provisioning                           provisioning
 }
 
 func relayToken(key []byte, id string) string { return hex.EncodeToString(cloudkit.MAC(key, id)) }
@@ -73,9 +74,7 @@ func (k kubernetes) objects(t tenant) ([]resource, error) {
 		fields["metadata"] = object{"name": name, "namespace": k.namespace, "labels": label}
 		return resource{&unstructured.Unstructured{Object: fields}, plural}
 	}
-	seed, err := json.Marshal(object{"active": "included", "profiles": []object{{
-		"id": "included", "provider": "anthropic", "base_url": k.modelURL, "key_source": "env:JEEVES_MODEL_TOKEN",
-	}}})
+	seed, err := modelsSeedJSON(k.provisioning)
 	if err != nil {
 		return nil, err
 	}

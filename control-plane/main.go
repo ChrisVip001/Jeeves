@@ -118,7 +118,11 @@ func configure(ctx context.Context) (*plane, error) {
 	if err != nil {
 		return nil, err
 	}
-	p.cluster = kubernetes{client: client, namespace: p.namespace, image: p.image, modelURL: p.modelURL, desktopKey: p.desktopKey, gatewayURL: cloudkit.Env("CP_DESKTOP_GATEWAY_URL", "http://gateway.jeeves.svc:8080")}
+	provisioning, err := loadProvisioning(p.modelURL)
+	if err != nil {
+		return nil, err
+	}
+	p.cluster = kubernetes{client: client, namespace: p.namespace, image: p.image, modelURL: p.modelURL, desktopKey: p.desktopKey, gatewayURL: cloudkit.Env("CP_DESKTOP_GATEWAY_URL", "http://gateway.jeeves.svc:8080"), provisioning: provisioning}
 	return p, nil
 }
 func (p *plane) handler() http.Handler {
