@@ -243,7 +243,7 @@ watch(
   <Teleport to="#cowork-view">
     <div v-if="state.view === 'cowork' && coworkTask" class="work-columns">
       <WorkRail :center="webTasks" :selected="coworkTask.id" @inspect="inspectActivity" @all="showActivity" />
-      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" />
+      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity" />
       <WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks">
         <DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" />
       </WorkScreen>
