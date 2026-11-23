@@ -235,7 +235,10 @@ pub(super) const ADAPTER: Adapter = Adapter {
             let fetched = config.source.is_some();
             let (record, reference) = if let Some(source) = config.source {
                 let record = super::fetch::read(input.server, input.wake_key, &source).await?;
-                (serde_json::to_string(&record)?, format!("{} {}", source.tool, source.args))
+                (
+                    serde_json::to_string(&record)?,
+                    format!("{} {}", source.tool, source.args),
+                )
             } else if let Some(source) = config.snapshot {
                 let (record, event_id) = events::latest(
                     input.server,

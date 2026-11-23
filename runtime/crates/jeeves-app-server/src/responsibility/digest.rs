@@ -78,7 +78,10 @@ pub(super) fn validate(sources: &[String], options: &ResponsibilityDigest) -> Re
 
 pub(super) fn validate_generic(sources: &[Source], options: &ResponsibilityDigest) -> Result<()> {
     let _: Tz = options.time_zone.parse()?;
-    ensure!((1..=8).contains(&sources.len()), "Choose one to eight sources");
+    ensure!(
+        (1..=8).contains(&sources.len()),
+        "Choose one to eight sources"
+    );
     for source in sources {
         ensure!(
             !source.label.trim().is_empty() && source.label.len() <= 96,

@@ -53,8 +53,14 @@ pub(super) async fn read(server: &Server, wake_key: &str, source: &Fetch) -> Res
             source.args.clone(),
         )
         .await;
-    ensure!(result.success, "Source {} failed: {}", source.tool, result.text);
-    serde_json::from_str(&result.text).with_context(|| format!("Source {} is not structured", source.tool))
+    ensure!(
+        result.success,
+        "Source {} failed: {}",
+        source.tool,
+        result.text
+    );
+    serde_json::from_str(&result.text)
+        .with_context(|| format!("Source {} is not structured", source.tool))
 }
 
 fn registry(server: &Server) -> jeeves_tools::ToolRegistry {

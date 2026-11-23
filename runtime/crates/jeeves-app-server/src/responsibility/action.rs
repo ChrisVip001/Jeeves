@@ -121,7 +121,10 @@ const DIGEST: Adapter = Adapter {
                 s.iter().map(|source| source.label.clone()).collect()
             }
         };
-        Ok(vec![labels.join(", "), format!("{:?}", config.options.calendar_window)])
+        Ok(vec![
+            labels.join(", "),
+            format!("{:?}", config.options.calendar_window),
+        ])
     },
     preflight: |server, value| {
         let config: Digest = decode(value)?;
@@ -136,20 +139,41 @@ const DIGEST: Adapter = Adapter {
             let (count, body) = match &config.sources {
                 DigestSources::Named(sources) => {
                     ensure!(
-                        input.budget.tools.is_none_or(|n| n as usize >= sources.len()),
+                        input
+                            .budget
+                            .tools
+                            .is_none_or(|n| n as usize >= sources.len()),
                         "Tool budget does not cover the sources"
                     );
-                    (sources.len(), digest::render(input.server, &config.options, sources, input.at).await?)
+                    (
+                        sources.len(),
+                        digest::render(input.server, &config.options, sources, input.at).await?,
+                    )
                 }
                 DigestSources::Generic(sources) => {
                     ensure!(
-                        input.budget.tools.is_none_or(|n| n as usize >= sources.len()),
+                        input
+                            .budget
+                            .tools
+                            .is_none_or(|n| n as usize >= sources.len()),
                         "Tool budget does not cover the sources"
                     );
-                    (sources.len(), digest::render_generic(input.server, &config.options, sources, input.wake_key).await?)
+                    (
+                        sources.len(),
+                        digest::render_generic(
+                            input.server,
+                            &config.options,
+                            sources,
+                            input.wake_key,
+                        )
+                        .await?,
+                    )
                 }
             };
-            Ok(Output { body: Some(body), tools_used: count as i32 })
+            Ok(Output {
+                body: Some(body),
+                tools_used: count as i32,
+            })
         })
     },
 };
