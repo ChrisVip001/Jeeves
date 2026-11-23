@@ -12,6 +12,7 @@ fn routes_with(entries: &[(&str, &str)]) -> RouteFile {
     let mut routes = RouteFile {
         mode: RouteMode::Auto,
         routes: HashMap::new(),
+        fallback: Vec::new(),
     };
     for (tier, id) in entries {
         routes.routes.insert(tier.to_string(), id.to_string());

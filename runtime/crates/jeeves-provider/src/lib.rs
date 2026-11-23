@@ -17,6 +17,7 @@
 pub mod anthropic;
 pub mod capabilities;
 pub mod error;
+pub mod fallback;
 pub mod mock;
 pub mod openai;
 pub mod responses;

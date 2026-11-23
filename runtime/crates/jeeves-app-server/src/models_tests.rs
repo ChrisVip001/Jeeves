@@ -408,3 +408,54 @@ async fn removing_a_profile_can_be_retried_after_credential_cleanup_fails() {
             .contains("synthetic-value")
     );
 }
+
+#[tokio::test]
+async fn fallback_targets_skip_unknown_ids_and_the_model_in_use() {
+    let (server, dir) = server().await;
+    for (id, model) in [
+        ("local", "qwen3:8b"),
+        ("same", "qwen3:8b"),
+        ("spare", "llama4"),
+    ] {
+        server
+            .model_save(save(id, "ollama", Some(model)))
+            .expect("store a keyless profile");
+    }
+    server
+        .model_routes_save(ModelRoutesSaveParams {
+            mode: "fixed".to_string(),
+            routes: Vec::new(),
+        })
+        .expect("saving the table keeps a missing fallback empty");
+    std::fs::write(
+        dir.path().join("model-routes.json"),
+        r#"{"mode":"fixed","fallback":["gone","same","spare"]}"#,
+    )
+    .expect("write the routes file");
+    let current = server
+        .resolved_profile("local")
+        .expect("resolve the primary");
+
+    let targets = server.fallback_targets(&current);
+
+    let labels: Vec<&str> = targets.iter().map(|(id, _)| id.as_str()).collect();
+    assert_eq!(
+        labels,
+        ["spare"],
+        "gone does not exist and same repeats the primary"
+    );
+    assert_eq!(targets[0].1.model, "llama4");
+
+    server
+        .model_routes_save(ModelRoutesSaveParams {
+            mode: "auto".to_string(),
+            routes: Vec::new(),
+        })
+        .expect("save the table");
+    let kept = jeeves_config::routes::load_routes(dir.path());
+    assert_eq!(
+        kept.fallback,
+        ["gone", "same", "spare"],
+        "editing tiers keeps the chain"
+    );
+}

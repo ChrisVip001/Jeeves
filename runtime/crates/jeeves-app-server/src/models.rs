@@ -488,7 +488,12 @@ impl Server {
             }
             routes.insert(tier.to_string(), id.to_string());
         }
-        let file = RouteFile { mode, routes };
+        let fallback = load_routes(&self.settings().home).fallback;
+        let file = RouteFile {
+            mode,
+            routes,
+            fallback,
+        };
         save_routes(&self.settings().home, &file)
             .map_err(|e| format!("could not write model-routes.json: {e}"))?;
         Ok(routes_view(&file))

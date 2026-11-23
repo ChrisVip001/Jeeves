@@ -50,14 +50,16 @@ pub(crate) async fn full_turn(
             data: None,
         })?;
     let owner_run = run.as_ref().map(|r| r.id.as_str());
-    let execution = super::meter::metered(
-        &server.pool,
-        resolved,
-        session_id,
-        turn_id,
-        owner_run,
-        "execution",
-    );
+    let execution = with_fallback(server, resolved, |model| {
+        super::meter::metered(
+            &server.pool,
+            model,
+            session_id,
+            turn_id,
+            owner_run,
+            "execution",
+        )
+    });
     let summary_model = super::meter::metered(
         &server.pool,
         resolved,
@@ -520,4 +522,42 @@ pub(crate) async fn full_turn(
         result,
         history: history_stats,
     })
+}
+
+/// The turn's main model wrapped in the person's fallback chain (`model-routes.json`
+/// `fallback`). `meter` wraps each target on its own, so usage lands under the provider and
+/// model that actually answered. With no backups configured this is just the metered primary.
+fn with_fallback(
+    server: &Server,
+    primary: &Resolved,
+    meter: impl Fn(&Resolved) -> Resolved,
+) -> Resolved {
+    let backups = server.fallback_targets(primary);
+    let metered = meter(primary);
+    if backups.is_empty() {
+        return metered;
+    }
+    let target = |label: String, resolved: &Resolved, client| jeeves_provider::fallback::Target {
+        label,
+        client,
+        model: resolved.model.clone(),
+        small_model: resolved.small_model.clone(),
+        vision: resolved.vision,
+        max_output_tokens: Some(server.catalog.output_ceiling(
+            &resolved.provider_id,
+            &resolved.model,
+            server.settings().max_tokens,
+        )),
+    };
+    let chain = jeeves_provider::fallback::Fallback::new(
+        target(primary.provider_id.clone(), primary, metered.client.clone()),
+        backups
+            .iter()
+            .map(|(label, resolved)| target(label.clone(), resolved, meter(resolved).client))
+            .collect(),
+    );
+    Resolved {
+        client: Arc::new(chain),
+        ..metered
+    }
 }

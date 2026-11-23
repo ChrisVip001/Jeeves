@@ -13,8 +13,9 @@
 //!   same caps — a server saying "come back in 600 seconds" must not hang a whole turn.
 //! * **Visible**: every retry emits a notice (`RetryNotice`). Never retry silently —
 //!   the user should see "rate limited, retrying", not a mysterious long pause.
-//! * **Never switching vendors**: changing providers is another decision (a fallback
-//!   chain to configure, a reason to explain); this only retries the same request once more.
+//! * **Never switching vendors**: changing providers is another decision, made by the
+//!   person's fallback chain (`fallback.rs`), which runs only after these retries give up;
+//!   this only retries the same request once more.
 //!
 //! The notice outlet is **task-local** rather than a `Provider` trait parameter: the
 //! `Provider` signature is a contract with loop, not worth touching for a notice; "this
@@ -205,6 +206,19 @@ fn note_retry(error: &ProviderError, attempt: u32, delay: Duration) {
             "(jeeves) model call failed ({}), retrying in {}ms (attempt {})",
             notice.reason, notice.delay_ms, notice.attempt
         );
+    }
+}
+
+/// Say "switching to a backup model" through the same outlet as retries: the turn's
+/// `turn/retry` notification, or stderr when no turn is listening.
+pub(crate) fn note_fallback(error: &ProviderError, attempt: u32, label: &str) {
+    let notice = RetryNotice {
+        attempt,
+        reason: format!("switching to fallback {label}: {}", reason_of(error)),
+        delay_ms: 0,
+    };
+    if NOTE_SINK.try_with(|sink| sink(notice.clone())).is_err() {
+        eprintln!("(jeeves) model call failed; {}", notice.reason);
     }
 }
 

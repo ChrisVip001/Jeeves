@@ -77,6 +77,23 @@ profile 才是说得准的那一层。等价的文件写法是在 `models.json` 
 路由对自己是透明的：真的发生了选择或回落时，`TurnMeta.routeReason`
 记下 `auto:reasoning → ds-r1` 或 `fallback: …`，驾驶舱页脚照实打印。
 
+### 备用模型
+
+同一文件里的 `"fallback": ["profile-id", …]` 按顺序列出主对话模型的备用 profile，
+`fixed` 与 `auto` 两种模式都生效。
+
+- 只有当前供应商自己的重试用完后，且错误换一家供应商可能解决时，才换到下一个 profile：
+  HTTP 429、5xx、401、402、403，网络失败，或在显示任何文字前就断开的流。上下文超限和其他
+  请求错误照旧报告。
+- 已有文字显示给用户后，本回合不再切换，否则第二个回答会接在第一个后面。
+- 每次切换都发一条 `turn/retry` 通知，原因以 `switching to fallback <id>` 开头。
+  同一回合后续调用从答复成功的 profile 开始；下一回合重新先试主 profile。
+- 带图片的请求会跳过不支持看图的备用 profile。
+- 用量记在实际答复的供应商和模型名下。
+- 只有主对话模型会回落；路由分类、摘要、记忆和屏幕调用仍用各自的模型。
+- 不存在的 id，以及与当前所用模型重复的 profile，会跳过并在 stderr 打一行。
+  保存档位表（`/route`、`model/routes/save`）会保留这个列表。
+
 ### 档位可以由任务声明
 
 `task/create` 与 `turn/start` 都接受 `tier`（`fast` / `chat` / `reasoning`）：

@@ -87,6 +87,27 @@ Routing is transparent about itself: `TurnMeta.routeReason` records
 `auto:reasoning → ds-r1` or `fallback: …` whenever a choice or a fallback
 actually happened; the dashboard footer prints it.
 
+### Fallback models
+
+`"fallback": ["profile-id", …]` in the same file lists backup profiles for the main
+conversation model, tried in order. It works in both `fixed` and `auto` mode.
+
+- A call moves to the next profile only after the current provider's own retries give up,
+  and only on errors another provider can fix: HTTP 429, 5xx, 401, 402 or 403, a network
+  failure, or a stream that broke before any text was shown. Context overflow and other
+  request errors are reported as before.
+- Once text has reached the person, the turn never switches, because a second answer would
+  print after the first.
+- Each switch sends a `turn/retry` notification whose reason starts with
+  `switching to fallback <id>`. Later calls in the same turn start at the profile that
+  answered; the next turn tries the main profile again.
+- A request with an image skips backups whose profile cannot see images.
+- Usage is recorded under the provider and model that answered.
+- Only the main conversation model falls back. Routing, summaries, memory and screen
+  calls keep their own model.
+- Unknown ids and profiles that repeat the model already in use are skipped with a line on
+  stderr. Saving the tier table (`/route`, `model/routes/save`) keeps the list.
+
 ### A task can declare its tier
 
 `task/create` and `turn/start` both accept `tier` (`fast` / `chat` / `reasoning`):

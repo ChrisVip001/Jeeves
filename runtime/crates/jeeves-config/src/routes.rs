@@ -41,6 +41,10 @@ pub struct RouteFile {
     /// reasoning=chat, fast=chat); a nonexistent id is resolved by the parser with a fallback.
     #[serde(default)]
     pub routes: HashMap<String, String>,
+    /// Profile ids to ask, in order, when the turn's model provider is down or refuses the
+    /// account (see `jeeves_provider::fallback`). Empty = no fallback; applies in both modes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallback: Vec<String>,
 }
 
 pub fn routes_path(home: &Path) -> PathBuf {
@@ -85,6 +89,7 @@ mod routes_tests {
         let mut routes = RouteFile {
             mode: RouteMode::Auto,
             routes: HashMap::new(),
+            fallback: vec!["spare".to_string()],
         };
         routes
             .routes
@@ -93,9 +98,27 @@ mod routes_tests {
 
         let back = load_routes(dir.path());
         assert_eq!(back.mode, RouteMode::Auto);
+        assert_eq!(back.fallback, ["spare"]);
         assert_eq!(
             back.routes.get("reasoning").map(String::as_str),
             Some("ds-r1")
         );
+    }
+
+    #[test]
+    fn a_file_without_fallback_loads_with_an_empty_chain() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        std::fs::write(
+            routes_path(dir.path()),
+            r#"{"mode":"auto","routes":{"chat":"ds"}}"#,
+        )
+        .expect("write");
+        let routes = load_routes(dir.path());
+        assert_eq!(
+            routes.mode,
+            RouteMode::Auto,
+            "the rest of the file still counts"
+        );
+        assert!(routes.fallback.is_empty());
     }
 }

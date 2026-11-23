@@ -185,9 +185,40 @@ impl Server {
         }
     }
 
+    /// The person's backup profiles for this turn, resolved, in the order they listed them.
+    ///
+    /// An entry that no longer resolves, or that names the model this turn already uses, is
+    /// skipped with a stderr line: a broken backup must not block the turn, and asking the same
+    /// model twice is just a slower failure.
+    pub(crate) fn fallback_targets(&self, current: &Resolved) -> Vec<(String, Resolved)> {
+        let routes = load_routes(&self.settings().home);
+        let mut seen = vec![(current.provider_id.clone(), current.model.clone())];
+        let mut targets = Vec::new();
+        for id in routes.fallback {
+            let resolved = match self.resolved_profile(&id) {
+                Ok(resolved) => resolved,
+                Err(why) => {
+                    eprintln!("(jeeves) fallback profile skipped: {why}");
+                    continue;
+                }
+            };
+            let key = (resolved.provider_id.clone(), resolved.model.clone());
+            if seen.contains(&key) {
+                eprintln!(
+                    "(jeeves) fallback profile '{id}' skipped: {} / {} is already in the chain",
+                    key.0, key.1
+                );
+                continue;
+            }
+            seen.push(key);
+            targets.push((id, resolved));
+        }
+        targets
+    }
+
     /// Resolve the concrete profile for a tier. Each profile is resolved once — the provider client
     /// holds the connection pool; rebuilding it every turn is wasteful; when a profile is edited/deleted the whole table is invalidated (see `reapply`).
-    fn resolved_profile(&self, profile_id: &str) -> Result<Resolved, String> {
+    pub(crate) fn resolved_profile(&self, profile_id: &str) -> Result<Resolved, String> {
         if let Some(hit) = self
             .route_cache
             .lock()
