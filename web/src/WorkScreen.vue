@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, watch } from "vue";
+import { computed, onMounted, onUnmounted, watch } from "vue";
 import { Globe, Monitor } from "lucide-vue-next";
 import { t } from "./i18n";
 import type { AgentTaskView } from "./protocol";
@@ -18,13 +18,24 @@ function pull() {
   if (!browser.value || !live.value || busy.value || document.visibilityState !== "visible") return;
   void browser.value.frame(props.task.id).catch((error: unknown) => console.debug("Frame refresh failed", error));
 }
-watch(() => [live.value, row.value?.status], () => {
+// Watch each value on its own: a single getter that builds an array fires on every refresh (a
+// fresh array is never Object.is-equal), and each run pulls a frame whose refresh re-runs it — a
+// flood. The multi-source form only fires when `live` or the status actually changes.
+watch([live, () => row.value?.status], () => {
   window.clearInterval(timer);
   timer = undefined;
   if (live.value && row.value?.status === "agent") timer = window.setInterval(pull, FRAME_MS);
   if (live.value) pull();
 }, { immediate: true });
-onUnmounted(() => window.clearInterval(timer));
+/** A hidden tab stops pulling frames; refresh at once on return so the screen is never a tick stale. */
+function onReturn() {
+  if (document.visibilityState === "visible") pull();
+}
+onMounted(() => document.addEventListener("visibilitychange", onReturn));
+onUnmounted(() => {
+  window.clearInterval(timer);
+  document.removeEventListener("visibilitychange", onReturn);
+});
 function label(status: string) {
   switch (status) {
     case "agent": return t("Jeeves 正在操作");
