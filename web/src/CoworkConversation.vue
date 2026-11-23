@@ -16,6 +16,15 @@ import type { AgentTaskView } from "./ui/types";
 const props=defineProps<{task:AgentTaskView}>();
 const emit=defineEmits<{details:[]}>();
 const approval = computed(() => webTasks.approvalFor(props.task));
+/** The task's acceptance conditions as a step list: passed, failing, or not measured yet. */
+const steps = computed(() => props.task.acceptance.map((condition, index) => {
+  const check = props.task.checks[index];
+  return {
+    label: check?.label || condition.label || condition.path || condition.kind,
+    state: check === undefined ? "todo" : check.passed ? "done" : props.task.status === "running" ? "doing" : "failed",
+    detail: check?.detail ?? "",
+  };
+}));
 const tracker=submissionTracker(accountStorage);
 const draftKey = accountKey("jeeves.task-draft." + props.task.id);
 const text = ref(sessionStorage.getItem(draftKey) ?? "");
@@ -74,6 +83,11 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
       <button id="cowork-details" type="button" class="icon-action" :aria-label="t('任务详情')" :title="t('任务详情')" @click="emit('details')"><Ellipsis :size="21" /></button>
     </header>
     <div class="cowork-thread">
+      <ol v-if="steps.length" class="work-steps" :aria-label="t('步骤')">
+        <li v-for="(step, index) in steps" :key="index" :class="step.state" :title="step.detail">
+          <span class="work-step-mark" aria-hidden="true">{{ step.state === "done" ? "✓" : step.state === "failed" ? "✕" : step.state === "doing" ? "◐" : "○" }}</span>{{ step.label }}
+        </li>
+      </ol>
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
         :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
