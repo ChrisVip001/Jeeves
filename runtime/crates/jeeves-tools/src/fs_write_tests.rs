@@ -5,7 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::json;
 
-use super::approval::{ApprovalBroker, ApprovalFut, ApprovalRequest, RememberTarget};
+use super::approval::{
+    ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest, RememberTarget,
+};
 use super::fs_write::{edit, render_change, write_file, WritePolicy};
 use crate::{ToolCtx, ToolRegistry};
 
@@ -63,7 +65,13 @@ impl ApprovalBroker for Fake {
     fn request(&self, request: ApprovalRequest) -> ApprovalFut {
         self.seen.lock().expect("lock").push(request);
         let answer = self.answer;
-        Box::pin(async move { answer })
+        Box::pin(async move {
+            if answer {
+                ApprovalOutcome::Approved
+            } else {
+                ApprovalOutcome::Denied
+            }
+        })
     }
 }
 
@@ -341,7 +349,7 @@ async fn on_request_mode_asks_once_per_write() {
         )
         .await;
     assert!(out.starts_with("Error:"), "{out}");
-    assert!(out.contains("not approved"), "{out}");
+    assert!(out.contains("The user denied this write"), "{out}");
     assert!(!denied_path.exists());
 }
 

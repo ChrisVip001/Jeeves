@@ -110,7 +110,7 @@ async fn run(
     }
 
     match send_with_receipt(&ctx, &config, &cache, &to, &text, None, || async { Ok(()) }).await? {
-        Delivery::Denied => bail!("This send was not approved (or nobody answered); skipped."),
+        Delivery::Denied(outcome) => bail!("{}", outcome.refusal("send")),
         Delivery::Sent {
             message_id,
             receipt,
@@ -122,7 +122,8 @@ async fn run(
 }
 
 pub enum Delivery {
-    Denied,
+    /// The approval did not come back as a yes; nothing was sent.
+    Denied(jeeves_tools::approval::ApprovalOutcome),
     Sent {
         message_id: String,
         confirmed: bool,
@@ -178,8 +179,9 @@ where
             expires_at: Some(Utc::now().timestamp() + APPROVAL_TIMEOUT_SECS),
         }),
     };
-    if !broker.request(request).await {
-        return Ok(Delivery::Denied);
+    let outcome = broker.request(request).await;
+    if !outcome.approved() {
+        return Ok(Delivery::Denied(outcome));
     }
 
     let token = match identity {

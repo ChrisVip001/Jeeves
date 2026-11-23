@@ -103,7 +103,7 @@
 `list_schedules`、`find_tools`；另有 `action` 为 search / list 的 `memory`，以及 `action` 为 output / list 的 `job`。
 MCP 工具和未知工具永远不算已证明只读。
 
-`ApprovalBroker::request` 在超时、无人应答或没有代理时返回 `false`：沉默即拒绝。请求会写明“记住这次”要记录什么（`RememberTarget`）：
+`ApprovalBroker::request` 返回 `ApprovalOutcome`，只有 `Approved` 放行。`Denied`（有人说不）、`TimedOut`（到期没人回答）和 `Withdrawn`（轮已结束、权限已变或这里没人能回答）各自给模型一句不同的拒绝说明，明确的“不”不会被当成审批通道坏了。请求会写明“记住这次”要记录什么（`RememberTarget`）：
 `run_command` 记录精确的命令行，写入工具记录目录。
 
 ## `memory` 与 `read_page`
@@ -158,7 +158,7 @@ MCP 工具和未知工具永远不算已证明只读。
    `launchctl unload`、`systemctl disable`、`rm -rf /*`、`rm -rf ~`、`rm -rf $home`、`eval $(`、`history -c`；
    另有 `pipes_into_a_shell`：`curl`/`wget` 段通过管道接到 `sh bash zsh dash python python3 perl ruby`。
 2. **白名单**（`JEEVES_EXEC_ALLOW`，最多 64 条规则）：`*` 放行一切，结尾的 `*` 为前缀匹配，其余为整条命令相等。本会话批准过的命令按精确匹配。空表什么都不放行。
-   不匹配时，`JEEVES_APPROVAL=never`（默认）拒绝并在消息中列出当前规则，`on-request` 则询问（`JEEVES_APPROVAL_TIMEOUT`，默认 120 秒）。没有代理时拒绝信息会说明没人可问；回答“否”则说明这次运行未获批准。
+   不匹配时，`JEEVES_APPROVAL=never`（默认）拒绝并在消息中列出当前规则，`on-request` 则询问（`JEEVES_APPROVAL_TIMEOUT`，默认 120 秒）。没有代理时拒绝信息会说明没人可问；回答“否”则说明是用户拒绝的，除非用户再次要求，否则不要再申请。
 3. **沙箱**：实测而非假定。macOS 需要 `/usr/bin/sandbox-exec`；Linux 需要 `bwrap` 且探测运行 `bwrap … /bin/true` 成功（装了但被 AppArmor 挡住的 `bwrap` 不算）。没有可用沙箱就拒绝运行。
 
 `pass_gate`（第 1–3 道门加审批）与 `spawn_sandboxed` 由前台和后台运行共用。

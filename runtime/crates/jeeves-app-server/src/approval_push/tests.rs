@@ -8,7 +8,7 @@ use base64::{
     Engine,
 };
 use jeeves_state::grants::PendingRow;
-use jeeves_tools::approval::ApprovalRequest;
+use jeeves_tools::approval::{ApprovalOutcome, ApprovalRequest};
 use ring::{
     agreement,
     rand::SystemRandom,
@@ -235,7 +235,7 @@ async fn paired_phone_receives_an_encrypted_task_notice_and_reviews_once() {
             .unwrap()["accepted"],
         true
     );
-    assert!(!waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::Denied);
     assert_eq!(
         rpc(&server, "approval/noticeDecision", answer)
             .await
@@ -313,7 +313,7 @@ async fn paired_phone_receives_an_encrypted_task_notice_and_reviews_once() {
         false
     );
     assert!(server.answer_approval("turn", &second.request_id, false, RememberScope::Once));
-    assert!(!waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::Denied);
     assert!(server
         .secrets
         .lock()

@@ -424,10 +424,11 @@ pub async fn pass_gate(
                 remember: Some(RememberTarget::Command(command.trim().to_string())),
                 action: None,
             };
-            if broker.request(request).await {
+            let outcome = broker.request(request).await;
+            if outcome.approved() {
                 Ok(())
             } else {
-                Err("This run was not approved (or nobody answered); skipped.".to_string())
+                Err(outcome.refusal("run"))
             }
         }
     }

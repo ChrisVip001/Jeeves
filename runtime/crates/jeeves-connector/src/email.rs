@@ -317,7 +317,7 @@ async fn approve(
             proof.expires_at.unwrap_or_default(),
             body
         );
-        if !broker
+        let outcome = broker
             .request(ApprovalRequest {
                 tool: "email_send".into(),
                 args_preview: preview,
@@ -327,9 +327,12 @@ async fn approve(
                 remember: None,
                 action: Some(proof),
             })
-            .await
-        {
-            bail!("The email send to {destination} was not approved; no message was sent");
+            .await;
+        if !outcome.approved() {
+            bail!(
+                "{} No message was sent to {destination}.",
+                outcome.refusal("email send")
+            );
         }
         approved.push(destination);
     }

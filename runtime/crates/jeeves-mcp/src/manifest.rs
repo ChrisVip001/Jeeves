@@ -148,10 +148,8 @@ pub(crate) async fn approve(
             expires_at: None,
         }),
     };
-    anyhow::ensure!(
-        broker.request(request).await,
-        "MCP operation denied: human approval was not granted"
-    );
+    let outcome = broker.request(request).await;
+    anyhow::ensure!(outcome.approved(), "{}", outcome.refusal("MCP operation"));
     Ok(())
 }
 

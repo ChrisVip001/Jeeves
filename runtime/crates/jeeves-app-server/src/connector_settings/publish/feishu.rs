@@ -59,7 +59,7 @@ async fn publish(request: Request<'_>, check: Check<'_>) -> Result<(&'static str
     )
     .await?;
     Ok(match outcome {
-        Delivery::Denied => ("denied", "No send approval was granted".into()),
+        Delivery::Denied(outcome) => ("denied", outcome.refusal("send")),
         Delivery::Sent {
             confirmed: true,
             receipt,

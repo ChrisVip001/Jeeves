@@ -4,7 +4,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use jeeves_tools::approval::{ApprovalBroker, ApprovalFut, ApprovalRequest};
+use jeeves_tools::approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest};
 use jeeves_tools::{Tool, ToolCtx};
 use serde_json::{json, Value};
 use tempfile::{tempdir, TempDir};
@@ -80,7 +80,13 @@ impl ApprovalBroker for Fake {
     fn request(&self, request: ApprovalRequest) -> ApprovalFut {
         self.seen.lock().expect("lock").push(request);
         let answer = self.answer;
-        Box::pin(async move { answer })
+        Box::pin(async move {
+            if answer {
+                ApprovalOutcome::Approved
+            } else {
+                ApprovalOutcome::Denied
+            }
+        })
     }
 }
 
@@ -248,7 +254,10 @@ async fn a_denied_approval_never_touches_the_network() {
     let error = call(&tool, ctx, json!({"to": "ou_alice", "text": "hi"}))
         .await
         .expect_err("no approval, nothing sent");
-    assert!(error.to_string().contains("not approved"), "{error}");
+    assert!(
+        error.to_string().contains("The user denied this send"),
+        "{error}"
+    );
     assert_eq!(broker.seen.lock().expect("lock").len(), 1);
     let action = broker.seen.lock().expect("lock")[0]
         .action

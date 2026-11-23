@@ -1,6 +1,6 @@
 //! The host owns authorization; tools know only this boundary.
 use crate::{
-    approval::{ApprovalBroker, ApprovalFut, ApprovalRequest},
+    approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest},
     ToolCtx,
 };
 use serde_json::Value;
@@ -26,7 +26,7 @@ pub trait ExecutionPolicy: Send + Sync {
 pub struct ApprovedInvocation;
 impl ApprovalBroker for ApprovedInvocation {
     fn request(&self, _: ApprovalRequest) -> ApprovalFut {
-        Box::pin(async { true })
+        Box::pin(async { ApprovalOutcome::Approved })
     }
 }
 

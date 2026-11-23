@@ -4,7 +4,7 @@ use jeeves_protocol::{
     codes, ErrorObject, PermissionMode, SessionPermissionResponse, SessionPermissionSetParams,
 };
 use jeeves_tools::{
-    approval::ApprovalRequest,
+    approval::{ApprovalOutcome, ApprovalRequest},
     permissions::{proven_read_call, redact, Authorization, AuthorizationFuture, ExecutionPolicy},
     ToolCtx,
 };
@@ -178,7 +178,7 @@ impl ExecutionPolicy for Policies {
                         "Action preview exceeds approval limit; use smaller arguments".into(),
                     );
                 }
-                approved = broker
+                let outcome = broker
                     .request(ApprovalRequest {
                         tool: name,
                         args_preview: preview,
@@ -188,9 +188,10 @@ impl ExecutionPolicy for Policies {
                         action: None,
                     })
                     .await;
-                if !approved {
-                    return Err("Action denied or approval expired".into());
+                if !outcome.approved() {
+                    return Err(outcome.refusal("action"));
                 }
+                approved = true;
             }
             Ok(Authorization { revision, approved })
         })
@@ -290,23 +291,25 @@ struct SessionBroker {
 impl jeeves_tools::approval::ApprovalBroker for SessionBroker {
     fn request(&self, request: ApprovalRequest) -> jeeves_tools::approval::ApprovalFut {
         match self.policies.snapshot(&self.session) {
-            Ok(Some((PermissionMode::ReadOnly, _))) | Err(_) => Box::pin(async { false }),
+            Ok(Some((PermissionMode::ReadOnly, _))) | Err(_) => {
+                Box::pin(async { ApprovalOutcome::Withdrawn })
+            }
             Ok(Some((PermissionMode::FullAccess, _))) if request.action.is_some() => {
                 match &self.interactive {
                     Some(broker) => broker.request(request),
-                    None => Box::pin(async { false }),
+                    None => Box::pin(async { ApprovalOutcome::Withdrawn }),
                 }
             }
             Ok(Some((PermissionMode::Standard, _))) => match &self.interactive {
                 Some(broker) => broker.request(request),
-                None => Box::pin(async { false }),
+                None => Box::pin(async { ApprovalOutcome::Withdrawn }),
             },
             Ok(Some((PermissionMode::FullAccess, _))) if self.legacy.is_some() => {
-                Box::pin(async { true })
+                Box::pin(async { ApprovalOutcome::Approved })
             }
             _ => match &self.legacy {
                 Some(broker) => broker.request(request),
-                None => Box::pin(async { false }),
+                None => Box::pin(async { ApprovalOutcome::Withdrawn }),
             },
         }
     }

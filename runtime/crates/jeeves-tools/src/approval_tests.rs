@@ -2,7 +2,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use super::approval::{ApprovalBroker, ApprovalFut, ApprovalRequest, RememberTarget};
+use super::approval::{
+    ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest, RememberTarget,
+};
 use super::exec::{execute, sandbox_available, vet, ExecPolicy, Gate};
 
 fn policy(allow: &[&str], approval: bool) -> ExecPolicy {
@@ -39,7 +41,13 @@ impl ApprovalBroker for Fake {
     fn request(&self, request: ApprovalRequest) -> ApprovalFut {
         self.seen.lock().expect("lock").push(request);
         let answer = self.answer;
-        Box::pin(async move { answer })
+        Box::pin(async move {
+            if answer {
+                ApprovalOutcome::Approved
+            } else {
+                ApprovalOutcome::Denied
+            }
+        })
     }
 }
 
@@ -130,7 +138,7 @@ async fn approval_decides_whether_the_command_runs() {
     )
     .await;
     assert!(output.starts_with("Error:"), "{output}");
-    assert!(output.contains("not approved"), "{output}");
+    assert!(output.contains("The user denied this run"), "{output}");
     assert!(
         !output.contains("nope"),
         "a refusal means it did not run: {output}"
@@ -193,4 +201,20 @@ async fn without_a_broker_it_refuses_and_says_why() {
         output.contains("JEEVES_APPROVAL"),
         "it has to say how a human would get to answer: {output}"
     );
+}
+
+#[test]
+fn each_refusal_tells_the_model_what_actually_happened() {
+    let denied = ApprovalOutcome::Denied.refusal("write");
+    let silent = ApprovalOutcome::TimedOut.refusal("write");
+    let withdrawn = ApprovalOutcome::Withdrawn.refusal("write");
+    assert!(denied.contains("The user denied this write"), "{denied}");
+    assert!(denied.contains("Do not ask for it again"), "{denied}");
+    assert!(silent.contains("Nobody answered"), "{silent}");
+    assert!(!silent.contains("denied"), "{silent}");
+    assert!(withdrawn.contains("ended without an answer"), "{withdrawn}");
+    assert!(!withdrawn.contains("denied"), "{withdrawn}");
+    for text in [&denied, &silent, &withdrawn] {
+        assert!(text.contains("did not happen"), "{text}");
+    }
 }

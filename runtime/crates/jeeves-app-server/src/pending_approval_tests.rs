@@ -1,6 +1,6 @@
 use crate::{EventSink, Frame, Server};
 use jeeves_protocol::{RememberScope, ServerNotification};
-use jeeves_tools::approval::{ActionGrant, ApprovalRequest};
+use jeeves_tools::approval::{ActionGrant, ApprovalOutcome, ApprovalRequest};
 use std::time::Duration;
 
 async fn setup(
@@ -54,7 +54,7 @@ async fn an_unpolled_approval_cannot_accept_an_answer_after_its_original_deadlin
     };
     tokio::time::sleep(Duration::from_millis(1100)).await;
     assert!(!server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
-    assert!(!waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::TimedOut);
 }
 
 #[tokio::test]
@@ -92,7 +92,7 @@ async fn a_new_client_recovers_only_live_owner_requests_and_cannot_answer_twice(
     assert!(restored.approvals[0].request.expires_in_ms <= ask.expires_in_ms);
     assert!(server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
     assert!(!server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
-    assert!(waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::Approved);
     assert!(crate::pending_approvals::list(&server, "owner")
         .await
         .unwrap()
@@ -122,7 +122,7 @@ async fn timed_out_or_cancelled_requests_are_not_restored_and_time_is_not_extend
         .unwrap()
         .approvals
         .is_empty());
-    assert!(!waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::TimedOut);
     let waiting = broker.request(question());
     let old = &initial.approvals[0].request;
     assert!(!server.answer_approval(&old.turn_id, &old.request_id, true, RememberScope::Once));
@@ -169,7 +169,7 @@ async fn a_policy_change_voids_the_snapshot_and_a_restart_restores_no_old_questi
         .approvals
         .is_empty());
     assert!(!server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
-    assert!(!waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::Withdrawn);
     let restarted = Server::boot(server.pool.clone(), server.settings()).await;
     assert!(crate::pending_approvals::list(&restarted, "owner")
         .await
@@ -179,7 +179,10 @@ async fn a_policy_change_voids_the_snapshot_and_a_restart_restores_no_old_questi
     assert!(!restarted.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
 }
 
-async fn ask_and_persist(server: &Server, sink: &EventSink) -> tokio::task::JoinHandle<bool> {
+async fn ask_and_persist(
+    server: &Server,
+    sink: &EventSink,
+) -> tokio::task::JoinHandle<ApprovalOutcome> {
     let broker = server.approval_bridge_forced("turn", sink).unwrap();
     let handle = tokio::spawn(broker.request(question()));
     tokio::time::sleep(Duration::from_millis(150)).await;
@@ -293,7 +296,11 @@ async fn the_resumed_turn_reuses_the_yes_given_after_the_restart_exactly_once() 
 
     let (sink2, _frames2) = EventSink::channel();
     let broker = restarted.approval_bridge_forced("turn", &sink2).unwrap();
-    assert!(broker.request(question()).await, "the stored yes is spent");
+    assert_eq!(
+        broker.request(question()).await,
+        ApprovalOutcome::Approved,
+        "the stored yes is spent"
+    );
 
     let second = restarted.approval_bridge_forced("turn", &sink2).unwrap();
     let waiting =
@@ -362,7 +369,7 @@ async fn an_approved_action_persists_a_scoped_once_grant_and_spends_it() {
         panic!("approval notification")
     };
     assert!(server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
-    assert!(waiting.await);
+    assert_eq!(waiting.await, ApprovalOutcome::Approved);
     let row: (String, String, i64) = sqlx::query_as(
         "SELECT scope, destination, revoked_version FROM action_grants WHERE destination = ?",
     )

@@ -142,7 +142,7 @@ tail   = 时钟（按天）· 能力缺口 · 能力使用说明 · todo · 记�
 
 ## 批准与权限
 
-`approval.rs` 实现 `ApprovalBroker`（工具层只认这个 trait）。一次请求在 `approvals[turn_id][request_id]` 登记一个 `oneshot`（id 为 `ap-<pid>-<微秒>-<计数>`，跨进程生命周期唯一），发送 `approvalRequested`（及可选的 notifier），然后带超时等待（`JEEVES_APPROVAL_TIMEOUT`，默认 120 秒），超时由这个代理而不是工具层负责。无论结果（批准、拒绝、因轮结束而作废、超时），都向批准审计账本写一行并移除登记；不是明确的批准一律视为拒绝。`finish_turn` 丢弃一个轮的整个桶。
+`approval.rs` 实现 `ApprovalBroker`（工具层只认这个 trait）。一次请求在 `approvals[turn_id][request_id]` 登记一个 `oneshot`（id 为 `ap-<pid>-<微秒>-<计数>`，跨进程生命周期唯一），发送 `approvalRequested`（及可选的 notifier），然后带超时等待（`JEEVES_APPROVAL_TIMEOUT`，默认 120 秒），超时由这个代理而不是工具层负责。无论结果（批准、拒绝、因轮结束而作废、超时），都向批准审计账本写一行并移除登记；不是明确的批准都不会放行，代理会返回具体是拒绝、超时还是撤回。`finish_turn` 丢弃一个轮的整个桶。
 
 `answer_approval` 对来迟或未知返回 `false`（协议里的 `accepted`）。`remember` 在答复送达之前应用，使下一次调用已经看到：`once` 什么都不记，`session` 只写进程内的活格，`always` 还通过 `apply_config_patch` 持久化（命令原样存储，从不存成通配；写入批准存目录而不是文件）。被记住的规则绕不过硬拒绝与沙箱。`approval/pending` 返回某会话名下未过期问题的实时快照，来自等待表而不是审计日志；重启后什么都不留。
 

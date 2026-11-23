@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use jeeves_protocol::{ApprovalRequestedNotification, ServerNotification};
 use jeeves_tools::approval::{
-    ActionGrant, ApprovalBroker, ApprovalFut, ApprovalRequest, RememberTarget,
+    ActionGrant, ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest, RememberTarget,
 };
 use tokio::sync::oneshot;
 
@@ -117,9 +117,14 @@ impl ApprovalBroker for Bridge {
             let grants = self.grants.clone();
             let action = request.action;
             return Box::pin(async move {
-                match action {
+                let recorded = match action {
                     Some(action) => persist_grant(&grants, action).await,
                     None => true,
+                };
+                if recorded {
+                    ApprovalOutcome::Approved
+                } else {
+                    ApprovalOutcome::Withdrawn
                 }
             });
         }
@@ -203,7 +208,7 @@ impl ApprovalBroker for Bridge {
                     {
                         waiting.remove(&request_id);
                     }
-                    return false;
+                    return ApprovalOutcome::Withdrawn;
                 }
             }
             let run = match runs.for_turn(&turn_id).await {
@@ -234,6 +239,7 @@ impl ApprovalBroker for Bridge {
                 match tokio::time::timeout(timeout.saturating_sub(started.elapsed()), rx).await {
                     Ok(Ok((true, actor))) => ("approved", actor),
                     Ok(Ok((false, actor))) => ("denied", actor),
+                    Ok(Err(_)) if started.elapsed() >= timeout => ("timeout", String::new()),
                     Ok(Err(_)) => ("voided", String::new()),
                     Err(_) => ("timeout", String::new()),
                 };
@@ -265,10 +271,17 @@ impl ApprovalBroker for Bridge {
                     eprintln!("(jeeves) approval decision event could not be recorded: {error}");
                 }
             }
-            let mut approved = outcome == "approved";
-            if approved {
+            let mut answer = match outcome {
+                "approved" => ApprovalOutcome::Approved,
+                "denied" => ApprovalOutcome::Denied,
+                "timeout" => ApprovalOutcome::TimedOut,
+                _ => ApprovalOutcome::Withdrawn,
+            };
+            if answer.approved() {
                 if let Some(action) = action {
-                    approved = persist_grant(&grants, action).await;
+                    if !persist_grant(&grants, action).await {
+                        answer = ApprovalOutcome::Withdrawn;
+                    }
                 }
             }
             let _ = grants.pending_remove(&turn_id, &request_id).await;
@@ -280,10 +293,10 @@ impl ApprovalBroker for Bridge {
                     }
                 }
             }
-            if !approved {
-                eprintln!("(jeeves) approval request {request_id} was not approved in time; treating it as a denial");
+            if !answer.approved() {
+                eprintln!("(jeeves) approval request {request_id} was not approved ({outcome}); the action did not run");
             }
-            approved
+            answer
         })
     }
 }

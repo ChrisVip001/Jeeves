@@ -109,7 +109,7 @@ Proven reads (`proven_read`): `browser_observe`, `read_file`, `glob`, `grep`, `s
 `list_schedules`, `find_tools`; plus `memory` with `action` = search / list and `job` with `action` = output / list.
 MCP and unknown tools are never proven reads.
 
-`ApprovalBroker::request` returns `false` on timeout, no answer or no broker: silence is a denial. The request names what
+`ApprovalBroker::request` returns an `ApprovalOutcome`, and only `Approved` lets the action run. `Denied` (a person said no), `TimedOut` (nobody answered in time) and `Withdrawn` (the turn ended, permissions changed or nobody can answer here) each give the model its own refusal text, so a plain no is not mistaken for a broken approval channel. The request names what
 "remember this" would record (`RememberTarget`): an exact command line for `run_command`, a directory for the write tools.
 
 ## `memory` and `read_page`
@@ -170,7 +170,7 @@ Parameters: `command`, `cwd`, `background`. `vet()` returns `Allow`, `Deny(reaso
    `launchctl unload`, `systemctl disable`, `rm -rf /*`, `rm -rf ~`, `rm -rf $home`, `eval $(`, `history -c`; plus
    `pipes_into_a_shell`: a `curl`/`wget` segment piped into `sh bash zsh dash python python3 perl ruby`.
 2. **Allow table** (`JEEVES_EXEC_ALLOW`, at most 64 rules): `*` allows everything, a trailing `*` is a prefix match, anything else is whole-command equality. Commands approved "for this session" match exactly. An empty table
-   allows nothing. On no match, `JEEVES_APPROVAL=never` (default) denies with the current rules in the message, and `on-request` asks (`JEEVES_APPROVAL_TIMEOUT`, default 120 s). Without a broker the refusal says nobody can be asked; a "no" says the run was not approved.
+   allows nothing. On no match, `JEEVES_APPROVAL=never` (default) denies with the current rules in the message, and `on-request` asks (`JEEVES_APPROVAL_TIMEOUT`, default 120 s). Without a broker the refusal says nobody can be asked; a "no" says the user denied it and not to ask again unless the user asks again.
 3. **Sandbox**: measured, not assumed. macOS needs `/usr/bin/sandbox-exec`; Linux needs `bwrap` and a successful probe run of `bwrap … /bin/true` (so an installed but AppArmor-blocked `bwrap` does not count). With no usable sandbox the command is refused.
 
 `pass_gate` (gates 1–3 plus approval) and `spawn_sandboxed` are shared by foreground and background runs.

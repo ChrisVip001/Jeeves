@@ -135,10 +135,11 @@ pub(crate) async fn pass_write_gate(
             .map(|dir| RememberTarget::Directory(dir.to_path_buf())),
         action: None,
     };
-    if broker.request(request).await {
+    let outcome = broker.request(request).await;
+    if outcome.approved() {
         Ok(())
     } else {
-        Err("This write was not approved (or nobody answered); skipped.".to_string())
+        Err(outcome.refusal("write"))
     }
 }
 

@@ -11,7 +11,8 @@
 //! 2. **Approval only unlocks the allow table**. Hard-deny list and sandbox are non-negotiable:
 //!    the gates in `vet` return before approval ever runs; approval never touches them.
 //! 3. **Timeouts are the implementer's responsibility**. `request` must honor `timeout_secs`
-//!    itself and return `false` — a request that never returns hangs a conversation forever.
+//!    itself and return [`ApprovalOutcome::TimedOut`] — a request that never returns hangs a
+//!    conversation forever.
 //!
 //! The call site names **what** could be remembered ([`RememberTarget`]); how long a yes lasts
 //! (this once / this process / forever) is the answerer's decision, so it stays out of this layer.
@@ -57,7 +58,7 @@ pub struct ApprovalRequest {
     pub args_preview: String,
     /// Why it wasn't let through by the allow rules directly.
     pub reason: String,
-    /// Seconds to wait for a human answer. The implementer must give up after it and return `false`.
+    /// Seconds to wait for a human answer. The implementer must give up after it and return `TimedOut`.
     pub timeout_secs: i64,
     /// What "remember this" would record. `None` = nothing worth remembering (ask every time).
     pub remember: Option<RememberTarget>,
@@ -66,10 +67,49 @@ pub struct ApprovalRequest {
     pub action: Option<ActionGrant>,
 }
 
-pub type ApprovalFut = Pin<Box<dyn Future<Output = bool> + Send>>;
+/// How an approval request ended. Only [`ApprovalOutcome::Approved`] lets the action run.
+///
+/// The refusals are kept apart because the model acts on them differently: a person saying no
+/// closes the question, silence leaves it open, and a withdrawn request says nothing about what
+/// the person wants. Folding them into one "denied or expired" text made models blame the
+/// approval channel after a plain no.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalOutcome {
+    Approved,
+    /// A person answered no.
+    Denied,
+    /// Nobody answered before the request's deadline.
+    TimedOut,
+    /// The request ended without an answer: the turn ended, permissions changed, nobody can
+    /// answer in this session, or the approval could not be recorded.
+    Withdrawn,
+}
+
+impl ApprovalOutcome {
+    pub fn approved(self) -> bool {
+        self == Self::Approved
+    }
+
+    /// The text the model reads when `what` (for example "write" or "run") did not happen.
+    pub fn refusal(self, what: &str) -> String {
+        match self {
+            Self::Approved => format!("This {what} was approved."),
+            Self::Denied => format!(
+                "The user denied this {what}; it did not happen. Do not ask for it again unless the user asks again."
+            ),
+            Self::TimedOut => format!(
+                "Nobody answered the approval request for this {what} in time; it did not happen. Ask the user before trying again."
+            ),
+            Self::Withdrawn => format!(
+                "The approval request for this {what} ended without an answer (the turn ended, permissions changed or nobody can answer here); it did not happen."
+            ),
+        }
+    }
+}
+
+pub type ApprovalFut = Pin<Box<dyn Future<Output = ApprovalOutcome> + Send>>;
 
 /// Who answers "should this run". The implementer handles asking, waiting, and timeouts.
 pub trait ApprovalBroker: Send + Sync {
-    /// `true` = approved; `false` = denied (including timeout, no answer, errors).
     fn request(&self, request: ApprovalRequest) -> ApprovalFut;
 }

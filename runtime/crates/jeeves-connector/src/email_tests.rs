@@ -1,5 +1,5 @@
 use super::*;
-use jeeves_tools::approval::{ApprovalBroker, ApprovalFut};
+use jeeves_tools::approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -46,13 +46,13 @@ async fn ctx() -> ToolCtx {
 struct Yes;
 impl ApprovalBroker for Yes {
     fn request(&self, _: ApprovalRequest) -> ApprovalFut {
-        Box::pin(async { true })
+        Box::pin(async { ApprovalOutcome::Approved })
     }
 }
 struct No;
 impl ApprovalBroker for No {
     fn request(&self, _: ApprovalRequest) -> ApprovalFut {
-        Box::pin(async { false })
+        Box::pin(async { ApprovalOutcome::Denied })
     }
 }
 
@@ -375,7 +375,7 @@ async fn denied_allowlisted_and_dry_run_sends_never_reach_smtp() {
     .await
     .unwrap_err()
     .to_string()
-    .contains("not approved"));
+    .contains("The user denied this email send"));
 
     assert!(send(
         ctx.clone(),
@@ -443,7 +443,7 @@ async fn a_late_approval_cannot_send_a_task_envelope_converted_to_draft() {
             Box::pin(async move {
                 asked.notify_one();
                 answer.notified().await;
-                true
+                ApprovalOutcome::Approved
             })
         }
     }
