@@ -938,6 +938,7 @@ async function boot(): Promise<void> {
     dom.input.focus();
   });
 
+  refreshOnReturn();
   setInterval(() => {
     if (!busy) {
       void refresh();
@@ -1070,12 +1071,38 @@ async function refresh(): Promise<void> {
       ),
     );
     dom.stamp.textContent = formatStamp(data.generatedAt);
+    if (lostMessage !== null && webState.message === lostMessage) webState.message = "";
+    lostMessage = null;
   } catch (error) {
     webState.connected = false;
-    webState.message = String(error);
+    lostMessage = connectionLost(error);
+    webState.message = lostMessage;
     dom.overview.replaceChildren(failureOf(error));
   }
   await refreshCapabilities();
+}
+
+/** The banner text a failed refresh put up, so the next good refresh can take it down again. */
+let lostMessage: string | null = null;
+
+/**
+ * Why the cockpit lost the workspace, for the banner. A failed fetch is the network or a
+ * stopped gateway, not something the person did; it is worded as such and retried.
+ */
+function connectionLost(error: unknown): string {
+  if (error instanceof TypeError || !navigator.onLine)
+    return t("连不上 Jeeves，正在自动重试…");
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Refresh at once when the network or the tab comes back, instead of waiting for the poll. */
+function refreshOnReturn(): void {
+  window.addEventListener("online", () => {
+    if (!busy) void refresh();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !webState.connected && !busy) void refresh();
+  });
 }
 
 /**

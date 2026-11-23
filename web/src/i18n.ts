@@ -106,6 +106,7 @@ const DICT: Record<string, string> = {
   "未设预算": "No budget set",
   "新会话": "New session",
   "出错了": "Something went wrong",
+  "连不上 Jeeves，正在自动重试…": "Can't reach Jeeves. Retrying automatically…",
   "今天 {clock}": "today {clock}",
   "明天 {clock}": "tomorrow {clock}",
   "昨天 {clock}": "yesterday {clock}",
