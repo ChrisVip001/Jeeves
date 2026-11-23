@@ -775,6 +775,14 @@ function addStopButton(): void {
   dom.status.append(stop);
 }
 
+/** Puts a starter into the composer, caret at the end, as if the person had typed it. */
+function fillComposer(text: string): void {
+  dom.input.value = text;
+  dom.input.dispatchEvent(new Event("input", { bubbles: true }));
+  dom.input.focus();
+  dom.input.setSelectionRange(text.length, text.length);
+}
+
 async function waitForHostedWorkspace(): Promise<boolean> {
   const base = hostedBase();
   if (!base) {
@@ -2158,7 +2166,7 @@ async function loadHistory(
   }
 
   if (cursor === null) {
-    dom.messages.replaceChildren(...(nodes.length === 0 ? [welcome()] : nodes));
+    dom.messages.replaceChildren(...(nodes.length === 0 ? [welcome(fillComposer)] : nodes));
     trimMessages();
   } else {
     const fromBottom = dom.messages.scrollHeight - dom.messages.scrollTop;

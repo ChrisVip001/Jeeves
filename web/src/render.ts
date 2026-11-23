@@ -701,7 +701,26 @@ export function turnFooter(turn: TurnCompletedNotification): string {
  * The empty-session welcome: a quiet hero instead of an orphan sentence.
  * Rendered only when a session has no history; the first message replaces it.
  */
-export function welcome(): HTMLElement {
+/** Starter requests on the empty chat; each one shows what Jeeves can take on. */
+function starters(): string[] {
+  return [
+    t("明天上午 9 点提醒我给房东打电话"),
+    t("每个工作日早上 8 点给我一份今日简报"),
+    t("帮我调研一下适合家用的空气净化器，列出优缺点"),
+    t("整理我的下载文件夹，先告诉我打算怎么分类"),
+  ];
+}
+
+/**
+ * The empty-chat screen. Picking a starter fills the composer for editing; it never sends.
+ */
+export function welcome(pick: (text: string) => void): HTMLElement {
+  const list = el("div", { class: "welcome-starters", role: "list" });
+  for (const text of starters()) {
+    const chip = el("button", { type: "button", class: "welcome-starter", role: "listitem", text });
+    chip.addEventListener("click", () => pick(text));
+    list.append(chip);
+  }
   return el(
     "div",
     { class: "welcome" },
@@ -712,7 +731,7 @@ export function welcome(): HTMLElement {
       "aria-hidden": "true",
     }),
     el("h1", { class: "welcome-title", text: t("交给 Jeeves 什么事？") }),
-
+    list,
   );
 }
 
