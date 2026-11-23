@@ -111,7 +111,13 @@ async def exercise(root, cases):
                 assert db.execute("SELECT count(*) FROM wake_inbox WHERE state='delivered'").fetchone() == (2,)
         finally:
             await app.kill()
-    assert (home / 'state.db.pre-15').exists()
+    assert (home / f'state.db.pre-{latest_migration()}').exists()
+
+
+def latest_migration():
+    """The schema version the runtime upgrades to, named by its newest migration file."""
+    folder = ROOT / 'runtime/crates/jeeves-state/migrations'
+    return max(int(entry.name.split('_', 1)[0]) for entry in folder.glob('[0-9]*_*.sql'))
 
 
 def main():
