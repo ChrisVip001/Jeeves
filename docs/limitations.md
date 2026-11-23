@@ -29,6 +29,13 @@ sandbox for hostile commands.
   5 seconds counts as failure and falls back to the file, so one credential operation can never
   freeze the server. `model/save` reports the real landing spot (`keychain` / `file`).
   → `runtime/crates/jeeves-config/src/models.rs` (`SecretStore`, `KEYCHAIN_TIMEOUT_SECS`)
+* **Boundary** — Platform-assigned profiles (`origin: platform`) point at the platform model proxy
+  and carry a tenant token, so their requests reserve monthly quota there (`control-plane/meter.go`).
+  BYOK and local profiles use their own base URL and their own credential; they never reach the
+  proxy and never consume platform quota — the person's vendor bills them instead. Attribution is
+  structural (endpoint + credential), so no extra header is needed. The proxy rejects any request
+  without a valid tenant token, so a BYOK profile cannot silently spend platform quota.
+  → `control-plane/provisioning.go`, `control-plane/meter.go`, `runtime/crates/jeeves-config/src/models.rs`
 * **Deliberate** — Switching models rewrites in-process settings and re-resolves the provider;
   the configuration lives in `<home>/models.json`, so the next start keeps your last pick. The
   model cannot switch models: `model/*` is human-only and the model never sees a key.

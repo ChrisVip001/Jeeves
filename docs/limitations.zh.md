@@ -23,6 +23,11 @@
   钥匙串调用失败或超过 5 秒即视为失败并回退到文件，所以一次凭据操作永远不会卡住服务。
   `model/save` 如实报告落点（`keychain` / `file`）。
   → `runtime/crates/jeeves-config/src/models.rs`（`SecretStore`、`KEYCHAIN_TIMEOUT_SECS`）
+* **边界** — 平台分配的 profile（`origin: platform`）指向平台模型代理并携带租户 token，请求会在代理处预留月度额度
+  （`control-plane/meter.go`）。自带与本地 profile 使用自己的 base URL 和凭据，从不经过代理，也从不消耗平台额度——费用由用户的
+  服务商结算。归属是结构性的（端点 + 凭据），不需要额外请求头；代理会拒绝没有有效租户 token 的请求，所以 BYOK profile 无法
+  静默消耗平台额度。
+  → `control-plane/provisioning.go`、`control-plane/meter.go`、`runtime/crates/jeeves-config/src/models.rs`
 * **刻意** — 切换模型只重写进程内设置并重新解析 provider；配置存在 `<home>/models.json`，下次启动仍用上次的选择。
   模型不能切换模型：`model/*` 仅限人工，模型看不到密钥。
 * **刻意** — 模型目录（`<home>/models-catalog.json`）启动时读一次；新增条目需要重启。坏行各花一行 stderr 并被跳过；
