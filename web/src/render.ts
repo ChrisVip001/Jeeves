@@ -623,23 +623,50 @@ export function chip(
   return el("span", { class: `chip ${kind}`, text });
 }
 
+/** The window event that asks the cockpit to reopen first-run model setup. */
+export const SETUP_EVENT = "jeeves:setup";
+
+/** Runtime messages a person can act on, shown as a plain sentence and a next step. */
+function known(message: string): { title: string; body: string } | null {
+  if (message.startsWith("Configure a model before sending a message"))
+    return {
+      title: t("还没连接模型"),
+      body: t("Jeeves 要先连上一个模型才能回复。连接好后，重新发送这条消息即可。"),
+    };
+  return null;
+}
+
 /**
  * Error: a quiet red card, not an alarm. The protocol code stays as a tag —
- * useful when checking logs, meaningless to a person.
+ * useful when checking logs, meaningless to a person. A known cause gets a
+ * plain sentence and a button that fixes it instead of the raw message.
  */
 export function failure(error: { code: number; message: string }): HTMLElement {
-  return el(
+  const plain = known(error.message);
+  const card = el(
     "div",
-    { class: "failure" },
+    { class: plain ? "failure actionable" : "failure" },
     el(
       "div",
       { class: "failure-head" },
       el("span", { class: "failure-dot", "aria-hidden": "true" }),
-      el("span", { class: "failure-title", text: t("出错了") }),
+      el("span", { class: "failure-title", text: plain?.title ?? t("出错了") }),
       el("span", { class: "code", text: String(error.code) }),
     ),
-    el("div", { class: "failure-body", text: error.message }),
+    el("div", { class: "failure-body", text: plain?.body ?? error.message }),
   );
+  if (plain) {
+    const fix = el("button", {
+      type: "button",
+      class: "failure-action",
+      text: t("连接模型"),
+    });
+    fix.addEventListener("click", () =>
+      window.dispatchEvent(new CustomEvent(SETUP_EVENT)),
+    );
+    card.append(fix);
+  }
+  return card;
 }
 
 export function failureOf(error: unknown): HTMLElement {

@@ -337,6 +337,7 @@ export const UI_EN: Record<string, string> = {
   "连接一个模型": "Connect a model",
   "密钥保存在系统钥匙串；本地模型（如 Ollama）可留空。": "The key is stored in the system keychain; leave it empty for local models such as Ollama.",
   "稍后再说": "Later",
+  "第 {step} 步，共 2 步": "Step {step} of 2",
   "下一步": "Next",
   "让 Jeeves 认识你": "Let Jeeves get to know you",
   "怎么称呼你": "What should Jeeves call you",

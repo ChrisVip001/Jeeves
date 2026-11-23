@@ -22,6 +22,7 @@ import {
 import { uiTranslatorKey } from "./ui/index.ts";
 import type { AgentTaskView } from "./ui/types.ts";
 import { t } from "./i18n";
+import { SETUP_EVENT } from "./render.ts";
 import { phoneLayout } from "./phone";
 import { closeMobileNavigation } from "./navigation";
 import {
@@ -190,6 +191,17 @@ function endSetup() {
   localStorage.setItem(accountKey(SETUP_KEY), "1");
   void workspaceActions.refresh();
 }
+function reopenSetup() {
+  closeMobileNavigation();
+  void refreshConnections()
+    .then(() => {
+      setupDismissed.value = false;
+      localStorage.removeItem(accountKey(SETUP_KEY));
+    })
+    .catch((error: unknown) => (state.message = String(error)));
+}
+onMounted(() => window.addEventListener(SETUP_EVENT, reopenSetup));
+onUnmounted(() => window.removeEventListener(SETUP_EVENT, reopenSetup));
 const unavailable = computed(() => state.busy || !state.connected);
 watch(
   () => state.connected,

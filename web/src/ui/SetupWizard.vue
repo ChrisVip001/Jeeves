@@ -69,6 +69,7 @@ onMounted(() => dialog.value?.showModal());
     <div class="preferences-content">
       <JeevesLogo :size="28" />
       <h2>{{ t("欢迎使用 Jeeves") }}</h2>
+      <p class="setup-step">{{ t("第 {step} 步，共 2 步", { step }) }}</p>
       <form v-if="step === 1" @submit.prevent="saveModel">
         <h3>{{ t("连接一个模型") }}</h3>
         <label

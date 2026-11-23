@@ -1847,6 +1847,7 @@ async function send(
 
   let streamed = "";
   let completed: TurnCompletedNotification | null = null;
+  let failed = false;
   let firstDelta = true;
   showStatus("thinking", t("思考中"));
 
@@ -2030,11 +2031,13 @@ async function send(
 
         case "error":
           trace.append(failure(notification));
+          failed = true;
           break;
       }
     }
   } catch (error) {
     trace.append(failureOf(error));
+    failed = true;
   } finally {
     bubble.classList.remove("streaming");
     hideStatus();
@@ -2049,6 +2052,8 @@ async function send(
     } else if (streamed !== "") {
       stream.finish();
       foot.textContent = t("这一轮没有收到结尾 —— 上面的回复可能被截断了");
+    } else if (failed) {
+      bubble.remove();
     } else {
       bubble.textContent = t("（这一轮没有回复）");
     }

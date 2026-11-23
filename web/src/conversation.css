@@ -640,6 +640,36 @@
   white-space: pre-wrap;
 }
 
+.failure.actionable {
+  background: color-mix(in srgb, var(--jeeves-accent) 6%, transparent);
+  border-color: color-mix(in srgb, var(--jeeves-accent) 30%, transparent);
+}
+
+.failure.actionable .failure-dot {
+  background: var(--jeeves-accent);
+}
+
+.failure.actionable .failure-title {
+  color: var(--text);
+}
+
+.failure-action {
+  align-self: flex-start;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 14px;
+  background: var(--jeeves-accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.failure-action:hover {
+  background: var(--accent-hover);
+}
+
 /* ---- 图片大图（点击缩略图） ------------------------------------------------------ */
 
 .lightbox {
