@@ -2254,6 +2254,21 @@ pub struct ModelProfileView {
     pub capabilities: Option<ModelCapabilities>,
     /// Whether this profile is currently active.
     pub active: bool,
+    /// Who owns and pays for this profile: `platform` / `byok` / `local`. Read-only in the UI.
+    #[serde(default = "default_model_origin_view")]
+    pub origin: String,
+    /// Capability line this profile serves (`language`, `multimodal`, `video-generation`, …).
+    /// Read-only; the platform decides, the tenant cannot switch lines.
+    #[serde(default = "default_model_line_view")]
+    pub line: String,
+}
+
+fn default_model_origin_view() -> String {
+    "byok".to_string()
+}
+
+fn default_model_line_view() -> String {
+    "language".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]

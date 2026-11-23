@@ -4116,11 +4116,21 @@
             "null"
           ]
         },
+        "line": {
+          "default": "language",
+          "description": "Capability line this profile serves (`language`, `multimodal`, `video-generation`, …). Read-only; the platform decides, the tenant cannot switch lines.",
+          "type": "string"
+        },
         "model": {
           "type": [
             "string",
             "null"
           ]
+        },
+        "origin": {
+          "default": "byok",
+          "description": "Who owns and pays for this profile: `platform` / `byok` / `local`. Read-only in the UI.",
+          "type": "string"
         },
         "provider": {
           "description": "The provider id in `jeeves-provider` terms.",

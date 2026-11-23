@@ -597,4 +597,7 @@ export const UI_EN: Record<string, string> = {
   "确认启用": "Confirm enrollment",
   "绑定验证器": "Set up authenticator",
   "操作失败，请检查密码、验证码或稍后重试。": "Check your password and code or try again later.",
+  "平台提供": "Platform",
+  "本地模型": "Local",
+  "自带模型": "Your own",
 };

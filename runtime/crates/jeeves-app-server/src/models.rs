@@ -48,6 +48,12 @@ fn views(file: &cfg::ModelsFile) -> Vec<ModelProfileView> {
             vision: p.vision,
             capabilities: p.capabilities.clone(),
             active: active == Some(p.id.as_str()),
+            origin: match p.origin {
+                cfg::ModelOrigin::Platform => "platform".to_string(),
+                cfg::ModelOrigin::Byok => "byok".to_string(),
+                cfg::ModelOrigin::Local => "local".to_string(),
+            },
+            line: p.line.as_str().to_string(),
         })
         .collect()
 }

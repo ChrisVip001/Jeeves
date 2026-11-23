@@ -28,6 +28,11 @@ watch(
   { flush: "sync" },
 );
 const profiles = ref<ModelProfilesResponse["profiles"]>([]);
+function originLabel(origin: string): string {
+  if (origin === "platform") return t("平台提供");
+  if (origin === "local") return t("本地模型");
+  return t("自带模型");
+}
 const profileError = ref("");
 const diagnostics = computed<Record<string, string>>(() => ({
   "Allow Accessibility for the Jeeves window helper in System Settings, then select again":
@@ -261,7 +266,8 @@ function receipt(status: string) {
                     :value="profile.id"
                     :disabled="profile.vision === false"
                   >
-                    {{ profile.id }} · {{ profile.model || profile.provider }}
+                    {{ profile.id }} · {{ profile.model || profile.provider }} ·
+                    {{ originLabel(profile.origin) }}
                   </option>
                 </select>
               </label>

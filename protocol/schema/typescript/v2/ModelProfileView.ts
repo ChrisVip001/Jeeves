@@ -28,4 +28,13 @@ export type ModelProfileView = {
    * Whether this profile is currently active.
    */
   active: boolean;
+  /**
+   * Who owns and pays for this profile: `platform` / `byok` / `local`. Read-only in the UI.
+   */
+  origin: string;
+  /**
+   * Capability line this profile serves (`language`, `multimodal`, `video-generation`, …).
+   * Read-only; the platform decides, the tenant cannot switch lines.
+   */
+  line: string;
 };
