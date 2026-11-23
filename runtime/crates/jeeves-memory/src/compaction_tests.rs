@@ -165,9 +165,11 @@ async fn unreadable_rollup_does_not_trigger_a_paid_recomputation() {
     let (_, _, chat) = stores().await;
     chat.pool().close().await;
     let mock = Mock::new(vec![Mock::text("unexpected call")]);
-    assert!(refresh(&chat, &mock, "small", "s1", &pairs(5), 0)
-        .await
-        .is_err());
+    assert!(
+        refresh(&chat, &mock, "small", "s1", &pairs(5), 0)
+            .await
+            .is_err()
+    );
     assert!(mock.received.lock().unwrap().is_empty());
 }
 

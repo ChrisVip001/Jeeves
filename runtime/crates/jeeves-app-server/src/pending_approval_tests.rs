@@ -78,11 +78,13 @@ async fn a_new_client_recovers_only_live_owner_requests_and_cannot_answer_twice(
     else {
         panic!("approval notification")
     };
-    assert!(crate::pending_approvals::list(&server, "other")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
+    assert!(
+        crate::pending_approvals::list(&server, "other")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
     let restored = crate::pending_approvals::list(&server, "owner")
         .await
         .unwrap();
@@ -93,14 +95,18 @@ async fn a_new_client_recovers_only_live_owner_requests_and_cannot_answer_twice(
     assert!(server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
     assert!(!server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
     assert_eq!(waiting.await, ApprovalOutcome::Approved);
-    assert!(crate::pending_approvals::list(&server, "owner")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
-    assert!(crate::pending_approvals::list(&server, "missing")
-        .await
-        .is_err());
+    assert!(
+        crate::pending_approvals::list(&server, "owner")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
+    assert!(
+        crate::pending_approvals::list(&server, "missing")
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -117,11 +123,13 @@ async fn timed_out_or_cancelled_requests_are_not_restored_and_time_is_not_extend
         .await
         .unwrap();
     tokio::time::sleep(Duration::from_millis(550)).await;
-    assert!(crate::pending_approvals::list(&server, "owner")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
+    assert!(
+        crate::pending_approvals::list(&server, "owner")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
     assert_eq!(waiting.await, ApprovalOutcome::TimedOut);
     let waiting = broker.request(question());
     let old = &initial.approvals[0].request;
@@ -135,11 +143,13 @@ async fn timed_out_or_cancelled_requests_are_not_restored_and_time_is_not_extend
         1
     );
     drop(waiting);
-    assert!(crate::pending_approvals::list(&server, "owner")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
+    assert!(
+        crate::pending_approvals::list(&server, "owner")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -163,19 +173,23 @@ async fn a_policy_change_voids_the_snapshot_and_a_restart_restores_no_old_questi
         )
         .await
         .unwrap();
-    assert!(crate::pending_approvals::list(&server, "owner")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
+    assert!(
+        crate::pending_approvals::list(&server, "owner")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
     assert!(!server.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
     assert_eq!(waiting.await, ApprovalOutcome::Withdrawn);
     let restarted = Server::boot(server.pool.clone(), server.settings()).await;
-    assert!(crate::pending_approvals::list(&restarted, "owner")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
+    assert!(
+        crate::pending_approvals::list(&restarted, "owner")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
     assert!(!restarted.answer_approval(&ask.turn_id, &ask.request_id, true, RememberScope::Once));
 }
 
@@ -258,11 +272,13 @@ async fn an_answer_to_an_older_version_is_refused_with_text() {
         "owner",
     );
     assert_eq!(fresh, Ok(true));
-    assert!(crate::pending_approvals::list(&restarted, "owner")
-        .await
-        .unwrap()
-        .approvals
-        .is_empty());
+    assert!(
+        crate::pending_approvals::list(&restarted, "owner")
+            .await
+            .unwrap()
+            .approvals
+            .is_empty()
+    );
 }
 
 #[tokio::test]

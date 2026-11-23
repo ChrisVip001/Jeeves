@@ -1,5 +1,5 @@
 //! Capture a bounded, local review artifact while the job still holds its worktree permit.
-use jeeves_tools::exec::{scrub, spawn_sandboxed, ExecPolicy};
+use jeeves_tools::exec::{ExecPolicy, scrub, spawn_sandboxed};
 use std::path::Path;
 use tokio::io::AsyncReadExt;
 

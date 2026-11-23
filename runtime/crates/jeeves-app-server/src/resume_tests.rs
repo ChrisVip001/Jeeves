@@ -14,7 +14,7 @@ use jeeves_provider::{ContentBlock, Message, Resolved, Role};
 use serde_json::json;
 use tokio::sync::mpsc;
 
-use crate::{resume, EventSink, Frame, Server};
+use crate::{EventSink, Frame, Server, resume};
 
 async fn server_with_path(mock: Option<Arc<Mock>>) -> (Server, std::path::PathBuf) {
     let dir = tempfile::tempdir().expect("temporary directory");
@@ -226,12 +226,14 @@ async fn unreadable_working_memory_is_abandoned_not_resumed() {
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert!(server
-        .checkpoints
-        .open_rows()
-        .await
-        .expect("read the register")
-        .is_empty());
+    assert!(
+        server
+            .checkpoints
+            .open_rows()
+            .await
+            .expect("read the register")
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -266,12 +268,14 @@ async fn a_turn_error_marks_its_checkpoint_abandoned() {
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert!(server
-        .checkpoints
-        .open_rows()
-        .await
-        .expect("read the register")
-        .is_empty());
+    assert!(
+        server
+            .checkpoints
+            .open_rows()
+            .await
+            .expect("read the register")
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -611,14 +615,18 @@ async fn recovered_goal_uses_the_shared_driver_until_satisfied() {
     );
     let requests = mock.received.lock().unwrap();
     assert_eq!(requests.len(), 4);
-    assert!(requests[0]
-        .system_text()
-        .unwrap()
-        .contains("finish both halves"));
-    assert!(requests[2]
-        .system_text()
-        .unwrap()
-        .contains("finish both halves"));
+    assert!(
+        requests[0]
+            .system_text()
+            .unwrap()
+            .contains("finish both halves")
+    );
+    assert!(
+        requests[2]
+            .system_text()
+            .unwrap()
+            .contains("finish both halves")
+    );
 
     assert!(
         requests[2]
@@ -628,10 +636,12 @@ async fn recovered_goal_uses_the_shared_driver_until_satisfied() {
         "goal continuation must retain the persisted plan"
     );
 
-    assert!(requests.iter().any(|request| request
-        .messages
-        .iter()
-        .any(|m| m.text().contains("finish the remaining half"))));
+    assert!(requests.iter().any(|request| {
+        request
+            .messages
+            .iter()
+            .any(|m| m.text().contains("finish the remaining half"))
+    }));
 }
 
 #[tokio::test]
@@ -799,9 +809,11 @@ async fn an_interrupted_read_is_reported_to_the_model_and_the_turn_continues() {
         2,
         "both cut-off reads get a result: {sent:?}"
     );
-    assert!(results
-        .iter()
-        .all(|(_, text)| text.starts_with("Error: the process stopped")));
+    assert!(
+        results
+            .iter()
+            .all(|(_, text)| text.starts_with("Error: the process stopped"))
+    );
     let statuses: Vec<String> = sqlx::query_scalar(
         "SELECT status FROM tool_operations WHERE turn_id='t-read' ORDER BY tool_use_id",
     )

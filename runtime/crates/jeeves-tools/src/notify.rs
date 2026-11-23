@@ -71,7 +71,9 @@ impl NotifyEvent {
                 exit_code,
             } => match exit_code {
                 Some(code) => {
-                    format!("⚙️ Jeeves background job {id} finished ({status}, exit {code}): `{command}`")
+                    format!(
+                        "⚙️ Jeeves background job {id} finished ({status}, exit {code}): `{command}`"
+                    )
                 }
                 None => format!("⚙️ Jeeves background job {id} finished ({status}): `{command}`"),
             },
@@ -80,7 +82,12 @@ impl NotifyEvent {
                 status,
                 preview,
             } => format!("⏰ Jeeves scheduled job '{name}' {status}: {preview}"),
-            NotifyEvent::TaskFinished {title,status,reason,..}=>format!("Jeeves task '{title}' stopped ({status}): {reason}"),
+            NotifyEvent::TaskFinished {
+                title,
+                status,
+                reason,
+                ..
+            } => format!("Jeeves task '{title}' stopped ({status}): {reason}"),
             NotifyEvent::GoalFinished { status, reason, .. } => {
                 format!("🎯 Jeeves's goal stopped ({status}): {reason}")
             }
@@ -173,10 +180,10 @@ impl Notifier for Slack {
     }
     fn enqueue(&self, event: NotifyEvent) -> Result<(), String> {
         let text = event.message();
-        if !matches!(event, NotifyEvent::ApprovalRequested { .. }) {
-            if let Some(queue) = &self.queue {
-                return queue.enqueue(&text).map_err(|e| e.to_string());
-            }
+        if !matches!(event, NotifyEvent::ApprovalRequested { .. })
+            && let Some(queue) = &self.queue
+        {
+            return queue.enqueue(&text).map_err(|e| e.to_string());
         }
         let url = self.url.clone();
         let client = self.client.clone();

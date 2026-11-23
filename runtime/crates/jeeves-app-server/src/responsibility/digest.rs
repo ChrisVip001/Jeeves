@@ -1,11 +1,11 @@
 //! Read selected evidence into a private digest at the occurrence's local calendar date.
 use crate::Server;
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Datelike, Days, NaiveDate, TimeZone, Utc};
 use chrono_tz::Tz;
 use jeeves_protocol::{CalendarWindow, DigestLayout, ResponsibilityDigest};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn date_range(date: NaiveDate, window: CalendarWindow) -> Result<(NaiveDate, NaiveDate)> {
     let week = date.weekday().num_days_from_monday() as u64;

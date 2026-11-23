@@ -11,7 +11,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 pub(crate) use crate::client::client_tests::fake;
-use crate::{constant_time_eq, router, Gate};
+use crate::{Gate, constant_time_eq, router};
 
 #[tokio::test]
 async fn health_probe_sends_complete_capability_parameters() {

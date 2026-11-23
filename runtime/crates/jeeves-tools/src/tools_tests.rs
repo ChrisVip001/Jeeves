@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use serde_json::json;
 
-use crate::{handlers, Tool, ToolCtx, ToolEffect, ToolRegistry};
+use crate::{Tool, ToolCtx, ToolEffect, ToolRegistry, handlers};
 
 async fn ctx() -> ToolCtx {
     let dir = tempfile::tempdir().expect("temp dir");

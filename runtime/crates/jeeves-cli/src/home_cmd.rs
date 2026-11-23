@@ -11,7 +11,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::json;
 
 const MANIFEST: &str = "jeeves-home.json";
@@ -84,7 +84,9 @@ async fn import(home: &Path, bundle: &Path) -> Result<()> {
         .context("export manifest requires a nonnegative integer schema")?;
     let known = jeeves_state::db::known_schema_version();
     if schema > known && !matches!(schema, 24 | 25) {
-        bail!("the export has schema {schema}, newer than this jeeves knows ({known}); upgrade jeeves first");
+        bail!(
+            "the export has schema {schema}, newer than this jeeves knows ({known}); upgrade jeeves first"
+        );
     }
     let db = bundle.join("state.db");
     if !std::fs::symlink_metadata(&db)
@@ -200,15 +202,19 @@ mod tests {
         export(&home, &bundle).await.expect("export");
         assert!(!bundle.join("secrets.json").exists(), "keys never leave");
         assert!(!bundle.join("app-server.lock").exists());
-        assert!(!bundle
-            .join(jeeves_config::models::MODEL_CHANGE_FILE)
-            .exists());
+        assert!(
+            !bundle
+                .join(jeeves_config::models::MODEL_CHANGE_FILE)
+                .exists()
+        );
         assert!(!bundle.join(".jeeves-config-fixture").exists());
-        assert!(export(&home, &home.join("backup"))
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("outside"));
+        assert!(
+            export(&home, &home.join("backup"))
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("outside")
+        );
 
         let manifest_path = bundle.join(MANIFEST);
         let manifest = std::fs::read_to_string(&manifest_path).unwrap();
@@ -216,11 +222,13 @@ mod tests {
         wrong["schema"] = json!(0);
         std::fs::write(&manifest_path, wrong.to_string()).unwrap();
         let refused = root.path().join("refused");
-        assert!(import(&refused, &bundle)
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("differs"));
+        assert!(
+            import(&refused, &bundle)
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("differs")
+        );
         assert!(!refused.join("SOUL.md").exists());
         std::fs::write(manifest_path, manifest).unwrap();
 

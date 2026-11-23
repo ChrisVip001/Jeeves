@@ -54,7 +54,7 @@ END:VCALENDAR]]></calendar-data></response></multistatus>"#;
 
 #[test]
 fn caldav_text_entities_and_failed_multistatus_are_distinguished_from_empty() {
-    let xml="<d:multistatus><d:response><c:calendar-data>BEGIN:VCALENDAR\nSUMMARY:A &amp; B &#x1F600;\nEND:VCALENDAR</c:calendar-data></d:response></d:multistatus>";
+    let xml = "<d:multistatus><d:response><c:calendar-data>BEGIN:VCALENDAR\nSUMMARY:A &amp; B &#x1F600;\nEND:VCALENDAR</c:calendar-data></d:response></d:multistatus>";
     assert!(calendar_documents(xml).unwrap()[0].contains("A & B 😀"));
     assert!(calendar_documents("<d:multistatus><d:response><d:status>HTTP/1.1 403 Forbidden</d:status></d:response></d:multistatus>").is_err());
     assert!(calendar_documents("<d:multistatus/>").unwrap().is_empty());
@@ -66,11 +66,23 @@ async fn root_service_discovers_collection_then_queries_it() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
-        let replies=[
-            ("PROPFIND / ",r#"<d:multistatus><d:response><d:current-user-principal><d:href>/principal/</d:href></d:current-user-principal></d:response></d:multistatus>"#),
-            ("PROPFIND /principal/ ",r#"<d:multistatus><d:response><c:calendar-home-set><d:href>/home/</d:href></c:calendar-home-set></d:response></d:multistatus>"#),
-            ("PROPFIND /home/ ",r#"<d:multistatus><d:response><d:href>/home/cal/</d:href><d:resourcetype><c:calendar/></d:resourcetype></d:response></d:multistatus>"#),
-            ("REPORT /home/cal/ ","<d:multistatus><d:response><c:calendar-data><![CDATA[BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:fixture\nDTSTART:20261119T090000Z\nDTEND:20261119T100000Z\nSUMMARY:Fixture\nEND:VEVENT\nEND:VCALENDAR]]></c:calendar-data></d:response></d:multistatus>"),
+        let replies = [
+            (
+                "PROPFIND / ",
+                r#"<d:multistatus><d:response><d:current-user-principal><d:href>/principal/</d:href></d:current-user-principal></d:response></d:multistatus>"#,
+            ),
+            (
+                "PROPFIND /principal/ ",
+                r#"<d:multistatus><d:response><c:calendar-home-set><d:href>/home/</d:href></c:calendar-home-set></d:response></d:multistatus>"#,
+            ),
+            (
+                "PROPFIND /home/ ",
+                r#"<d:multistatus><d:response><d:href>/home/cal/</d:href><d:resourcetype><c:calendar/></d:resourcetype></d:response></d:multistatus>"#,
+            ),
+            (
+                "REPORT /home/cal/ ",
+                "<d:multistatus><d:response><c:calendar-data><![CDATA[BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:fixture\nDTSTART:20261119T090000Z\nDTEND:20261119T100000Z\nSUMMARY:Fixture\nEND:VEVENT\nEND:VCALENDAR]]></c:calendar-data></d:response></d:multistatus>",
+            ),
         ];
         for (expected, body) in replies {
             let (mut stream, _) = listener.accept().await.unwrap();
@@ -87,7 +99,9 @@ async fn root_service_discovers_collection_then_queries_it() {
             stream.write_all(format!("HTTP/1.1 207 Multi-Status\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
         }
     });
-    std::env::set_var("JEEVES_TEST_CALDAV_DISCOVERY_PASSWORD", "fixture-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_CALDAV_DISCOVERY_PASSWORD", "fixture-secret");
+    }
     let home = tempfile::tempdir().unwrap();
     let config = CalendarConfig {
         url,
@@ -113,9 +127,11 @@ fn instant_at_week_boundary_belongs_only_to_the_new_week() {
     let ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:at-midnight\nDTSTART:20241103T160000Z\nEND:VEVENT\nEND:VCALENDAR";
     let slot = "2024-11-03T16:00:00Z".parse().unwrap();
     let week = chrono::Duration::weeks(1);
-    assert!(events_in_range(ics, slot - week, slot, "Asia/Shanghai")
-        .unwrap()
-        .is_empty());
+    assert!(
+        events_in_range(ics, slot - week, slot, "Asia/Shanghai")
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         events_in_range(ics, slot, slot + week, "Asia/Shanghai")
             .unwrap()

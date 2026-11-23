@@ -30,9 +30,9 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub const CONFIG_FILE: &str = "webhooks.json";
 
@@ -173,14 +173,14 @@ pub fn load(home: &Path) -> Result<WebhooksConfig> {
                 hook.name
             ));
         }
-        if let Some(url) = hook.callback_url() {
-            if !(url.starts_with("http://") || url.starts_with("https://")) {
-                return Err(anyhow!(
-                    "the callback of hook '{}' in {} must be an http(s) URL, got: {url}",
-                    path.display(),
-                    hook.name
-                ));
-            }
+        if let Some(url) = hook.callback_url()
+            && !(url.starts_with("http://") || url.starts_with("https://"))
+        {
+            return Err(anyhow!(
+                "the callback of hook '{}' in {} must be an http(s) URL, got: {url}",
+                path.display(),
+                hook.name
+            ));
         }
     }
     Ok(config)
@@ -354,7 +354,9 @@ pub async fn deliver(callback: &str, payload: Value) {
             tokio::time::sleep(Duration::from_secs(u64::from(attempt))).await;
         }
     }
-    eprintln!("(jeeves) hook callback {callback} did not get through in three attempts; this delivery is lost (the answer is still in the session history)");
+    eprintln!(
+        "(jeeves) hook callback {callback} did not get through in three attempts; this delivery is lost (the answer is still in the session history)"
+    );
 }
 
 /// The 202 body for async hooks: the knock was accepted, the answer will be pushed.
@@ -498,7 +500,14 @@ mod webhooks_tests {
 
         let stale = signed_at("s3cret-a", epoch, body);
         assert_eq!(
-            admit(&admissions, &hook, &stale, body, epoch + SIGNATURE_WINDOW + 1, now),
+            admit(
+                &admissions,
+                &hook,
+                &stale,
+                body,
+                epoch + SIGNATURE_WINDOW + 1,
+                now
+            ),
             Err(Refusal::Unauthorized(
                 "the timestamp is outside the window (±300 seconds): old requests may not be replayed"
             ))

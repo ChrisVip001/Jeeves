@@ -1,5 +1,5 @@
 //! A missing settings file starts empty. A damaged existing file must survive a failed edit.
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{fs::File, io, path::Path};
 
 pub(crate) fn read<T: DeserializeOwned + Default>(path: &Path) -> io::Result<T> {

@@ -19,8 +19,8 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
 
     #[tokio::test]
@@ -109,11 +109,13 @@ mod tests {
     async fn private_fetch_is_rejected_before_mcp() {
         let handler: Handler = Arc::new(|_, _| panic!("Private URLs must not reach MCP"));
         let tool = crate::web::fetch_url_with_primary(Some(handler));
-        assert!((tool.handler)(
-            crate::web_tests::ctx().await,
-            json!({"url":"http://127.0.0.1/"})
-        )
-        .await
-        .is_err());
+        assert!(
+            (tool.handler)(
+                crate::web_tests::ctx().await,
+                json!({"url":"http://127.0.0.1/"})
+            )
+            .await
+            .is_err()
+        );
     }
 }

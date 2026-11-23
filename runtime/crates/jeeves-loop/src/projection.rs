@@ -1,4 +1,4 @@
-use jeeves_provider::{tokens, ContentBlock, Message, Role};
+use jeeves_provider::{ContentBlock, Message, Role, tokens};
 
 /// Keep the active instructions and complete recent tool exchanges in the
 /// model request. The checkpoint and operation ledger retain the full transcript.
@@ -56,14 +56,12 @@ pub(crate) fn compact(
             if let Some(reference) = data[field]
                 .as_str()
                 .filter(|s| !s.is_empty() && s.len() <= 1024)
+                && references.len() < 16
+                && reference.len() <= ref_bytes
+                && !references.iter().any(|r| r == reference)
             {
-                if references.len() < 16
-                    && reference.len() <= ref_bytes
-                    && !references.iter().any(|r| r == reference)
-                {
-                    ref_bytes = ref_bytes.saturating_sub(reference.len() + 1);
-                    references.push(reference.to_owned());
-                }
+                ref_bytes = ref_bytes.saturating_sub(reference.len() + 1);
+                references.push(reference.to_owned());
             }
         }
     }

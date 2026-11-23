@@ -9,7 +9,7 @@
 use std::io::Write as _;
 
 use anyhow::Result;
-use jeeves_app_server::{main_session, submit_main, EventSink, Frame, Server, MAIN_SESSION};
+use jeeves_app_server::{EventSink, Frame, MAIN_SESSION, Server, main_session, submit_main};
 use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams, TurnStartedNotification};
 
 const HELP: &str = "\nCommands:\n  /memory [term]  see what was remembered recently (with a term: search it)\n  /compact [focus] fold earlier turns into the summary now (the last two turns stay in context)\n  /quit          quit (/exit works too)\nAny other input is sent to Jeeves as a message.\n/goal <condition>   set a goal (it auto-continues while unmet); /goal clear removes it\n/model          see the configured models; /model use <name> switches; /model add <name> <provider> [model] [--env VAR] [--vision] adds one\n/cwd [path]     show or set this session's working directory (/cwd clear clears it); relative paths resolve against it\n/route          see the model routing table; /route auto|fixed switches mode; /route set <tier> <profile> edits the mapping";
@@ -119,7 +119,9 @@ fn route_cmd(server: &Server, input: &str) {
                     mapped.map(String::as_str).unwrap_or("(default chain)")
                 );
             }
-            println!("Default chain: reasoning/fast → chat → active; change it with /route set <tier> <profile>.");
+            println!(
+                "Default chain: reasoning/fast → chat → active; change it with /route set <tier> <profile>."
+            );
         }
         Some("auto") | Some("fixed") => {
             table.mode = if rest[1] == "auto" {
@@ -171,7 +173,9 @@ fn route_cmd(server: &Server, input: &str) {
             }
         }
         Some(other) => {
-            println!("Unknown subcommand '{other}'. /route shows the table, /route auto|fixed switches mode, /route set <tier> <profile> edits the mapping.");
+            println!(
+                "Unknown subcommand '{other}'. /route shows the table, /route auto|fixed switches mode, /route set <tier> <profile> edits the mapping."
+            );
         }
     }
 }
@@ -225,13 +229,15 @@ fn models(server: &Server, input: &str) {
                 api_key: None,
                 key_env: None,
                 vision: None,
-        capabilities: None,
+                capabilities: None,
                 make_active: Some(true),
             }) {
                 Ok(response) => println!(
                     "Switched to {} ({}).",
                     response.id,
-                    response.current.unwrap_or_else(|| "not configured yet".to_string())
+                    response
+                        .current
+                        .unwrap_or_else(|| "not configured yet".to_string())
                 ),
                 Err(why) => println!("Could not switch: {why}"),
             }
@@ -282,7 +288,9 @@ fn models(server: &Server, input: &str) {
                         if positionals == 1 {
                             model = Some(other.to_string());
                         } else {
-                            println!("Unexpected argument '{other}' — for anything else use --key / --env.");
+                            println!(
+                                "Unexpected argument '{other}' — for anything else use --key / --env."
+                            );
                         }
                         i += 1;
                     }
@@ -304,7 +312,9 @@ fn models(server: &Server, input: &str) {
                     "Saved {} ({}), now in effect. The key is stored in: {}\n\
                      (keychain = the system keychain; file = plaintext fallback, see limitations)",
                     response.id,
-                    response.current.unwrap_or_else(|| "not configured yet".to_string()),
+                    response
+                        .current
+                        .unwrap_or_else(|| "not configured yet".to_string()),
                     response.key_stored_in,
                 ),
                 Err(why) => println!("Could not store it: {why}"),
@@ -362,7 +372,9 @@ async fn set_goal(server: &Server, session_id: &str, input: &str) {
 async fn ask_approval(server: &Server, ask: jeeves_protocol::ApprovalRequestedNotification) {
     println!("…needs approval: {}", ask.args_preview);
     println!("  why it asks: {}", ask.reason);
-    print!("  Run it? (y = this once / s = always allow in this session / a = remember this one / anything else = deny):");
+    print!(
+        "  Run it? (y = this once / s = always allow in this session / a = remember this one / anything else = deny):"
+    );
     std::io::stdout().flush().ok();
 
     let mut stdin = tokio::io::BufReader::new(tokio::io::stdin());

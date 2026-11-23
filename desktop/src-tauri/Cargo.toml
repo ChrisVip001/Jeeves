@@ -2,7 +2,7 @@
 name = "jeeves-desktop"
 version = "0.18.0"
 description = "The Jeeves desktop shell: the cockpit front end plus a client for any Jeeves server"
-edition = "2021"
+edition = "2024"
 
 [features]
 cloud-device = []

@@ -115,7 +115,9 @@ impl Server {
         let resolved = match jeeves_provider::resolve_with(&settings, &self.catalog) {
             Ok(resolved) => Some(resolved),
             Err(reason) => {
-                eprintln!("(jeeves) after config/write no model is configured; turn/* unavailable — {reason}");
+                eprintln!(
+                    "(jeeves) after config/write no model is configured; turn/* unavailable — {reason}"
+                );
                 None
             }
         };

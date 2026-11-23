@@ -1,15 +1,15 @@
 //! Email connector: IMAP reads use BODY.PEEK (never mark a human's mail read); SMTP sends are
 //! drafts by default, allowlisted, and every live recipient gets its own scoped approval.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use async_imap::Client;
 use chrono::Utc;
 use jeeves_state::{GrantRequest, Grants};
 use jeeves_tools::approval::{ActionGrant, ApprovalRequest};
-use jeeves_tools::{require_str, Tool, ToolCtx};
+use jeeves_tools::{Tool, ToolCtx, require_str};
 use lettre::message::Mailbox;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -268,7 +268,10 @@ async fn send(ctx: ToolCtx, config: EmailConfig, args: Value) -> Result<String> 
             }
             action.settle("unknown").await?;
             record_claimed(&ctx, &message_id).await;
-            bail!("SMTP outcome is unknown after the send started; action {} was not retried: {error}",action.id);
+            bail!(
+                "SMTP outcome is unknown after the send started; action {} was not retried: {error}",
+                action.id
+            );
         }
     }
 }

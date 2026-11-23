@@ -1,6 +1,6 @@
 //! Wait only for jobs belonging to a task already authorized by a human.
 use crate::{EventSink, Server};
-use jeeves_state::waits::{JobWait, JobWaits, JOB_WAIT_REASON};
+use jeeves_state::waits::{JOB_WAIT_REASON, JobWait, JobWaits};
 
 pub(crate) fn arm(server: Server, sink: EventSink, wait: JobWait) {
     tokio::spawn(async move {
@@ -100,10 +100,10 @@ pub(crate) async fn review(
         return false;
     }
     eprintln!("(jeeves) job wait {} stopped: {reason}", wait.task_id);
-    if let Ok(Some(task)) = server.tasks.get(&wait.task_id).await {
-        if task.last_stop_reason.as_deref() == Some(reason) {
-            crate::task::notify(sink, &task, Some(reason));
-        }
+    if let Ok(Some(task)) = server.tasks.get(&wait.task_id).await
+        && task.last_stop_reason.as_deref() == Some(reason)
+    {
+        crate::task::notify(sink, &task, Some(reason));
     }
     true
 }

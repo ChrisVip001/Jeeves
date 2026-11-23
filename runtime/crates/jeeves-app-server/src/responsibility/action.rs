@@ -1,13 +1,13 @@
 //! Registry of executable, versioned recurring actions and their review projection.
-use super::{digest, trigger, Server};
-use anyhow::{ensure, Context, Result};
+use super::{Server, digest, trigger};
+use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use jeeves_protocol::{
     BudgetView, ResponsibilityAction, ResponsibilityDelivery, ResponsibilityDigest,
     ResponsibilityPlan, ResponsibilityPresentation,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{future::Future, pin::Pin, time::Duration};
 
 type OutputFuture<'a> = Pin<Box<dyn Future<Output = Result<Output>> + Send + 'a>>;

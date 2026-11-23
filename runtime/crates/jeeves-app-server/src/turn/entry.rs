@@ -1,19 +1,19 @@
 use chrono::Local;
 use jeeves_protocol::{
-    codes, ConsolidationCompletedNotification, ErrorObject, JsonRpcMessage, JsonRpcResponse,
-    RequestId, ServerNotification, TurnStartParams, TurnStartResponse, TurnStartedNotification,
-    JSONRPC_VERSION,
+    ConsolidationCompletedNotification, ErrorObject, JSONRPC_VERSION, JsonRpcMessage,
+    JsonRpcResponse, RequestId, ServerNotification, TurnStartParams, TurnStartResponse,
+    TurnStartedNotification, codes,
 };
 use jeeves_provider::Resolved;
-use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 
 use super::{
-    checkpoint_outlet, driver, fail_turn, finalize_turn, full_turn, load_plan, new_turn_id,
-    open_run, resolve_attachments, resolve_turn_cwd, retry_outlet, session_cwd, FinishedTurn,
-    FullTurn, TurnFrame, TurnGuard,
+    FinishedTurn, FullTurn, TurnFrame, TurnGuard, checkpoint_outlet, driver, fail_turn,
+    finalize_turn, full_turn, load_plan, new_turn_id, open_run, resolve_attachments,
+    resolve_turn_cwd, retry_outlet, session_cwd,
 };
-use crate::{route, EventSink, Server};
+use crate::{EventSink, Server, route};
 
 pub async fn run_turn(
     server: &Server,
@@ -152,10 +152,10 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         }
     }
 
-    if let Some(task) = &task {
-        if let Some(checkpoint) = crate::task::recovery::checkpoint(server, task).await? {
-            crate::task::recovery::require_known(&checkpoint)?;
-        }
+    if let Some(task) = &task
+        && let Some(checkpoint) = crate::task::recovery::checkpoint(server, task).await?
+    {
+        crate::task::recovery::require_known(&checkpoint)?;
     }
 
     if let Err(why) = server.turn_capacity() {
@@ -208,7 +208,7 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
                         "Task heartbeat could not be recorded; execution stopped: {e}"
                     ),
                     data: None,
-                })
+                });
             }
         }
     }

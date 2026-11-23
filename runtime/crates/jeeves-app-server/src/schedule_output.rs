@@ -32,7 +32,7 @@ pub(crate) fn write_output(home: &Path, file_name: &str, body: &str) -> std::io:
         Ok(_) => {
             return Err(std::io::Error::other(
                 "Output destination is not a regular file",
-            ))
+            ));
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(error),

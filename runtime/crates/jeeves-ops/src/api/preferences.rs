@@ -2,17 +2,17 @@
 use super::failed;
 use crate::AppServer;
 use axum::{
+    Json,
     extract::{Extension, Query},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use jeeves_protocol::{
-    methods, ConfigReadResponse, ConfigWriteParams, ConfigWriteResponse, ModelListResponse,
-    SessionPermissionGetParams, SessionPermissionResponse, SessionPermissionSetParams,
+    ConfigReadResponse, ConfigWriteParams, ConfigWriteResponse, ModelListResponse,
+    SessionPermissionGetParams, SessionPermissionResponse, SessionPermissionSetParams, methods,
 };
 use serde::de::DeserializeOwned;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 pub(super) async fn relay<T: DeserializeOwned + serde::Serialize>(

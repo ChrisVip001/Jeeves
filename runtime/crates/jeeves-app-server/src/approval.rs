@@ -18,7 +18,7 @@ use jeeves_tools::approval::{
 };
 use tokio::sync::oneshot;
 
-use crate::{narrow, EventSink};
+use crate::{EventSink, narrow};
 
 /// One question currently waiting for a human answer.
 pub(crate) struct Waiting {
@@ -277,24 +277,25 @@ impl ApprovalBroker for Bridge {
                 "timeout" => ApprovalOutcome::TimedOut,
                 _ => ApprovalOutcome::Withdrawn,
             };
-            if answer.approved() {
-                if let Some(action) = action {
-                    if !persist_grant(&grants, action).await {
-                        answer = ApprovalOutcome::Withdrawn;
-                    }
-                }
+            if answer.approved()
+                && let Some(action) = action
+                && !persist_grant(&grants, action).await
+            {
+                answer = ApprovalOutcome::Withdrawn;
             }
             let _ = grants.pending_remove(&turn_id, &request_id).await;
-            if let Ok(mut table) = pending.lock() {
-                if let Some(per_turn) = table.get_mut(&turn_id) {
-                    per_turn.remove(&request_id);
-                    if per_turn.is_empty() {
-                        table.remove(&turn_id);
-                    }
+            if let Ok(mut table) = pending.lock()
+                && let Some(per_turn) = table.get_mut(&turn_id)
+            {
+                per_turn.remove(&request_id);
+                if per_turn.is_empty() {
+                    table.remove(&turn_id);
                 }
             }
             if !answer.approved() {
-                eprintln!("(jeeves) approval request {request_id} was not approved ({outcome}); the action did not run");
+                eprintln!(
+                    "(jeeves) approval request {request_id} was not approved ({outcome}); the action did not run"
+                );
             }
             answer
         })

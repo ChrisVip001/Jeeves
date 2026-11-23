@@ -1,9 +1,9 @@
 //! Human RPCs declare a duty. The resident clock records due wakes without acquiring tool grants.
-use crate::{dispatch::internal, Server};
+use crate::{Server, dispatch::internal};
 use chrono::{DateTime, Local, Utc};
 use jeeves_protocol::{
-    codes, BudgetView, ErrorObject, ResponsibilityContract, ResponsibilityListResponse,
-    ResponsibilitySetPausedParams, ResponsibilityStatus, ResponsibilityView,
+    BudgetView, ErrorObject, ResponsibilityContract, ResponsibilityListResponse,
+    ResponsibilitySetPausedParams, ResponsibilityStatus, ResponsibilityView, codes,
 };
 use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 

@@ -130,16 +130,16 @@ impl Provider for Mock {
             Some(ContentBlock::Text { text }) => Some(text.clone()),
             _ => None,
         };
-        if self.deltas {
-            if let Some(text) = text {
-                return Box::pin(async move {
-                    for chunk in split_chunks(&text, 2) {
-                        on_text(&chunk);
-                        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-                    }
-                    response
-                });
-            }
+        if self.deltas
+            && let Some(text) = text
+        {
+            return Box::pin(async move {
+                for chunk in split_chunks(&text, 2) {
+                    on_text(&chunk);
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                }
+                response
+            });
         }
         Box::pin(std::future::ready(response))
     }

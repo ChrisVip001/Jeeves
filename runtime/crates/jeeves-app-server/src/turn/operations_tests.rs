@@ -1,5 +1,5 @@
 use crate::{EventSink, Server};
-use jeeves_provider::{mock::Mock, ContentBlock, Message, Resolved, Role};
+use jeeves_provider::{ContentBlock, Message, Resolved, Role, mock::Mock};
 use serde_json::json;
 use std::sync::Arc;
 

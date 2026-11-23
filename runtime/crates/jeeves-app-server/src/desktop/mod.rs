@@ -2,7 +2,7 @@
 mod screen;
 mod worker;
 use crate::Server;
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{Result, anyhow, bail, ensure};
 use jeeves_protocol::*;
 use std::sync::{Arc, Mutex};
 use worker::Worker;

@@ -1,6 +1,6 @@
 use crate::{
-    builtin_tools, lock, memory_worker, models, resources, subagent, BuiltinTools, EventSink,
-    Server,
+    BuiltinTools, EventSink, Server, builtin_tools, lock, memory_worker, models, resources,
+    subagent,
 };
 use anyhow::Result;
 use jeeves_config::Settings;
@@ -116,7 +116,9 @@ impl Server {
                 jeeves_memory::skills::SkillLoader::dirs_for(&snapshot.home),
             );
             for (skill, missing) in loader.dangling_dependencies() {
-                eprintln!("(jeeves) skill '{skill}' depends on '{missing}', which is missing; it takes no part in implicit triggering");
+                eprintln!(
+                    "(jeeves) skill '{skill}' depends on '{missing}', which is missing; it takes no part in implicit triggering"
+                );
             }
         }
         if std::fs::read_dir(snapshot.home.join("tools"))
@@ -192,9 +194,13 @@ impl Server {
         let episodes = Episodes::new(pool.clone());
         let chat = Chat::new(pool.clone());
         match chat.recover_consolidation_claims().await {
-            Ok(count) if count > 0 => eprintln!("(jeeves) recovered {count} unfinished memory source rows; extraction will retry without replaying task tools"),
+            Ok(count) if count > 0 => eprintln!(
+                "(jeeves) recovered {count} unfinished memory source rows; extraction will retry without replaying task tools"
+            ),
             Ok(_) => {}
-            Err(error) => eprintln!("(jeeves) memory claim recovery failed; claims retained for the next startup: {error}"),
+            Err(error) => eprintln!(
+                "(jeeves) memory claim recovery failed; claims retained for the next startup: {error}"
+            ),
         }
         let ledger = jeeves_state::Ledger::new(pool.clone());
         if let Ok(0) = ledger.count().await {
@@ -204,7 +210,9 @@ impl Server {
                     report.sessions, report.turns
                 ),
                 Ok(_) => {}
-                Err(e) => eprintln!("(jeeves) ledger backfill failed (not blocking startup; run `jeeves memory backfill` later): {e}"),
+                Err(e) => eprintln!(
+                    "(jeeves) ledger backfill failed (not blocking startup; run `jeeves memory backfill` later): {e}"
+                ),
             }
         }
         let usage = jeeves_state::Usage::new(pool.clone());
@@ -337,10 +345,11 @@ impl Server {
                         Ok(()) => eprintln!("(jeeves) reconcile: run {} (task {}) marked waiting after restart", run.id, run.task_id),
                         Err(error) => eprintln!("(jeeves) reconcile: could not mark run {} waiting: {error}", run.id),
                     }
-
                 }
             }
-            Err(e) => eprintln!("(jeeves) run-ledger reconciliation could not read the database (not blocking startup): {e}"),
+            Err(e) => eprintln!(
+                "(jeeves) run-ledger reconciliation could not read the database (not blocking startup): {e}"
+            ),
         }
         match self.tasks.reconcile_restart().await {
             Ok(rows) if !rows.is_empty() => {
@@ -431,7 +440,9 @@ impl Server {
         match self.queue.sessions_with_pending().await {
             Ok(sessions) => {
                 for session in sessions {
-                    eprintln!("(jeeves) reconcile: session {session} still has queued messages; it carries on");
+                    eprintln!(
+                        "(jeeves) reconcile: session {session} still has queued messages; it carries on"
+                    );
                     let server = self.clone();
                     tokio::spawn(async move { crate::turn::drain_queue(&server, &session).await });
                 }

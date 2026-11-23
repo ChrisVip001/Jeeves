@@ -256,24 +256,24 @@ fn task_budget(task: &TaskRow) -> Result<jeeves_protocol::BudgetView, String> {
 pub(crate) fn budget_remaining(task: &TaskRow) -> Result<bool, String> {
     let budget = task_budget(task)?;
     let mut over = Vec::new();
-    if let Some(cap) = budget.wall_ms {
-        if task.spent_wall_ms >= cap as i64 {
-            over.push(format!(
-                "elapsed {:.1}s (cap {:.1}s)",
-                task.spent_wall_ms as f64 / 1000.0,
-                cap as f64 / 1000.0
-            ));
-        }
+    if let Some(cap) = budget.wall_ms
+        && task.spent_wall_ms >= cap as i64
+    {
+        over.push(format!(
+            "elapsed {:.1}s (cap {:.1}s)",
+            task.spent_wall_ms as f64 / 1000.0,
+            cap as f64 / 1000.0
+        ));
     }
-    if let Some(cap) = budget.tokens {
-        if task.spent_tokens >= cap as i64 {
-            over.push(format!("tokens {} (cap {})", task.spent_tokens, cap));
-        }
+    if let Some(cap) = budget.tokens
+        && task.spent_tokens >= cap as i64
+    {
+        over.push(format!("tokens {} (cap {})", task.spent_tokens, cap));
     }
-    if let Some(cap) = budget.tools {
-        if task.spent_tools >= cap as i64 {
-            over.push(format!("tool calls {} (cap {})", task.spent_tools, cap));
-        }
+    if let Some(cap) = budget.tools
+        && task.spent_tools >= cap as i64
+    {
+        over.push(format!("tool calls {} (cap {})", task.spent_tools, cap));
     }
     if over.is_empty() {
         Ok(budget.wall_ms.is_some() || budget.tokens.is_some() || budget.tools.is_some())

@@ -1,5 +1,5 @@
 //! Rotating refresh tokens must have one consumer across the CLI, the resident worker and reconnects.
-use crate::oauth::{discover, tokens_from_response, StoredAuth, TokenStore};
+use crate::oauth::{StoredAuth, TokenStore, discover, tokens_from_response};
 use reqwest::Url;
 use std::{fs::File, time::Duration};
 
@@ -72,7 +72,7 @@ pub async fn refresh(store: &TokenStore, url: &str, background: bool) -> Result<
     let endpoint = match (&auth.token_endpoint, &auth.resource_url) {
         (Some(endpoint), Some(_)) => endpoint.clone(),
         _ if background => {
-            return Err("legacy OAuth credential; sign in to enable resident renewal".into())
+            return Err("legacy OAuth credential; sign in to enable resident renewal".into());
         }
         _ => {
             discover(&client, url)

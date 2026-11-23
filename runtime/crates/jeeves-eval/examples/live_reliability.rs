@@ -1,9 +1,9 @@
 //! Explicitly invoked, budgeted live smoke evaluation. No real user history is copied.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use jeeves_app_server::{EventSink, Frame, Server};
 use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams};
 use jeeves_provider::{CreateRequest, CreateResponse, Provider, ProviderError, Resolved, TextSink};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -210,7 +210,7 @@ async fn rpc(server: &Server, method: &str, params: Value) -> Result<Value> {
     while let Some(frame) = receiver.recv().await {
         match frame {
             Frame::Response(jeeves_protocol::JsonRpcMessage::Response(response)) => {
-                return Ok(response.result)
+                return Ok(response.result);
             }
             Frame::Response(jeeves_protocol::JsonRpcMessage::Error(error)) => {
                 anyhow::bail!("RPC failed: {}", error.error.message)

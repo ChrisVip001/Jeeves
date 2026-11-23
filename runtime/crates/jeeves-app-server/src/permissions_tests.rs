@@ -4,8 +4,8 @@ use jeeves_protocol::{
 };
 use serde_json::json;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
     Arc,
+    atomic::{AtomicUsize, Ordering},
 };
 
 async fn fixture() -> (tempfile::TempDir, Server, Arc<AtomicUsize>) {
@@ -73,20 +73,24 @@ async fn readonly_is_enforced_at_registry_even_for_unclassified_tools() {
         )
         .await;
     assert!(output.starts_with("Error: Read-only"), "{output}");
-    assert!(!server
-        .tools
-        .execute(ctx, "memory", json!({"action": "list"}))
-        .await
-        .starts_with("Error:"));
+    assert!(
+        !server
+            .tools
+            .execute(ctx, "memory", json!({"action": "list"}))
+            .await
+            .starts_with("Error:")
+    );
     assert_eq!(called.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
 async fn full_access_requires_confirmation_and_survives_restart_without_enabling_tools() {
     let (_dir, server, called) = fixture().await;
-    assert!(mode(&server, PermissionMode::FullAccess, 0, false)
-        .await
-        .is_err());
+    assert!(
+        mode(&server, PermissionMode::FullAccess, 0, false)
+            .await
+            .is_err()
+    );
     let view = mode(&server, PermissionMode::FullAccess, 0, true)
         .await
         .unwrap();
@@ -108,9 +112,11 @@ async fn full_access_requires_confirmation_and_survives_restart_without_enabling
     assert!(
         jeeves_tools::permissions::ExecutionPolicy::validate(restored.as_ref(), "s", 1).is_ok()
     );
-    assert!(mode(&server, PermissionMode::ReadOnly, 0, false)
-        .await
-        .is_err());
+    assert!(
+        mode(&server, PermissionMode::ReadOnly, 0, false)
+            .await
+            .is_err()
+    );
     assert_eq!(
         server.permission_view("s").await.unwrap().mode,
         Some(PermissionMode::FullAccess)

@@ -41,10 +41,10 @@ use std::future::IntoFuture;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use axum::http::{header, HeaderValue};
+use axum::Router;
+use axum::http::{HeaderValue, header};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
-use axum::Router;
 use jeeves_config::Settings;
 use jeeves_protocol::{ErrorNotification, ErrorObject, ServerNotification};
 use tokio::net::TcpListener;

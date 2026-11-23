@@ -1,7 +1,7 @@
 //! Opt-in one-request smoke. Arguments: Jeeves home and the user's Flash profile ID.
-use jeeves_config::models::{read_models, CredentialSlot, SecretStore, SecretVault};
-use jeeves_provider::{openai::Client, CreateRequest, Message, Provider, ProviderError};
-use serde_json::{json, Value};
+use jeeves_config::models::{CredentialSlot, SecretStore, SecretVault, read_models};
+use jeeves_provider::{CreateRequest, Message, Provider, ProviderError, openai::Client};
+use serde_json::{Value, json};
 use std::{
     env,
     path::Path,
@@ -79,7 +79,11 @@ async fn main() -> Result<(), String> {
     if parsed["rows"] != expected {
         return Err("Intent or target differed from the four expected synthetic decisions".into());
     }
-    println!("PASS model=deepseek-flash requests=1 synthetic_intents=4 input_tokens={} output_tokens={} elapsed_ms={}",
-        answer.usage.prompt_size(), answer.usage.output_tokens, start.elapsed().as_millis());
+    println!(
+        "PASS model=deepseek-flash requests=1 synthetic_intents=4 input_tokens={} output_tokens={} elapsed_ms={}",
+        answer.usage.prompt_size(),
+        answer.usage.output_tokens,
+        start.elapsed().as_millis()
+    );
     Ok(())
 }

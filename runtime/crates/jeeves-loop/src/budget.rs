@@ -60,10 +60,12 @@ impl RunLimits {
         {
             return Some("The task's token budget was reached".into());
         }
-        if let Some(cap) = self.tools {
-            if tools >= cap || requested > cap.saturating_sub(tools) {
-                return Some(format!("The task's tool-call budget cannot admit this step ({tools} of {cap} calls used)"));
-            }
+        if let Some(cap) = self.tools
+            && (tools >= cap || requested > cap.saturating_sub(tools))
+        {
+            return Some(format!(
+                "The task's tool-call budget cannot admit this step ({tools} of {cap} calls used)"
+            ));
         }
         None
     }

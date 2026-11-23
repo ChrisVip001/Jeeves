@@ -3,8 +3,8 @@
 //! Single-turn cases write `message` / `responses` directly; cross-turn behavior
 //! (sliding window, folding, consolidation, config reload, session isolation) uses `turns`.
 
-use jeeves_provider::mock::Mock;
 use jeeves_provider::CreateResponse;
+use jeeves_provider::mock::Mock;
 use serde::Deserialize;
 use serde_json::Value;
 

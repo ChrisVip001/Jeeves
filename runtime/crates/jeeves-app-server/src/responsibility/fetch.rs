@@ -1,11 +1,12 @@
 //! Call one approved read-only tool with fixed arguments and return its result as text.
 use super::{
+    Server,
     action::{Adapter, Output},
-    trigger, Server,
+    trigger,
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

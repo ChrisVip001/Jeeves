@@ -340,11 +340,12 @@ fn plan_segments(
     let mut open_shared = false;
     for (id, name, input) in uses {
         let exclusive = tools.is_exclusive(name) || !tools.effect(name).is_read();
-        if !exclusive && open_shared {
-            if let Some(last) = segments.last_mut() {
-                last.push((id.to_string(), name.to_string(), input.clone()));
-                continue;
-            }
+        if !exclusive
+            && open_shared
+            && let Some(last) = segments.last_mut()
+        {
+            last.push((id.to_string(), name.to_string(), input.clone()));
+            continue;
         }
         segments.push(vec![(id.to_string(), name.to_string(), input.clone())]);
         open_shared = !exclusive;
@@ -633,7 +634,7 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                         guard: GuardReport::close(&guard),
                         estimated_input_tokens: last_estimate,
                         observed_input_tokens: last_observed,
-                    }))
+                    }));
                 }
             }
         };
@@ -658,14 +659,13 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
 
         let uses = response.tool_uses();
         let tools_allowed = !out_of_tokens && response.stop_reason != StopReason::MaxTokens;
-        if tools_allowed {
-            if let Some(reason) = turn.run_limits.as_ref().and_then(|limits| {
+        if tools_allowed
+            && let Some(reason) = turn.run_limits.as_ref().and_then(|limits| {
                 limits.blocker(usage, completed_tools + tool_calls.len(), uses.len())
-            }) {
-                if !uses.is_empty() {
-                    break reason;
-                }
-            }
+            })
+            && !uses.is_empty()
+        {
+            break reason;
         }
         let mut kept: Vec<ContentBlock> = response
             .content
@@ -752,20 +752,20 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         let mut progressed = false;
         let uncertain = Arc::new(std::sync::atomic::AtomicBool::new(false));
         for segment in plan_segments(turn.tools, uses) {
-            if let Some(cancel) = turn.interrupt.as_ref() {
-                if cancel.is_cancelled() {
-                    return Ok(interrupted_result(Scene {
-                        round_id: round_id.clone(),
-                        streamed,
-                        tool_calls,
-                        iterations: iteration - 1,
-                        usage,
-                        messages,
-                        guard: GuardReport::close(&guard),
-                        estimated_input_tokens: last_estimate,
-                        observed_input_tokens: last_observed,
-                    }));
-                }
+            if let Some(cancel) = turn.interrupt.as_ref()
+                && cancel.is_cancelled()
+            {
+                return Ok(interrupted_result(Scene {
+                    round_id: round_id.clone(),
+                    streamed,
+                    tool_calls,
+                    iterations: iteration - 1,
+                    usage,
+                    messages,
+                    guard: GuardReport::close(&guard),
+                    estimated_input_tokens: last_estimate,
+                    observed_input_tokens: last_observed,
+                }));
             }
 
             admitted += segment.len();

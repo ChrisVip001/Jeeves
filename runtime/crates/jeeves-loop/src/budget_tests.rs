@@ -3,7 +3,7 @@
 
 use jeeves_provider::{ContentBlock, Message, Role};
 
-use super::budget::{should_wrap_up, trim_tool_results, ToolResultBudget};
+use super::budget::{ToolResultBudget, should_wrap_up, trim_tool_results};
 
 #[test]
 fn no_budget_never_wraps_up() {

@@ -6,7 +6,7 @@ use crate::{
     TextSink, Usage,
 };
 use futures_util::StreamExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::time::Duration;
 
 pub struct Client {
@@ -47,10 +47,10 @@ impl Client {
     }
     fn body(&self, request: &CreateRequest) -> Result<Value, ProviderError> {
         let mut body = to_responses(request)?;
-        if let Some((model, effort)) = &self.reasoning {
-            if &request.model == model {
-                body["reasoning"] = json!({"effort":effort});
-            }
+        if let Some((model, effort)) = &self.reasoning
+            && &request.model == model
+        {
+            body["reasoning"] = json!({"effort":effort});
         }
         Ok(body)
     }
@@ -107,7 +107,7 @@ impl Client {
                             .or_else(|| event.pointer("/response/error"))
                             .unwrap_or(&event)
                             .to_string(),
-                    ))
+                    ));
                 }
                 _ => {}
             }
@@ -288,7 +288,7 @@ pub fn from_responses(value: &Value) -> Result<CreateResponse, ProviderError> {
             kind => {
                 return Err(ProviderError::Parse(format!(
                     "Unsupported Responses output item: {kind:?}"
-                )))
+                )));
             }
         }
     }

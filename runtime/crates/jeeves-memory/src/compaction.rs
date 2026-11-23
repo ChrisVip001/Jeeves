@@ -138,7 +138,9 @@ fn fallback_summary(previous: &str, newly_evicted: &[(String, String)]) -> Strin
         ));
     }
     let clipped = clip(text.trim(), FALLBACK_CHARS);
-    format!("(the model summary is unavailable; here is a truncated excerpt of the conversation: {clipped})")
+    format!(
+        "(the model summary is unavailable; here is a truncated excerpt of the conversation: {clipped})"
+    )
 }
 
 fn clip(text: &str, max: usize) -> String {
@@ -249,7 +251,9 @@ pub async fn refresh_with_status(
             "(jeeves) the rolling summary could not be stored (this turn carries on regardless): {e}"
         ),
         Ok(false) => {
-            eprintln!("(jeeves) the rolling summary was not written: the database already has one covering more turns (concurrent compaction; the new one counts)")
+            eprintln!(
+                "(jeeves) the rolling summary was not written: the database already has one covering more turns (concurrent compaction; the new one counts)"
+            )
         }
         Ok(true) => {}
     }

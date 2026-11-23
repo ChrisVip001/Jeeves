@@ -1,5 +1,5 @@
 //! A task's SMTP envelope and the exclusive right to hand it to the transport.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, SqlitePool};
 
 #[derive(FromRow)]
@@ -229,7 +229,10 @@ pub async fn draft_for_interaction(
                     format!("{title} · {} · {}", action.task_id, action.id)
                 })
                 .collect();
-            format!("请选择发件动作，将动作 ID 连同改为草稿的指令一起回复。 Which email? Reply with its action ID and your draft instruction.\n{}", choices.join("\n"))
+            format!(
+                "请选择发件动作，将动作 ID 连同改为草稿的指令一起回复。 Which email? Reply with its action ID and your draft instruction.\n{}",
+                choices.join("\n")
+            )
         }
     };
     tx.commit().await?;
@@ -329,18 +332,24 @@ mod tests {
         let pool = crate::open(&db).await.unwrap();
         let first = add(&pool, "alpha").await;
         let second = add(&pool, "beta").await;
-        assert!(draft(&pool, "main", None, "刚才那个先别发，改成草稿")
-            .await
-            .unwrap()
-            .contains("Which email"));
-        assert!(draft(&pool, "other", None, &first.id)
-            .await
-            .unwrap()
-            .contains("No matching"));
-        assert!(draft(&pool, "main", Some("alpha"), "mail-invalid")
-            .await
-            .unwrap()
-            .contains("No matching"));
+        assert!(
+            draft(&pool, "main", None, "刚才那个先别发，改成草稿")
+                .await
+                .unwrap()
+                .contains("Which email")
+        );
+        assert!(
+            draft(&pool, "other", None, &first.id)
+                .await
+                .unwrap()
+                .contains("No matching")
+        );
+        assert!(
+            draft(&pool, "main", Some("alpha"), "mail-invalid")
+                .await
+                .unwrap()
+                .contains("No matching")
+        );
         assert_eq!(first.state().await.unwrap(), "queued");
         let saved = draft(&pool, "main", None, &first.id).await.unwrap();
         assert!(saved.contains("synthetic envelope"));
@@ -380,10 +389,12 @@ mod tests {
             .await
             .unwrap();
         for _ in 0..2 {
-            assert!(draft(&pool, "main", None, &action.id)
-                .await
-                .unwrap()
-                .contains("Saved draft"));
+            assert!(
+                draft(&pool, "main", None, &action.id)
+                    .await
+                    .unwrap()
+                    .contains("Saved draft")
+            );
         }
         let count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM chat_log WHERE source='mail_draft' AND notice_key=?",
@@ -419,15 +430,19 @@ mod tests {
         ] {
             let action = add(&pool, state).await;
             assert!(action.claim().await.unwrap());
-            assert!(draft(&pool, "main", Some(state), "改成草稿")
-                .await
-                .unwrap()
-                .contains("Sender claimed"));
+            assert!(
+                draft(&pool, "main", Some(state), "改成草稿")
+                    .await
+                    .unwrap()
+                    .contains("Sender claimed")
+            );
             action.settle(state).await.unwrap();
-            assert!(draft(&pool, "main", Some(state), "改成草稿")
-                .await
-                .unwrap()
-                .contains(report));
+            assert!(
+                draft(&pool, "main", Some(state), "改成草稿")
+                    .await
+                    .unwrap()
+                    .contains(report)
+            );
             assert!(!action.claim().await.unwrap());
         }
     }

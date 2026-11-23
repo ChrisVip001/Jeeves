@@ -6,12 +6,12 @@
 use std::sync::Arc;
 
 use jeeves_protocol::{RememberScope, RequestId, ServerNotification, TurnStartParams};
-use jeeves_provider::mock::Mock;
 use jeeves_provider::Resolved;
+use jeeves_provider::mock::Mock;
 use jeeves_tools::approval::RememberTarget;
 use tokio::sync::oneshot;
 
-use crate::{run_turn, EventSink, Frame, Server};
+use crate::{EventSink, Frame, Server, run_turn};
 
 #[tokio::test]
 async fn answering_an_unknown_request_is_false_not_an_error() {

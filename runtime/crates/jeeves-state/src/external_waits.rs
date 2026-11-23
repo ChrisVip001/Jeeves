@@ -1,5 +1,5 @@
 //! Durable, source-bound input obligations for tasks already authorized by humans.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, SqlitePool};
 
 pub const INPUT_WAIT_REASON: &str = "waiting for authorized external input";

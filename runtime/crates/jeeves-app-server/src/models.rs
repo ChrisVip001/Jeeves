@@ -8,7 +8,7 @@
 //! cannot reach the keys — if it could make Jeeves switch providers itself, it could plug itself into another server.
 
 use jeeves_config::models as cfg;
-use jeeves_config::routes::{load_routes, save_routes, RouteFile, RouteMode, TIERS};
+use jeeves_config::routes::{RouteFile, RouteMode, TIERS, load_routes, save_routes};
 use jeeves_protocol::{
     ApprovalLogEntry, ApprovalLogResponse, ModelProfileView, ModelProfilesResponse,
     ModelRemoveParams, ModelRemoveResponse, ModelRoutesResponse, ModelRoutesSaveParams,
@@ -331,7 +331,7 @@ impl Server {
             (None, None) => {
                 return Err(format!(
                     "the first configuration of '{id}' needs a provider (model/list has each provider's id)"
-                ))
+                ));
             }
         };
         let entry = provider_entry(&self.catalog, &provider)?;
@@ -522,7 +522,9 @@ impl Server {
         let resolved = match jeeves_provider::resolve_with(&settings, &self.catalog) {
             Ok(resolved) => Some(resolved),
             Err(reason) => {
-                eprintln!("(jeeves) after switching models nothing is configured yet; turn/* unavailable — {reason}");
+                eprintln!(
+                    "(jeeves) after switching models nothing is configured yet; turn/* unavailable — {reason}"
+                );
                 None
             }
         };

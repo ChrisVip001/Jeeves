@@ -117,17 +117,16 @@ async fn start_with_tier(
         return receipt::replay(server, (&p.session_id, &p.message_id), &input, id, sink).await;
     }
     let result = execute(server, &p, id, sink, tier).await;
-    if let Err(error) = &result {
-        if let Err(failure) = jeeves_state::interactions::fail(
+    if let Err(error) = &result
+        && let Err(failure) = jeeves_state::interactions::fail(
             &server.pool,
             &p.session_id,
             &p.message_id,
             &error.message,
         )
         .await
-        {
-            eprintln!("(jeeves) interaction failure receipt unavailable: {failure}");
-        }
+    {
+        eprintln!("(jeeves) interaction failure receipt unavailable: {failure}");
     }
     result
 }
@@ -237,7 +236,9 @@ async fn execute(
         .await
         .map_err(internal)?;
         if let Some(replacement) = replacement {
-            let reply = format!("Manage this imported assignment in Recurring Work ({replacement}). Its old history is here. Ask in the main chat to review its new sources and conditions.");
+            let reply = format!(
+                "Manage this imported assignment in Recurring Work ({replacement}). Its old history is here. Ask in the main chat to review its new sources and conditions."
+            );
             return receipt::acknowledge(server, p, id, sink, reply, started).await;
         }
         let task = task_tool::continue_task(server, p, task_id, &p.message, sink, || {})
@@ -253,7 +254,9 @@ async fn execute(
         return Err(invalid("Configure a model before sending a message"));
     }
     if !may_dispatch {
-        eprintln!("(jeeves) a message from outside the dispatchers gets a conversation without the task tool");
+        eprintln!(
+            "(jeeves) a message from outside the dispatchers gets a conversation without the task tool"
+        );
     }
     let tool = may_dispatch.then(|| task_tool::build(server.clone(), p.clone(), sink.clone()));
     receipt::conversation(server, p, id, sink, tool.as_ref(), tier).await

@@ -19,14 +19,14 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use jeeves_protocol::{
-    codes, ErrorObject, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse,
-    RequestId, ServerNotification, JSONRPC_VERSION,
+    ErrorObject, JSONRPC_VERSION, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest,
+    JsonRpcResponse, RequestId, ServerNotification, codes,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::{broadcast, oneshot, watch, Mutex as AsyncMutex};
+use tokio::sync::{Mutex as AsyncMutex, broadcast, oneshot, watch};
 
 /// How many not-yet-consumed notifications may pile up. Enough for an hour-long chat; if
 /// it truly fills, a subscriber (some stuck browser tab) has stopped looking — drop old ones.
@@ -186,16 +186,14 @@ impl AppServer {
         })
         .await
         .unwrap_or(false);
-        if !clean {
-            if let Some(mut child) = self.process.lock().await.take() {
-                match tokio::time::timeout(std::time::Duration::from_secs(2), child.kill()).await {
-                    Ok(Ok(())) => {}
-                    Ok(Err(error)) => {
-                        eprintln!("(jeeves) could not stop the Runtime child: {error}")
-                    }
-                    Err(_) => eprintln!(
-                        "(jeeves) Runtime child did not exit after the force-stop deadline"
-                    ),
+        if !clean && let Some(mut child) = self.process.lock().await.take() {
+            match tokio::time::timeout(std::time::Duration::from_secs(2), child.kill()).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    eprintln!("(jeeves) could not stop the Runtime child: {error}")
+                }
+                Err(_) => {
+                    eprintln!("(jeeves) Runtime child did not exit after the force-stop deadline")
                 }
             }
         }

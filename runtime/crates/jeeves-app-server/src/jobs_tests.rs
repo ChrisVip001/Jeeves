@@ -219,10 +219,10 @@ async fn the_ledger_records_how_jobs_end() {
     let id2 = jobs.spawn("s1", "sleep 30", None).await.expect("it starts");
     assert!(jobs.kill("s1", &id2).await.expect("it stops"));
     for _ in 0..50 {
-        if let Ok(Some(row)) = rows.get(&id2).await {
-            if row.status == "killed" {
-                break;
-            }
+        if let Ok(Some(row)) = rows.get(&id2).await
+            && row.status == "killed"
+        {
+            break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
@@ -299,10 +299,11 @@ async fn a_crash_leaves_an_interrupted_record_not_a_zombie() {
         .expect("a finished job should still read");
     assert!(!read.running);
     assert!(read.text.contains("halfway through"), "{read:?}");
-    assert!(jobs
-        .output("someone-else", &"j1".to_string(), 0, false)
-        .await
-        .is_err());
+    assert!(
+        jobs.output("someone-else", &"j1".to_string(), 0, false)
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -355,10 +356,11 @@ async fn unavailable_task_run_prevents_background_process_start() {
     let (jobs, home) = jobs(&["echo*"]).await;
     let marker = home.path().join("must-not-run");
     let command = format!("echo started > {}", marker.display());
-    assert!(jobs
-        .spawn_for_run("s", &command, None, Some("missing-run".into()))
-        .await
-        .is_err());
+    assert!(
+        jobs.spawn_for_run("s", &command, None, Some("missing-run".into()))
+            .await
+            .is_err()
+    );
     assert!(!marker.exists());
     assert!(jobs.list("s").is_empty());
 }

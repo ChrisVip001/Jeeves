@@ -1,12 +1,12 @@
 use super::{
-    fold_tool_activity, settle_task, strip_echoed_footer, HistoryStats, Settlement, TaskDecision,
+    HistoryStats, Settlement, TaskDecision, fold_tool_activity, settle_task, strip_echoed_footer,
 };
-use crate::{narrow, trace, EventSink, Server};
+use crate::{EventSink, Server, narrow, trace};
 use chrono::Local;
 use jeeves_loop::LoopResult;
 use jeeves_protocol::{
-    codes, ConsolidationCompletedNotification, ErrorObject, ServerNotification, TokenUsage,
-    ToolCallRecord, ToolStatus, TurnCompletedNotification, TurnMeta,
+    ConsolidationCompletedNotification, ErrorObject, ServerNotification, TokenUsage,
+    ToolCallRecord, ToolStatus, TurnCompletedNotification, TurnMeta, codes,
 };
 use jeeves_provider::Resolved;
 
@@ -227,31 +227,25 @@ pub(crate) async fn finalize_turn(
         eprintln!("(jeeves) observed context size not recorded (this turn is unaffected): {e}");
     }
 
-    if waiting_for_jobs {
-        if let Some(task) = &carried_task {
-            if let Ok(Some(wait)) = jeeves_state::waits::JobWaits::new(server.pool.clone())
-                .get(&task.id)
-                .await
-            {
-                if wait.state == "waiting" {
-                    crate::task::waits::arm(server.clone(), sink.clone(), wait);
-                }
-            }
-        }
+    if waiting_for_jobs
+        && let Some(task) = &carried_task
+        && let Ok(Some(wait)) = jeeves_state::waits::JobWaits::new(server.pool.clone())
+            .get(&task.id)
+            .await
+        && wait.state == "waiting"
+    {
+        crate::task::waits::arm(server.clone(), sink.clone(), wait);
     }
 
-    if input_wait_committed {
-        if let Some(task) = &carried_task {
-            if let Ok(Some(wait)) =
-                jeeves_state::external_waits::ExternalWaits::new(server.pool.clone())
-                    .waiting(&task.id)
-                    .await
-            {
-                if wait.state == "waiting" {
-                    crate::input_wake::arm(server.clone(), sink.clone(), wait);
-                }
-            }
-        }
+    if input_wait_committed
+        && let Some(task) = &carried_task
+        && let Ok(Some(wait)) =
+            jeeves_state::external_waits::ExternalWaits::new(server.pool.clone())
+                .waiting(&task.id)
+                .await
+        && wait.state == "waiting"
+    {
+        crate::input_wake::arm(server.clone(), sink.clone(), wait);
     }
 
     if let Some(worker) = server.memory_worker.as_ref() {

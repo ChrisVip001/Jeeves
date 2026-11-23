@@ -12,11 +12,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 
-use crate::fs::{expand_tilde, resolve_against_cwd};
 use crate::Tool;
+use crate::fs::{expand_tilde, resolve_against_cwd};
 
 /// Directories a recursive search never walks into.
 ///
@@ -296,10 +296,10 @@ async fn execute_grep(ctx: &crate::ToolCtx, args: &Value) -> Result<String> {
         let mut hits: Vec<String> = Vec::new();
         let cut = walk_files(&walk_root, &mut |path| {
             let relative = display_path(&walk_root, path);
-            if let Some(filter) = &filter {
-                if !glob_match(filter, &relative) {
-                    return true;
-                }
+            if let Some(filter) = &filter
+                && !glob_match(filter, &relative)
+            {
+                return true;
             }
             let Ok(meta) = std::fs::metadata(path) else {
                 return true;
@@ -416,8 +416,16 @@ fn code_tool(name: &str, description: &str, symbol: bool) -> Tool {
 }
 
 pub fn find_symbol_tool() -> Tool {
-    code_tool("find_symbol", "Find common source declarations by exact name. Best-effort text parsing; bounded and read-only.", true)
+    code_tool(
+        "find_symbol",
+        "Find common source declarations by exact name. Best-effort text parsing; bounded and read-only.",
+        true,
+    )
 }
 pub fn repo_map_tool() -> Tool {
-    code_tool("repo_map", "List common source declarations under a directory. Best-effort text parsing; bounded and read-only.", false)
+    code_tool(
+        "repo_map",
+        "List common source declarations under a directory. Best-effort text parsing; bounded and read-only.",
+        false,
+    )
 }

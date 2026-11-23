@@ -1,9 +1,9 @@
 //! Human cockpit controls. The app-server validates and owns the authorization.
 use super::preferences::relay;
 use crate::AppServer;
-use axum::{extract::Extension, response::Response, Json};
-use jeeves_protocol::{methods, ResponsibilityListResponse, ResponsibilityView};
-use serde_json::{json, Value};
+use axum::{Json, extract::Extension, response::Response};
+use jeeves_protocol::{ResponsibilityListResponse, ResponsibilityView, methods};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 pub async fn list(Extension(app): Extension<Arc<AppServer>>) -> Response {

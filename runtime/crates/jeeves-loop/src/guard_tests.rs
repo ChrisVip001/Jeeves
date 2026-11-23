@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use super::guard::{for_model, reminder, GuardVerdict, StallGuard};
+use super::guard::{GuardVerdict, StallGuard, for_model, reminder};
 
 fn feed(guard: &mut StallGuard, name: &str, args: serde_json::Value, output: &str) -> GuardVerdict {
     guard.observe(name, &args, output, true)
@@ -162,22 +162,26 @@ fn waiting_on_a_running_job_is_not_a_loop() {
     let mut guard = StallGuard::new();
     let poll = json!({"action": "output", "id": "j1", "wait": true});
     for _ in 0..6 {
-        assert!(feed(
-            &mut guard,
-            "job",
-            poll.clone(),
-            "job is still running (0 read so far)"
-        )
-        .is_ok());
+        assert!(
+            feed(
+                &mut guard,
+                "job",
+                poll.clone(),
+                "job is still running (0 read so far)"
+            )
+            .is_ok()
+        );
     }
     for _ in 0..4 {
-        assert!(feed(
-            &mut guard,
-            "job_output",
-            json!({"id": "j1"}),
-            "still running"
-        )
-        .is_ok());
+        assert!(
+            feed(
+                &mut guard,
+                "job_output",
+                json!({"id": "j1"}),
+                "still running"
+            )
+            .is_ok()
+        );
     }
     assert_eq!(guard.hits(), 0);
 

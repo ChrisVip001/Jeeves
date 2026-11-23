@@ -6,7 +6,7 @@ use jeeves_protocol::{
     CalendarConnectorSettings, ConnectorSettingsResponse, ConnectorSettingsSaveParams,
     EmailConnectorSettings, MailConnectorSecurity, MailConnectorServer,
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{io::Write, path::Path};
 
 pub(crate) fn register_native(

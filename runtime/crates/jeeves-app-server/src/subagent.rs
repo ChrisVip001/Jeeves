@@ -24,7 +24,7 @@ use std::sync::{Arc, RwLock};
 use jeeves_config::Settings;
 use jeeves_provider::Resolved;
 use jeeves_state::{Chat, Episodes, Facts};
-use jeeves_tools::{subagent::SubagentRunner, BoxFut, ToolRegistry};
+use jeeves_tools::{BoxFut, ToolRegistry, subagent::SubagentRunner};
 use serde_json::Value;
 
 /// Per-loop cost budget for a subagent.
@@ -282,11 +282,15 @@ impl SubagentRunner for Delegated {
                         match retry {
                             Ok(second) => match coerce_structured(second.reply.trim(), schema) {
                                 Ok(json) => {
-                                    eprintln!("(jeeves) the subagent's structured result passed on the retry");
+                                    eprintln!(
+                                        "(jeeves) the subagent's structured result passed on the retry"
+                                    );
                                     summary = json;
                                 }
                                 Err(again) => {
-                                    eprintln!("(jeeves) the subagent's structured result failed validation twice: {again}");
+                                    eprintln!(
+                                        "(jeeves) the subagent's structured result failed validation twice: {again}"
+                                    );
                                     summary.push_str(&format!(
                                         "\n(the structured result failed validation twice: {again}; above is its raw text)"
                                     ));

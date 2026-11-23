@@ -4,7 +4,7 @@ use crate::Server;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
 use jeeves_state::external_waits::{ExternalWaits, InputCondition};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub(crate) enum ConnectorWait {
     Email,
@@ -268,12 +268,13 @@ mod tests {
             .payload_json
             .unwrap();
         assert!(data.contains("fixture-calendar"));
-        assert!(rows
-            .get("input-task")
-            .await
-            .unwrap()
-            .unwrap()
-            .event_id
-            .is_none());
+        assert!(
+            rows.get("input-task")
+                .await
+                .unwrap()
+                .unwrap()
+                .event_id
+                .is_none()
+        );
     }
 }

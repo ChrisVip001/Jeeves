@@ -188,7 +188,7 @@ impl Bundle {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(pages),
             Err(error) => {
-                return Err(error).with_context(|| format!("read {}", self.root.display()))
+                return Err(error).with_context(|| format!("read {}", self.root.display()));
             }
         };
         for entry in entries {
@@ -204,10 +204,10 @@ impl Bundle {
             if lowered == "index" || lowered == "changelog" {
                 continue;
             }
-            if let Ok(text) = fs::read_to_string(&path) {
-                if let Some(page) = Page::parse(slug.to_string(), &text) {
-                    pages.push(page);
-                }
+            if let Ok(text) = fs::read_to_string(&path)
+                && let Some(page) = Page::parse(slug.to_string(), &text)
+            {
+                pages.push(page);
             }
         }
         pages.sort_by(|a, b| a.kind.cmp(&b.kind).then(a.slug.cmp(&b.slug)));

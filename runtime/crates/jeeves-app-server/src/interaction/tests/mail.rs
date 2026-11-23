@@ -34,10 +34,12 @@ async fn main_mail_request_writes_one_local_draft_without_creating_a_task() {
         for tool in ["task", "email_send", "write_file"] {
             assert!(received[0].tools.iter().any(|t| t.name == tool));
         }
-        assert!(received[0]
-            .system_text()
-            .unwrap()
-            .contains("Deliver the requested result here"));
+        assert!(
+            received[0]
+                .system_text()
+                .unwrap()
+                .contains("Deliver the requested result here")
+        );
     }
     send(&server, INSTRUCTION, "draft", None).await.unwrap();
     assert!(server.tasks.list(10).await.unwrap().is_empty());
@@ -84,9 +86,11 @@ async fn deferred_main_discovery_exposes_the_discovered_mail_tool() {
         .unwrap();
     let received = model.received.lock().unwrap();
     assert_eq!(received.len(), 3);
-    assert!(received
-        .iter()
-        .all(|r| r.tools.iter().any(|t| t.name == "task")));
+    assert!(
+        received
+            .iter()
+            .all(|r| r.tools.iter().any(|t| t.name == "task"))
+    );
     assert!(!received[0].tools.iter().any(|t| t.name == "email_send"));
     assert!(received[2].tools.iter().any(|t| t.name == "email_send"));
 }

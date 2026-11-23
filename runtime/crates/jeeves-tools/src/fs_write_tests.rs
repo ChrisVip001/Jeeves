@@ -8,7 +8,7 @@ use serde_json::json;
 use super::approval::{
     ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest, RememberTarget,
 };
-use super::fs_write::{edit, render_change, write_file, WritePolicy};
+use super::fs_write::{WritePolicy, edit, render_change, write_file};
 use crate::{ToolCtx, ToolRegistry};
 
 async fn test_ctx(approval: Option<Arc<dyn ApprovalBroker>>) -> ToolCtx {
@@ -728,9 +728,11 @@ async fn the_session_policy_is_not_consulted_for_a_stale_write() {
         consulted,
         "a refused write must never reach the approval policy"
     );
-    assert!(std::fs::read_to_string(&path)
-        .expect("read")
-        .contains("third from the user"));
+    assert!(
+        std::fs::read_to_string(&path)
+            .expect("read")
+            .contains("third from the user")
+    );
 }
 
 #[tokio::test]

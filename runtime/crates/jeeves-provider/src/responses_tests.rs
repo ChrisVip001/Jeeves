@@ -158,10 +158,12 @@ async fn streaming_waits_for_a_terminal_response_and_preserves_tools() {
     )
     .await;
     let client = Client::new("", Some(&base), Duration::from_secs(3), 0);
-    assert!(client
-        .stream(request(), std::sync::Arc::new(|_| {}))
-        .await
-        .is_err());
+    assert!(
+        client
+            .stream(request(), std::sync::Arc::new(|_| {}))
+            .await
+            .is_err()
+    );
     server.await.unwrap();
 }
 

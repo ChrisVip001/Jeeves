@@ -72,9 +72,9 @@ impl crate::Server {
         let home = self.settings().home;
         let target = target(&home, id)?;
         let lock = self.session_write_lock("connector-oauth");
-        let guard = lock.try_lock_owned().map_err(|_| {
-            "an authorization is already in progress; complete or wait for it to expire"
-        })?;
+        let guard = lock.try_lock_owned().map_err(
+            |_| "an authorization is already in progress; complete or wait for it to expire",
+        )?;
         let (tx, rx) = oneshot::channel::<Result<String, String>>();
         let pending = Arc::new(Mutex::new(Some(tx)));
         let callback = pending.clone();
@@ -123,9 +123,13 @@ impl crate::Server {
                     }
                 }
                 cards.invalidate();
-                eprintln!("(jeeves) connector authorization completed; credentials stored, no values returned");
+                eprintln!(
+                    "(jeeves) connector authorization completed; credentials stored, no values returned"
+                );
             } else {
-                eprintln!("(jeeves) connector authorization failed or expired; review the service and try again");
+                eprintln!(
+                    "(jeeves) connector authorization failed or expired; review the service and try again"
+                );
             }
         });
         match tokio::time::timeout(Duration::from_secs(20), rx).await {

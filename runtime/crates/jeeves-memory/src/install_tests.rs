@@ -1,7 +1,7 @@
 //! Skill install/update tests: version comparison, validate-before-write, backup, atomic swap.
 
 use super::install::{
-    install, installed_version, needs_update, parse_index, update_all, IndexEntry, Outcome,
+    IndexEntry, Outcome, install, installed_version, needs_update, parse_index, update_all,
 };
 use crate::skills::{install_from_text, is_slug};
 

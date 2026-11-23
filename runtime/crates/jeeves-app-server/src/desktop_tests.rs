@@ -71,10 +71,12 @@ mod worker {
         let (home, s) = setup().await;
         let mode = home.path().join("mode");
         fs::write(&mode, "deny").unwrap();
-        assert!(rpc(&s, "desktop/select", task())
-            .await
-            .unwrap_err()
-            .contains("permission"));
+        assert!(
+            rpc(&s, "desktop/select", task())
+                .await
+                .unwrap_err()
+                .contains("permission")
+        );
         fs::write(&mode, "allow").unwrap();
         let old = rpc(&s, "desktop/select", task()).await.unwrap();
         let o = rpc(&s, "desktop/observe", task()).await.unwrap();
@@ -173,14 +175,18 @@ mod worker {
         let model = json!({"taskId":"input-task","profileId":"screen-fixture"});
         rpc(&s, "desktop/model", model.clone()).await.unwrap();
         let frame = rpc(&s, "desktop/frame", capture.clone()).await.unwrap();
-        assert!(frame["destination"]
-            .as_str()
-            .unwrap()
-            .contains(&dest.to_string()));
+        assert!(
+            frame["destination"]
+                .as_str()
+                .unwrap()
+                .contains(&dest.to_string())
+        );
         let share = |f: &Value, confirmed| json!({"taskId":"input-task","frameId":f["frameId"],"confirmed":confirmed});
-        assert!(rpc(&s, "desktop/share", share(&frame, false))
-            .await
-            .is_err());
+        assert!(
+            rpc(&s, "desktop/share", share(&frame, false))
+                .await
+                .is_err()
+        );
         rpc(&s, "desktop/model", model).await.unwrap();
         assert!(rpc(&s, "desktop/share", share(&frame, true)).await.is_err());
         assert!(
@@ -197,12 +203,12 @@ mod worker {
                 let n = stream.read(&mut b).await.unwrap();
                 assert!(n > 0);
                 data.extend_from_slice(&b[..n]);
-                if let Some(i) = data.windows(4).position(|s| s == b"\r\n\r\n") {
-                    if let Ok(body) = serde_json::from_slice::<Value>(&data[i + 4..]) {
-                        assert!(body.to_string().contains("data:image/jpeg;base64,"));
-                        assert!(body.get("tools").is_none());
-                        break;
-                    }
+                if let Some(i) = data.windows(4).position(|s| s == b"\r\n\r\n")
+                    && let Ok(body) = serde_json::from_slice::<Value>(&data[i + 4..])
+                {
+                    assert!(body.to_string().contains("data:image/jpeg;base64,"));
+                    assert!(body.get("tools").is_none());
+                    break;
                 }
             }
             let body = r#"{"choices":[{"message":{"role":"assistant","content":"Fixture window"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}"#;

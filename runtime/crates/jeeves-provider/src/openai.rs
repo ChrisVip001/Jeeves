@@ -12,11 +12,11 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use reqwest::Client as HttpClient;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
-    sse, ContentBlock, CreateRequest, CreateResponse, Provider, ProviderError, Role, StopReason,
-    TextSink, Usage,
+    ContentBlock, CreateRequest, CreateResponse, Provider, ProviderError, Role, StopReason,
+    TextSink, Usage, sse,
 };
 
 const DEFAULT_BASE: &str = "https://api.openai.com/v1";
@@ -63,14 +63,14 @@ impl Client {
     }
     fn body(&self, request: &CreateRequest) -> Value {
         let mut body = to_openai(request);
-        if self.reasoning_content {
-            if let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) {
-                for message in messages {
-                    if message.get("role").and_then(Value::as_str) == Some("assistant")
-                        && message.get("reasoning_content").is_none()
-                    {
-                        message["reasoning_content"] = json!("");
-                    }
+        if self.reasoning_content
+            && let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut)
+        {
+            for message in messages {
+                if message.get("role").and_then(Value::as_str) == Some("assistant")
+                    && message.get("reasoning_content").is_none()
+                {
+                    message["reasoning_content"] = json!("");
                 }
             }
         }
@@ -184,20 +184,19 @@ impl Client {
             let value: Value = serde_json::from_str(&data)
                 .map_err(|e| ProviderError::Parse(format!("the SSE payload is not JSON: {e}")))?;
 
-            if let Some(u) = value.get("usage") {
-                if !u.is_null() {
-                    usage.input_tokens =
-                        u.get("prompt_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-                    usage.output_tokens = u
-                        .get("completion_tokens")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
-                    usage.cache_read_input_tokens = u
-                        .pointer("/prompt_tokens_details/cached_tokens")
-                        .and_then(|v| v.as_i64())
-                        .unwrap_or(0);
-                    usage.prompt_tokens = usage.input_tokens;
-                }
+            if let Some(u) = value.get("usage")
+                && !u.is_null()
+            {
+                usage.input_tokens = u.get("prompt_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+                usage.output_tokens = u
+                    .get("completion_tokens")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                usage.cache_read_input_tokens = u
+                    .pointer("/prompt_tokens_details/cached_tokens")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                usage.prompt_tokens = usage.input_tokens;
             }
 
             let Some(choice) = value
@@ -215,11 +214,11 @@ impl Client {
             if let Some(piece) = delta.get("reasoning_content").and_then(Value::as_str) {
                 reasoning.push_str(piece);
             }
-            if let Some(piece) = delta.get("content").and_then(|v| v.as_str()) {
-                if !piece.is_empty() {
-                    text.push_str(piece);
-                    on_text(piece);
-                }
+            if let Some(piece) = delta.get("content").and_then(|v| v.as_str())
+                && !piece.is_empty()
+            {
+                text.push_str(piece);
+                on_text(piece);
             }
             if let Some(calls) = delta.get("tool_calls").and_then(|v| v.as_array()) {
                 for call in calls {
@@ -406,18 +405,20 @@ pub fn to_openai(request: &CreateRequest) -> Value {
         "messages": messages,
     });
     if !request.tools.is_empty() {
-        body["tools"] = json!(request
-            .tools
-            .iter()
-            .map(|t| json!({
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.input_schema,
-                },
-            }))
-            .collect::<Vec<_>>());
+        body["tools"] = json!(
+            request
+                .tools
+                .iter()
+                .map(|t| json!({
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.input_schema,
+                    },
+                }))
+                .collect::<Vec<_>>()
+        );
     }
     body
 }
@@ -450,12 +451,12 @@ pub fn from_openai(text: &str) -> Result<CreateResponse, ProviderError> {
         });
     }
 
-    if let Some(text) = message.get("content").and_then(|c| c.as_str()) {
-        if !text.is_empty() {
-            content.push(ContentBlock::Text {
-                text: text.to_string(),
-            });
-        }
+    if let Some(text) = message.get("content").and_then(|c| c.as_str())
+        && !text.is_empty()
+    {
+        content.push(ContentBlock::Text {
+            text: text.to_string(),
+        });
     }
 
     let mut tool_calls = 0;

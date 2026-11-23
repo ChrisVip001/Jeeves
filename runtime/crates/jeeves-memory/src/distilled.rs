@@ -1,5 +1,5 @@
 //! Typed extraction contract; malformed results leave the source chat eligible for retry.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::Deserialize;
 
 #[derive(Deserialize)]

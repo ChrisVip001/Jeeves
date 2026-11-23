@@ -5,9 +5,9 @@
 //! boundary as `/model`: the model has no tool to change models, and the user's pin (active profile)
 //! always wins. In `fixed` mode (the default, also when the routes file is absent) this whole module is transparent.
 
-use jeeves_config::routes::{load_routes, RouteFile, RouteMode, TIERS};
-use jeeves_protocol::{codes, ErrorObject};
-use jeeves_provider::{tokens, Resolved};
+use jeeves_config::routes::{RouteFile, RouteMode, TIERS, load_routes};
+use jeeves_protocol::{ErrorObject, codes};
+use jeeves_provider::{Resolved, tokens};
 
 use crate::Server;
 
@@ -165,10 +165,10 @@ impl Server {
         let estimated = tokens::estimate_text(message);
         let window = base.context_window();
         let mut tier: String = pick_tier(estimated, window).to_string();
-        if needs_classify(estimated, window) {
-            if let Some(said) = classify_tier(classifier, message).await {
-                tier = said;
-            }
+        if needs_classify(estimated, window)
+            && let Some(said) = classify_tier(classifier, message).await
+        {
+            tier = said;
         }
         let Some(profile_id) = profile_for_tier(&routes, &tier, active_id.as_deref()) else {
             return (

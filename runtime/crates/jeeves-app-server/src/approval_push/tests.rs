@@ -1,11 +1,11 @@
 use super::*;
 use crate::{
-    input_wake_tests::{fixture, rpc},
     EventSink, Frame,
+    input_wake_tests::{fixture, rpc},
 };
 use base64::{
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD as B64},
     Engine,
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD as B64},
 };
 use jeeves_state::grants::PendingRow;
 use jeeves_tools::approval::{ApprovalOutcome, ApprovalRequest};
@@ -14,7 +14,7 @@ use ring::{
     rand::SystemRandom,
     signature::{self, Ed25519KeyPair, KeyPair},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 
 #[tokio::test]
@@ -61,18 +61,22 @@ async fn paired_phone_receives_an_encrypted_task_notice_and_reviews_once() {
         ]);
         json!({"deviceId":id,"grantId":epoch,"generation":1,"sequence":1,"endpoint":endpoint,"p256dh":p256,"auth":auth,"signature":STANDARD.encode(phone.sign(msg.to_string().as_bytes()).as_ref())})
     };
-    assert!(rpc(
-        &server,
-        "approval/pushSubscribe",
-        subscribe("https://fixture.invalid/sub")
-    )
-    .await
-    .is_err());
+    assert!(
+        rpc(
+            &server,
+            "approval/pushSubscribe",
+            subscribe("https://fixture.invalid/sub")
+        )
+        .await
+        .is_err()
+    );
     let mut modified = subscribe("https://web.push.apple.com/fictional");
     modified["endpoint"] = json!("https://web.push.apple.com/modified");
-    assert!(rpc(&server, "approval/pushSubscribe", modified)
-        .await
-        .is_err());
+    assert!(
+        rpc(&server, "approval/pushSubscribe", modified)
+            .await
+            .is_err()
+    );
     let sub = subscribe("https://web.push.apple.com/fictional");
     assert_eq!(
         rpc(&server, "approval/pushSubscribe", sub.clone())
@@ -314,10 +318,12 @@ async fn paired_phone_receives_an_encrypted_task_notice_and_reviews_once() {
     );
     assert!(server.answer_approval("turn", &second.request_id, false, RememberScope::Once));
     assert_eq!(waiting.await, ApprovalOutcome::Denied);
-    assert!(server
-        .secrets
-        .lock()
-        .unwrap()
-        .get(&server.boot_settings.home, &subscription::slot(epoch, 1))
-        .is_none());
+    assert!(
+        server
+            .secrets
+            .lock()
+            .unwrap()
+            .get(&server.boot_settings.home, &subscription::slot(epoch, 1))
+            .is_none()
+    );
 }

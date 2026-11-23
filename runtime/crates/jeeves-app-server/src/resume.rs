@@ -19,12 +19,12 @@
 
 use jeeves_protocol::{ServerNotification, TurnResumedNotification, TurnStartedNotification};
 use jeeves_provider::{ContentBlock, Message, Resolved, Role, Usage};
+use jeeves_state::CheckpointRow;
 use jeeves_state::checkpoints::CheckpointWrite;
 use jeeves_state::operations::OperationSnapshot;
-use jeeves_state::CheckpointRow;
 use std::sync::Arc;
 
-use crate::turn::{finalize_turn, full_turn, FinishedTurn, TurnFrame, TurnGuard};
+use crate::turn::{FinishedTurn, TurnFrame, TurnGuard, finalize_turn, full_turn};
 use crate::{EventSink, Server};
 
 /// Resume every `open` checkpoint. Called once per transport start; each resume runs as its
@@ -37,7 +37,9 @@ pub async fn reconcile(server: &Server, sink: &EventSink) {
     let rows = match server.checkpoints.open_rows().await {
         Ok(rows) => rows,
         Err(e) => {
-            eprintln!("(jeeves) checkpoint reconciliation could not read the database (nothing resumes, startup is not blocked): {e}");
+            eprintln!(
+                "(jeeves) checkpoint reconciliation could not read the database (nothing resumes, startup is not blocked): {e}"
+            );
             return;
         }
     };
@@ -64,25 +66,24 @@ pub async fn reconcile(server: &Server, sink: &EventSink) {
                 continue;
             }
         }
-        if let Some(age) = age_minutes(&row.updated_at, now) {
-            if max_age > 0
-                && age > i64::from(max_age)
-                && !crate::resume_task::exempt_from_age(server, &row).await
-            {
+        if let Some(age) = age_minutes(&row.updated_at, now)
+            && max_age > 0
+            && age > i64::from(max_age)
+            && !crate::resume_task::exempt_from_age(server, &row).await
+        {
+            eprintln!(
+                "(jeeves) reconcile: turn {} stopped before {} (limit {}), not resuming on its own — to carry on, say that sentence again",
+                row.turn_id,
+                humanize(age),
+                humanize(i64::from(max_age)),
+            );
+            if let Err(error) = server.checkpoints.finish(&row.turn_id, "abandoned").await {
                 eprintln!(
-                    "(jeeves) reconcile: turn {} stopped before {} (limit {}), not resuming on its own — to carry on, say that sentence again",
-                    row.turn_id,
-                    humanize(age),
-                    humanize(i64::from(max_age)),
+                    "(jeeves) reconcile: turn {} could not be marked abandoned: {error}",
+                    row.turn_id
                 );
-                if let Err(error) = server.checkpoints.finish(&row.turn_id, "abandoned").await {
-                    eprintln!(
-                        "(jeeves) reconcile: turn {} could not be marked abandoned: {error}",
-                        row.turn_id
-                    );
-                }
-                continue;
             }
+            continue;
         }
         eprintln!(
             "(jeeves) reconcile: found unfinished turn {} ({} rounds done), resuming automatically",
@@ -345,19 +346,18 @@ pub(crate) async fn resume_turn(
     let resolved: Resolved = match server.resolved() {
         Some(resolved) => resolved,
         None => {
-            if row.round_id.is_some() {
-                if let Err(error) =
+            if row.round_id.is_some()
+                && let Err(error) =
                     crate::task::contract::charge_checkpoint(server, &row, usage).await
-                {
-                    crate::task::contract::stop_recovery(
-                        server,
-                        sink,
-                        &row,
-                        &format!("Checkpoint usage could not be charged: {error}"),
-                    )
-                    .await;
-                    return false;
-                }
+            {
+                crate::task::contract::stop_recovery(
+                    server,
+                    sink,
+                    &row,
+                    &format!("Checkpoint usage could not be charged: {error}"),
+                )
+                .await;
+                return false;
             }
             eprintln!(
                 "(jeeves) keeping checkpoint {} for now: no model is configured; it resumes at the next start once there is one",
@@ -369,18 +369,17 @@ pub(crate) async fn resume_turn(
     let session_id = row.session_id.clone();
     let turn_id = row.turn_id.clone();
 
-    if row.round_id.is_none() {
-        if let Some(id) = row.run_id.as_deref() {
-            if let Ok(Some(run)) = server.runs.get(id).await {
-                if run.rounds > 0 {
-                    let reason = "Legacy checkpoint has no round accounting identity; review spend before resuming";
-                    let _ = server.tasks.needs_attention(&run.task_id, reason).await;
-                    let _ = server.checkpoints.finish(&row.turn_id, "suspended").await;
-                    eprintln!("(jeeves) {}: {reason}", row.turn_id);
-                    return false;
-                }
-            }
-        }
+    if row.round_id.is_none()
+        && let Some(id) = row.run_id.as_deref()
+        && let Ok(Some(run)) = server.runs.get(id).await
+        && run.rounds > 0
+    {
+        let reason =
+            "Legacy checkpoint has no round accounting identity; review spend before resuming";
+        let _ = server.tasks.needs_attention(&run.task_id, reason).await;
+        let _ = server.checkpoints.finish(&row.turn_id, "suspended").await;
+        eprintln!("(jeeves) {}: {reason}", row.turn_id);
+        return false;
     }
     let task = match row.run_id.as_deref() {
         Some(id) => match server.runs.get(id).await {
@@ -473,7 +472,9 @@ pub(crate) async fn resume_turn(
                 crate::task::notify(
                     sink,
                     task,
-                    Some("Held while you were in control of the browser; open a fresh browser to continue"),
+                    Some(
+                        "Held while you were in control of the browser; open a fresh browser to continue",
+                    ),
                 );
                 return false;
             }
@@ -488,10 +489,10 @@ pub(crate) async fn resume_turn(
                 if let Err(error) = server.checkpoints.finish(&turn_id, "abandoned").await {
                     eprintln!("(jeeves) stale checkpoint could not be closed: {error}");
                 }
-                if let Some(id) = &row.run_id {
-                    if let Err(error) = server.runs.supersede(id).await {
-                        eprintln!("(jeeves) stale run could not be suspended: {error}");
-                    }
+                if let Some(id) = &row.run_id
+                    && let Err(error) = server.runs.supersede(id).await
+                {
+                    eprintln!("(jeeves) stale run could not be suspended: {error}");
                 }
                 eprintln!(
                     "(jeeves) checkpoint {turn_id} belongs to an older execution; it will not resume"

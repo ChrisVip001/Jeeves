@@ -136,10 +136,11 @@ pub(crate) fn parse_retry_after(
     value: Option<&str>,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Option<u64> {
-    if let Some(ms) = millis.and_then(|text| text.parse::<f64>().ok()) {
-        if ms.is_finite() && ms >= 0.0 {
-            return Some((ms / 1000.0).ceil() as u64);
-        }
+    if let Some(ms) = millis.and_then(|text| text.parse::<f64>().ok())
+        && ms.is_finite()
+        && ms >= 0.0
+    {
+        return Some((ms / 1000.0).ceil() as u64);
     }
     let value = value?;
     if let Ok(secs) = value.parse::<u64>() {

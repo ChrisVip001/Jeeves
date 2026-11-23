@@ -2,8 +2,8 @@
 use super::history::{judge_transcript, notify_goal};
 use super::plan::revise_plan;
 use super::{
-    account_round, budget_overrun, checkpoint_outlet, fail_turn, full_turn, observe_round,
-    FullTurn, RoundCtx, TaskDecision, TurnFrame,
+    FullTurn, RoundCtx, TaskDecision, TurnFrame, account_round, budget_overrun, checkpoint_outlet,
+    fail_turn, full_turn, observe_round,
 };
 use crate::Server;
 use jeeves_protocol::ErrorObject;
@@ -97,7 +97,7 @@ pub(crate) async fn drive_task(
                 decision: TaskDecision::NeedsAttention(reason),
                 goal_status: Some("invalid-contract".into()),
                 round_no,
-            })
+            });
         }
     };
     if let Some(condition) = &goal_condition {
@@ -113,17 +113,17 @@ pub(crate) async fn drive_task(
                     break (
                         TaskDecision::NeedsAttention(reason),
                         Some("accounting-failed".into()),
-                    )
+                    );
                 }
             };
         let goal_rounds = round_no;
-        if let Some(id) = &task_id {
-            if let Err(e) = server.tasks.record_round(id, round_no).await {
-                break (
-                    TaskDecision::NeedsAttention(format!("Cannot record task round: {e}")),
-                    Some("accounting-failed".into()),
-                );
-            }
+        if let Some(id) = &task_id
+            && let Err(e) = server.tasks.record_round(id, round_no).await
+        {
+            break (
+                TaskDecision::NeedsAttention(format!("Cannot record task round: {e}")),
+                Some("accounting-failed".into()),
+            );
         }
 
         let checks = match account_round(
@@ -188,13 +188,13 @@ pub(crate) async fn drive_task(
                     break (
                         TaskDecision::NeedsAttention("Task disappeared during execution".into()),
                         Some("task-unavailable".into()),
-                    )
+                    );
                 }
                 Err(e) => {
                     break (
                         TaskDecision::NeedsAttention(format!("Cannot verify task budget: {e}")),
                         Some("budget-unavailable".into()),
-                    )
+                    );
                 }
             }
         }
@@ -242,7 +242,7 @@ pub(crate) async fn drive_task(
                     break (
                         TaskDecision::NeedsAttention(format!("Cannot verify background jobs: {e}")),
                         Some("jobs-unavailable".into()),
-                    )
+                    );
                 }
             }
         }
@@ -255,7 +255,7 @@ pub(crate) async fn drive_task(
                         break (
                             TaskDecision::WaitingForInput(input.condition_id),
                             Some("waiting-input".into()),
-                        )
+                        );
                     }
                     Ok(true) => {
                         break (
@@ -263,7 +263,7 @@ pub(crate) async fn drive_task(
                                 "Expected input did not arrive before its deadline".into(),
                             ),
                             Some("input-expired".into()),
-                        )
+                        );
                     }
                     Err(error) => {
                         break (
@@ -271,7 +271,7 @@ pub(crate) async fn drive_task(
                                 "Cannot verify task input deadline: {error}"
                             )),
                             Some("input-unavailable".into()),
-                        )
+                        );
                     }
                 },
                 Ok(None) => (),
@@ -281,7 +281,7 @@ pub(crate) async fn drive_task(
                             "Cannot verify task input condition: {error}"
                         )),
                         Some("input-unavailable".into()),
-                    )
+                    );
                 }
             }
         }

@@ -163,10 +163,11 @@ mod tests {
         let events = server.events.list(&id, 20).await.unwrap();
         assert!(events.iter().any(|event| event.kind == "edit_check"
             && event.detail.as_deref() == Some("[check build] not run: exec off")));
-        assert!(hook
-            .after_edit(Some("no-such-run".into()), None, None)
-            .await
-            .is_none());
+        assert!(
+            hook.after_edit(Some("no-such-run".into()), None, None)
+                .await
+                .is_none()
+        );
         let e = rpc(&server, "task/create", serde_json::json!({"title":"x","codeChecks":[{"name":"c","argv":["a"],"after":"never"}]}))
             .await
             .unwrap_err();

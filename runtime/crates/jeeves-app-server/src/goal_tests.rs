@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use jeeves_config::Settings;
 use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams};
-use jeeves_provider::mock::Mock;
 use jeeves_provider::Resolved;
+use jeeves_provider::mock::Mock;
 
 use crate::{EventSink, Server};
 
@@ -338,10 +338,12 @@ async fn an_uncertain_effect_suspends_the_goal_before_any_model_retry() {
     assert_eq!(checkpoint.status, "suspended");
     let messages: Vec<jeeves_provider::Message> =
         serde_json::from_str(&checkpoint.messages_json).unwrap();
-    assert!(messages
-        .last()
-        .unwrap()
-        .content
-        .iter()
-        .any(|block| matches!(block, jeeves_provider::ContentBlock::ToolUse { .. })));
+    assert!(
+        messages
+            .last()
+            .unwrap()
+            .content
+            .iter()
+            .any(|block| matches!(block, jeeves_provider::ContentBlock::ToolUse { .. }))
+    );
 }

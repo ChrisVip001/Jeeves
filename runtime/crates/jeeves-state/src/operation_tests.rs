@@ -1,6 +1,6 @@
 use crate::{
-    operations::{OperationSnapshot, Reconciliation, ToolOperations},
     Checkpoints, NewTask, Tasks,
+    operations::{OperationSnapshot, Reconciliation, ToolOperations},
 };
 
 async fn fixture() -> (
@@ -144,13 +144,15 @@ async fn reconciliation_is_fenced_atomic_immutable_and_does_not_resume() {
         evidence: "External receipt tx-42 verified by the user",
         messages_json: "[1]",
     };
-    assert!(operations
-        .reconcile(Reconciliation {
-            expected_checkpoint_digest: "stale",
-            ..input
-        })
-        .await
-        .is_err());
+    assert!(
+        operations
+            .reconcile(Reconciliation {
+                expected_checkpoint_digest: "stale",
+                ..input
+            })
+            .await
+            .is_err()
+    );
     sqlx::query("CREATE TRIGGER fail_receipt BEFORE UPDATE OF messages_json ON turn_checkpoints BEGIN SELECT RAISE(FAIL,'injected receipt failure'); END").execute(&pool).await.unwrap();
     assert!(operations.reconcile(input.clone()).await.is_err());
     assert_eq!(
@@ -185,16 +187,20 @@ async fn reconciliation_is_fenced_atomic_immutable_and_does_not_resume() {
             .status,
         crate::TaskStatus::Suspended
     );
-    assert!(crate::human_pauses::HumanPauses::new(pool)
-        .is_paused("task")
-        .await
-        .unwrap());
-    assert!(operations
-        .reconcile(Reconciliation {
-            resolution: "not_executed",
-            evidence: "Different claim",
-            ..input
-        })
-        .await
-        .is_err());
+    assert!(
+        crate::human_pauses::HumanPauses::new(pool)
+            .is_paused("task")
+            .await
+            .unwrap()
+    );
+    assert!(
+        operations
+            .reconcile(Reconciliation {
+                resolution: "not_executed",
+                evidence: "Different claim",
+                ..input
+            })
+            .await
+            .is_err()
+    );
 }

@@ -1,7 +1,7 @@
 //! Human reconciliation records evidence without executing tools or authorizing continuation.
 use crate::{EventSink, Server};
 use jeeves_protocol::{
-    codes, ErrorObject, TaskOperationsResponse, TaskReconcileParams, ToolOperationView,
+    ErrorObject, TaskOperationsResponse, TaskReconcileParams, ToolOperationView, codes,
 };
 use jeeves_provider::{ContentBlock, Message, Role};
 use jeeves_state::operations::{Reconciliation, ToolOperations};
@@ -34,33 +34,32 @@ async fn inspect_inner(
         .map_err(invalid)?
         .ok_or_else(|| invalid("Task is unavailable"))?;
     let checkpoint = crate::task::recovery::checkpoint(server, &task).await?;
-    if let Some(cp) = checkpoint.as_ref().filter(|cp| cp.status == "suspended") {
-        if matches!(
+    if let Some(cp) = checkpoint.as_ref().filter(|cp| cp.status == "suspended")
+        && matches!(
             task.status,
             jeeves_state::TaskStatus::Suspended | jeeves_state::TaskStatus::NeedsAttention
-        ) && server.active_turns(Some(&cp.session_id)).is_empty()
-        {
-            let messages: Vec<Message> =
-                serde_json::from_str(&cp.messages_json).map_err(invalid)?;
-            let pending = crate::task::recovery::pending_tools(&messages)?;
-            if !pending.is_empty() {
-                let operations: Vec<_> = pending
-                    .into_iter()
-                    .map(
-                        |(id, (tool, input))| jeeves_state::operations::OperationSnapshot {
-                            proposed_only: false,
-                            tool_use_id: id.into(),
-                            tool: tool.into(),
-                            input_json: input.to_string(),
-                            output: None,
-                        },
-                    )
-                    .collect();
-                ToolOperations::new(server.pool.clone())
-                    .recover_intents(cp, &operations)
-                    .await
-                    .map_err(invalid)?;
-            }
+        )
+        && server.active_turns(Some(&cp.session_id)).is_empty()
+    {
+        let messages: Vec<Message> = serde_json::from_str(&cp.messages_json).map_err(invalid)?;
+        let pending = crate::task::recovery::pending_tools(&messages)?;
+        if !pending.is_empty() {
+            let operations: Vec<_> = pending
+                .into_iter()
+                .map(
+                    |(id, (tool, input))| jeeves_state::operations::OperationSnapshot {
+                        proposed_only: false,
+                        tool_use_id: id.into(),
+                        tool: tool.into(),
+                        input_json: input.to_string(),
+                        output: None,
+                    },
+                )
+                .collect();
+            ToolOperations::new(server.pool.clone())
+                .recover_intents(cp, &operations)
+                .await
+                .map_err(invalid)?;
         }
     }
     let rows = ToolOperations::new(server.pool.clone())

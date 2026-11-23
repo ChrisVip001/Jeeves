@@ -5,8 +5,8 @@
 //! and posts to the local callback port. Discover, register, PKCE, exchange, persist: all real.
 
 use super::oauth::{
-    base64url_nopad, ensure_access_token, pkce_challenge, pkce_verifier, sanitise, sign_in,
-    StoredTokens, TokenStore,
+    StoredTokens, TokenStore, base64url_nopad, ensure_access_token, pkce_challenge, pkce_verifier,
+    sanitise, sign_in,
 };
 use serde_json::json;
 use std::time::Duration;
@@ -72,24 +72,30 @@ fn expired_is_judged_from_the_clock() {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64;
-    assert!(!StoredTokens {
-        access_token: "a".into(),
-        refresh_token: None,
-        expires_at: Some(now + 3600)
-    }
-    .expired());
-    assert!(StoredTokens {
-        access_token: "a".into(),
-        refresh_token: None,
-        expires_at: Some(now - 10)
-    }
-    .expired());
-    assert!(!StoredTokens {
-        access_token: "a".into(),
-        refresh_token: None,
-        expires_at: None
-    }
-    .expired());
+    assert!(
+        !StoredTokens {
+            access_token: "a".into(),
+            refresh_token: None,
+            expires_at: Some(now + 3600)
+        }
+        .expired()
+    );
+    assert!(
+        StoredTokens {
+            access_token: "a".into(),
+            refresh_token: None,
+            expires_at: Some(now - 10)
+        }
+        .expired()
+    );
+    assert!(
+        !StoredTokens {
+            access_token: "a".into(),
+            refresh_token: None,
+            expires_at: None
+        }
+        .expired()
+    );
 }
 
 #[test]
@@ -152,9 +158,10 @@ async fn sign_in_walks_the_whole_flow_against_a_local_authorization_server() {
             } else if target.contains("/token") {
                 let form = parse_form(&request);
                 received_form.lock().await.push(form.clone());
-                assert!(form
-                    .iter()
-                    .any(|(k, v)| k == "code_verifier" && !v.is_empty()));
+                assert!(
+                    form.iter()
+                        .any(|(k, v)| k == "code_verifier" && !v.is_empty())
+                );
                 assert!(form.iter().any(|(k, v)| k == "code" && v == "the-code"));
                 http_json(
                     200,
@@ -238,12 +245,16 @@ async fn sign_in_walks_the_whole_flow_against_a_local_authorization_server() {
 
     let forms = received.lock().await.clone();
     let token_request = forms.last().expect("the token request arrives");
-    assert!(token_request
-        .iter()
-        .any(|(k, v)| k == "client_id" && v == "client-123"));
-    assert!(token_request
-        .iter()
-        .any(|(k, v)| k == "grant_type" && v == "authorization_code"));
+    assert!(
+        token_request
+            .iter()
+            .any(|(k, v)| k == "client_id" && v == "client-123")
+    );
+    assert!(
+        token_request
+            .iter()
+            .any(|(k, v)| k == "grant_type" && v == "authorization_code")
+    );
 
     let error = tokio::time::timeout(
         Duration::from_secs(5),

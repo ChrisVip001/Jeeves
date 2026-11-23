@@ -1,6 +1,6 @@
 //! External data releases a durable wait, never a new task or additional permissions.
 use crate::{EventSink, Server};
-use jeeves_state::external_waits::{ExternalWaits, InputWait, INPUT_WAIT_REASON};
+use jeeves_state::external_waits::{ExternalWaits, INPUT_WAIT_REASON, InputWait};
 
 pub(crate) fn arm(server: Server, sink: EventSink, wait: InputWait) {
     tokio::spawn(async move {

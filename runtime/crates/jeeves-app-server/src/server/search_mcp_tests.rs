@@ -23,12 +23,14 @@ fn malformed_empty_error_and_wrong_fetch_results_fail_closed() {
     ] {
         assert!(render(text, &json!({"query":"Tokio"})).unwrap().is_none());
     }
-    assert!(render(
-        r#"{"results":[{"url":"https://other.test/","full_content":"wrong page"}]}"#,
-        &json!({"url":"https://tokio.rs/"})
-    )
-    .unwrap()
-    .is_none());
+    assert!(
+        render(
+            r#"{"results":[{"url":"https://other.test/","full_content":"wrong page"}]}"#,
+            &json!({"url":"https://tokio.rs/"})
+        )
+        .unwrap()
+        .is_none()
+    );
 }
 
 #[test]

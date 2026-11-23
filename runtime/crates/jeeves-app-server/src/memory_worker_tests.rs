@@ -3,12 +3,12 @@
 //! The model is never called here — with fewer rows than the threshold, distillation is
 //! not due, which is exactly the branch that makes "the worker runs every 60 s" cheap.
 
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use jeeves_config::Settings;
-use jeeves_provider::mock::Mock;
 use jeeves_provider::Resolved;
+use jeeves_provider::mock::Mock;
 
 use crate::memory_worker::{Deps, MemoryWorker};
 
@@ -149,8 +149,10 @@ async fn existing_memory_can_be_projected_without_a_model() {
     let mut last = Default::default();
     let pending = std::sync::atomic::AtomicI32::new(0);
     super::run_once(&deps, &pending, &mut last).await.unwrap();
-    assert!(std::fs::read_to_string(home.join("memory/alex.md"))
-        .unwrap()
-        .contains("local memory works offline"));
+    assert!(
+        std::fs::read_to_string(home.join("memory/alex.md"))
+            .unwrap()
+            .contains("local memory works offline")
+    );
     assert_eq!(pending.load(Ordering::SeqCst), 0);
 }

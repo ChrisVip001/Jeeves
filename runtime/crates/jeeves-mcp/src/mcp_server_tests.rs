@@ -1,7 +1,7 @@
 //! Protocol-face tests for `jeeves mcp serve`: handshake, tool list, the behavior of the five
 //! memory tools, and "which failures are RPC errors and which are text inside the result".
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::server::MemoryServer;
 
@@ -64,9 +64,11 @@ async fn tools_list_exposes_only_the_memory_tools() {
             "memory_episodes"
         ]
     );
-    assert!(!names
-        .iter()
-        .any(|n| n.contains("send") || n.contains("event")));
+    assert!(
+        !names
+            .iter()
+            .any(|n| n.contains("send") || n.contains("event"))
+    );
 }
 
 #[tokio::test]
@@ -193,10 +195,12 @@ async fn protocol_errors_and_tool_failures_take_different_paths() {
 
     let method = call(&server, "turn/start", json!({})).await;
     assert_eq!(method["error"]["code"], -32601);
-    assert!(method["error"]["message"]
-        .as_str()
-        .unwrap_or_default()
-        .contains("turn/start"));
+    assert!(
+        method["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("turn/start")
+    );
 
     let bad_args = call(
         &server,

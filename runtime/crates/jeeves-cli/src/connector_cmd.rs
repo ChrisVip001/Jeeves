@@ -10,7 +10,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use jeeves_connector::{config, feishu, feishu_oauth};
 
 pub async fn run(home: &Path, args: &[String]) -> Result<()> {
@@ -22,8 +22,10 @@ pub async fn run(home: &Path, args: &[String]) -> Result<()> {
             Some("status") => feishu_status(home),
             _ => feishu_send(home, &args[1..]).await,
         },
-        Some("calendar") if args.get(1).is_some_and(|a|a=="test") => calendar_test(home).await,
-        Some(other) => bail!("Unknown connector command: {other} (try connector list, connector calendar test, or connector feishu)"),
+        Some("calendar") if args.get(1).is_some_and(|a| a == "test") => calendar_test(home).await,
+        Some(other) => bail!(
+            "Unknown connector command: {other} (try connector list, connector calendar test, or connector feishu)"
+        ),
     }
 }
 
@@ -81,7 +83,10 @@ async fn calendar_test(home: &Path) -> Result<()> {
     let events =
         jeeves_connector::calendar::read_events(home, &calendar, start, end, &calendar.timezone)
             .await?;
-    println!("Calendar connection verified (read-only); {} events in the next seven days. No event details displayed.",events.len());
+    println!(
+        "Calendar connection verified (read-only); {} events in the next seven days. No event details displayed.",
+        events.len()
+    );
     Ok(())
 }
 

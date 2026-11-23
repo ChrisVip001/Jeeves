@@ -36,11 +36,13 @@ async fn a_plan_stays_in_review_until_a_human_activates_it() {
             "delivery":{"kind":"chat"}}}
     });
     (tool.handler)(ctx, fields).await.unwrap();
-    assert!(list(&server, Utc::now())
-        .await
-        .unwrap()
-        .responsibilities
-        .is_empty());
+    assert!(
+        list(&server, Utc::now())
+            .await
+            .unwrap()
+            .responsibilities
+            .is_empty()
+    );
     let before = Utc::now().timestamp_millis();
     reviews::decide(
         &server,

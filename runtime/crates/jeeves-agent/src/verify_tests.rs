@@ -5,7 +5,7 @@
 
 use jeeves_state::{NewStep, Steps};
 
-use crate::verify::{all_passed, parse, Acceptance, Verifier};
+use crate::verify::{Acceptance, Verifier, all_passed, parse};
 
 async fn fixture() -> (tempfile::TempDir, Steps, String) {
     let dir = tempfile::tempdir().expect("temp dir");
@@ -491,9 +491,11 @@ async fn a_skipped_command_is_not_a_pass_and_says_why() {
     assert!(!r[0].passed);
     assert_eq!(r[0].detail, "skipped: exec off");
     v.commands = None;
-    assert!(v.run(&[command_check()]).await[0]
-        .detail
-        .starts_with("skipped:"));
+    assert!(
+        v.run(&[command_check()]).await[0]
+            .detail
+            .starts_with("skipped:")
+    );
 }
 
 #[tokio::test]

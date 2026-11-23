@@ -69,7 +69,9 @@ for line in sys.stdin:
 pub(super) fn prepare(home: &Path, proof: &Path, unavailable: bool, guarded: bool) -> Result<()> {
     let mut manifest = sources();
     if unavailable {
-        manifest[1]["url"] = json!("https://deepseek-harness.github.io/deepseek-harness/guide/jeeves-unavailable-source-20261114");
+        manifest[1]["url"] = json!(
+            "https://deepseek-harness.github.io/deepseek-harness/guide/jeeves-unavailable-source-20261114"
+        );
     }
     std::fs::write(
         home.join("official-sources.json"),

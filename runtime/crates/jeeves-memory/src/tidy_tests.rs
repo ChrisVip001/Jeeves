@@ -58,11 +58,13 @@ async fn a_redundant_line_goes_from_the_facts_and_the_page() {
     assert!(!contents(&rows).contains(&"prefers tea"));
     let page = bundle.read("alex").unwrap().unwrap();
     assert!(!page.body.contains("prefers tea"), "{}", page.body);
-    assert!(facts
-        .add_consolidated_from("alex", "prefers tea", "fact", &[])
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_consolidated_from("alex", "prefers tea", "fact", &[])
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]

@@ -1,12 +1,12 @@
 //! Resolve the approved instructions once and meter a bounded model-only draft.
 use super::{
-    action::{Adapter, Output},
     Server,
+    action::{Adapter, Output},
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use jeeves_protocol::ResponsibilityAction;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -155,7 +155,10 @@ pub(super) const ADAPTER: Adapter = Adapter {
                 .skill_snapshot
                 .as_ref()
                 .map_or("", |snapshot| snapshot.body.as_str());
-            let request = format!("Approved instruction:\n{}\n\nApproved skill:\n{skill_text}\n\nEvent data (JSON):\n{data}",config.text);
+            let request = format!(
+                "Approved instruction:\n{}\n\nApproved skill:\n{skill_text}\n\nEvent data (JSON):\n{data}",
+                config.text
+            );
             let estimate = request.len() + system.len() + 64;
             ensure!(
                 estimate + 32 < total as usize,

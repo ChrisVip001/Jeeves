@@ -1,9 +1,9 @@
 //! Gateway requests reuse the cockpit's existing app-server and authentication.
 
 use crate::AppServer;
-use axum::{extract::Extension, Json};
-use jeeves_protocol::{codes, methods, JsonRpcRequest};
-use serde_json::{json, Value};
+use axum::{Json, extract::Extension};
+use jeeves_protocol::{JsonRpcRequest, codes, methods};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 fn allowed(method: &str) -> bool {

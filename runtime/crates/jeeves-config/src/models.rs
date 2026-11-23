@@ -25,7 +25,7 @@ pub const SERVICE: &str = "jeeves";
 
 mod changes;
 pub use changes::{
-    recover_change, remove_profile, save_profile, CredentialSlot, JOURNAL as MODEL_CHANGE_FILE,
+    CredentialSlot, JOURNAL as MODEL_CHANGE_FILE, recover_change, remove_profile, save_profile,
 };
 
 /// One model profile.
@@ -653,7 +653,7 @@ fn delete_with(
             return Err(format!(
                 "system credential deletion unavailable: {}",
                 e.kind()
-            ))
+            ));
         }
     };
     let absent = if macos {
@@ -893,9 +893,11 @@ mod models_tests {
         std::fs::remove_dir(&path).unwrap();
         std::fs::rename(backup, path).unwrap();
         let mut live = read_models(home).unwrap();
-        assert!(recover_change(home, &mut live, &mut store)
-            .unwrap()
-            .is_none());
+        assert!(
+            recover_change(home, &mut live, &mut store)
+                .unwrap()
+                .is_none()
+        );
         assert_eq!(
             resolve_key(&live.profiles[0], home, &mut store).as_deref(),
             Some("fixture-first")
@@ -961,9 +963,11 @@ mod models_tests {
             Some("p")
         );
         assert!(read_models(home).unwrap().profiles.is_empty());
-        assert!(recover_change(home, &mut live, &mut store)
-            .unwrap()
-            .is_none());
+        assert!(
+            recover_change(home, &mut live, &mut store)
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// Overwriting a same-id profile **keeps its key_source** — no forced key re-entry.
@@ -1060,7 +1064,9 @@ mod models_tests {
     fn an_env_key_source_is_read_from_the_environment() {
         let dir = tempfile::tempdir().expect("temp dir");
         let var = "JEEVES_TEST_MODELS_KEY";
-        std::env::set_var(var, "sk-from-env");
+        unsafe {
+            std::env::set_var(var, "sk-from-env");
+        }
         let mut models = ModelsFile::default();
         upsert(
             &mut models,
@@ -1082,7 +1088,9 @@ mod models_tests {
             !secrets_path(dir.path()).exists(),
             "the env source must not copy the key into a file"
         );
-        std::env::remove_var(var);
+        unsafe {
+            std::env::remove_var(var);
+        }
     }
 
     /// No active profile leaves Settings alone — no config in the file ≠ clearing the config.

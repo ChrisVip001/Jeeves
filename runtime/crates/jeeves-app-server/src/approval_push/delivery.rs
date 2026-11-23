@@ -4,7 +4,7 @@ use super::{
     wire,
 };
 use crate::Server;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use jeeves_protocol::ApprovalNoticeParams;
 use jeeves_state::{
     devices::{self, DeviceGrant},

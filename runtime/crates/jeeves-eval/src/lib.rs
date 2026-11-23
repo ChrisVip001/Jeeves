@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use jeeves_app_server::{
-    handle, open as open_server, run_turn, EventSink, Frame, Server, MAIN_SESSION,
+    EventSink, Frame, MAIN_SESSION, Server, handle, open as open_server, run_turn,
 };
 use jeeves_protocol::{JsonRpcRequest, RequestId, ServerNotification, TurnStartParams};
 use jeeves_provider::{CreateRequest, CreateResponse, Resolved};
@@ -110,29 +110,29 @@ fn score(expect: &Expectations, out: &TurnOutput) -> Verdict {
             ));
         }
     }
-    if let Some(iterations) = expect.iterations {
-        if out.iterations != iterations {
-            fails.push(format!(
-                "expected {iterations} rounds, actually {}",
-                out.iterations
-            ));
-        }
+    if let Some(iterations) = expect.iterations
+        && out.iterations != iterations
+    {
+        fails.push(format!(
+            "expected {iterations} rounds, actually {}",
+            out.iterations
+        ));
     }
-    if let Some(want) = expect.consolidation_new_facts {
-        if out.consolidation_new_facts != want {
-            fails.push(format!(
-                "consolidation should distil {want}, actually {}",
-                out.consolidation_new_facts
-            ));
-        }
+    if let Some(want) = expect.consolidation_new_facts
+        && out.consolidation_new_facts != want
+    {
+        fails.push(format!(
+            "consolidation should distil {want}, actually {}",
+            out.consolidation_new_facts
+        ));
     }
-    if let Some(want) = expect.approvals {
-        if out.approvals != want {
-            fails.push(format!(
-                "approval should be asked {want} times, actually {}",
-                out.approvals
-            ));
-        }
+    if let Some(want) = expect.approvals
+        && out.approvals != want
+    {
+        fails.push(format!(
+            "approval should be asked {want} times, actually {}",
+            out.approvals
+        ));
     }
     if !expect.events.is_empty() {
         let mut cursor = 0usize;
@@ -157,37 +157,37 @@ fn score(expect: &Expectations, out: &TurnOutput) -> Verdict {
             }
         }
     }
-    if let Some(want) = expect.interrupted {
-        if out.interrupted != want {
-            fails.push(format!(
-                "interrupted should be {want}, actually {}",
-                out.interrupted
-            ));
-        }
+    if let Some(want) = expect.interrupted
+        && out.interrupted != want
+    {
+        fails.push(format!(
+            "interrupted should be {want}, actually {}",
+            out.interrupted
+        ));
     }
-    if let Some(want) = &expect.task_status {
-        if out.task_status.as_deref() != Some(want.as_str()) {
-            fails.push(format!(
-                "task status should be {want:?}, actually {:?}",
-                out.task_status
-            ));
-        }
+    if let Some(want) = &expect.task_status
+        && out.task_status.as_deref() != Some(want.as_str())
+    {
+        fails.push(format!(
+            "task status should be {want:?}, actually {:?}",
+            out.task_status
+        ));
     }
-    if let Some(want) = expect.task_checks_passed {
-        if out.task_checks_passed != Some(want) {
-            fails.push(format!(
-                "acceptance should be passed={want}, actually {:?}",
-                out.task_checks_passed
-            ));
-        }
+    if let Some(want) = expect.task_checks_passed
+        && out.task_checks_passed != Some(want)
+    {
+        fails.push(format!(
+            "acceptance should be passed={want}, actually {:?}",
+            out.task_checks_passed
+        ));
     }
-    if let Some(want) = expect.task_artifacts {
-        if out.task_artifacts != want {
-            fails.push(format!(
-                "expected {want} deliverables, actually {}",
-                out.task_artifacts
-            ));
-        }
+    if let Some(want) = expect.task_artifacts
+        && out.task_artifacts != want
+    {
+        fails.push(format!(
+            "expected {want} deliverables, actually {}",
+            out.task_artifacts
+        ));
     }
     let all = out.prompts.join("\n---\n");
     check_contains("model request", &all, &expect.prompt_contains, &mut fails);
@@ -394,7 +394,9 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
                             "A Jeeves runtime for this state database is already running",
                         ) && tokio::time::Instant::now() < deadline =>
                     {
-                        eprintln!("(jeeves) eval restart waiting for the previous runtime to release ownership");
+                        eprintln!(
+                            "(jeeves) eval restart waiting for the previous runtime to release ownership"
+                        );
                         tokio::time::sleep(std::time::Duration::from_millis(25)).await;
                     }
                     Err(error) => return Err(error),
@@ -408,7 +410,9 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
                 context_window: jeeves_provider::DEFAULT_CONTEXT_WINDOW,
                 vision: false,
             });
-            eprintln!("(jeeves) eval: simulating a runtime restart (same home), carrying on with the next round");
+            eprintln!(
+                "(jeeves) eval: simulating a runtime restart (same home), carrying on with the next round"
+            );
         }
         let session_id = turn.session_id.unwrap_or_else(|| "eval".to_string());
         let (sink, mut rx) = EventSink::channel();
@@ -531,7 +535,9 @@ async fn run_scenario(home: &Path, scenario: &Scenario) -> Result<TurnOutput> {
                                     approved,
                                     remember,
                                 ) {
-                                    eprintln!("(jeeves) eval: that question has expired (no longer waiting for an answer)");
+                                    eprintln!(
+                                        "(jeeves) eval: that question has expired (no longer waiting for an answer)"
+                                    );
                                 }
                             }
                             _ => {}
@@ -1000,7 +1006,9 @@ pub async fn run_judge(paths: &[PathBuf], report_home: &Path) -> Result<i32> {
         anyhow::bail!("no judge cases were loaded — check the path (evals/judge/)");
     }
     let Some(server) = server_from_env(report_home).await? else {
-        println!("the judge needs an API key (none configured in the environment); skipping the whole group — this does not block a release.");
+        println!(
+            "the judge needs an API key (none configured in the environment); skipping the whole group — this does not block a release."
+        );
         return Ok(0);
     };
     let resolved = server
@@ -1067,9 +1075,11 @@ mod recovery_tests {
         no_task.turns = Some(vec![original.turns.as_ref().unwrap()[1].clone()]);
         let home = tempfile::tempdir()?;
         let error = run_scenario(home.path(), &no_task).await.unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("resume_task requires a declared task"));
+        assert!(
+            error
+                .to_string()
+                .contains("resume_task requires a declared task")
+        );
         for authorize in [false, true] {
             let mut case = original.clone();
             for turn in case

@@ -1,12 +1,12 @@
 //! Operator RPCs manage public keys. A device can only report its own granted capability.
 use crate::dispatch::internal;
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use jeeves_protocol::{
-    codes, DeviceGrantView, DeviceListResponse, DevicePairParams, DeviceReportParams,
-    DeviceReportResponse, DeviceRevokeParams, ErrorObject,
+    DeviceGrantView, DeviceListResponse, DevicePairParams, DeviceReportParams,
+    DeviceReportResponse, DeviceRevokeParams, ErrorObject, codes,
 };
 use jeeves_state::devices::{self, DeviceGrant};
-use ring::signature::{UnparsedPublicKey, ED25519};
+use ring::signature::{ED25519, UnparsedPublicKey};
 use sqlx::SqlitePool;
 
 fn invalid(message: &str) -> ErrorObject {

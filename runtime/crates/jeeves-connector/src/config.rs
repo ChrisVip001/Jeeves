@@ -224,7 +224,7 @@ fn load_raw(home: &Path) -> anyhow::Result<ConnectorConfig> {
     let raw = match std::fs::read_to_string(&path) {
         Ok(raw) => raw,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(ConnectorConfig::default())
+            return Ok(ConnectorConfig::default());
         }
         Err(error) => return Err(error.into()),
     };

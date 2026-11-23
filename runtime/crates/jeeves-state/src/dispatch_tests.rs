@@ -1,4 +1,4 @@
-use crate::{dispatch::TaskDispatch, NewTask, TaskStatus, Tasks};
+use crate::{NewTask, TaskStatus, Tasks, dispatch::TaskDispatch};
 
 async fn fixture() -> (tempfile::TempDir, sqlx::SqlitePool, Tasks, TaskDispatch) {
     let dir = tempfile::tempdir().unwrap();

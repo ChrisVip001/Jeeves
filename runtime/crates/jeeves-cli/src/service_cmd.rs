@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 const LABEL: &str = "ai.jeeves.runtime";
 const UNIT: &str = "jeeves.service";
@@ -374,9 +374,11 @@ mod tests {
     fn other_platforms_are_told_what_to_do_instead() {
         assert_eq!(kind_for("macos").unwrap(), Kind::Launchd);
         assert_eq!(kind_for("linux").unwrap(), Kind::Systemd);
-        assert!(kind_for("windows")
-            .unwrap_err()
-            .to_string()
-            .contains("supervisor"));
+        assert!(
+            kind_for("windows")
+                .unwrap_err()
+                .to_string()
+                .contains("supervisor")
+        );
     }
 }

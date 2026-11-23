@@ -89,14 +89,18 @@ async fn task_handoff_distinguishes_past_execution_failures_from_current_capabil
         .unwrap();
     let calls = model.calls.lock().unwrap();
     let first = &calls[0];
-    assert!(first
-        .messages
-        .iter()
-        .any(|message| message.text().contains("code 71")));
-    assert!(first
-        .system_text()
-        .unwrap()
-        .contains("Historical tool failures are past observations"));
+    assert!(
+        first
+            .messages
+            .iter()
+            .any(|message| message.text().contains("code 71"))
+    );
+    assert!(
+        first
+            .system_text()
+            .unwrap()
+            .contains("Historical tool failures are past observations")
+    );
 }
 
 #[tokio::test]
@@ -187,10 +191,12 @@ async fn external_message_uses_main_without_disclosing_owner_history_or_tools() 
     assert_eq!(server.chat.sessions().await.unwrap().len(), 1);
     let calls = model.calls.lock().unwrap();
     assert_eq!(calls.len(), 1);
-    assert!(!calls[0]
-        .messages
-        .iter()
-        .any(|message| message.text().contains("PRIVATE_OWNER_HISTORY")));
+    assert!(
+        !calls[0]
+            .messages
+            .iter()
+            .any(|message| message.text().contains("PRIVATE_OWNER_HISTORY"))
+    );
     assert!(calls[0].tools.is_empty());
 }
 
@@ -242,11 +248,13 @@ async fn one_handoff_commits_its_feishu_origin_and_only_that_sender_in_that_chat
         ("foreign-sender", "room-a", "colleague"),
     ] {
         let update = interaction(key, chat, sender, "补充来源", Some(task.id.clone()));
-        assert!(start(&server, update, RequestId::Number(2), &sink)
-            .await
-            .unwrap_err()
-            .message
-            .contains("unavailable in this channel"));
+        assert!(
+            start(&server, update, RequestId::Number(2), &sink)
+                .await
+                .unwrap_err()
+                .message
+                .contains("unavailable in this channel")
+        );
     }
     assert_eq!(server.runs.count_by_task(&task.id).await.unwrap(), 1);
     let update = interaction("mine", "room-a", "owner", "补充来源", Some(task.id.clone()));
@@ -321,23 +329,27 @@ async fn interrupted_handoff_replays_only_committed_work_and_a_rejected_enqueue_
     assert!(proof.contains(&task.id));
     let mut changed = proposal;
     changed["items"][0]["instruction"] = json!("different instruction");
-    assert!(super::super::handoff::committed_result(
-        &server,
-        &checkpoint,
-        &operation.tool_use_id,
-        &changed
-    )
-    .await
-    .unwrap()
-    .is_none());
+    assert!(
+        super::super::handoff::committed_result(
+            &server,
+            &checkpoint,
+            &operation.tool_use_id,
+            &changed
+        )
+        .await
+        .unwrap()
+        .is_none()
+    );
     sqlx::query("UPDATE interaction_receipts SET state='claimed',events_json=NULL,result_json=NULL WHERE message_id='accepted'").execute(&server.pool).await.unwrap();
     let before = model.calls.lock().unwrap().len();
     let recovered = send(&server, "归纳会议议题", "accepted", None)
         .await
         .unwrap();
-    assert!(recovered
-        .iter()
-        .any(|e| matches!(e,ServerNotification::TurnCompleted(c) if c.reply.contains(&task.id))));
+    assert!(
+        recovered.iter().any(
+            |e| matches!(e,ServerNotification::TurnCompleted(c) if c.reply.contains(&task.id))
+        )
+    );
     send(&server, "归纳会议议题", "accepted", None)
         .await
         .unwrap();

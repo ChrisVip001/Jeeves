@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::roots::{sandbox_roots, HOME_CONTROL};
+use super::roots::{HOME_CONTROL, sandbox_roots};
 
 fn dirs() -> (tempfile::TempDir, tempfile::TempDir) {
     let home = tempfile::tempdir().expect("home");

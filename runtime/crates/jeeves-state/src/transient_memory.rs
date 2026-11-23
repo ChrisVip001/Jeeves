@@ -1,5 +1,5 @@
 //! Source-bound, short-lived observations; confidence is model-reported, not calibrated.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use sqlx::{Sqlite, Transaction};
 

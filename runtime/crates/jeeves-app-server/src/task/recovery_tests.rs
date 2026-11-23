@@ -1,6 +1,6 @@
 use crate::{EventSink, Frame, Server};
 use jeeves_protocol::{JsonRpcMessage, JsonRpcRequest, RequestId, TurnStartParams};
-use jeeves_provider::{mock::Mock, Message, Resolved};
+use jeeves_provider::{Message, Resolved, mock::Mock};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -204,18 +204,20 @@ async fn exhausted_budget_blocks_both_new_turns_and_checkpoint_recovery() {
         .unwrap();
         if checkpoint_tokens == 0 {
             let (sink, _receiver) = EventSink::channel();
-            assert!(crate::run_turn(
-                &server,
-                TurnStartParams {
-                    session_id: Some("chat".into()),
-                    message: "Continue the task".into(),
-                    ..Default::default()
-                },
-                RequestId::Number(1),
-                &sink
-            )
-            .await
-            .is_err());
+            assert!(
+                crate::run_turn(
+                    &server,
+                    TurnStartParams {
+                        session_id: Some("chat".into()),
+                        message: "Continue the task".into(),
+                        ..Default::default()
+                    },
+                    RequestId::Number(1),
+                    &sink
+                )
+                .await
+                .is_err()
+            );
         }
         sqlx::query("UPDATE turn_checkpoints SET status='open',usage_json=? WHERE turn_id='run'")
             .bind(format!(

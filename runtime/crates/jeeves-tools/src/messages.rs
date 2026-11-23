@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use chrono::Utc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{require_str, Tool, ToolCtx};
+use crate::{Tool, ToolCtx, require_str};
 
 pub fn send_message() -> Tool {
     Tool {

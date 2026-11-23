@@ -7,9 +7,9 @@
 use super::failed;
 use crate::AppServer;
 use axum::{
-    extract::Extension, http::StatusCode, response::IntoResponse, response::Response, Json,
+    Json, extract::Extension, http::StatusCode, response::IntoResponse, response::Response,
 };
-use jeeves_protocol::{codes, methods, ErrorObject, TaskListResponse};
+use jeeves_protocol::{ErrorObject, TaskListResponse, codes, methods};
 use serde::Serialize;
 use serde_json::json;
 use std::io::{self, Read};
@@ -111,7 +111,7 @@ pub async fn inbox(Extension(app): Extension<Arc<AppServer>>) -> Response {
                     message: format!("Could not read the outbox: {e}"),
                     data: None,
                 },
-            )
+            );
         }
     }
     Json(json!({ "items": items })).into_response()
@@ -149,8 +149,10 @@ mod tests {
 
     #[test]
     fn a_missing_outbox_is_an_empty_inbox() {
-        assert!(drafts(tempfile::tempdir().unwrap().path())
-            .unwrap()
-            .is_empty());
+        assert!(
+            drafts(tempfile::tempdir().unwrap().path())
+                .unwrap()
+                .is_empty()
+        );
     }
 }

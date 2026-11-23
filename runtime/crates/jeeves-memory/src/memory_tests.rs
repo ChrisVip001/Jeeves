@@ -3,12 +3,12 @@
 //! All use jeeves_provider::mock::Mock — what the model says is fully test-decided,
 //! so conventions like "fail-open" can be asserted exactly.
 
-use jeeves_provider::mock::Mock;
 use jeeves_provider::ProviderError;
+use jeeves_provider::mock::Mock;
 
 use super::consolidation::consolidate_if_due;
 use super::retrieve_context;
-use super::skills::{parse_skill_text, seed_default_skills, SkillLoader};
+use super::skills::{SkillLoader, parse_skill_text, seed_default_skills};
 use jeeves_state::{Chat, Episodes, Facts};
 
 async fn stores() -> (Facts, Episodes, Chat) {
@@ -559,14 +559,18 @@ async fn consolidation_keeps_explicit_temporary_states_out_of_durable_memory() {
     assert!(context.contains("temporary claim, valid until"));
     assert!(context.contains("not proof of current mood"));
     let requests = mock.received.lock().unwrap();
-    assert!(requests[0]
-        .system
-        .as_deref()
-        .unwrap()
-        .contains("untrusted source data"));
-    assert!(requests[0].messages[0]
-        .text()
-        .contains(&format!("chat:1@{digest}")));
+    assert!(
+        requests[0]
+            .system
+            .as_deref()
+            .unwrap()
+            .contains("untrusted source data")
+    );
+    assert!(
+        requests[0].messages[0]
+            .text()
+            .contains(&format!("chat:1@{digest}"))
+    );
 }
 
 #[tokio::test]

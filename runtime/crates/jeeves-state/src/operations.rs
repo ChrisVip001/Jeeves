@@ -1,6 +1,6 @@
 //! Operation intent and observations commit with the checkpoint, never after execution advances.
 use crate::checkpoints::CHAT_OWNER;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, Sqlite, SqlitePool, Transaction};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]

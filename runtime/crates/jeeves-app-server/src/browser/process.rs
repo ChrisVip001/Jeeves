@@ -1,11 +1,11 @@
 //! One owned worker, bounded frames, independent control requests and no replay.
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use jeeves_protocol::{BrowserWorkerCommand, BrowserWorkerRequest, BrowserWorkerResponse};
 use std::{
     collections::HashMap,
     sync::{
-        atomic::{AtomicBool, AtomicI32, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, AtomicI32, Ordering},
     },
     time::Duration,
 };
@@ -154,10 +154,10 @@ impl Worker {
                     break;
                 }
                 instance = Some(info.instance_id.clone());
-                if let Ok(mut pending) = requests.lock() {
-                    if let Some(sender) = pending.remove(&reply.id) {
-                        let _ = sender.send(Ok(reply));
-                    }
+                if let Ok(mut pending) = requests.lock()
+                    && let Some(sender) = pending.remove(&reply.id)
+                {
+                    let _ = sender.send(Ok(reply));
                 }
             }
             running.store(false, Ordering::Release);

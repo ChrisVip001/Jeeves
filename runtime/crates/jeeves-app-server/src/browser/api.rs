@@ -61,7 +61,10 @@ impl BrowserHost {
         let _gate = self.start_gate.lock().await;
         let admission = self.executor_gate.lock().await;
         let generation = self.admitted_generation(*admission).await?;
-        ensure!(self.available(), "Browser components are not installed; install the optional browser-enabled Jeeves package");
+        ensure!(
+            self.available(),
+            "Browser components are not installed; install the optional browser-enabled Jeeves package"
+        );
         let task = server
             .tasks
             .get(&params.task_id)

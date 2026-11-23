@@ -17,7 +17,7 @@ use serde::Deserialize;
 
 use crate::bundle::Bundle;
 use crate::mirror::{owned, slug_for};
-use crate::store::{apply, Change};
+use crate::store::{Change, apply};
 
 /// Pages shorter than this are left as they are: a few lines crowd nothing.
 const MIN_FACTS: usize = 4;

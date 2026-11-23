@@ -1,6 +1,6 @@
 //! Optional outbound connector adapters. The caller supplies the final execution fence.
 use crate::{EventSink, Server};
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use jeeves_protocol::ResponsibilityDelivery;
 use std::{future::Future, path::Path, pin::Pin};
 

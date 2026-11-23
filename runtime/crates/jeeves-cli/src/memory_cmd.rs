@@ -29,7 +29,9 @@ async fn backfill(settings: &jeeves_config::Settings) -> Result<()> {
         println!("The ledger already holds {before} turns; not backfilling (it only runs once).");
         return Ok(());
     }
-    println!("Backfilling the ledger from chat_log (historical tool output survives as summaries only, marked folded)…");
+    println!(
+        "Backfilling the ledger from chat_log (historical tool output survives as summaries only, marked folded)…"
+    );
     let report = jeeves_state::ledger::backfill_from_chat(&pool).await?;
     println!(
         "Backfill done: {} sessions, {} turns, {} rows. Those turns can only be rebuilt down to the folded text — there was never a fuller record.",

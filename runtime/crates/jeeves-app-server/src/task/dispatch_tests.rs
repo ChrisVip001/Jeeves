@@ -1,7 +1,7 @@
 use crate::{EventSink, Frame, Server};
 use jeeves_protocol::{JsonRpcMessage, JsonRpcRequest, RequestId, TurnStartParams};
 use jeeves_provider::{CreateRequest, CreateResponse, Provider, ProviderError, Resolved, TextSink};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     future::Future,
     pin::Pin,
@@ -89,8 +89,8 @@ async fn wait_finished(server: &Server, id: &str) {
 
 #[tokio::test]
 async fn a_task_delivers_past_chat_step_limits_without_a_follow_up() {
-    use jeeves_provider::mock::Mock;
     use jeeves_provider::ContentBlock;
+    use jeeves_provider::mock::Mock;
     use jeeves_state::TaskStatus;
 
     const SOURCES: usize = 57;
@@ -219,13 +219,15 @@ async fn queued_task_and_conversation_run_independently() {
     tokio::time::timeout(Duration::from_secs(5), model.entered.notified())
         .await
         .unwrap();
-    assert!(rpc(
-        &server,
-        "task/start",
-        json!({"taskId":id,"message":"duplicate"})
-    )
-    .await
-    .is_err());
+    assert!(
+        rpc(
+            &server,
+            "task/start",
+            json!({"taskId":id,"message":"duplicate"})
+        )
+        .await
+        .is_err()
+    );
     let (sink, mut receiver) = EventSink::channel();
     tokio::time::timeout(
         Duration::from_secs(5),
@@ -262,20 +264,24 @@ async fn queued_task_and_conversation_run_independently() {
         task["task"]["executionSessionId"],
         crate::interaction::MAIN_SESSION
     );
-    assert!(!model
-        .requests
-        .lock()
-        .unwrap()
-        .last()
-        .unwrap()
-        .contains("private-task-marker"));
-    assert!(model
-        .requests
-        .lock()
-        .unwrap()
-        .last()
-        .unwrap()
-        .contains("Task progress snapshot"));
+    assert!(
+        !model
+            .requests
+            .lock()
+            .unwrap()
+            .last()
+            .unwrap()
+            .contains("private-task-marker")
+    );
+    assert!(
+        model
+            .requests
+            .lock()
+            .unwrap()
+            .last()
+            .unwrap()
+            .contains("Task progress snapshot")
+    );
     model.release.notify_one();
     wait_finished(&server, id).await;
     assert_eq!(server.runs.list_by_task(id, 10).await.unwrap().len(), 1);
@@ -568,9 +574,11 @@ async fn human_control_wins_while_recovery_waits_for_the_worker() {
             .await
             .unwrap();
         drop(guard);
-        assert!(!tokio::time::timeout(Duration::from_secs(5), recovery)
-            .await
-            .unwrap());
+        assert!(
+            !tokio::time::timeout(Duration::from_secs(5), recovery)
+                .await
+                .unwrap()
+        );
         while let Ok(frame) = receiver.try_recv() {
             assert!(!matches!(
                 frame,
@@ -660,14 +668,16 @@ async fn one_worker_leaves_the_second_task_waiting() {
         .await
         .unwrap();
     tokio::time::sleep(Duration::from_millis(300)).await;
-    assert!(!server
-        .tasks
-        .get(&id)
-        .await
-        .unwrap()
-        .unwrap()
-        .status
-        .is_terminal());
+    assert!(
+        !server
+            .tasks
+            .get(&id)
+            .await
+            .unwrap()
+            .unwrap()
+            .status
+            .is_terminal()
+    );
     drop(busy);
     wait_finished(&server, &id).await;
 }

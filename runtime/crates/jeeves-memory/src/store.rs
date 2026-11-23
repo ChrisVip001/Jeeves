@@ -16,7 +16,7 @@ use anyhow::Result;
 use jeeves_state::{FactRow, Facts};
 
 use crate::bundle::Bundle;
-use crate::mirror::{owned, refresh_subject, slug_for, sync_page, SyncReport};
+use crate::mirror::{SyncReport, owned, refresh_subject, slug_for, sync_page};
 
 /// One change to durable memory.
 #[derive(Debug, Clone)]
@@ -60,10 +60,10 @@ pub async fn apply(facts: &Facts, bundle: &Bundle, change: Change<'_>) -> Result
         }
     };
     let slug = subject.as_deref().map(slug_for);
-    if let Some(slug) = &slug {
-        if let Some(page) = bundle.read(slug)? {
-            sync_page(facts, bundle, &page, &mut SyncReport::default()).await?;
-        }
+    if let Some(slug) = &slug
+        && let Some(page) = bundle.read(slug)?
+    {
+        sync_page(facts, bundle, &page, &mut SyncReport::default()).await?;
     }
     let ours = match &slug {
         Some(slug) => owned(facts, bundle, slug).await?,

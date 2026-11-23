@@ -1,5 +1,5 @@
 //! Human-selected session policy. Missing rows preserve legacy runtime behavior.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, SqlitePool};
 
 #[derive(Clone, FromRow)]

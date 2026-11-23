@@ -53,9 +53,11 @@ async fn failed_human_pause_does_not_orphan_an_input_wait() {
     let rows = jeeves_state::external_waits::ExternalWaits::new(server.pool.clone());
     let wait = rows.waiting("input-task").await.unwrap().unwrap();
     sqlx::query("CREATE TRIGGER fail_input_pause BEFORE INSERT ON task_pause_fences BEGIN SELECT RAISE(FAIL,'injected input pause failure'); END").execute(&server.pool).await.unwrap();
-    assert!(rpc(&server, "task/suspend", json!({"taskId":"input-task"}))
-        .await
-        .is_err());
+    assert!(
+        rpc(&server, "task/suspend", json!({"taskId":"input-task"}))
+            .await
+            .is_err()
+    );
     assert_eq!(
         rows.waiting("input-task").await.unwrap().unwrap().state,
         "waiting"

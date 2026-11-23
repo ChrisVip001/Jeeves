@@ -1,6 +1,6 @@
 //! Notifier tests: message format, load semantics, a real Slack POST (loopback listener).
 
-use super::notify::{load, Notifier, NotifyEvent, Slack};
+use super::notify::{Notifier, NotifyEvent, Slack, load};
 #[test]
 fn messages_carry_the_essentials() {
     let approval = NotifyEvent::ApprovalRequested {

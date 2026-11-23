@@ -1,6 +1,6 @@
 //! A preview pins both pixels and provider. Only a separate human confirmation sends it.
 use super::*;
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use jeeves_config::models::{self, ModelProfile};
 use jeeves_provider::{ContentBlock, CreateRequest, Message, Resolved, Role, Wire};
 

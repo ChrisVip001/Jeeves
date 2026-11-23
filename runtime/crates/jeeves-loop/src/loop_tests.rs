@@ -11,7 +11,7 @@ use jeeves_provider::{ContentBlock, Message, Role, StopReason, Usage};
 use jeeves_tools::handlers;
 use serde_json::json;
 
-use crate::{run, LoopEvent, Turn};
+use crate::{LoopEvent, Turn, run};
 
 async fn ctx() -> jeeves_tools::ToolCtx {
     let dir = tempfile::tempdir().expect("temp dir");
@@ -156,10 +156,11 @@ async fn no_tool_call_ends_the_turn_immediately() {
     assert!(result.tool_calls.is_empty());
     assert_eq!(result.usage.input_tokens, 10);
     let sent = mock.received.lock().unwrap()[0].clone();
-    assert!(sent
-        .messages
-        .iter()
-        .any(|m| m.text().contains("alex likes morning meetings")));
+    assert!(
+        sent.messages
+            .iter()
+            .any(|m| m.text().contains("alex likes morning meetings"))
+    );
     assert_eq!(sent.system.as_deref(), Some("You are Jeeves"));
 }
 
@@ -241,9 +242,11 @@ async fn unknown_tool_name_is_surfaced_not_fatal() {
     ]);
     let tools = handlers::build_default();
     let result = turn(&mock, &tools, ctx().await, None).await;
-    assert!(result.tool_calls[0]
-        .output
-        .contains("no tool named 'hack_the_planet'"));
+    assert!(
+        result.tool_calls[0]
+            .output
+            .contains("no tool named 'hack_the_planet'")
+    );
     assert_eq!(result.iterations, 2);
 }
 
@@ -263,14 +266,16 @@ async fn a_long_sequence_of_distinct_tools_runs_until_the_model_finishes() {
     assert_eq!(result.iterations, 67);
     assert_eq!(result.tool_calls.len(), 66);
     assert_eq!(result.reply, "All steps completed.");
-    assert!(!mock
-        .received
-        .lock()
-        .unwrap()
-        .last()
-        .unwrap()
-        .tools
-        .is_empty());
+    assert!(
+        !mock
+            .received
+            .lock()
+            .unwrap()
+            .last()
+            .unwrap()
+            .tools
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -308,14 +313,16 @@ async fn an_active_context_overflow_retries_only_the_model_request() {
     assert!(replay.contains("remember that alex likes morning meetings"));
     assert!(replay.contains("Context compacted"));
     assert!(replay.contains("fetch-6"));
-    assert!(result
-        .messages
-        .iter()
-        .flat_map(|m| &m.content)
-        .any(|block| {
-            matches!(block, ContentBlock::ToolResult { tool_use_id, content }
+    assert!(
+        result
+            .messages
+            .iter()
+            .flat_map(|m| &m.content)
+            .any(|block| {
+                matches!(block, ContentBlock::ToolResult { tool_use_id, content }
             if tool_use_id == "fetch-1" && content == &evidence)
-        }));
+            })
+    );
 }
 
 #[tokio::test]
@@ -348,18 +355,22 @@ async fn a_truncated_response_cannot_execute_tools() {
     let result = turn(&mock, &tools, ctx().await, None).await;
     assert_eq!(result.stop_reason, StopReason::MaxTokens);
     assert!(result.tool_calls.is_empty());
-    assert!(result
-        .messages
-        .iter()
-        .flat_map(|m| &m.content)
-        .all(|b| !matches!(b, ContentBlock::ToolUse { .. })));
+    assert!(
+        result
+            .messages
+            .iter()
+            .flat_map(|m| &m.content)
+            .all(|b| !matches!(b, ContentBlock::ToolUse { .. }))
+    );
 }
 
 #[tokio::test]
 async fn the_token_budget_also_turns_the_next_round_into_a_wrap_up() {
     let mock = Mock::new(vec![
         Mock::tool_use("tu_1", "memory", json!({"action": "list"})),
-        Mock::text("the budget is up, so I am wrapping up: the time was read, the rest of the cleanup is not done."),
+        Mock::text(
+            "the budget is up, so I am wrapping up: the time was read, the rest of the cleanup is not done.",
+        ),
     ]);
     let tools = handlers::build_default();
     let ctx = ctx().await;

@@ -23,13 +23,14 @@ mod workspace;
 pub(crate) mod worktree;
 
 use jeeves_protocol::{
-    codes, AcceptanceView, AgentTaskView, ArtifactView, BudgetView, ErrorObject, RunView,
+    AcceptanceView, AgentTaskView, ArtifactView, BudgetView, ErrorObject, RunView,
     ServerNotification, SpentView, TaskActionParams, TaskArtifactsResponse, TaskCreateParams,
     TaskEnvelope, TaskListResponse, TaskRunsResponse, TaskUpdatedNotification, TaskViewResponse,
+    codes,
 };
 use jeeves_state::{TaskRow, TaskStatus};
 
-use crate::{dispatch::internal, narrow, EventSink, Server};
+use crate::{EventSink, Server, dispatch::internal, narrow};
 use jeeves_agent::verify::Acceptance;
 
 fn stored<T: serde::de::DeserializeOwned>(field: &str, json: &str) -> Result<T, ErrorObject> {
@@ -185,12 +186,12 @@ pub(crate) fn normalise_budget(budget: Option<&BudgetView>) -> Result<String, Er
         ("tokens", budget.tokens),
         ("tools", budget.tools),
     ] {
-        if let Some(value) = value {
-            if value <= 0 {
-                return Err(invalid(format!(
-                    "budget {name} must be greater than 0 (got {value})"
-                )));
-            }
+        if let Some(value) = value
+            && value <= 0
+        {
+            return Err(invalid(format!(
+                "budget {name} must be greater than 0 (got {value})"
+            )));
         }
     }
     serde_json::to_string(budget)
@@ -342,7 +343,7 @@ fn split_checks(
                 return Err(invalid(format!(
                     "check '{}': after must be 'edit' or 'final', not '{other}'",
                     check.name
-                )))
+                )));
             }
         }
     }
@@ -575,10 +576,10 @@ pub(crate) async fn suspend(
         .unwrap_or("paused by the user")
         .to_string();
     server.browser.stop_task(&row.id, false).await;
-    if let Some(turn_id) = &row.current_turn_id {
-        if !server.suspend_turn(turn_id) {
-            eprintln!("(jeeves) task {turn_id} is no longer running; marking it suspended");
-        }
+    if let Some(turn_id) = &row.current_turn_id
+        && !server.suspend_turn(turn_id)
+    {
+        eprintln!("(jeeves) task {turn_id} is no longer running; marking it suspended");
     }
     server
         .tasks
@@ -652,15 +653,13 @@ async fn resume_ready(
     if !human_paused
         && row.status == TaskStatus::Suspended
         && row.suspend_reason.as_deref() == Some(jeeves_state::waits::JOB_WAIT_REASON)
+        && let Ok(Some(wait)) = waits.get(&row.id).await
+        && wait.state == "waiting"
     {
-        if let Ok(Some(wait)) = waits.get(&row.id).await {
-            if wait.state == "waiting" {
-                crate::task::waits::arm(server.clone(), sink.clone(), wait);
-                return Ok(TaskEnvelope {
-                    task: view(server, &row).await?,
-                });
-            }
-        }
+        crate::task::waits::arm(server.clone(), sink.clone(), wait);
+        return Ok(TaskEnvelope {
+            task: view(server, &row).await?,
+        });
     }
     if !human_paused
         && row.status == TaskStatus::Suspended
@@ -720,7 +719,9 @@ async fn resume_ready(
             .map_err(|e| invalid(format!("Cannot read task dispatch: {e}")))?
             .is_some()
         {
-            return Err(invalid("Task has no safe resumable checkpoint; reconcile the execution before starting another attempt"));
+            return Err(invalid(
+                "Task has no safe resumable checkpoint; reconcile the execution before starting another attempt",
+            ));
         }
         server
             .tasks
@@ -762,7 +763,9 @@ pub(crate) async fn cancel(
     if let Some(turn_id) = &row.current_turn_id {
         server.interrupt_turn(turn_id);
         if let Err(e) = server.checkpoints.finish(turn_id, "abandoned").await {
-            eprintln!("(jeeves) the checkpoint was not marked when cancelling (the cancellation itself is unaffected): {e}");
+            eprintln!(
+                "(jeeves) the checkpoint was not marked when cancelling (the cancellation itself is unaffected): {e}"
+            );
         }
     }
     server

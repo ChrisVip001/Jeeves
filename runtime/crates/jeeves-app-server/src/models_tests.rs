@@ -318,9 +318,11 @@ async fn review_persistence_failure_keeps_the_last_saved_profile() {
     let path = cfg::models_path(dir.path());
     std::fs::rename(&path, dir.path().join("original")).unwrap();
     std::fs::create_dir(&path).unwrap();
-    assert!(server
-        .model_save(save("local", "ollama", Some("second")))
-        .is_err());
+    assert!(
+        server
+            .model_save(save("local", "ollama", Some("second")))
+            .is_err()
+    );
     assert_eq!(
         server.model_profiles().profiles[0].model.as_deref(),
         Some("first")
@@ -400,7 +402,9 @@ async fn removing_a_profile_can_be_retried_after_credential_cleanup_fails() {
     std::fs::write(&path, original).unwrap();
     assert!(remove().unwrap().removed);
     assert!(server.model_profiles().profiles.is_empty());
-    assert!(!std::fs::read_to_string(path)
-        .unwrap()
-        .contains("synthetic-value"));
+    assert!(
+        !std::fs::read_to_string(path)
+            .unwrap()
+            .contains("synthetic-value")
+    );
 }

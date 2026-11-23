@@ -9,11 +9,11 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use reqwest::Client as HttpClient;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
-    sse, ContentBlock, CreateRequest, CreateResponse, Message, Provider, ProviderError, StopReason,
-    TextSink, Usage,
+    ContentBlock, CreateRequest, CreateResponse, Message, Provider, ProviderError, StopReason,
+    TextSink, Usage, sse,
 };
 
 const DEFAULT_BASE: &str = "https://api.anthropic.com";

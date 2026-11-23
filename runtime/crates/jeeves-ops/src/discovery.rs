@@ -2,9 +2,9 @@ use std::io::Write;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use axum::Router;
 use axum::http::{HeaderValue, StatusCode};
 use axum::routing::head;
-use axum::Router;
 use ring::hmac;
 
 pub(super) fn publish(router: Router, home: &Path, port: u16, token: &str) -> Result<Router> {

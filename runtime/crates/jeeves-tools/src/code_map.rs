@@ -5,8 +5,8 @@ use sqlx::{Connection, SqliteConnection};
 use std::path::PathBuf;
 
 use crate::search::{
-    declaration, display_path, walk_files, GREP_MAX_FILE_BYTES, GREP_MAX_LINE_CHARS,
-    SEARCH_MAX_MATCHES,
+    GREP_MAX_FILE_BYTES, GREP_MAX_LINE_CHARS, SEARCH_MAX_MATCHES, declaration, display_path,
+    walk_files,
 };
 
 const MAX_BYTES: u64 = 32 * 1024 * 1024;

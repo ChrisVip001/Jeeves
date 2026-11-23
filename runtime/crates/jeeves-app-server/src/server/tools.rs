@@ -5,7 +5,7 @@ use jeeves_tools::ToolRegistry;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::{jobs, lock, Server};
+use crate::{Server, jobs, lock};
 
 impl Server {
     /// The environment handed to handlers when executing tools. **Constructed in exactly one place**
@@ -142,7 +142,9 @@ pub(crate) async fn builtin_tools(
         let host: Arc<dyn jeeves_tools::browser::BrowserHost> = browser.clone();
         tools.register_exclusive(jeeves_tools::browser::browser_observe(host.clone()));
         tools.register_exclusive(jeeves_tools::browser::browser_act(host));
-        eprintln!("(jeeves) browser components ready; a human must open each task browser and select its website scope");
+        eprintln!(
+            "(jeeves) browser components ready; a human must open each task browser and select its website scope"
+        );
     }
     let exec_session_allow: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let exec_allow: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(settings.exec_allow.clone()));
@@ -278,7 +280,9 @@ pub(crate) async fn builtin_tools(
                         feishu.clone(),
                         settings.home.clone(),
                     );
-                    eprintln!("(jeeves) Feishu sends as the user: the user token renews itself in the background");
+                    eprintln!(
+                        "(jeeves) Feishu sends as the user: the user token renews itself in the background"
+                    );
                 }
                 if feishu.allow_recipients.is_empty() {
                     eprintln!(

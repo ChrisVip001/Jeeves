@@ -46,10 +46,12 @@ async fn a_subject_becomes_one_page() {
             .any(|source| source == &format!("fact:{first}", first = first.id)),
         "the provenance has to point back at the fact row"
     );
-    assert!(bundle
-        .index_text()
-        .expect("the directory")
-        .contains("alex.md"));
+    assert!(
+        bundle
+            .index_text()
+            .expect("the directory")
+            .contains("alex.md")
+    );
 
     let meta = facts.meta(first.id).await.expect("query").expect("present");
     assert_eq!(meta.page_path.as_deref(), Some("memory/alex.md"));
@@ -166,10 +168,12 @@ async fn stale_pages_are_excluded_immediately_without_waiting_for_the_worker() {
         .await
         .unwrap();
     assert!(!super::page_is_current(&facts, &page).await.unwrap());
-    assert!(!super::recall_catalog(&facts, &bundle)
-        .await
-        .unwrap()
-        .contains("alex"));
+    assert!(
+        !super::recall_catalog(&facts, &bundle)
+            .await
+            .unwrap()
+            .contains("alex")
+    );
     facts.set_validity(first.id, None, None).await.unwrap();
     assert!(super::page_is_current(&facts, &page).await.unwrap());
     facts.update(first.id, "likes coffee").await.unwrap();
@@ -229,14 +233,17 @@ async fn rewriting_a_line_updates_that_fact_and_the_old_wording_stays_gone() {
     assert_eq!((report.updated, report.deleted, report.added), (1, 0, 0));
 
     let rows = facts.for_subject("alex").await.unwrap();
-    assert!(rows
-        .iter()
-        .any(|r| r.id == row.id && r.content == "likes coffee"));
-    assert!(facts
-        .add_consolidated("alex", "likes tea", "fact")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        rows.iter()
+            .any(|r| r.id == row.id && r.content == "likes coffee")
+    );
+    assert!(
+        facts
+            .add_consolidated("alex", "likes tea", "fact")
+            .await
+            .unwrap()
+            .is_none()
+    );
     let page = bundle.read("alex").unwrap().unwrap();
     assert!(page.body.contains("likes coffee <!--"), "{}", page.body);
     assert!(super::page_is_current(&facts, &page).await.unwrap());
@@ -269,11 +276,13 @@ async fn deleting_a_line_deletes_the_fact_and_the_mirror_does_not_write_it_back(
     mirror_facts(&facts, &bundle).await.unwrap();
     let page = bundle.read("alex").unwrap().unwrap();
     assert!(!page.body.contains("keeps a cat"), "{}", page.body);
-    assert!(facts
-        .add_consolidated("alex", "keeps a cat", "fact")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_consolidated("alex", "keeps a cat", "fact")
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -352,12 +361,14 @@ async fn a_page_with_prose_keeps_its_text_while_its_facts_sync() {
     );
     let page = bundle.read("alex").unwrap().unwrap();
     assert!(page.body.contains("Met at the 2024 offsite"));
-    assert!(facts
-        .for_subject("alex")
-        .await
-        .unwrap()
-        .iter()
-        .any(|r| r.content == "likes green tea"));
+    assert!(
+        facts
+            .for_subject("alex")
+            .await
+            .unwrap()
+            .iter()
+            .any(|r| r.content == "likes green tea")
+    );
 }
 
 #[tokio::test]
@@ -392,12 +403,14 @@ async fn a_page_without_trailers_is_matched_by_text() {
     edit_page(&bundle, "alex", "- likes tea", "- likes oolong");
     let report = sync_edited_pages(&facts, &bundle).await.unwrap();
     assert_eq!((report.deleted, report.added), (1, 1));
-    assert!(facts
-        .for_subject("alex")
-        .await
-        .unwrap()
-        .iter()
-        .any(|r| r.content == "likes oolong"));
+    assert!(
+        facts
+            .for_subject("alex")
+            .await
+            .unwrap()
+            .iter()
+            .any(|r| r.content == "likes oolong")
+    );
 }
 
 #[tokio::test]

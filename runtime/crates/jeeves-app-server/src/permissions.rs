@@ -1,12 +1,12 @@
 //! Session policy is human-controlled, durable, and checked at each tool boundary.
 use crate::{EventSink, Server};
 use jeeves_protocol::{
-    codes, ErrorObject, PermissionMode, SessionPermissionResponse, SessionPermissionSetParams,
+    ErrorObject, PermissionMode, SessionPermissionResponse, SessionPermissionSetParams, codes,
 };
 use jeeves_tools::{
-    approval::{ApprovalOutcome, ApprovalRequest},
-    permissions::{proven_read_call, redact, Authorization, AuthorizationFuture, ExecutionPolicy},
     ToolCtx,
+    approval::{ApprovalOutcome, ApprovalRequest},
+    permissions::{Authorization, AuthorizationFuture, ExecutionPolicy, proven_read_call, redact},
 };
 use std::{
     collections::HashMap,
@@ -123,7 +123,10 @@ impl Policies {
             .as_mut()
             .ok_or("Permission state unavailable")?
             .insert(params.session_id.clone(), (params.mode, revision));
-        eprintln!("(jeeves) session {} permission changed to {:?} (revision {revision}); in-flight actions are not rolled back", params.session_id, params.mode);
+        eprintln!(
+            "(jeeves) session {} permission changed to {:?} (revision {revision}); in-flight actions are not rolled back",
+            params.session_id, params.mode
+        );
         Ok(())
     }
 }
@@ -216,9 +219,15 @@ fn invalid(message: impl ToString) -> ErrorObject {
 impl Server {
     pub(crate) fn permission_note(&self, session: &str) -> &'static str {
         match self.permissions.snapshot(session) {
-            Ok(Some((PermissionMode::ReadOnly, _))) => "\nHuman session policy: read-only. Work in this session or its tasks is read-only. The delegate_task subagent tool is unavailable.",
-            Ok(Some((PermissionMode::Standard, _))) => "\nHuman session policy: standard. Effects require explicit per-operation human approval. The delegate_task subagent tool is unavailable. Approval is not task completion.",
-            Ok(Some((PermissionMode::FullAccess, _))) => "\nHuman session policy: full access within enabled capabilities, allowed roots and sandbox constraints. Do not infer broader authority.",
+            Ok(Some((PermissionMode::ReadOnly, _))) => {
+                "\nHuman session policy: read-only. Work in this session or its tasks is read-only. The delegate_task subagent tool is unavailable."
+            }
+            Ok(Some((PermissionMode::Standard, _))) => {
+                "\nHuman session policy: standard. Effects require explicit per-operation human approval. The delegate_task subagent tool is unavailable. Approval is not task completion."
+            }
+            Ok(Some((PermissionMode::FullAccess, _))) => {
+                "\nHuman session policy: full access within enabled capabilities, allowed roots and sandbox constraints. Do not infer broader authority."
+            }
             _ => "",
         }
     }

@@ -4,7 +4,7 @@
 use serde_json::json;
 
 use super::fs_write::WritePolicy;
-use super::patch::{apply, apply_patch, parse, Op, PatchLine};
+use super::patch::{Op, PatchLine, apply, apply_patch, parse};
 use crate::{ToolCtx, ToolRegistry};
 
 async fn test_ctx() -> ToolCtx {

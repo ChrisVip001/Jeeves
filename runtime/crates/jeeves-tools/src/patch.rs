@@ -14,11 +14,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 
-use crate::fs_write::{check_content, pass_write_gate, read_text, render_change, WritePolicy};
-use crate::{require_str, Tool, ToolCtx};
+use crate::fs_write::{WritePolicy, check_content, pass_write_gate, read_text, render_change};
+use crate::{Tool, ToolCtx, require_str};
 
 /// The largest patch accepted. A patch is instructions, not a payload: one this big is a
 /// `write_file` in disguise, and paying twice for it (parse + apply) helps nobody.
@@ -139,7 +139,7 @@ pub fn parse(text: &str) -> Result<Vec<Op>, String> {
             None => {
                 return Err(format!(
                     "This line appears before any file section: `{line}`. It has to sit under a heading like `*** Update File:`."
-                ))
+                ));
             }
             Some(Section::Add { lines, .. }) => {
                 let Some(content) = line.strip_prefix('+') else {
@@ -151,7 +151,9 @@ pub fn parse(text: &str) -> Result<Vec<Op>, String> {
             }
             Some(Section::Delete { .. }) => {
                 if !line.trim().is_empty() {
-                    return Err(format!("A `*** Delete File:` section must not contain content: `{line}`."));
+                    return Err(format!(
+                        "A `*** Delete File:` section must not contain content: `{line}`."
+                    ));
                 }
             }
             Some(Section::Update { hunks, .. }) => {
@@ -368,12 +370,11 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                             report.push(format!("{}: content unchanged, nothing written", path.display()));
                         }
                         (_, Some(new)) => {
-                            if let Some(parent) = path.parent() {
-                                if !parent.is_dir() {
+                            if let Some(parent) = path.parent()
+                                && !parent.is_dir() {
                                     std::fs::create_dir_all(parent)
                                         .map_err(|e| anyhow!("Could not create the parent directory {parent:?}: {e}"))?;
                                 }
-                            }
                             std::fs::write(path, new)
                                 .map_err(|e| anyhow!("Could not write {path:?}: {e}"))?;
                             crate::file_seen::record(&ctx.session_id, path);

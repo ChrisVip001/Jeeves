@@ -1,5 +1,5 @@
 //! Whole, immutable plan versions committed together with their readable steps.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::SqlitePool;
 
 #[derive(Clone)]

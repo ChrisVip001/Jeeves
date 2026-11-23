@@ -1,6 +1,6 @@
 //! Human-controlled time bounds. Expiration filters recall without deleting history.
 use super::Facts;
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 
 impl Facts {
     /// Replace the whole validity window; null bounds restore an unbounded claim.

@@ -16,7 +16,7 @@
 //! Lifecycle: jobs live and die with the Jeeves process; children are reaped (`kill_on_drop`),
 //! so "resume after restart" is meaningless here — not a daemon, just this run's helper.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::Tool;
 
@@ -103,7 +103,9 @@ pub trait JobRegistry: Send + Sync {
 
 /// The answer to the model when no job host is present (background is off by default).
 fn no_registry() -> anyhow::Error {
-    anyhow::anyhow!("background jobs are not enabled on this machine (they are switched on together with run_command: JEEVES_EXEC=1).")
+    anyhow::anyhow!(
+        "background jobs are not enabled on this machine (they are switched on together with run_command: JEEVES_EXEC=1)."
+    )
 }
 
 /// `job_output`: read a slice of output. To continue reading, pass back the `cursor` you got.

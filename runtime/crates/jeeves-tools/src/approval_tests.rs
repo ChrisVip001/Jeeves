@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use super::approval::{
     ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest, RememberTarget,
 };
-use super::exec::{execute, sandbox_available, vet, ExecPolicy, Gate};
+use super::exec::{ExecPolicy, Gate, execute, sandbox_available, vet};
 
 fn policy(allow: &[&str], approval: bool) -> ExecPolicy {
     ExecPolicy {

@@ -2,13 +2,13 @@
 
 use super::failed;
 use crate::AppServer;
+use axum::Json;
 use axum::extract::{Extension, Query};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
-use axum::Json;
 use jeeves_protocol::{
-    codes, methods, ErrorObject, TaskActionParams, TaskCreateParams, TaskEnvelope, TaskListResponse,
+    ErrorObject, TaskActionParams, TaskCreateParams, TaskEnvelope, TaskListResponse, codes, methods,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -274,7 +274,7 @@ pub async fn turn_operation(
                     message: "Unknown chat operation action".into(),
                     data: None,
                 },
-            )
+            );
         }
     };
     let result = match translated {

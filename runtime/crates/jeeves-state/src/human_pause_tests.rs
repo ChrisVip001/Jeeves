@@ -1,4 +1,4 @@
-use crate::{human_pauses::HumanPauses, Checkpoints, NewTask, TaskStatus, Tasks};
+use crate::{Checkpoints, NewTask, TaskStatus, Tasks, human_pauses::HumanPauses};
 
 #[tokio::test]
 async fn checkpoint_writes_cannot_clear_human_pause_authority() {
@@ -105,10 +105,12 @@ async fn continuation_failure_keeps_the_pause_and_original_boundary() {
         tasks.suspend("task", Some("Human pause")).await.unwrap();
         let pauses = HumanPauses::new(pool.clone());
         sqlx::query("CREATE TRIGGER fail_continuation BEFORE UPDATE OF messages_json ON turn_checkpoints BEGIN SELECT RAISE(FAIL,'injected continuation failure'); END").execute(&pool).await.unwrap();
-        assert!(pauses
-            .resume_checkpoint("task", "turn", "[1]")
-            .await
-            .is_err());
+        assert!(
+            pauses
+                .resume_checkpoint("task", "turn", "[1]")
+                .await
+                .is_err()
+        );
         assert!(pauses.is_paused("task").await.unwrap());
         assert_eq!(
             tasks.get("task").await.unwrap().unwrap().status,
@@ -149,10 +151,12 @@ async fn continuation_failure_keeps_the_pause_and_original_boundary() {
             )
             .await
             .unwrap();
-        assert!(pauses
-            .resume_checkpoint("task", "turn", "[2]")
-            .await
-            .is_err());
+        assert!(
+            pauses
+                .resume_checkpoint("task", "turn", "[2]")
+                .await
+                .is_err()
+        );
         assert_eq!(
             tasks.get("task").await.unwrap().unwrap().status,
             TaskStatus::Cancelled

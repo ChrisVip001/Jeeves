@@ -1,5 +1,5 @@
 //! Human memory edits and suppression of automatically re-extracted old claims.
-use super::{normalise_kind, FactRow, Facts};
+use super::{FactRow, Facts, normalise_kind};
 use anyhow::Result;
 use sqlx::{Sqlite, Transaction};
 

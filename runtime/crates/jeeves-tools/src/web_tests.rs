@@ -238,7 +238,7 @@ async fn the_tool_refuses_loopback_without_the_test_knob() {
     assert!(out.contains("internal or reserved address"), "{out}");
 }
 
-use super::web::{plan_backends, search_web, Backend, TurnLimits};
+use super::web::{Backend, TurnLimits, plan_backends, search_web};
 use std::sync::atomic::Ordering;
 
 #[test]
@@ -488,9 +488,11 @@ async fn backend_failures_empty_and_invalid_results_fall_through() {
         .await
         .unwrap();
     assert_eq!(hits, good);
-    assert!(super::web::search_backends(&plan[..3], "tokio", 5)
-        .await
-        .is_err());
+    assert!(
+        super::web::search_backends(&plan[..3], "tokio", 5)
+            .await
+            .is_err()
+    );
 }
 
 #[test]

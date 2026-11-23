@@ -251,7 +251,10 @@ pub async fn run(server: Server) -> Result<()> {
 
         match schedules.pending_claim(&job.name).await {
             Ok(Some(claimed)) => {
-                eprintln!("(jeeves) job '{}' has an unsettled trigger at {claimed}; review external effects, then use jeeves schedule acknowledge <name>. It is not replayed.",job.name);
+                eprintln!(
+                    "(jeeves) job '{}' has an unsettled trigger at {claimed}; review external effects, then use jeeves schedule acknowledge <name>. It is not replayed.",
+                    job.name
+                );
                 fired.insert(job.name.clone(), now0.format("%Y-%m-%dT%H:%M").to_string());
                 continue;
             }

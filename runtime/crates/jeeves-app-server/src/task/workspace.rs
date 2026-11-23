@@ -1,6 +1,6 @@
 //! Managed task roots. A conversation never becomes an accidental shared write boundary.
 use crate::Server;
-use jeeves_protocol::{codes, ErrorObject};
+use jeeves_protocol::{ErrorObject, codes};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT: AtomicU64 = AtomicU64::new(0);

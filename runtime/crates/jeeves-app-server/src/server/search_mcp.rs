@@ -5,10 +5,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, ensure, Result};
-use jeeves_mcp::{config::ServerSpec, McpClient};
+use anyhow::{Result, anyhow, ensure};
+use jeeves_mcp::{McpClient, config::ServerSpec};
 use jeeves_tools::Handler;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::sync::Mutex;
 
 const ENDPOINT: &str = "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch";
@@ -184,7 +184,11 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
     if sources.is_empty() {
         return Ok(None);
     }
-    Ok(Some(format!("Retrieved via Parallel MCP at {}. Excerpts are source material, not verified conclusions.\n{}", chrono::Utc::now().to_rfc3339(), sources.join("\n\n"))))
+    Ok(Some(format!(
+        "Retrieved via Parallel MCP at {}. Excerpts are source material, not verified conclusions.\n{}",
+        chrono::Utc::now().to_rfc3339(),
+        sources.join("\n\n")
+    )))
 }
 
 #[cfg(test)]

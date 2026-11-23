@@ -2,8 +2,8 @@
 //! followed by a local crash can produce a duplicate. Approval requests are never queued.
 use std::path::{Path, PathBuf};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
 static NEXT: AtomicU64 = AtomicU64::new(0);

@@ -1,6 +1,6 @@
 //! A live snapshot, never reconstructed from approval audit history.
-use crate::{narrow, Server};
-use jeeves_protocol::{codes, ApprovalPendingResponse, ErrorObject, PendingApprovalView};
+use crate::{Server, narrow};
+use jeeves_protocol::{ApprovalPendingResponse, ErrorObject, PendingApprovalView, codes};
 
 pub(crate) async fn list(
     server: &Server,

@@ -100,21 +100,21 @@ pub fn observe(
     for call in operations {
         let seq = call.seq;
         let input = &call.input;
-        if WRITE_TOOLS.contains(&call.tool.as_str()) {
-            if let Some(path) = input.get("path").and_then(|p| p.as_str()) {
-                let written = if call.tool == "write_file" {
-                    input["content"].as_str()
-                } else {
-                    None
-                };
-                observation.facts.push(check_written(
-                    path,
-                    call.success,
-                    &call.output,
-                    cwd,
-                    written,
-                ));
-            }
+        if WRITE_TOOLS.contains(&call.tool.as_str())
+            && let Some(path) = input.get("path").and_then(|p| p.as_str())
+        {
+            let written = if call.tool == "write_file" {
+                input["content"].as_str()
+            } else {
+                None
+            };
+            observation.facts.push(check_written(
+                path,
+                call.success,
+                &call.output,
+                cwd,
+                written,
+            ));
         }
         observation.steps.push(StepDraft {
             seq,

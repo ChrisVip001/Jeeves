@@ -1,4 +1,4 @@
-use crate::{external_waits::*, Checkpoints, NewTask, Runs, TaskStatus, Tasks};
+use crate::{Checkpoints, NewTask, Runs, TaskStatus, Tasks, external_waits::*};
 
 async fn fixture() -> (
     tempfile::TempDir,
@@ -78,66 +78,78 @@ fn snapshot() -> WaitSnapshot<'static> {
 async fn durable_input_is_source_bound_immutable_and_claimed_once() {
     let (_home, pool, inputs, wait) = fixture().await;
     inputs.register(&wait, snapshot()).await.unwrap();
-    assert!(inputs
-        .signal(
-            "input",
-            "another-host",
-            "meeting-figures",
-            "event-1",
-            r#"{"value":42}"#
-        )
-        .await
-        .is_err());
-    assert!(inputs
-        .signal(
-            "input",
-            "authorized-host",
-            "another-key",
-            "event-1",
-            r#"{"value":42}"#
-        )
-        .await
-        .is_err());
-    assert!(inputs
-        .signal(
-            "input",
-            "authorized-host",
-            "meeting-figures",
-            "event-1",
-            r#"{"value":42}"#
-        )
-        .await
-        .unwrap());
-    assert!(!inputs
-        .signal(
-            "input",
-            "authorized-host",
-            "meeting-figures",
-            "event-1",
-            r#"{"value":42}"#
-        )
-        .await
-        .unwrap());
-    assert!(inputs
-        .signal(
-            "input",
-            "authorized-host",
-            "meeting-figures",
-            "event-1",
-            r#"{"value":99}"#
-        )
-        .await
-        .is_err());
-    assert!(inputs
-        .signal(
-            "input",
-            "authorized-host",
-            "meeting-figures",
-            "event-2",
-            r#"{"value":99}"#
-        )
-        .await
-        .is_err());
+    assert!(
+        inputs
+            .signal(
+                "input",
+                "another-host",
+                "meeting-figures",
+                "event-1",
+                r#"{"value":42}"#
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        inputs
+            .signal(
+                "input",
+                "authorized-host",
+                "another-key",
+                "event-1",
+                r#"{"value":42}"#
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        inputs
+            .signal(
+                "input",
+                "authorized-host",
+                "meeting-figures",
+                "event-1",
+                r#"{"value":42}"#
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !inputs
+            .signal(
+                "input",
+                "authorized-host",
+                "meeting-figures",
+                "event-1",
+                r#"{"value":42}"#
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        inputs
+            .signal(
+                "input",
+                "authorized-host",
+                "meeting-figures",
+                "event-1",
+                r#"{"value":99}"#
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        inputs
+            .signal(
+                "input",
+                "authorized-host",
+                "meeting-figures",
+                "event-2",
+                r#"{"value":99}"#
+            )
+            .await
+            .is_err()
+    );
     let cp = Checkpoints::new(pool.clone())
         .get("turn")
         .await
@@ -251,27 +263,31 @@ async fn only_prompted_input_satisfies_the_current_run() {
         )
         .await
         .unwrap();
-    assert!(inputs
-        .get("task")
-        .await
-        .unwrap()
-        .unwrap()
-        .consumed_run_id
-        .is_none());
+    assert!(
+        inputs
+            .get("task")
+            .await
+            .unwrap()
+            .unwrap()
+            .consumed_run_id
+            .is_none()
+    );
     let prompted = inputs.for_prompt("task", "run").await.unwrap().unwrap();
     assert_eq!(prompted.consumed_run_id.as_deref(), Some("run"));
     assert_eq!(prompted.payload_json.as_deref(), Some("42"));
-    assert!(inputs
-        .define(NewInputCondition {
-            condition_id: "replacement",
-            task_id: "task",
-            source: "other",
-            event_key: "key",
-            description: "new scope",
-            expires_at: None
-        })
-        .await
-        .is_err());
+    assert!(
+        inputs
+            .define(NewInputCondition {
+                condition_id: "replacement",
+                task_id: "task",
+                source: "other",
+                event_key: "key",
+                description: "new scope",
+                expires_at: None
+            })
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -324,16 +340,18 @@ async fn input_wait_admission_rolls_back_and_deadlines_only_limit_arrival() {
         .await
         .unwrap();
     assert!(inputs.expired("task").await.unwrap());
-    assert!(inputs
-        .signal(
-            "input",
-            "authorized-host",
-            "meeting-figures",
-            "late-event",
-            "42"
-        )
-        .await
-        .is_err());
+    assert!(
+        inputs
+            .signal(
+                "input",
+                "authorized-host",
+                "meeting-figures",
+                "late-event",
+                "42"
+            )
+            .await
+            .is_err()
+    );
     sqlx::query("UPDATE task_input_conditions SET expires_at=NULL")
         .execute(&pool)
         .await

@@ -1,7 +1,7 @@
 //! Execute admitted occurrences and fence outbound side effects before publishing.
 use super::action;
-use crate::{narrow, EventSink, Server};
-use anyhow::{ensure, Context, Result};
+use crate::{EventSink, Server, narrow};
+use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use jeeves_protocol::{
     BudgetView, ResponsibilityDelivery, ResponsibilityPlan, ResponsibilityReportsResponse,

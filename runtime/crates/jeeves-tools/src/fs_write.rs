@@ -16,12 +16,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 
 use crate::approval::{ApprovalBroker, RememberTarget};
-use crate::edit_match::{fit_line_endings, locate, miss_hint, Located};
-use crate::{require_str, Tool, ToolCtx};
+use crate::edit_match::{Located, fit_line_endings, locate, miss_hint};
+use crate::{Tool, ToolCtx, require_str};
 
 /// Raw string argument — **no trimming**. `require_str` trims, which is right for
 /// commands and paths but would silently corrupt file content: a trailing newline or

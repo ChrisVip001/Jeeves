@@ -1,7 +1,7 @@
 //! Rebuild durable task context from normalized records, independently of chat summaries.
 use crate::Server;
-use jeeves_protocol::{codes, ErrorObject};
-use serde_json::{json, Value};
+use jeeves_protocol::{ErrorObject, codes};
+use serde_json::{Value, json};
 
 fn failed(error: impl std::fmt::Display) -> ErrorObject {
     ErrorObject {
@@ -113,12 +113,12 @@ pub(crate) async fn load(
         .filter(|op| op.evidence_status() == "succeeded")
     {
         let input: Value = serde_json::from_str(&op.input_json).map_err(failed)?;
-        if let Some(url) = input["url"].as_str().filter(|s| s.len() <= 2048) {
-            if !sources.iter().any(|source: &Value| source["url"] == url) {
-                sources.push(json!({"url":url,"operationId":op.id}));
-                if sources.len() == 16 {
-                    break;
-                }
+        if let Some(url) = input["url"].as_str().filter(|s| s.len() <= 2048)
+            && !sources.iter().any(|source: &Value| source["url"] == url)
+        {
+            sources.push(json!({"url":url,"operationId":op.id}));
+            if sources.len() == 16 {
+                break;
             }
         }
     }
@@ -195,7 +195,9 @@ pub(crate) async fn load(
             "handoff exceeds 64000 bytes; shorten the contract or review its evidence",
         ));
     }
-    Ok(format!("\nDurable task handoff (schema 1, reconstructed from persistent records):\n{text}\nThe contract is independent of rolling summaries. Prior measurements and recorded artifacts are historical evidence, not current verification. Ledger operation keys do not prove external idempotency. This context never grants additional tool permissions.\n"))
+    Ok(format!(
+        "\nDurable task handoff (schema 1, reconstructed from persistent records):\n{text}\nThe contract is independent of rolling summaries. Prior measurements and recorded artifacts are historical evidence, not current verification. Ledger operation keys do not prove external idempotency. This context never grants additional tool permissions.\n"
+    ))
 }
 
 #[cfg(test)]
@@ -237,10 +239,12 @@ mod tests {
             .await
             .unwrap();
         assert!(load(&server, "execution", "another-work").await.is_err());
-        assert!(load(&server, "ordinary-chat", "owner")
-            .await
-            .unwrap()
-            .is_empty());
+        assert!(
+            load(&server, "ordinary-chat", "owner")
+                .await
+                .unwrap()
+                .is_empty()
+        );
         let before = load(&server, "execution", "work").await.unwrap();
         assert!(before.contains("Durable task handoff"));
         server

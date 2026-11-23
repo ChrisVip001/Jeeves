@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use super::exec::{
-    execute, prune_spill, sandbox_argv, sandbox_available, vet, ExecPolicy, Gate, Sandbox,
+    ExecPolicy, Gate, Sandbox, execute, prune_spill, sandbox_argv, sandbox_available, vet,
 };
 
 fn policy(allow: &[&str]) -> ExecPolicy {

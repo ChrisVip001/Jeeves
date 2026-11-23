@@ -91,15 +91,14 @@ impl Steps {
         .bind(step.idempotency_key)
         .execute(&self.pool)
         .await?;
-        if let Some(key) = step.idempotency_key {
-            if let Some(id) =
+        if let Some(key) = step.idempotency_key
+            && let Some(id) =
                 sqlx::query_scalar::<_, i64>("SELECT id FROM task_steps WHERE idempotency_key = ?")
                     .bind(key)
                     .fetch_optional(&self.pool)
                     .await?
-            {
-                return Ok(id);
-            }
+        {
+            return Ok(id);
         }
         let id: i64 =
             sqlx::query_scalar("SELECT COALESCE(MAX(id), 0) FROM task_steps WHERE task_id = ?")

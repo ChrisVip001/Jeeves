@@ -2,8 +2,8 @@
 //! stages unspecified files, pushes, runs hooks, or rewrites history.
 use crate::Server;
 use jeeves_protocol::{
-    codes, ErrorObject, TaskGitCheckpointParams, TaskGitCheckpointPolicyParams,
-    TaskGitCheckpointPolicyResponse, TaskGitCheckpointResponse,
+    ErrorObject, TaskGitCheckpointParams, TaskGitCheckpointPolicyParams,
+    TaskGitCheckpointPolicyResponse, TaskGitCheckpointResponse, codes,
 };
 use std::{
     path::{Component, Path},
@@ -69,7 +69,7 @@ fn check_path(root: &Path, value: &str, allow_future: bool) -> Result<bool, Stri
         current.push(part);
         metadata = match std::fs::symlink_metadata(&current) {
             Ok(m) if m.file_type().is_symlink() => {
-                return Err("symbolic links cannot be checkpointed".into())
+                return Err("symbolic links cannot be checkpointed".into());
             }
             Ok(m) => Some(m),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,

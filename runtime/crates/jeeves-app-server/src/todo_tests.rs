@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use jeeves_config::Settings;
 use jeeves_protocol::{RequestId, TurnStartParams};
-use jeeves_provider::mock::Mock;
 use jeeves_provider::Resolved;
+use jeeves_provider::mock::Mock;
 use serde_json::json;
 
 use crate::{EventSink, Server};

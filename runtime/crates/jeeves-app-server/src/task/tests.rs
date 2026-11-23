@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use jeeves_config::Settings;
 use jeeves_protocol::{
-    codes, JsonRpcMessage, JsonRpcRequest, RequestId, ServerNotification, TaskEnvelope,
-    TurnStartParams,
+    JsonRpcMessage, JsonRpcRequest, RequestId, ServerNotification, TaskEnvelope, TurnStartParams,
+    codes,
 };
 use jeeves_provider::mock::Mock;
 use jeeves_provider::{Message, Resolved, Role};
@@ -967,7 +967,9 @@ async fn each_round_keeps_its_own_step_so_tools_ok_counts_them_all() {
 async fn an_interrupted_round_suspends_the_task_instead_of_spending_another() {
     let mock = Arc::new(Mock::streaming(vec![
         Mock::text("skip"),
-        Mock::text("let me get the shape of it straight first, then I will start writing this report, and there is a lot more to say."),
+        Mock::text(
+            "let me get the shape of it straight first, then I will start writing this report, and there is a lot more to say.",
+        ),
     ]));
     let (server, _home) = boot(Some(mock)).await;
     let dir = tempfile::tempdir().expect("temporary directory");
@@ -1111,10 +1113,12 @@ async fn the_planner_writes_plan_steps_without_touching_acceptance() {
         planned.iter().all(|step| step.run_id.is_none()),
         "the plan does not belong to one run"
     );
-    assert!(planned[0]
-        .input_json
-        .as_deref()
-        .is_some_and(|json| json.contains("write the skeleton")));
+    assert!(
+        planned[0]
+            .input_json
+            .as_deref()
+            .is_some_and(|json| json.contains("write the skeleton"))
+    );
 
     let runs = server
         .runs
@@ -1176,12 +1180,14 @@ async fn a_broken_plan_is_ignored_not_fatal() {
         jeeves_state::TaskStatus::Done,
         "a broken planner does not affect the task itself"
     );
-    assert!(server
-        .steps
-        .list_plan(&id)
-        .await
-        .expect("list the plan")
-        .is_empty());
+    assert!(
+        server
+            .steps
+            .list_plan(&id)
+            .await
+            .expect("list the plan")
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -1235,10 +1241,12 @@ async fn observation_write_failures_stop_before_continuation_and_keep_known_spen
             view["task"]["status"], "needs_attention",
             "{table} {action}"
         );
-        assert!(view["task"]["lastStopReason"]
-            .as_str()
-            .unwrap()
-            .contains("observation"));
+        assert!(
+            view["task"]["lastStopReason"]
+                .as_str()
+                .unwrap()
+                .contains("observation")
+        );
         assert_eq!(view["task"]["spent"]["tokens"], 43);
         assert_eq!(view["task"]["spent"]["tools"], 1);
         assert_eq!(

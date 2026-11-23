@@ -1,6 +1,6 @@
 //! One operator latch per Runtime. Releasing it never reopens a task or replays input.
 use super::{BrowserHost, Session};
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use jeeves_protocol::ExecutorControlView;
 use std::sync::Arc;
 

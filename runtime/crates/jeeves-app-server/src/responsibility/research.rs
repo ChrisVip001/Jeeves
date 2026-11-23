@@ -1,6 +1,6 @@
 //! Verify a summary from its saved research workspace and bounded source identities.
 use super::action::{Adapter, Output};
-use anyhow::{ensure, Context};
+use anyhow::{Context, ensure};
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;

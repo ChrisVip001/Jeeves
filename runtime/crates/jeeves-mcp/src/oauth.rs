@@ -240,20 +240,18 @@ pub async fn discover(client: &reqwest::Client, server_url: &str) -> Result<Auth
     ];
     let mut auth_server = origin(server_url);
     for candidate in &candidates {
-        if let Ok(response) = client.get(candidate).send().await {
-            if response.status().is_success() {
-                if let Ok(meta) = response.json::<serde_json::Value>().await {
-                    if let Some(servers) = meta
-                        .get("authorization_servers")
-                        .and_then(serde_json::Value::as_array)
-                    {
-                        if let Some(first) = servers.first().and_then(serde_json::Value::as_str) {
-                            auth_server = first.to_string();
-                        }
-                    }
-                }
-                break;
+        if let Ok(response) = client.get(candidate).send().await
+            && response.status().is_success()
+        {
+            if let Ok(meta) = response.json::<serde_json::Value>().await
+                && let Some(servers) = meta
+                    .get("authorization_servers")
+                    .and_then(serde_json::Value::as_array)
+                && let Some(first) = servers.first().and_then(serde_json::Value::as_str)
+            {
+                auth_server = first.to_string();
             }
+            break;
         }
     }
 

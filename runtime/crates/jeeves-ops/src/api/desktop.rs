@@ -2,9 +2,9 @@
 use super::preferences::relay;
 use crate::AppServer;
 use axum::{
+    Json,
     extract::{Extension, Query},
     response::Response,
-    Json,
 };
 use jeeves_protocol::*;
 use serde_json::json;

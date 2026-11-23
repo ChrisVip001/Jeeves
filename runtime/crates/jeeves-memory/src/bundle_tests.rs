@@ -117,10 +117,12 @@ fn removing_a_page_leaves_a_trail() {
     );
 
     assert!(bundle.read("gone").expect("read").is_none());
-    assert!(!bundle
-        .index_text()
-        .expect("the directory")
-        .contains("gone.md"));
+    assert!(
+        !bundle
+            .index_text()
+            .expect("the directory")
+            .contains("gone.md")
+    );
     let trail = std::fs::read_to_string(bundle.root().join("changelog.md")).expect("the history");
     assert!(trail.contains("write gone fact"), "{trail}");
     assert!(trail.contains("remove gone"), "{trail}");

@@ -14,7 +14,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
@@ -118,7 +118,9 @@ where
                     message.get("method").and_then(Value::as_str),
                     message.get("id").cloned(),
                 ) {
-                    eprintln!("(jeeves) the MCP server sent a reverse request '{method}'; refused explicitly (not supported)");
+                    eprintln!(
+                        "(jeeves) the MCP server sent a reverse request '{method}'; refused explicitly (not supported)"
+                    );
                     let reply = json!({
                         "jsonrpc": "2.0",
                         "id": their_id,
@@ -273,15 +275,15 @@ where
 
 /// Take `result` out of a JSON-RPC message, or turn `error` into an error.
 fn unwrap_message(message: &Value) -> Result<Value, String> {
-    if let Some(error) = message.get("error") {
-        if !error.is_null() {
-            let text = error
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("(no description)");
-            let code = error.get("code").map_or_default(Value::to_string);
-            return Err(format!("{text} ({code})"));
-        }
+    if let Some(error) = message.get("error")
+        && !error.is_null()
+    {
+        let text = error
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("(no description)");
+        let code = error.get("code").map_or_default(Value::to_string);
+        return Err(format!("{text} ({code})"));
     }
     message
         .get("result")
@@ -363,10 +365,10 @@ impl HttpSession {
         {
             return Err("HTTP 403: OAuth insufficient_scope".into());
         }
-        if let Some(session) = response.headers().get("mcp-session-id") {
-            if let Ok(session) = session.to_str() {
-                self.session_id = Some(session.to_string());
-            }
+        if let Some(session) = response.headers().get("mcp-session-id")
+            && let Ok(session) = session.to_str()
+        {
+            self.session_id = Some(session.to_string());
         }
         let content_type = response
             .headers()

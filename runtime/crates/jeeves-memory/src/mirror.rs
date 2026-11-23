@@ -41,11 +41,11 @@ pub async fn mirror_facts(facts: &Facts, bundle: &Bundle) -> Result<MirrorReport
 
         let mut expected_digest: Option<String> = None;
         for row in &rows {
-            if let Some(meta) = facts.meta(row.id).await? {
-                if meta.page_path.is_some() {
-                    expected_digest = meta.digest.clone();
-                    break;
-                }
+            if let Some(meta) = facts.meta(row.id).await?
+                && meta.page_path.is_some()
+            {
+                expected_digest = meta.digest.clone();
+                break;
             }
         }
         let slug = slug_of(&subject);
@@ -356,10 +356,11 @@ async fn recorded_digest(facts: &Facts, page: &Page) -> Result<Option<String>> {
         let Some(id) = source.strip_prefix("fact:").and_then(|n| n.parse().ok()) else {
             continue;
         };
-        if let Some(meta) = facts.meta(id).await? {
-            if meta.page_path.is_some() && meta.digest.is_some() {
-                return Ok(meta.digest);
-            }
+        if let Some(meta) = facts.meta(id).await?
+            && meta.page_path.is_some()
+            && meta.digest.is_some()
+        {
+            return Ok(meta.digest);
         }
     }
     Ok(None)

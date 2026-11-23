@@ -183,11 +183,13 @@ mod tests {
             json!({"category":"mail","tools":{"q":{"efect":"read"}}}),
             json!({"category":"other","verbs":{"custom.foo":"missing"}}),
         ] {
-            assert!(serde_json::from_value::<ManifestSource>(fields)
-                .and_then(|source| source
-                    .load(Path::new("."))
-                    .map_err(serde::de::Error::custom))
-                .is_err());
+            assert!(
+                serde_json::from_value::<ManifestSource>(fields)
+                    .and_then(|source| source
+                        .load(Path::new("."))
+                        .map_err(serde::de::Error::custom))
+                    .is_err()
+            );
         }
         let spec: ConnectorManifest =
             serde_json::from_value(json!({"category":"tasks","tools":{"x":{}}})).unwrap();

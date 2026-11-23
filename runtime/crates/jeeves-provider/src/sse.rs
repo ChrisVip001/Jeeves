@@ -47,7 +47,7 @@ where
                                     "the connection dropped mid-stream: {e}"
                                 ))),
                                 (stream, bytes::BytesMut::new(), 0, true),
-                            ))
+                            ));
                         }
                         None => eof = true,
                     }

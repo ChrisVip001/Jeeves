@@ -1,7 +1,7 @@
 //! Tests for SSE parsing. No network — constructed byte streams are fed directly.
 
 use bytes::Bytes;
-use futures_util::{stream, StreamExt};
+use futures_util::{StreamExt, stream};
 
 use super::data_lines;
 

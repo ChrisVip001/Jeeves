@@ -11,14 +11,14 @@
 //!
 //! What the model gets back is plain text — Jeeves never parses HTML for the model, just readable results.
 
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use anyhow::Result;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{opt_u32, require_str, Tool, ToolCtx};
+use crate::{Tool, ToolCtx, opt_u32, require_str};
 
 mod primary;
 
@@ -223,10 +223,10 @@ fn unescape_entity(entity: &str) -> String {
                     } else {
                         num.parse::<u32>()
                     };
-                if let Ok(code) = code {
-                    if let Some(c) = char::from_u32(code) {
-                        return c.to_string();
-                    }
+                if let Ok(code) = code
+                    && let Some(c) = char::from_u32(code)
+                {
+                    return c.to_string();
                 }
             }
             format!("&{entity};")

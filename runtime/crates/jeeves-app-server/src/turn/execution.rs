@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
 use super::{
-    budget_tokens, build_system, capability_note, interruptible, is_context_overflow, load_history,
-    load_soul, retrieve_memory, thin_soul_for, HistoryStats, Loaded, PromptParts, TurnFrame,
-    FORCED_RETRY_TURNS, PRELOOP_TIMEOUT, SUMMARY_RESERVE_TOKENS,
+    FORCED_RETRY_TURNS, HistoryStats, Loaded, PRELOOP_TIMEOUT, PromptParts, SUMMARY_RESERVE_TOKENS,
+    TurnFrame, budget_tokens, build_system, capability_note, interruptible, is_context_overflow,
+    load_history, load_soul, retrieve_memory, thin_soul_for,
 };
 use crate::Server;
 use jeeves_loop::{LoopEvent, LoopResult};
 use jeeves_protocol::{
-    codes, ErrorObject, ServerNotification, TextDeltaNotification, ToolCompletedNotification,
-    ToolDeltaNotification, ToolStartedNotification, ToolStatus,
+    ErrorObject, ServerNotification, TextDeltaNotification, ToolCompletedNotification,
+    ToolDeltaNotification, ToolStartedNotification, ToolStatus, codes,
 };
 use jeeves_provider::{Resolved, TextSink};
 
@@ -176,21 +176,22 @@ pub(crate) async fn full_turn(
     if settings.tool_policy == "deferred" {
         turn_tools.defer_all_but_always();
     }
-    if main_chat && !chat_operations.unresolved {
-        if let Some(tool) = frame.interaction_tool.cloned() {
-            if !channel_chat {
-                turn_tools = turn_tools.without("schedule_job").without("recurring_work");
-                turn_tools.register_exclusive_with_effect(
-                    crate::responsibility::reviews::tool(
-                        server.clone(),
-                        turn_id.into(),
-                        message.into(),
-                    ),
-                    jeeves_tools::ToolEffect::Draft,
-                );
-            }
-            turn_tools.register_exclusive(tool);
+    if main_chat
+        && !chat_operations.unresolved
+        && let Some(tool) = frame.interaction_tool.cloned()
+    {
+        if !channel_chat {
+            turn_tools = turn_tools.without("schedule_job").without("recurring_work");
+            turn_tools.register_exclusive_with_effect(
+                crate::responsibility::reviews::tool(
+                    server.clone(),
+                    turn_id.into(),
+                    message.into(),
+                ),
+                jeeves_tools::ToolEffect::Draft,
+            );
         }
+        turn_tools.register_exclusive(tool);
     }
     let reserve = jeeves_provider::tokens::estimate_text(&soul)
         + jeeves_provider::tokens::estimate_text(&memory_context)
@@ -270,7 +271,6 @@ pub(crate) async fn full_turn(
         {
             concat!(
                 "Answer conversation, advice and progress questions here. Use recurring_work to propose scheduled or event-driven work from the enabled capabilities. ",
-
                 "Deliver the requested result here using the enabled tools and per-action approval. Include sources and clearly identify evidence you could not verify. For work requiring restart-safe follow-up, its own workspace, or independent acceptance checks, use task with the human's exact words. ",
                 "A request to continue developing a project or add a feature is an assignment even when the human does not say 'task'. ",
                 "Delegate before planning the implementation in chat: a missing implementation choice does not block handoff. ",
@@ -511,7 +511,7 @@ pub(crate) async fn full_turn(
                     code: codes::PROVIDER_ERROR,
                     message: format!("Model call failed: {e}"),
                     data: None,
-                })
+                });
             }
         }
     };

@@ -1,7 +1,7 @@
 use super::*;
 use jeeves_tools::approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 fn config(imap_port: u16, smtp_port: u16) -> EmailConfig {
@@ -67,10 +67,12 @@ async fn imap_tls_handshake_failure_is_an_error_without_a_global_crypto_provider
     let tcp = tokio::net::TcpStream::connect(address).await.unwrap();
     let result = tls_connect("localhost", tcp).await;
     assert!(result.is_err(), "plaintext must not be accepted as TLS");
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("IMAP TLS handshake failed"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("IMAP TLS handshake failed")
+    );
     server.await.unwrap();
 }
 
@@ -192,7 +194,9 @@ async fn fake_smtp(
 
 #[tokio::test]
 async fn imap_reading_uses_peek_and_returns_plain_text() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let port = fake_imap().await;
     let ctx = ctx().await;
     let out = read(ctx, config(port, 1), json!({"limit":5}))
@@ -204,7 +208,9 @@ async fn imap_reading_uses_peek_and_returns_plain_text() {
 
 #[tokio::test]
 async fn mailbox_poll_baselines_and_does_not_report_old_uids() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let home = tempfile::tempdir().unwrap();
     let first = poll_inbox(home.path(), &config(fake_imap().await, 1), None)
         .await
@@ -230,7 +236,9 @@ async fn mailbox_poll_baselines_and_does_not_report_old_uids() {
 
 #[tokio::test]
 async fn a_live_send_is_approved_and_recorded_by_smtp_acceptance() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let accepted = Arc::new(AtomicBool::new(false));
     let data = Arc::new(Mutex::new(String::new()));
     let port = fake_smtp(accepted.clone(), data.clone(), Some(b"250 queued\r\n")).await;
@@ -252,7 +260,9 @@ async fn a_live_send_is_approved_and_recorded_by_smtp_acceptance() {
 
 #[tokio::test]
 async fn final_smtp_reply_controls_the_reopened_receipt() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     for (reply, status, expected) in [
         (None, "claimed", "unknown"),
         (Some(&b"451 try later\r\n"[..]), "failed", "451"),
@@ -310,7 +320,9 @@ async fn final_smtp_reply_controls_the_reopened_receipt() {
 
 #[tokio::test]
 async fn an_existing_grant_skips_the_card_only_for_the_same_recipient_and_content() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let accepted = Arc::new(AtomicBool::new(false));
     let data = Arc::new(Mutex::new(String::new()));
     let port = fake_smtp(accepted.clone(), data, Some(b"250 queued\r\n")).await;
@@ -354,7 +366,9 @@ async fn an_existing_grant_skips_the_card_only_for_the_same_recipient_and_conten
 
 #[tokio::test]
 async fn denied_allowlisted_and_dry_run_sends_never_reach_smtp() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let mut c = config(1, 9);
     let ctx = ctx().await;
     let denied = send(
@@ -367,25 +381,29 @@ async fn denied_allowlisted_and_dry_run_sends_never_reach_smtp() {
 
     let mut yes = ctx.clone();
     yes.approval = Some(Arc::new(No));
-    assert!(send(
-        yes,
-        c.clone(),
-        json!({"to":["bob@example.com"],"subject":"s","body":"b"})
-    )
-    .await
-    .unwrap_err()
-    .to_string()
-    .contains("The user denied this email send"));
+    assert!(
+        send(
+            yes,
+            c.clone(),
+            json!({"to":["bob@example.com"],"subject":"s","body":"b"})
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("The user denied this email send")
+    );
 
-    assert!(send(
-        ctx.clone(),
-        c.clone(),
-        json!({"to":["eve@example.com"],"subject":"s","body":"b"})
-    )
-    .await
-    .unwrap_err()
-    .to_string()
-    .contains("allowlist"));
+    assert!(
+        send(
+            ctx.clone(),
+            c.clone(),
+            json!({"to":["eve@example.com"],"subject":"s","body":"b"})
+        )
+        .await
+        .unwrap_err()
+        .to_string()
+        .contains("allowlist")
+    );
 
     c.live = false;
     let draft = send(
@@ -400,7 +418,9 @@ async fn denied_allowlisted_and_dry_run_sends_never_reach_smtp() {
 
 #[tokio::test]
 async fn standalone_loss_of_final_reply_survives_restart_and_blocks_repetition() {
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let accepted = Arc::new(AtomicBool::new(false));
     let port = fake_smtp(accepted.clone(), Arc::default(), None).await;
     let mut ctx = ctx().await;
@@ -447,7 +467,9 @@ async fn a_late_approval_cannot_send_a_task_envelope_converted_to_draft() {
             })
         }
     }
-    std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    unsafe {
+        std::env::set_var("JEEVES_TEST_MAIL_PASSWORD", "test-secret");
+    }
     let mut ctx = ctx().await;
     let pool = ctx.chat.pool();
     jeeves_state::Tasks::new(pool.clone())

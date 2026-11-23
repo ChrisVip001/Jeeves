@@ -11,9 +11,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{require_str, Tool, ToolCtx};
+use crate::{Tool, ToolCtx, require_str};
 
 /// Tool name of the merged memory tool.
 pub const MEMORY: &str = "memory";
@@ -86,9 +86,7 @@ pub fn memory() -> Tool {
             Box::pin(async move {
                 let action = require_str(&args, "action")?;
                 let Some((tool, rewrite)) = route(&action) else {
-                    return Ok(format!(
-                        "Unknown action '{action}'. Options: {ACTIONS}."
-                    ));
+                    return Ok(format!("Unknown action '{action}'. Options: {ACTIONS}."));
                 };
                 let mut forwarded = args.clone();
                 if let (Some(rewrite), Some(object)) = (rewrite, forwarded.as_object_mut()) {

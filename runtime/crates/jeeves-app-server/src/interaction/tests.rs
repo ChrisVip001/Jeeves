@@ -228,13 +228,15 @@ async fn main_chat_follow_up_runs_in_the_original_task_only() {
     send(&server, &message, "amend", None).await.unwrap();
     wait(&server, &task.id).await;
     assert_eq!(server.runs.count_by_task(&task.id).await.unwrap(), 2);
-    assert!(server
-        .chat
-        .session_history(&session)
-        .await
-        .unwrap()
-        .iter()
-        .any(|(human, _)| human.contains(&message)));
+    assert!(
+        server
+            .chat
+            .session_history(&session)
+            .await
+            .unwrap()
+            .iter()
+            .any(|(human, _)| human.contains(&message))
+    );
 }
 
 #[tokio::test]
@@ -253,8 +255,11 @@ async fn main_chat_explains_handoff_before_implementation_choices() {
     assert!(first.tools.iter().any(|tool| tool.name == "task"));
     let policy = first.system_text().unwrap();
     assert!(policy.contains("a missing implementation choice does not block handoff"));
-    assert!(policy
-        .contains("an unconfirmed target or a material decision still gates the affected action"));
+    assert!(
+        policy.contains(
+            "an unconfirmed target or a material decision still gates the affected action"
+        )
+    );
 }
 
 #[tokio::test]
@@ -285,9 +290,11 @@ async fn one_main_conversation_routes_independent_workspaces_and_deduplicates_re
     assert_ne!(tasks[0].cwd, tasks[1].cwd);
     for task in &tasks {
         wait(&server, &task.id).await;
-        assert!(std::path::Path::new(task.cwd.as_ref().unwrap())
-            .join("report.txt")
-            .is_file());
+        assert!(
+            std::path::Path::new(task.cwd.as_ref().unwrap())
+                .join("report.txt")
+                .is_file()
+        );
         let events = server.events.list(&task.id, 20).await.unwrap();
         assert!(events.iter().any(|e| e.kind == "run_started"));
         assert!(events.iter().any(|e| e.kind == "run_finished"));
@@ -298,9 +305,11 @@ async fn one_main_conversation_routes_independent_workspaces_and_deduplicates_re
         .unwrap();
     assert_eq!(model.calls.lock().unwrap().len(), before);
     assert_eq!(server.tasks.list(10).await.unwrap().len(), 2);
-    assert!(send(&server, "changed message", "message-one", None)
-        .await
-        .is_err());
+    assert!(
+        send(&server, "changed message", "message-one", None)
+            .await
+            .is_err()
+    );
     send(&server, "你好", "greeting", None).await.unwrap();
     assert_eq!(server.tasks.list(10).await.unwrap().len(), 2);
     assert!(!home.path().join("report.txt").exists());
@@ -311,12 +320,14 @@ async fn one_main_conversation_routes_independent_workspaces_and_deduplicates_re
     let beta_context = d.get(&beta.id).await.unwrap().unwrap().session_id;
     assert_ne!(alpha_context, beta_context);
     let ah = server.chat.session_history(&alpha_context).await.unwrap();
-    assert!(ah
-        .iter()
-        .any(|(a, b)| a.contains("生成alpha") || b.contains("生成alpha")));
-    assert!(!ah
-        .iter()
-        .any(|(a, b)| a.contains("生成beta") || b.contains("生成beta")));
+    assert!(
+        ah.iter()
+            .any(|(a, b)| a.contains("生成alpha") || b.contains("生成alpha"))
+    );
+    assert!(
+        !ah.iter()
+            .any(|(a, b)| a.contains("生成beta") || b.contains("生成beta"))
+    );
     send(&server, "补充alpha", "follow-up", Some(alpha.id.clone()))
         .await
         .unwrap();
@@ -352,9 +363,11 @@ async fn read_only_main_policy_follows_task_execution_and_revocation() {
     wait(&server, &task.id).await;
     let events = server.events.list(&task.id, 20).await.unwrap();
     assert!(!events.iter().any(|e| e.kind == "approval_requested"));
-    assert!(!std::path::Path::new(task.cwd.as_ref().unwrap())
-        .join("report.txt")
-        .exists());
+    assert!(
+        !std::path::Path::new(task.cwd.as_ref().unwrap())
+            .join("report.txt")
+            .exists()
+    );
     let child = jeeves_state::dispatch::TaskDispatch::new(server.pool.clone())
         .get(&task.id)
         .await
@@ -451,9 +464,11 @@ async fn a_main_policy_change_revokes_a_worker_approval_without_waiting_for_time
     let events = server.events.list(&task.id, 20).await.unwrap();
     assert!(events.iter().any(|e| e.kind == "approval_requested"));
     assert!(events.iter().any(|e| e.kind == "approval_decided"));
-    assert!(!std::path::Path::new(task.cwd.as_ref().unwrap())
-        .join("report.txt")
-        .exists());
+    assert!(
+        !std::path::Path::new(task.cwd.as_ref().unwrap())
+            .join("report.txt")
+            .exists()
+    );
     let child = jeeves_state::dispatch::TaskDispatch::new(server.pool.clone())
         .get(&task.id)
         .await
@@ -531,7 +546,7 @@ async fn a_turn_start_with_the_same_request_id_runs_once_and_replays() {
 
 #[tokio::test]
 async fn main_chat_resolves_an_email_before_dispatch_and_replays_the_answer() {
-    use jeeves_state::{mail_actions::MailAction, NewTask, Runs};
+    use jeeves_state::{NewTask, Runs, mail_actions::MailAction};
     let (_home, server, _) = setup().await;
     let mut actions = Vec::new();
     for id in ["alpha", "beta"] {
@@ -563,17 +578,21 @@ async fn main_chat_resolves_an_email_before_dispatch_and_replays_the_answer() {
     }
     let cmd = "刚才那个先别发，改成草稿";
     let answers = send(&server, cmd, "choose", None).await.unwrap();
-    assert!(serde_json::to_string(&answers)
-        .unwrap()
-        .contains("Which email"));
+    assert!(
+        serde_json::to_string(&answers)
+            .unwrap()
+            .contains("Which email")
+    );
     let reference = format!("查看这个发件动作 {}", actions[1].id);
     send(&server, &reference, "reference", None).await.unwrap();
     let msg = cmd.to_string();
     let answers = send(&server, &msg, "hold", None).await.unwrap();
     let replay = send(&server, &msg, "hold", None).await.unwrap();
-    assert!(serde_json::to_string(&answers)
-        .unwrap()
-        .contains("fixture body"));
+    assert!(
+        serde_json::to_string(&answers)
+            .unwrap()
+            .contains("fixture body")
+    );
     assert_eq!(
         serde_json::to_value(replay).unwrap(),
         serde_json::to_value(answers).unwrap()

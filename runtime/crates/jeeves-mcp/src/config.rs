@@ -117,10 +117,10 @@ impl ServerSpec {
                 })
                 .disabled = !enabled;
         }
-        if !self.tool_switches.is_empty() {
-            if let Some(m) = &manifest {
-                crate::manifest::validate(m)?;
-            }
+        if !self.tool_switches.is_empty()
+            && let Some(m) = &manifest
+        {
+            crate::manifest::validate(m)?;
         }
         Ok(manifest)
     }

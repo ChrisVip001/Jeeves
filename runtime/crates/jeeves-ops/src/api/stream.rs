@@ -2,16 +2,16 @@
 
 use super::failed;
 use crate::AppServer;
+use axum::Json;
 use axum::extract::Extension;
 use axum::http::StatusCode;
-use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::IntoResponse;
 use axum::response::Response;
-use axum::Json;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::{self, Stream, StreamExt};
 use jeeves_protocol::{
-    codes, interaction_turn_id, methods, ErrorObject, RunResponse, ServerNotification,
-    TurnStartParams, TurnStartResponse,
+    ErrorObject, RunResponse, ServerNotification, TurnStartParams, TurnStartResponse, codes,
+    interaction_turn_id, methods,
 };
 use serde_json::json;
 use std::convert::Infallible;
@@ -211,10 +211,10 @@ pub(crate) async fn run_headless(
         }
     };
     while let Ok(notification) = events.try_recv() {
-        if turn_id_of(&notification) == Some(expected.as_str()) {
-            if let Some(run) = completed_turn(&notification) {
-                return Ok(run);
-            }
+        if turn_id_of(&notification) == Some(expected.as_str())
+            && let Some(run) = completed_turn(&notification)
+        {
+            return Ok(run);
         }
     }
     Err(ErrorObject {
@@ -410,7 +410,7 @@ pub async fn notifications(Extension(app): Extension<Arc<AppServer>>) -> Respons
                             ),
                         ),
                         rx,
-                    ))
+                    ));
                 }
                 Err(broadcast::error::RecvError::Lagged(missed)) => {
                     eprintln!("(jeeves) task notifications lagged by {missed}; refresh task state")

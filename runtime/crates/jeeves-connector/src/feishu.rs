@@ -13,11 +13,11 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use jeeves_tools::approval::{ActionGrant, ApprovalRequest};
-use jeeves_tools::{require_str, Tool, ToolCtx};
-use serde_json::{json, Value};
+use jeeves_tools::{Tool, ToolCtx, require_str};
+use serde_json::{Value, json};
 
 use crate::config::FeishuConfig;
 
@@ -157,7 +157,9 @@ where
     };
 
     let Some(broker) = ctx.approval.clone() else {
-        bail!("Sending a Feishu message for real would have to ask a person first, and there is no interface to answer — nothing was sent this time.");
+        bail!(
+            "Sending a Feishu message for real would have to ask a person first, and there is no interface to answer — nothing was sent this time."
+        );
     };
     let content_hash = jeeves_state::ledger::digest_of(text.as_bytes());
     let identity = config.identity().map_err(anyhow::Error::msg)?;
@@ -165,7 +167,9 @@ where
     let destination = format!("{}:{to}", config.receive_id_type);
     let request = ApprovalRequest {
         tool: "feishu_send".to_string(),
-        args_preview: format!("Channel: Feishu\nAccount: {account}\nTo: {destination}\nContent digest: {content_hash}\n\n{text}"),
+        args_preview: format!(
+            "Channel: Feishu\nAccount: {account}\nTo: {destination}\nContent digest: {content_hash}\n\n{text}"
+        ),
         reason: "the connector is live; every actual send is confirmed".to_string(),
         timeout_secs: APPROVAL_TIMEOUT_SECS,
         remember: None,

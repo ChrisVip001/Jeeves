@@ -5,7 +5,7 @@
 //! (keychain first). The process only ever receives the secret through its environment.
 //! "Never silent": every start, exit and refusal is a stderr line and part of the status.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use jeeves_config::models::SecretStore;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -158,7 +158,9 @@ impl Gateways {
             .chain(&config.dispatchers)
             .find(|id| !id.starts_with("ou_"))
         {
-            bail!("{bad} is not an open_id: Lark ids start with ou_ (an App ID or a phone number matches nobody)");
+            bail!(
+                "{bad} is not an open_id: Lark ids start with ou_ (an App ID or a phone number matches nobody)"
+            );
         }
         let landed = match secret.filter(|s| !s.is_empty()) {
             Some(secret) => Some(
@@ -281,10 +283,11 @@ impl Gateways {
     /// Start at boot when the owner left it on and it is fully configured.
     pub async fn autostart(&self) {
         let config = load(&self.home);
-        if config.enabled && !config.app_id.is_empty() {
-            if let Err(why) = self.start().await {
-                eprintln!("(jeeves) the Lark gateway did not start: {why:#}");
-            }
+        if config.enabled
+            && !config.app_id.is_empty()
+            && let Err(why) = self.start().await
+        {
+            eprintln!("(jeeves) the Lark gateway did not start: {why:#}");
         }
     }
 }

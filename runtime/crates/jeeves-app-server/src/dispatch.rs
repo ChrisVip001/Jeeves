@@ -5,8 +5,8 @@
 //! ordering must be controlled by itself, so it does not take the "return value" route.
 
 use jeeves_protocol::{
-    codes, methods, ApprovalLogParams, ApprovalRespondParams, ApprovalRespondResponse,
-    ConfigReadParams, ConfigReadResponse, ConfigWriteParams, ConfigWriteResponse, ErrorObject,
+    ApprovalLogParams, ApprovalRespondParams, ApprovalRespondResponse, ConfigReadParams,
+    ConfigReadResponse, ConfigWriteParams, ConfigWriteResponse, ErrorObject, JSONRPC_VERSION,
     JsonRpcError, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, MemoryForgetParams,
     MemoryForgetResponse, MemoryListEpisodesParams, MemoryListEpisodesResponse, MemoryListParams,
     MemoryListResponse, MemoryRememberParams, MemoryRememberResponse, MemorySearchParams,
@@ -18,12 +18,12 @@ use jeeves_protocol::{
     SessionUpdateParams, SessionUpdateResponse, SessionViewParams, TaskActionParams,
     TaskCreateParams, TaskGetParams, TurnFollowUpParams, TurnFollowUpResponse, TurnInterruptParams,
     TurnInterruptResponse, TurnListParams, TurnListResponse, TurnStartParams, TurnSteerParams,
-    TurnSteerResponse, TurnSteeredNotification, TurnView, UsageSummaryParams, JSONRPC_VERSION,
+    TurnSteerResponse, TurnSteeredNotification, TurnView, UsageSummaryParams, codes, methods,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::{narrow, turn, EventSink, Server};
+use crate::{EventSink, Server, narrow, turn};
 
 /// The product of one method: either a response body (wrapped and sent by handle),
 /// or a declaration "I send it myself" (turn — it must finish all notifications before the response).
@@ -512,14 +512,14 @@ async fn dispatch(
         }
 
         methods::MODEL_PROFILES => {
-            if let Some(value) = params {
-                if value.as_object().is_some_and(|o| !o.is_empty()) {
-                    return Err(ErrorObject {
-                        code: codes::INVALID_PARAMS,
-                        message: format!("{method} takes no parameters"),
-                        data: None,
-                    });
-                }
+            if let Some(value) = params
+                && value.as_object().is_some_and(|o| !o.is_empty())
+            {
+                return Err(ErrorObject {
+                    code: codes::INVALID_PARAMS,
+                    message: format!("{method} takes no parameters"),
+                    data: None,
+                });
             }
             let _: ModelProfilesParams = ModelProfilesParams;
             respond(server.model_profiles())
@@ -546,14 +546,14 @@ async fn dispatch(
         }
 
         methods::MODEL_ROUTES => {
-            if let Some(value) = params {
-                if value.as_object().is_some_and(|o| !o.is_empty()) {
-                    return Err(ErrorObject {
-                        code: codes::INVALID_PARAMS,
-                        message: format!("{method} takes no parameters"),
-                        data: None,
-                    });
-                }
+            if let Some(value) = params
+                && value.as_object().is_some_and(|o| !o.is_empty())
+            {
+                return Err(ErrorObject {
+                    code: codes::INVALID_PARAMS,
+                    message: format!("{method} takes no parameters"),
+                    data: None,
+                });
             }
             respond(server.model_routes())
         }
@@ -644,14 +644,14 @@ async fn dispatch(
             respond(crate::responsibility::list(server, chrono::Utc::now()).await?)
         }
         methods::SCHEDULE_LIST => {
-            if let Some(value) = params {
-                if value.as_object().is_some_and(|o| !o.is_empty()) {
-                    return Err(ErrorObject {
-                        code: codes::INVALID_PARAMS,
-                        message: format!("{method} takes no parameters"),
-                        data: None,
-                    });
-                }
+            if let Some(value) = params
+                && value.as_object().is_some_and(|o| !o.is_empty())
+            {
+                return Err(ErrorObject {
+                    code: codes::INVALID_PARAMS,
+                    message: format!("{method} takes no parameters"),
+                    data: None,
+                });
             }
             let _: ScheduleListParams = ScheduleListParams;
             respond(server.schedule_list().await)
@@ -682,14 +682,14 @@ async fn dispatch(
         }
 
         methods::APPROVAL_LOG => {
-            if let Some(value) = params {
-                if value.as_object().is_some_and(|o| !o.is_empty()) {
-                    return Err(ErrorObject {
-                        code: codes::INVALID_PARAMS,
-                        message: format!("{method} takes no parameters"),
-                        data: None,
-                    });
-                }
+            if let Some(value) = params
+                && value.as_object().is_some_and(|o| !o.is_empty())
+            {
+                return Err(ErrorObject {
+                    code: codes::INVALID_PARAMS,
+                    message: format!("{method} takes no parameters"),
+                    data: None,
+                });
             }
             let _: ApprovalLogParams = ApprovalLogParams;
             respond(server.approval_log().await)

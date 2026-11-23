@@ -12,7 +12,7 @@ use std::{collections::BTreeMap, path::Path, sync::OnceLock};
 
 use serde::{Deserialize, Serialize};
 
-use super::{ProviderInfo, Wire, PROVIDERS};
+use super::{PROVIDERS, ProviderInfo, Wire};
 
 const UNKNOWN_MODEL_OUTPUT_TOKENS: u32 = 32_000;
 const MAX_OUTPUT_TOKENS: u32 = 256_000;

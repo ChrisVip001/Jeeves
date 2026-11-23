@@ -1,17 +1,17 @@
 //! Schedules HTTP endpoints: thin proxies over the `schedule/*` methods. The Runtime owns the job
 //! table, the cron math and the validation; this layer only carries the answer to the panel.
 
+use axum::Json;
 use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
-use axum::Json;
 use std::sync::Arc;
 
 use super::{failed, outcome, refusal};
-use crate::{capabilities, AppServer};
-use jeeves_protocol::{methods, ScheduleChangeResponse, ScheduleListResponse};
-use serde_json::{json, Value};
+use crate::{AppServer, capabilities};
+use jeeves_protocol::{ScheduleChangeResponse, ScheduleListResponse, methods};
+use serde_json::{Value, json};
 
 /// `GET /api/schedules/jobs` — every declared job with its runtime state and next run.
 pub async fn schedule_jobs(Extension(app): Extension<Arc<AppServer>>) -> Response {

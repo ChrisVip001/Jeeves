@@ -328,7 +328,9 @@ macro_rules! protocol_types {
 /// ts-rs writes referenced types along the dependency graph, so every type must carry
 /// `#[ts(export_to = "v2/")]` — a missed type lands in the default directory instead of erroring.
 pub fn generate_ts(out_dir: &Path) -> Result<(), String> {
-    std::env::set_var("TS_RS_EXPORT_DIR", out_dir);
+    unsafe {
+        std::env::set_var("TS_RS_EXPORT_DIR", out_dir);
+    }
 
     macro_rules! export_each {
         ($($ty:ty),* $(,)?) => { $(
@@ -601,15 +603,15 @@ fn write_barrel(out_dir: &Path) -> Result<(), String> {
 /// All types sit side by side in `definitions` instead of one giant root object —
 /// so the Python side gets a set of sibling models, not `V2.token_usage.fact`-style nesting.
 pub fn generate_json_schema() -> serde_json::Value {
-    use schemars::gen::{SchemaGenerator, SchemaSettings};
+    use schemars::r#gen::{SchemaGenerator, SchemaSettings};
 
-    let mut gen = SchemaGenerator::new(SchemaSettings::draft07());
+    let mut r#gen = SchemaGenerator::new(SchemaSettings::draft07());
     let mut defs = serde_json::Map::new();
 
     macro_rules! add_each {
         ($($ty:ty),* $(,)?) => { $(
             let name = <$ty as schemars::JsonSchema>::schema_name();
-            let root = gen.root_schema_for::<$ty>();
+            let root = r#gen.root_schema_for::<$ty>();
             for (k, v) in &root.definitions {
                 if let Ok(value) = serde_json::to_value(v) {
                     defs.entry(k.clone()).or_insert(value);

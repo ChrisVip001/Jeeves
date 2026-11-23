@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use serde_json::json;
 
-use super::todo::{todo_write, TodoBoard, MAX_CONTENT_CHARS, MAX_ITEMS};
+use super::todo::{MAX_CONTENT_CHARS, MAX_ITEMS, TodoBoard, todo_write};
 
 async fn ctx(session: &str) -> super::ToolCtx {
     let dir = tempfile::tempdir().expect("temp dir");

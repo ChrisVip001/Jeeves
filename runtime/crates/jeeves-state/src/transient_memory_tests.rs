@@ -92,24 +92,30 @@ async fn expired_sources_and_invalid_claims_never_create_durable_memories() {
             ..original.clone()
         },
     ] {
-        assert!(facts
-            .add_transient_from("user", "exhausted", "user", &refs, &invalid)
-            .await
-            .is_err());
+        assert!(
+            facts
+                .add_transient_from("user", "exhausted", "user", &refs, &invalid)
+                .await
+                .is_err()
+        );
     }
-    assert!(facts
-        .add_transient_from("user", "exhausted", "user", &[], &original)
-        .await
-        .is_err());
+    assert!(
+        facts
+            .add_transient_from("user", "exhausted", "user", &[], &original)
+            .await
+            .is_err()
+    );
     sqlx::query("UPDATE chat_log SET created_at=datetime('now','-2 days') WHERE id=1")
         .execute(&pool)
         .await
         .unwrap();
-    assert!(facts
-        .add_transient_from("user", "exhausted", "user", &refs, &original)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_transient_from("user", "exhausted", "user", &refs, &original)
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(facts.count().await.unwrap(), 0);
 }
 
@@ -127,39 +133,47 @@ async fn human_validity_edits_and_deletions_cannot_be_overridden_by_extraction()
         .await
         .unwrap();
     let validity = facts.validity(row.id).await.unwrap();
-    assert!(facts
-        .add_transient_from("user", "exhausted", "user", &refs, &observation)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_transient_from("user", "exhausted", "user", &refs, &observation)
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(facts.validity(row.id).await.unwrap(), validity);
     facts.delete(row.id).await.unwrap();
-    assert!(facts
-        .add_transient_from("user", "exhausted", "user", &refs, &observation)
-        .await
-        .unwrap()
-        .is_none());
-    assert!(facts
-        .observations_detailed(row.id)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        facts
+            .add_transient_from("user", "exhausted", "user", &refs, &observation)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        facts
+            .observations_detailed(row.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
 async fn a_failed_assessment_commit_rolls_back_the_fact_and_validity() {
     let (_home, pool, facts, observation) = fixture().await;
     sqlx::query("CREATE TRIGGER fail_assessment BEFORE INSERT ON memory_transient_assessments BEGIN SELECT RAISE(FAIL,'injected assessment failure'); END").execute(&pool).await.unwrap();
-    assert!(facts
-        .add_transient_from(
-            "user",
-            "exhausted",
-            "user",
-            std::slice::from_ref(&observation.source_ref),
-            &observation
-        )
-        .await
-        .is_err());
+    assert!(
+        facts
+            .add_transient_from(
+                "user",
+                "exhausted",
+                "user",
+                std::slice::from_ref(&observation.source_ref),
+                &observation
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(facts.count().await.unwrap(), 0);
     let bounds: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM memory_validity")
         .fetch_one(&pool)
@@ -188,10 +202,12 @@ async fn temporary_observations_require_authentic_user_sources_and_preserve_lega
         },
     ] {
         let refs = vec![invalid.source_ref.clone()];
-        assert!(facts
-            .add_transient_from("user", "exhausted", "user", &refs, &invalid)
-            .await
-            .is_err());
+        assert!(
+            facts
+                .add_transient_from("user", "exhausted", "user", &refs, &invalid)
+                .await
+                .is_err()
+        );
     }
     let refs = vec![original.source_ref.clone()];
     let (row, _) = facts
@@ -199,11 +215,13 @@ async fn temporary_observations_require_authentic_user_sources_and_preserve_lega
         .await
         .unwrap()
         .unwrap();
-    assert!(facts
-        .add_transient_from("user", "exhausted", "user", &refs, &original)
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_transient_from("user", "exhausted", "user", &refs, &original)
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert!(
         facts.is_durable(row.id).await.unwrap(),
         "Legacy unbounded claims require human review"
@@ -212,8 +230,10 @@ async fn temporary_observations_require_authentic_user_sources_and_preserve_lega
         .execute(&pool)
         .await
         .unwrap();
-    assert!(facts
-        .add_transient_from("user", "a new state", "user", &refs, &original)
-        .await
-        .is_err());
+    assert!(
+        facts
+            .add_transient_from("user", "a new state", "user", &refs, &original)
+            .await
+            .is_err()
+    );
 }

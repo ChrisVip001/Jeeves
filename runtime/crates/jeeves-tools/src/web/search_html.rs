@@ -1,6 +1,6 @@
 //! Parse bounded result entries, keeping titles, source links and snippets together.
-use super::{strip_html, Hit};
-use base64::{engine::general_purpose, Engine as _};
+use super::{Hit, strip_html};
+use base64::{Engine as _, engine::general_purpose};
 
 fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
     for (at, _) in tag.match_indices(name) {

@@ -1,11 +1,11 @@
 //! HTTP route facade; resource modules translate the app-server protocol.
 
 use crate::capabilities;
+use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
-use axum::Json;
-use jeeves_protocol::{codes, ErrorObject};
+use jeeves_protocol::{ErrorObject, codes};
 
 mod overview;
 pub use overview::approvals;
@@ -117,9 +117,9 @@ fn outcome(ok: bool, message: String) -> Response {
 #[cfg(test)]
 use files::{create_subdir, list_dirs, safe_extension};
 #[cfg(test)]
-use stream::belongs;
-#[cfg(test)]
 pub(crate) use stream::EventPing;
+#[cfg(test)]
+use stream::belongs;
 #[cfg(test)]
 #[path = "api_tests.rs"]
 mod api_tests;

@@ -59,38 +59,37 @@ pub(super) async fn revise_plan(
     reason: &str,
 ) -> Option<jeeves_agent::plan::Plan> {
     let task_id = task.map(|row| row.id.as_str());
-    if let (Some(id), Some(current)) = (task_id, plan.as_ref()) {
-        if server.settings().plan_enabled && current.version < jeeves_agent::plan::MAX_VERSIONS {
-            let labels: Vec<String> = acceptance.iter().map(|item| item.label()).collect();
-            let title = task
-                .as_ref()
-                .map(|row| row.title.as_str())
-                .unwrap_or("this task");
-            let goal = task.as_ref().and_then(|row| row.goal_condition.as_deref());
-            match jeeves_agent::plan::make(
-                resolved,
-                title,
-                goal,
-                &labels,
-                Some(reason),
-                current.version + 1,
-            )
-            .await
-            {
-                Ok(revised) => {
-                    match jeeves_agent::plan::record(&server.steps, id, &revised).await {
-                        Ok(()) => {
-                            eprintln!("(jeeves) task {id} moved to plan v{}", revised.version);
-                            plan = Some(revised);
-                        }
-                        Err(why) => eprintln!(
-                        "(jeeves) revised plan not committed; keeping the previous version: {why}"
-                    ),
-                    }
+    if let (Some(id), Some(current)) = (task_id, plan.as_ref())
+        && server.settings().plan_enabled
+        && current.version < jeeves_agent::plan::MAX_VERSIONS
+    {
+        let labels: Vec<String> = acceptance.iter().map(|item| item.label()).collect();
+        let title = task
+            .as_ref()
+            .map(|row| row.title.as_str())
+            .unwrap_or("this task");
+        let goal = task.as_ref().and_then(|row| row.goal_condition.as_deref());
+        match jeeves_agent::plan::make(
+            resolved,
+            title,
+            goal,
+            &labels,
+            Some(reason),
+            current.version + 1,
+        )
+        .await
+        {
+            Ok(revised) => match jeeves_agent::plan::record(&server.steps, id, &revised).await {
+                Ok(()) => {
+                    eprintln!("(jeeves) task {id} moved to plan v{}", revised.version);
+                    plan = Some(revised);
                 }
-                Err(why) => {
-                    eprintln!("(jeeves) re-planning failed (continuing with the old plan): {why}")
-                }
+                Err(why) => eprintln!(
+                    "(jeeves) revised plan not committed; keeping the previous version: {why}"
+                ),
+            },
+            Err(why) => {
+                eprintln!("(jeeves) re-planning failed (continuing with the old plan): {why}")
             }
         }
     }

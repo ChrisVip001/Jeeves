@@ -43,16 +43,18 @@ async fn complete_versions_survive_reopen_and_cannot_be_rewritten() {
         steps: vec!["revised".into()],
     };
     plan::record(&steps, "task", &revised).await.unwrap();
-    assert!(plan::record(
-        &steps,
-        "task",
-        &Plan {
-            version: 2,
-            steps: vec!["different".into()]
-        }
-    )
-    .await
-    .is_err());
+    assert!(
+        plan::record(
+            &steps,
+            "task",
+            &Plan {
+                version: 2,
+                steps: vec!["different".into()]
+            }
+        )
+        .await
+        .is_err()
+    );
     pool.close().await;
     let reopened = Steps::new(jeeves_state::open(&path).await.unwrap());
     assert_eq!(

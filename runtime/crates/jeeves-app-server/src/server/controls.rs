@@ -1,4 +1,4 @@
-use crate::{approval, ActiveTurn, EventSink, FollowUp, Server};
+use crate::{ActiveTurn, EventSink, FollowUp, Server, approval};
 use anyhow::Result;
 use jeeves_loop::{Interrupt, Steering};
 use jeeves_protocol::{RememberScope, SettingsPatch};
@@ -237,7 +237,9 @@ impl Server {
             ..Default::default()
         };
         match self.apply_config_patch(&patch) {
-            Ok(_) => eprintln!("(jeeves) remembered this command: {command} (written to settings.json; effective now)"),
+            Ok(_) => eprintln!(
+                "(jeeves) remembered this command: {command} (written to settings.json; effective now)"
+            ),
             Err(why) => eprintln!("(jeeves) could not remember this command: {why}"),
         }
     }
@@ -269,7 +271,9 @@ impl Server {
         };
         match self.apply_config_patch(&patch) {
             Ok(_) => {
-                eprintln!("(jeeves) remembered this directory: {entry} (writing here will not ask each time)")
+                eprintln!(
+                    "(jeeves) remembered this directory: {entry} (writing here will not ask each time)"
+                )
             }
             Err(why) => eprintln!("(jeeves) could not remember this directory: {why}"),
         }

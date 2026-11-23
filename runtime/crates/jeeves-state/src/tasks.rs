@@ -140,8 +140,7 @@ pub struct TaskRow {
     pub finished_at: Option<String>,
 }
 
-const COLS: &str =
-    "parent_task_id, id, session_id, title, goal_condition, acceptance_json, checks_json, \
+const COLS: &str = "parent_task_id, id, session_id, title, goal_condition, acceptance_json, checks_json, \
                     budget_json, spent_wall_ms, spent_tokens, spent_tools, cwd, status, \
                     rounds_used, max_rounds, tier, current_turn_id, suspend_reason, \
                     last_stop_reason, created_at, updated_at, finished_at";

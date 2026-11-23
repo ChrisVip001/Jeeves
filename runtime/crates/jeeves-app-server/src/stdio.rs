@@ -11,13 +11,13 @@
 
 use anyhow::Result;
 use jeeves_protocol::{
-    codes, ErrorObject, JsonRpcError, JsonRpcMessage, JsonRpcNotification, JsonRpcRequest,
-    JSONRPC_VERSION,
+    ErrorObject, JSONRPC_VERSION, JsonRpcError, JsonRpcMessage, JsonRpcNotification,
+    JsonRpcRequest, codes,
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
-use crate::{handle, EventSink, Frame, Server};
+use crate::{EventSink, Frame, Server, handle};
 
 pub async fn run_stdio(server: Server) -> Result<()> {
     let (tx, mut rx) = mpsc::unbounded_channel::<Frame>();

@@ -1,5 +1,5 @@
 //! Closing HTTP, the hosted gateway, and the engine concurrently.
-use crate::{gateways::Gateways, AppServer};
+use crate::{AppServer, gateways::Gateways};
 use std::{future::Future, time::Duration};
 
 /// Inside Kubernetes' default 30-second process-stop grace period.
@@ -35,6 +35,8 @@ where
     };
     let (clean, (), ()) = tokio::join!(app.shutdown(DRAIN_GRACE), http_drain, gateway_drain);
     if !clean {
-        eprintln!("(jeeves) the Runtime did not finish in time; forced stop requested; unfinished turns will be reconciled on the next start");
+        eprintln!(
+            "(jeeves) the Runtime did not finish in time; forced stop requested; unfinished turns will be reconciled on the next start"
+        );
     }
 }

@@ -1,5 +1,5 @@
 //! Human-message admission and receipts. Claimed work is never automatically replayed.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, SqlitePool};
 #[derive(FromRow)]
 pub struct Receipt {

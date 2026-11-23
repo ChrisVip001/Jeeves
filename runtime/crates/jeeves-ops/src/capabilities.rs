@@ -284,16 +284,15 @@ pub fn validate_server(spec: &ServerSpec) -> Result<(), String> {
         }
         (None, Some(_)) => {}
     }
-    if let Some(key) = spec.auth_env.as_deref().filter(|value| !value.is_empty()) {
-        if !key
+    if let Some(key) = spec.auth_env.as_deref().filter(|value| !value.is_empty())
+        && !key
             .chars()
             .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
-        {
-            return Err(
+    {
+        return Err(
                 "the auth variable name may only use uppercase letters, digits and underscores — it is the env var's name, not the key itself"
                     .to_string(),
             );
-        }
     }
     if spec.oauth == Some(true) && spec.auth_env.is_some() {
         return Err("choose OAuth or a bearer credential".into());
@@ -348,13 +347,13 @@ pub fn save_server_among(
     }
     let name = incoming.name.trim().to_string();
     for pack in packs {
-        if let Ok(config) = McpConfig::read(pack) {
-            if config.servers.iter().any(|spec| spec.name == name) {
-                return Err(format!(
-                    "'{name}' is already provided by the built-in config {} — a second copy in user config has no effect (first one wins)",
-                    pack.display()
-                ));
-            }
+        if let Ok(config) = McpConfig::read(pack)
+            && config.servers.iter().any(|spec| spec.name == name)
+        {
+            return Err(format!(
+                "'{name}' is already provided by the built-in config {} — a second copy in user config has no effect (first one wins)",
+                pack.display()
+            ));
         }
     }
 
@@ -372,7 +371,7 @@ pub fn save_server_among(
     config::edit(home, |config| {
         match config.servers.iter_mut().find(|row| row.name == name) {
             Some(_) if create_only => {
-                return Err("a connection with this name already exists".into())
+                return Err("a connection with this name already exists".into());
             }
             Some(existing) => {
                 spec.tool_switches = std::mem::take(&mut existing.tool_switches);

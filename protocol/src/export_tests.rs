@@ -10,7 +10,7 @@
 use std::fs;
 
 use crate::export::{
-    generate_consts_json, generate_json_schema, generate_ts, schema_out, EXPECTED_MIN_DEFS,
+    EXPECTED_MIN_DEFS, generate_consts_json, generate_json_schema, generate_ts, schema_out,
 };
 
 #[test]

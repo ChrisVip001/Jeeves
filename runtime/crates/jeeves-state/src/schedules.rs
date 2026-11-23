@@ -143,11 +143,13 @@ mod tests {
     #[tokio::test]
     async fn ensure_claim_confirm_round_trip() {
         let (schedules, _dir) = db().await;
-        assert!(schedules
-            .last_fired("morning")
-            .await
-            .expect("empty")
-            .is_none());
+        assert!(
+            schedules
+                .last_fired("morning")
+                .await
+                .expect("empty")
+                .is_none()
+        );
 
         schedules
             .ensure("morning", true, "outbox")
@@ -169,11 +171,13 @@ mod tests {
             .confirm("morning", "2026-10-30T08:00")
             .await
             .expect("settle");
-        assert!(schedules
-            .pending_claim("morning")
-            .await
-            .expect("the slot is clear")
-            .is_none());
+        assert!(
+            schedules
+                .pending_claim("morning")
+                .await
+                .expect("the slot is clear")
+                .is_none()
+        );
         assert_eq!(
             schedules
                 .last_fired("morning")
@@ -218,11 +222,13 @@ mod tests {
             .confirm("notify-job", "2026-10-30T09:00")
             .await
             .expect("give up");
-        assert!(schedules
-            .pending_claim("notify-job")
-            .await
-            .expect("read")
-            .is_none());
+        assert!(
+            schedules
+                .pending_claim("notify-job")
+                .await
+                .expect("read")
+                .is_none()
+        );
         assert_eq!(
             schedules
                 .last_fired("notify-job")

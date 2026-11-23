@@ -93,7 +93,9 @@ pub async fn judge(
         return Ok(Judgement {
             ok: false,
             impossible: false,
-            reason: format!("the judge contradicted itself (ok and impossible both true); counting it as not met: {reason}"),
+            reason: format!(
+                "the judge contradicted itself (ok and impossible both true); counting it as not met: {reason}"
+            ),
         });
     }
     Ok(Judgement {

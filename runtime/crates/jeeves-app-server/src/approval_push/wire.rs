@@ -1,6 +1,6 @@
 //! RFC 8291 single-record aes128gcm and RFC 8292 VAPID, using the workspace's ring primitives.
-use anyhow::{anyhow, ensure, Result};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD as B64, Engine};
+use anyhow::{Result, anyhow, ensure};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD as B64};
 use ring::{
     aead, agreement, hkdf,
     rand::{SecureRandom, SystemRandom},

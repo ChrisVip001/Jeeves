@@ -11,12 +11,12 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// Open (creating if needed) the state.db at `path`, and run all migrations.
 pub async fn open(path: &Path) -> Result<SqlitePool> {
-    if let Some(parent) = path.parent() {
-        if !parent.is_empty() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("could not create the state directory: {}", parent.display())
-            })?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.is_empty()
+    {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!("could not create the state directory: {}", parent.display())
+        })?;
     }
 
     let absolute = if path.is_absolute() {
@@ -104,10 +104,19 @@ async fn adopt_incremental_baseline(pool: &SqlitePool) -> Result<()> {
         digest.update(checksum);
     }
     let fingerprint = format!("{:x}", digest.finalize());
-    anyhow::ensure!(matches!((rows.len(),fingerprint.as_str()),
-        (24,"ac39a792c93e6ad22d026cd7adf213840c40ee7456406c0ae17fde6dd30f3509") |
-        (25,"489d2a9dafb6c1b1a667ad705ed8d26f0d8ac0bcc2acfca966d9a11f2ce39bb4")
-    ), "Unrecognized incremental schema history; preserve this database and use the matching Jeeves release");
+    anyhow::ensure!(
+        matches!(
+            (rows.len(), fingerprint.as_str()),
+            (
+                24,
+                "ac39a792c93e6ad22d026cd7adf213840c40ee7456406c0ae17fde6dd30f3509"
+            ) | (
+                25,
+                "489d2a9dafb6c1b1a667ad705ed8d26f0d8ac0bcc2acfca966d9a11f2ce39bb4"
+            )
+        ),
+        "Unrecognized incremental schema history; preserve this database and use the matching Jeeves release"
+    );
     if rows.len() == 24 {
         sqlx::query("CREATE TABLE historical_session_origins AS SELECT id,forked_from FROM sessions WHERE forked_from IS NOT NULL").execute(&mut *tx).await?;
         sqlx::query("ALTER TABLE sessions DROP COLUMN forked_from")

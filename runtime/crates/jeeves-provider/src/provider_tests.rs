@@ -3,7 +3,7 @@
 //! No network — the conversion functions are pure; fixed response bodies are fed directly.
 //! Real network behavior is covered by smoke/integration tests.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::anthropic::{parse_message, stop_reason};
 use super::openai::{from_openai, to_openai};
@@ -483,11 +483,13 @@ fn only_transient_failures_are_retryable() {
     assert!(!http(404).retryable());
     assert!(!ProviderError::Api("x".to_string()).retryable());
     assert!(!ProviderError::Parse("x".to_string()).retryable());
-    assert!(!ProviderError::ContextOverflow {
-        status: 400,
-        body: "maximum context length".to_string()
-    }
-    .retryable());
+    assert!(
+        !ProviderError::ContextOverflow {
+            status: 400,
+            body: "maximum context length".to_string()
+        }
+        .retryable()
+    );
 }
 
 #[test]
@@ -853,20 +855,25 @@ fn anthropic_thinking_goes_only_to_the_main_model_and_only_when_it_fits() {
     let on = client.body_for_test(&request("big", 16_384));
     assert_eq!(on["thinking"]["type"], "enabled");
     assert_eq!(on["thinking"]["budget_tokens"], 2048);
-    assert!(client
-        .body_for_test(&request("small", 16_384))
-        .get("thinking")
-        .is_none());
-    assert!(client
-        .body_for_test(&request("big", 2048))
-        .get("thinking")
-        .is_none());
+    assert!(
+        client
+            .body_for_test(&request("small", 16_384))
+            .get("thinking")
+            .is_none()
+    );
+    assert!(
+        client
+            .body_for_test(&request("big", 2048))
+            .get("thinking")
+            .is_none()
+    );
     let tiny = crate::anthropic::Client::new("k", None, std::time::Duration::from_secs(5), 0)
         .with_thinking("big", 512);
-    assert!(tiny
-        .body_for_test(&request("big", 16_384))
-        .get("thinking")
-        .is_none());
+    assert!(
+        tiny.body_for_test(&request("big", 16_384))
+            .get("thinking")
+            .is_none()
+    );
 }
 
 #[test]

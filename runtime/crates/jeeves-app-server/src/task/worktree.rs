@@ -1,6 +1,6 @@
 //! Coding tasks run in their own git worktree and branch, never in the human's checkout.
 use super::git_checkpoint::git;
-use jeeves_protocol::{codes, ErrorObject};
+use jeeves_protocol::{ErrorObject, codes};
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::process::Command;
@@ -134,13 +134,15 @@ mod tests {
                 "i",
             ],
         ] {
-            assert!(Command::new("git")
-                .arg("-C")
-                .arg(dir.path())
-                .args(args)
-                .status()
-                .unwrap()
-                .success());
+            assert!(
+                Command::new("git")
+                    .arg("-C")
+                    .arg(dir.path())
+                    .args(args)
+                    .status()
+                    .unwrap()
+                    .success()
+            );
         }
         dir
     }

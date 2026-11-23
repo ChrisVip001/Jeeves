@@ -8,7 +8,7 @@ use crate::{EventSink, Server};
 use jeeves_protocol::{AcceptanceView, InteractionStartParams, TaskActionParams, TaskCreateParams};
 use jeeves_tools::Tool;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 
 pub(crate) const NAME: &str = "task";
@@ -48,12 +48,10 @@ impl Item {
                     );
                 }
             }
-            if let Some(argv) = &check.argv {
-                if !self.instruction.contains(&argv.join(" ")) {
-                    return Err(
-                        "An acceptance command must be named in the human instruction".into(),
-                    );
-                }
+            if let Some(argv) = &check.argv
+                && !self.instruction.contains(&argv.join(" "))
+            {
+                return Err("An acceptance command must be named in the human instruction".into());
             }
         }
         Ok(self.acceptance.clone())

@@ -1,8 +1,8 @@
-use crate::{dispatch::internal, Server};
-use anyhow::{anyhow, ensure, Result};
+use crate::{Server, dispatch::internal};
+use anyhow::{Result, anyhow, ensure};
 use base64::{
-    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD as B64},
     Engine,
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD as B64},
 };
 use jeeves_protocol::*;
 use ring::{

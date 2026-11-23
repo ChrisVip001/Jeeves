@@ -1,6 +1,6 @@
 use crate::{EventSink, Server};
 use jeeves_loop::Steering;
-use jeeves_protocol::{codes, ErrorObject};
+use jeeves_protocol::{ErrorObject, codes};
 use std::sync::{Arc, Mutex};
 
 /// Positioning info for one turn: session, turn, event outlet, cancellation token, working directory.
@@ -34,7 +34,9 @@ pub(crate) async fn session_cwd(server: &Server, session_id: &str) -> Option<std
     let cwd = row.cwd?;
     let path = std::path::PathBuf::from(&cwd);
     if !path.is_dir() {
-        eprintln!("(jeeves) the working directory {cwd} recorded for session {session_id} is gone; this turn has no writable scope");
+        eprintln!(
+            "(jeeves) the working directory {cwd} recorded for session {session_id} is gone; this turn has no writable scope"
+        );
         return None;
     }
     Some(path)

@@ -77,11 +77,13 @@ async fn invalid_contract_is_rejected_before_any_write() {
             "{field}"
         );
     }
-    assert!(list(&server, start())
-        .await
-        .unwrap()
-        .responsibilities
-        .is_empty());
+    assert!(
+        list(&server, start())
+            .await
+            .unwrap()
+            .responsibilities
+            .is_empty()
+    );
     register(&server, contract(), start()).await.unwrap();
     let mut other = contract();
     other.purpose = "replacement".into();
@@ -112,11 +114,13 @@ async fn reviewed_weekly_contract_needs_a_separate_unexpired_registration() {
     assert_eq!(reviewed.sources, ["https://example.org/report"]);
     let stored = register(&server, reviewed.clone(), now + Duration::minutes(5)).await;
     assert_eq!(stored.unwrap_err().code, codes::INVALID_PARAMS);
-    assert!(Responsibilities(&server.pool)
-        .list()
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        Responsibilities(&server.pool)
+            .list()
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -251,10 +255,12 @@ async fn editing_fences_the_old_clock_and_preserves_each_claimed_revision() {
     let (a, b) = tokio::join!(amend(&server, edit.clone(), now), amend(&server, edit, now));
     assert_ne!(a.is_ok(), b.is_ok());
     let later = now + Duration::minutes(1);
-    assert!(!Responsibilities(&server.pool)
-        .claim("weekly", 1, later.timestamp_millis())
-        .await
-        .unwrap());
+    assert!(
+        !Responsibilities(&server.pool)
+            .claim("weekly", 1, later.timestamp_millis())
+            .await
+            .unwrap()
+    );
     tick(&server, later).await.unwrap();
     let rows:Vec<(String,i32,String)>=sqlx::query_as("SELECT w.state,h.revision,json_extract(h.definition,'$.purpose') FROM wake_inbox w JOIN responsibility_revisions h ON w.target_task='responsibility:' || h.responsibility_id AND w.responsibility_revision=h.revision ORDER BY w.rowid")
         .fetch_all(&server.pool).await.unwrap();
@@ -280,16 +286,20 @@ async fn private_digest_previews_do_not_consume_the_chat_delivery() {
         .unwrap(),
     );
     for _ in 0..2 {
-        assert!(sample(&server, p.clone(), start())
+        assert!(
+            sample(&server, p.clone(), start())
+                .await
+                .unwrap()
+                .contains("No matches")
+        );
+    }
+    assert!(
+        list(&server, start())
             .await
             .unwrap()
-            .contains("No matches"));
-    }
-    assert!(list(&server, start())
-        .await
-        .unwrap()
-        .responsibilities
-        .is_empty());
+            .responsibilities
+            .is_empty()
+    );
     register(&server, p, start()).await.unwrap();
     tick(&server, start()).await.unwrap();
     let w = jeeves_state::responsibility_runs::take(&server.pool, start().timestamp_millis())
@@ -342,11 +352,13 @@ async fn chat_tool_only_proposes_and_each_human_decision_is_bound_to_a_review() 
     )
     .await
     .unwrap();
-    assert!(list(&server, now)
-        .await
-        .unwrap()
-        .responsibilities
-        .is_empty());
+    assert!(
+        list(&server, now)
+            .await
+            .unwrap()
+            .responsibilities
+            .is_empty()
+    );
     for (turn, action, rev) in [
         ("turn-a", "create", 0),
         ("turn-b", "amend", 1),

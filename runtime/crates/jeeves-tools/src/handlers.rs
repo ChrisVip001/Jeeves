@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{opt_u32, require_str, Tool, ToolCtx};
+use crate::{Tool, ToolCtx, opt_u32, require_str};
 
 /// The four memory tools: save, forget, search, list.
 /// They are the part of Jeeves that "manages its own memory" — when the user says

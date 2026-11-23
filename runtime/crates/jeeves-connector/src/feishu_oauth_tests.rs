@@ -2,11 +2,11 @@
 //! unattended). The browser round trip itself is a human step — it is exercised by hand,
 //! and its failure mode (Feishu rejects the exchange) is covered here through `exchange`.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tempfile::tempdir;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -129,7 +129,9 @@ async fn a_fresh_token_is_used_without_asking_anyone() {
 #[tokio::test]
 async fn human_host_receives_prepared_url_and_real_callback_finishes() {
     let home = tempdir().unwrap();
-    std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    }
     let (base, calls, bodies) = fake_token_endpoint(0).await;
     let config = config(base);
     let expires = tokio::time::timeout(
@@ -160,7 +162,9 @@ async fn human_host_receives_prepared_url_and_real_callback_finishes() {
 #[tokio::test]
 async fn an_expired_token_is_refreshed_and_saved() {
     let dir = tempdir().expect("temp dir");
-    std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    }
     write_token(
         dir.path(),
         &UserToken {
@@ -193,7 +197,9 @@ async fn an_expired_token_is_refreshed_and_saved() {
 #[tokio::test]
 async fn a_rejected_refresh_names_the_reauth_command() {
     let dir = tempdir().expect("temp dir");
-    std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    }
     write_token(
         dir.path(),
         &UserToken {
@@ -292,7 +298,9 @@ fn the_renewer_wakes_ten_minutes_early_and_peeks_at_least_every_five() {
 #[tokio::test]
 async fn two_refreshers_at_once_do_not_lose_the_rotating_chain() {
     let dir = tempdir().expect("temp dir");
-    std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    }
     write_token(
         dir.path(),
         &UserToken {
@@ -336,7 +344,9 @@ async fn two_refreshers_at_once_do_not_lose_the_rotating_chain() {
 #[tokio::test]
 async fn the_renewer_refreshes_without_anyone_sending() {
     let dir = tempdir().expect("temp dir");
-    std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    }
     write_token(
         dir.path(),
         &UserToken {
@@ -364,7 +374,9 @@ async fn the_renewer_refreshes_without_anyone_sending() {
 #[tokio::test]
 async fn a_refused_grant_stops_the_renewer_for_good() {
     let dir = tempdir().expect("temp dir");
-    std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_OAUTH_SECRET", "s3cret");
+    }
     write_token(
         dir.path(),
         &UserToken {

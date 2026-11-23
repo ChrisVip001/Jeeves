@@ -64,7 +64,7 @@ pub use edit_checks::EditChecks;
 pub use episodes::{EpisodeRow, Episodes};
 pub use events::{EventRow, Events};
 pub use facts::{FactMeta, FactRow, Facts};
-pub use grants::{grant_covers, Grant, GrantRequest, Grants};
+pub use grants::{Grant, GrantRequest, Grants, grant_covers};
 pub use jobs::{JobRow, Jobs};
 pub use ledger::{EntryRow, Ledger, NewEntry, TurnRow};
 pub use plans::Plans;

@@ -510,14 +510,16 @@ async fn a_chinese_question_finds_facts_that_share_its_words() {
 async fn a_rollup_only_moves_forward() {
     let chat = Chat::new(temp_db("rollup.db").await);
 
-    assert!(chat
-        .save_rollup("s", 5, "summary of the first five turns")
-        .await
-        .unwrap());
-    assert!(chat
-        .save_rollup("s", 10, "summary of the first ten turns")
-        .await
-        .unwrap());
+    assert!(
+        chat.save_rollup("s", 5, "summary of the first five turns")
+            .await
+            .unwrap()
+    );
+    assert!(
+        chat.save_rollup("s", 10, "summary of the first ten turns")
+            .await
+            .unwrap()
+    );
     let (covered, summary) = chat
         .load_rollup("s")
         .await
@@ -950,9 +952,9 @@ async fn fresh_home_creates_the_full_baseline_schema() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn an_unrecognized_incremental_database_is_refused_without_changing_its_history(
-) -> anyhow::Result<()> {
-    use sqlx::{migrate::Migrate, sqlite::SqliteConnectOptions, Connection, SqliteConnection};
+async fn an_unrecognized_incremental_database_is_refused_without_changing_its_history()
+-> anyhow::Result<()> {
+    use sqlx::{Connection, SqliteConnection, migrate::Migrate, sqlite::SqliteConnectOptions};
 
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("state.db");
@@ -1093,10 +1095,11 @@ async fn recovered_round_charges_only_new_work_and_accounting_rolls_back_togethe
         (1, 150, 30, 3)
     );
     sqlx::query("CREATE TRIGGER fail_run_account BEFORE UPDATE ON task_runs BEGIN SELECT RAISE(ABORT, 'injected accounting failure'); END").execute(&pool).await.unwrap();
-    assert!(runs
-        .account_round("account-run", "round-2", &original)
-        .await
-        .is_err());
+    assert!(
+        runs.account_round("account-run", "round-2", &original)
+            .await
+            .is_err()
+    );
     let task = tasks.get("account-task").await.unwrap().unwrap();
     assert_eq!(
         (task.spent_tokens, task.spent_tools, task.spent_wall_ms),
@@ -1154,18 +1157,20 @@ async fn jobs_bind_to_the_exact_host_run_and_reject_cross_session_binding() {
     let row = jobs.get("job-old").await.unwrap().unwrap();
     assert_eq!(row.run_id.as_deref(), Some("older-run"));
     assert_eq!(row.task_id.as_deref(), Some("older"));
-    assert!(jobs
-        .record_started_for_run("foreign", "other", "echo", "log", Some("older-run"))
-        .await
-        .is_err());
+    assert!(
+        jobs.record_started_for_run("foreign", "other", "echo", "log", Some("older-run"))
+            .await
+            .is_err()
+    );
     assert!(jobs.get("foreign").await.unwrap().is_none());
     runs.close("older-run", crate::RunStatus::Completed, None)
         .await
         .unwrap();
-    assert!(jobs
-        .record_started_for_run("stale", "s", "echo", "log", Some("older-run"))
-        .await
-        .is_err());
+    assert!(
+        jobs.record_started_for_run("stale", "s", "echo", "log", Some("older-run"))
+            .await
+            .is_err()
+    );
     assert!(jobs.get("stale").await.unwrap().is_none());
 }
 
@@ -1177,10 +1182,11 @@ async fn job_outcome_and_completion_event_commit_together() {
         .await
         .unwrap();
     sqlx::query("CREATE TRIGGER fail_completion BEFORE INSERT ON job_completions BEGIN SELECT RAISE(ABORT, 'injected completion failure'); END").execute(&pool).await.unwrap();
-    assert!(jobs
-        .record_finished("job", "completed", Some(0))
-        .await
-        .is_err());
+    assert!(
+        jobs.record_finished("job", "completed", Some(0))
+            .await
+            .is_err()
+    );
     assert_eq!(jobs.get("job").await.unwrap().unwrap().status, "running");
     assert!(jobs.pending_notifications().await.unwrap().is_empty());
     sqlx::query("DROP TRIGGER fail_completion")
@@ -1252,16 +1258,18 @@ async fn durable_job_waits_roll_back_bad_dependencies_and_honor_human_pause() {
         .await
         .unwrap();
     let waits = crate::waits::JobWaits::new(pool.clone());
-    assert!(waits
-        .register(
-            "wait-task",
-            "wait-run",
-            "wait-run",
-            "s",
-            &["missing".into()]
-        )
-        .await
-        .is_err());
+    assert!(
+        waits
+            .register(
+                "wait-task",
+                "wait-run",
+                "wait-run",
+                "s",
+                &["missing".into()]
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(
         tasks.get("wait-task").await.unwrap().unwrap().status,
         crate::TaskStatus::Running

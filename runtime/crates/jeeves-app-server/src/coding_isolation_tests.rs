@@ -1,7 +1,7 @@
 use super::{repo, rpc};
 use crate::Server;
 use jeeves_agent::verify::{CommandOutcome, CommandRunner};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::Path;
 
 async fn fixture(home: &Path, shared: &Path) -> Server {
@@ -130,13 +130,17 @@ async fn ordinary_sessions_keep_shared_writes_but_coding_commands_and_checks_sta
         "fixture"
     );
     let artifacts = server.artifacts.list(id, 10).await.unwrap();
-    assert!(artifacts.iter().any(|a| a.path.ends_with(".diff")
-        && std::fs::read_to_string(&a.path)
-            .unwrap()
-            .contains("result.txt")));
-    assert!(artifacts
-        .iter()
-        .any(|a| a.path.ends_with(".log") && a.run_id.as_deref() == Some("fixture-run")));
+    assert!(artifacts.iter().any(|a| {
+        a.path.ends_with(".diff")
+            && std::fs::read_to_string(&a.path)
+                .unwrap()
+                .contains("result.txt")
+    }));
+    assert!(
+        artifacts
+            .iter()
+            .any(|a| a.path.ends_with(".log") && a.run_id.as_deref() == Some("fixture-run"))
+    );
     assert!(!repo.path().join("result.txt").exists());
 }
 
@@ -207,7 +211,7 @@ async fn parent_integrates_disjoint_checkpoints_and_leaves_conflicting_ones_for_
 
 #[tokio::test]
 async fn parent_final_command_measures_the_integrated_files() {
-    use jeeves_provider::{mock::Mock, Resolved};
+    use jeeves_provider::{Resolved, mock::Mock};
     if !jeeves_tools::exec::sandbox_available() {
         return;
     }
@@ -291,7 +295,7 @@ async fn independent_worktrees_hold_simultaneous_writer_permits() {
 
 #[tokio::test]
 async fn dispatched_task_applies_its_stored_scope_to_model_write_tools() {
-    use jeeves_provider::{mock::Mock, Resolved};
+    use jeeves_provider::{Resolved, mock::Mock};
     let (home, shared, repo) = (
         tempfile::tempdir().unwrap(),
         tempfile::tempdir().unwrap(),

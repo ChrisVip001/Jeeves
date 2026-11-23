@@ -59,9 +59,11 @@ async fn a_recovered_batch_keeps_its_sources_and_ignores_the_new_work_threshold(
         let input: serde_json::Value =
             serde_json::from_str(&requests[0].messages[0].text()).unwrap();
         assert_eq!(input.as_array().unwrap().len(), 2);
-        assert!(!requests[0].messages[0]
-            .text()
-            .contains("New conversation marker"));
+        assert!(
+            !requests[0].messages[0]
+                .text()
+                .contains("New conversation marker")
+        );
     }
     assert_eq!(chat.unconsolidated().await.unwrap().len(), 2);
     assert!(chat.claim_consolidation(1_000).await.unwrap().is_empty());
@@ -136,25 +138,31 @@ async fn batch_backoff_is_atomic_if_updating_one_source_row_fails() {
 async fn episode_receipts_survive_human_deletion_and_canonicalize_source_order() {
     let (_home, pool, _chat, _facts, episodes) = fixture().await;
     let refs = ["chat:1@first".into(), "chat:2@second".into()];
-    assert!(episodes
-        .add_consolidated("2026-11-14", "Original", &refs)
-        .await
-        .unwrap());
-    assert!(!episodes
-        .add_consolidated(
-            "2026-11-14",
-            "Replacement",
-            &[refs[1].clone(), refs[0].clone()]
-        )
-        .await
-        .unwrap());
+    assert!(
+        episodes
+            .add_consolidated("2026-11-14", "Original", &refs)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !episodes
+            .add_consolidated(
+                "2026-11-14",
+                "Replacement",
+                &[refs[1].clone(), refs[0].clone()]
+            )
+            .await
+            .unwrap()
+    );
     sqlx::query("DELETE FROM episodes")
         .execute(&pool)
         .await
         .unwrap();
-    assert!(!episodes
-        .add_consolidated("2026-11-14", "Resurrected", &refs)
-        .await
-        .unwrap());
+    assert!(
+        !episodes
+            .add_consolidated("2026-11-14", "Resurrected", &refs)
+            .await
+            .unwrap()
+    );
     assert!(episodes.recent(10).await.unwrap().is_empty());
 }

@@ -35,7 +35,7 @@ use serde_json::Value;
 use tokio::sync::Mutex;
 
 use config::{Config, ServerSpec, Transport as TransportSpec};
-use transport::{ToolMeta, Transport, TIMEOUT};
+use transport::{TIMEOUT, ToolMeta, Transport};
 
 #[cfg(test)]
 #[path = "mcp_tests.rs"]
@@ -195,10 +195,14 @@ impl Connection {
                         "(jeeves) MCP server '{}' reconnected; {tool} outcome unknown, not replayed",
                         self.name
                     );
-                    outcome = Err(Failure::Transport(format!("outcome unknown; connection restored but call was not replayed. Reconcile remote state before retrying: {first}")));
+                    outcome = Err(Failure::Transport(format!(
+                        "outcome unknown; connection restored but call was not replayed. Reconcile remote state before retrying: {first}"
+                    )));
                 }
                 Err(why) => {
-                    outcome = Err(Failure::Transport(format!("outcome unknown; reconcile remote state before retrying: {first}; the reconnect failed too: {why}")));
+                    outcome = Err(Failure::Transport(format!(
+                        "outcome unknown; reconcile remote state before retrying: {first}; the reconnect failed too: {why}"
+                    )));
                 }
             }
         }
@@ -208,14 +212,15 @@ impl Connection {
         let result = match outcome {
             Ok(output) if output.success => Ok(output.text),
             Ok(output) => Err(anyhow::Error::msg(output.text)),
-            Err(Failure::Transport(error)) => Err(anyhow::anyhow!("the MCP call {}_{tool} failed: {error}", self.name)),
-            Err(Failure::Timeout) => Err(
-                anyhow::anyhow!(
-                    "the MCP call {}_{tool} failed: no reply in over {} seconds; outcome unknown — reconcile remote state before retrying",
-                    self.name,
-                    TIMEOUT.as_secs()
-                ),
-            ),
+            Err(Failure::Transport(error)) => Err(anyhow::anyhow!(
+                "the MCP call {}_{tool} failed: {error}",
+                self.name
+            )),
+            Err(Failure::Timeout) => Err(anyhow::anyhow!(
+                "the MCP call {}_{tool} failed: no reply in over {} seconds; outcome unknown — reconcile remote state before retrying",
+                self.name,
+                TIMEOUT.as_secs()
+            )),
         };
         let mut breaker = self.breaker.lock().await;
         breaker.record(ok, &self.policy, std::time::Instant::now());
@@ -229,13 +234,11 @@ impl Connection {
                 self.policy.cooldown.as_secs()
             );
         }
-        if uncertain {
-            if let Some(notice) = notice {
-                notice(&format!(
-                    "MCP {}_{tool} outcome unknown; reconcile external state before continuing",
-                    self.name
-                ));
-            }
+        if uncertain && let Some(notice) = notice {
+            notice(&format!(
+                "MCP {}_{tool} outcome unknown; reconcile external state before continuing",
+                self.name
+            ));
         }
         result
     }
@@ -417,9 +420,15 @@ impl McpClient {
             })
             .await;
             match result {
-                Ok(tools) if tools != server.tools => { server.tools = tools; changed = true; }
+                Ok(tools) if tools != server.tools => {
+                    server.tools = tools;
+                    changed = true;
+                }
                 Ok(_) => {}
-                Err(error) => eprintln!("(jeeves) MCP server '{}' tool list refresh failed; previous list retained: {error}", server.name),
+                Err(error) => eprintln!(
+                    "(jeeves) MCP server '{}' tool list refresh failed; previous list retained: {error}",
+                    server.name
+                ),
             }
         }
         changed.then_some(next)

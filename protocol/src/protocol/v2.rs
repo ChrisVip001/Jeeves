@@ -689,7 +689,7 @@ fn declared_budget<'de, D: serde::Deserializer<'de>>(input: D) -> Result<BudgetV
 
 #[cfg(test)]
 fn declared_budget_schema(
-    generator: &mut schemars::gen::SchemaGenerator,
+    generator: &mut schemars::r#gen::SchemaGenerator,
 ) -> schemars::schema::Schema {
     let mut schema = BudgetView::json_schema(generator).into_object();
     schema.object().additional_properties = Some(Box::new(false.into()));

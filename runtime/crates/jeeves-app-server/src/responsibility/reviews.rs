@@ -3,7 +3,7 @@ use super::*;
 use jeeves_protocol::{ResponsibilityDecision, ResponsibilityReview};
 use jeeves_tools::Tool;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 #[derive(Deserialize)]
@@ -93,7 +93,7 @@ async fn propose(
         _ => {
             return Err(invalid(
                 "Duty or revision changed. List the current responsibilities.",
-            ))
+            ));
         }
     };
     if let Some(fields) = c.fields {
@@ -122,11 +122,10 @@ async fn propose(
             .remove("digest");
     }
     let mut requested: ResponsibilityContract = serde_json::from_value(body).map_err(invalid)?;
-    if matches!(c.action.as_str(), "create" | "amend") {
-        if let Some(plan) = &mut requested.plan {
-            super::model::pin(server, &mut plan.action, original_action.as_ref())
-                .map_err(invalid)?;
-        }
+    if matches!(c.action.as_str(), "create" | "amend")
+        && let Some(plan) = &mut requested.plan
+    {
+        super::model::pin(server, &mut plan.action, original_action.as_ref()).map_err(invalid)?;
     }
     let contract = if c.action == "pause" {
         requested
@@ -198,10 +197,10 @@ pub(crate) async fn decide(
     };
     if decision.accept {
         let contract: ResponsibilityContract = serde_json::from_str(&json).map_err(internal)?;
-        if action != "pause" {
-            if let Some(plan) = &contract.plan {
-                action::preflight(server, plan).map_err(invalid)?;
-            }
+        if action != "pause"
+            && let Some(plan) = &contract.plan
+        {
+            action::preflight(server, plan).map_err(invalid)?;
         }
         let changed = match action.as_str() {
             "create" => {

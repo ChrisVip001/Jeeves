@@ -234,7 +234,7 @@ impl JobRegistry for Jobs {
                 None => {
                     return Self::read_from_ledger(&rows, &owner, &id, cursor)
                         .await
-                        .map(scrub)
+                        .map(scrub);
                 }
             };
 
@@ -556,7 +556,9 @@ impl Jobs {
                     );
                     let file = dir.join(format!("{}-{watched_id}.txt", std::process::id()));
                     if let Err(e) = std::fs::write(&file, body) {
-                        eprintln!("(jeeves) the output of background job {watched_id} was not written to a file: {e}");
+                        eprintln!(
+                            "(jeeves) the output of background job {watched_id} was not written to a file: {e}"
+                        );
                     }
                 }
                 {

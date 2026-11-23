@@ -240,10 +240,12 @@ async fn a_late_worker_receipt_cannot_restore_authority_on_takeover_or_stop() {
         observation: None,
         blocked_origins: vec![],
     };
-    assert!(!host
-        .record_reply(old.clone(), old.generation, &delayed)
-        .await
-        .unwrap());
+    assert!(
+        !host
+            .record_reply(old.clone(), old.generation, &delayed)
+            .await
+            .unwrap()
+    );
     assert_eq!(
         store::get(&pool, "late").await.unwrap().unwrap().status,
         "human"
@@ -252,19 +254,22 @@ async fn a_late_worker_receipt_cannot_restore_authority_on_takeover_or_stop() {
         generation: human.generation + 10,
         ..delayed.clone()
     };
-    assert!(host
-        .record_reply(human.clone(), human.generation, &future)
-        .await
-        .is_err());
+    assert!(
+        host.record_reply(human.clone(), human.generation, &future)
+            .await
+            .is_err()
+    );
     let stopped = host.emergency_stop().await.unwrap();
     let late_human = BrowserWorkerState {
         generation: human.generation,
         ..delayed
     };
-    assert!(!host
-        .record_reply(human.clone(), human.generation, &late_human)
-        .await
-        .unwrap());
+    assert!(
+        !host
+            .record_reply(human.clone(), human.generation, &late_human)
+            .await
+            .unwrap()
+    );
     let restarted = BrowserHost::new(pool.clone(), None).await;
     assert_eq!(
         restarted.executor_status().await.unwrap().generation,
@@ -285,24 +290,28 @@ async fn a_failed_stop_transaction_blocks_launch_and_release_until_retried() {
     session_in(&server.pool, "storage-error", "agent").await;
     sqlx::query("CREATE TRIGGER reject_hold BEFORE INSERT ON browser_holds BEGIN SELECT RAISE(ABORT,'fixture write failure'); END")
         .execute(&server.pool).await.unwrap();
-    assert!(rpc(&server, "executor/stop", json!({}))
-        .await
-        .unwrap_err()
-        .contains("fixture write failure"));
+    assert!(
+        rpc(&server, "executor/stop", json!({}))
+            .await
+            .unwrap_err()
+            .contains("fixture write failure")
+    );
     assert!(rpc(&server, "executor/control", json!({})).await.is_err());
     assert!(
         rpc(&server, "executor/release", json!({"expectedGeneration":0}))
             .await
             .is_err()
     );
-    assert!(rpc(
-        &server,
-        "browser/start",
-        json!({"taskId":"storage-error","url":"https://example.com"})
-    )
-    .await
-    .unwrap_err()
-    .contains("Executors are stopped"));
+    assert!(
+        rpc(
+            &server,
+            "browser/start",
+            json!({"taskId":"storage-error","url":"https://example.com"})
+        )
+        .await
+        .unwrap_err()
+        .contains("Executors are stopped")
+    );
     sqlx::query("DROP TRIGGER reject_hold")
         .execute(&server.pool)
         .await

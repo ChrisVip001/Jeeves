@@ -1935,16 +1935,19 @@ async fn interrupted_queue_claim_is_visible_and_is_not_replayed() {
     server.restore_tasks().await;
     let rows = server.chat.messages("test", None, 50).await.unwrap();
     assert!(rows.iter().any(|row| row.content == claim.message));
-    assert!(rows
-        .iter()
-        .any(|row| row.content.contains("outcome is unknown")));
+    assert!(
+        rows.iter()
+            .any(|row| row.content.contains("outcome is unknown"))
+    );
     assert!(server.queue.pop("test").await.unwrap().is_none());
-    assert!(server
-        .queue
-        .reconcile_interrupted()
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        server
+            .queue
+            .reconcile_interrupted()
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert!(server.active_turns(Some("test")).is_empty());
 }
 

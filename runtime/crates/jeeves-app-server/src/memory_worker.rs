@@ -18,8 +18,8 @@
 //! * **Interrupted batches remain durable**: exclusive startup recovers unfinished claims;
 //!   retry keeps its source set and cannot duplicate its committed episode summary.
 
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use std::time::Duration;
 
 use jeeves_config::Settings;
@@ -80,7 +80,9 @@ impl MemoryWorker {
                     break;
                 }
                 if let Err(error) = run_once(&deps, &pending, &mut last_projection).await {
-                    eprintln!("(jeeves) memory work failed; persistent state retained for retry or restart: {error:#}");
+                    eprintln!(
+                        "(jeeves) memory work failed; persistent state retained for retry or restart: {error:#}"
+                    );
                 }
             }
         });
@@ -112,15 +114,16 @@ impl MemoryWorker {
             .lock()
             .expect("the worker-handle lock should not be poisoned")
             .take();
-        if let Some(mut handle) = handle {
-            if tokio::time::timeout(SHUTDOWN_GRACE, &mut handle)
+        if let Some(mut handle) = handle
+            && tokio::time::timeout(SHUTDOWN_GRACE, &mut handle)
                 .await
                 .is_err()
-            {
-                handle.abort();
-                let _ = handle.await;
-                eprintln!("(jeeves) stalled memory extraction cancelled and joined; its unfinished source batch remains recoverable");
-            }
+        {
+            handle.abort();
+            let _ = handle.await;
+            eprintln!(
+                "(jeeves) stalled memory extraction cancelled and joined; its unfinished source batch remains recoverable"
+            );
         }
     }
 }
@@ -190,8 +193,8 @@ async fn run_once(
 
     let bundle = jeeves_memory::bundle::Bundle::new(&settings.home);
 
-    if let (Some(resolved), true) = (&resolved, new_facts > 0) {
-        if let Err(error) = jeeves_memory::tidy::after_consolidation(
+    if let (Some(resolved), true) = (&resolved, new_facts > 0)
+        && let Err(error) = jeeves_memory::tidy::after_consolidation(
             &deps.facts,
             &bundle,
             resolved.client.as_ref(),
@@ -199,9 +202,8 @@ async fn run_once(
             new_facts,
         )
         .await
-        {
-            eprintln!("(jeeves) memory tidy failed (facts and pages are intact): {error:#}");
-        }
+    {
+        eprintln!("(jeeves) memory tidy failed (facts and pages are intact): {error:#}");
     }
     match jeeves_memory::mirror::reindex_from_pages(&deps.facts, &bundle).await {
         Ok(0) => {}

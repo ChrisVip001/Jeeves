@@ -613,12 +613,12 @@ impl Settings {
             ));
         }
 
-        if let Some(window) = self.context_window {
-            if !(1_024..=10_000_000).contains(&window) {
-                return Err(format!(
-                    "JEEVES_CONTEXT_WINDOW must be between 1024 and 10000000, got {window}"
-                ));
-            }
+        if let Some(window) = self.context_window
+            && !(1_024..=10_000_000).contains(&window)
+        {
+            return Err(format!(
+                "JEEVES_CONTEXT_WINDOW must be between 1024 and 10000000, got {window}"
+            ));
         }
 
         if !(0.05..=0.95).contains(&self.compact_threshold) {
@@ -858,21 +858,29 @@ mod config_tests {
 
     #[test]
     fn reads_jeeves_provider_from_env() {
-        std::env::set_var("JEEVES_PROVIDER", "deepseek");
+        unsafe {
+            std::env::set_var("JEEVES_PROVIDER", "deepseek");
+        }
         let s = Settings::from_env();
         assert_eq!(
             s.provider, "deepseek",
             "JEEVES_PROVIDER should have been read"
         );
-        std::env::remove_var("JEEVES_PROVIDER");
+        unsafe {
+            std::env::remove_var("JEEVES_PROVIDER");
+        }
     }
 
     #[test]
     fn empty_env_value_is_treated_as_unset() {
-        std::env::set_var("JEEVES_MODEL", "");
+        unsafe {
+            std::env::set_var("JEEVES_MODEL", "");
+        }
         let s = Settings::from_env();
         assert_eq!(s.model, None);
-        std::env::remove_var("JEEVES_MODEL");
+        unsafe {
+            std::env::remove_var("JEEVES_MODEL");
+        }
     }
 
     #[test]
@@ -885,9 +893,13 @@ mod config_tests {
             ("", false),
         ] {
             let key = "JEEVES_CONFIG_TEST_BOOL_XYZ";
-            std::env::set_var(key, v);
+            unsafe {
+                std::env::set_var(key, v);
+            }
             assert_eq!(env_bool(key), expected, "{key}={v}");
-            std::env::remove_var(key);
+            unsafe {
+                std::env::remove_var(key);
+            }
         }
     }
 
@@ -1004,19 +1016,21 @@ mod config_tests {
             exec_timeout_secs: 0,
             ..Settings::default()
         };
-        assert!(s
-            .validate()
-            .expect_err("a zero-second timeout means nothing")
-            .contains("JEEVES_EXEC_TIMEOUT"));
+        assert!(
+            s.validate()
+                .expect_err("a zero-second timeout means nothing")
+                .contains("JEEVES_EXEC_TIMEOUT")
+        );
 
         let s = Settings {
             max_tokens: 4,
             ..Settings::default()
         };
-        assert!(s
-            .validate()
-            .expect_err("4 tokens cannot answer anything")
-            .contains("JEEVES_MAX_TOKENS"));
+        assert!(
+            s.validate()
+                .expect_err("4 tokens cannot answer anything")
+                .contains("JEEVES_MAX_TOKENS")
+        );
     }
 
     #[test]
@@ -1025,37 +1039,41 @@ mod config_tests {
             exec_allow: vec!["cargo test".to_string(), "   ".to_string()],
             ..Settings::default()
         };
-        assert!(s
-            .validate()
-            .expect_err("an empty rule must be caught")
-            .contains("empty rule"));
+        assert!(
+            s.validate()
+                .expect_err("an empty rule must be caught")
+                .contains("empty rule")
+        );
 
         let s = Settings {
             exec_allow: vec!["cargo test\nrm -rf /".to_string()],
             ..Settings::default()
         };
-        assert!(s
-            .validate()
-            .expect_err("a rule with a newline must be caught")
-            .contains("newline"));
+        assert!(
+            s.validate()
+                .expect_err("a rule with a newline must be caught")
+                .contains("newline")
+        );
 
         let s = Settings {
             exec_allow: vec!["x".repeat(300)],
             ..Settings::default()
         };
-        assert!(s
-            .validate()
-            .expect_err("an over-long rule must be caught")
-            .contains("at most"));
+        assert!(
+            s.validate()
+                .expect_err("an over-long rule must be caught")
+                .contains("at most")
+        );
 
         let s = Settings {
             exec_allow: vec!["ls".to_string(); 100],
             ..Settings::default()
         };
-        assert!(s
-            .validate()
-            .expect_err("too many rules must be caught")
-            .contains("at most"));
+        assert!(
+            s.validate()
+                .expect_err("too many rules must be caught")
+                .contains("at most")
+        );
 
         let s = Settings {
             exec_allow: Vec::new(),
@@ -1089,10 +1107,12 @@ mod config_tests {
             context_window: Some(10),
             ..Settings::default()
         };
-        assert!(too_small
-            .validate()
-            .expect_err("a window of 10 means nothing")
-            .contains("JEEVES_CONTEXT_WINDOW"));
+        assert!(
+            too_small
+                .validate()
+                .expect_err("a window of 10 means nothing")
+                .contains("JEEVES_CONTEXT_WINDOW")
+        );
 
         let capped_per_request = Settings {
             context_window: Some(4096),
@@ -1136,10 +1156,12 @@ mod config_tests {
             exec_writable_roots: vec![PathBuf::from("build")],
             ..Settings::default()
         };
-        assert!(relative
-            .validate()
-            .expect_err("a relative path cannot go into a sandbox rule")
-            .contains("absolute path"));
+        assert!(
+            relative
+                .validate()
+                .expect_err("a relative path cannot go into a sandbox rule")
+                .contains("absolute path")
+        );
     }
 
     #[test]

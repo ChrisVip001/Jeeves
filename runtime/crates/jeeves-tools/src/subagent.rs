@@ -15,9 +15,9 @@
 
 use std::sync::Arc;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use crate::{require_str, BoxFut, Tool, ToolCtx};
+use crate::{BoxFut, Tool, ToolCtx, require_str};
 
 /// Tool name. The implementer must remove it from the subagent's tool table, so it has
 /// to be a public constant — letting both sides assemble the string invites drift.

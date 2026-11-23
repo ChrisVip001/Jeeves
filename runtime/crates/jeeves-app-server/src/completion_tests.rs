@@ -1,6 +1,6 @@
 use crate::{EventSink, Server};
 use jeeves_protocol::{RequestId, TurnStartParams};
-use jeeves_provider::{mock::Mock, Resolved};
+use jeeves_provider::{Resolved, mock::Mock};
 use jeeves_tools::notify::{Notifier, NotifyEvent};
 use std::sync::{Arc, Mutex};
 

@@ -115,7 +115,9 @@ impl Acceptance {
             "jsonEquals" => {
                 let pointer = view.pointer.as_deref().ok_or("missing pointer")?;
                 if pointer.len() > 1024 || (!pointer.is_empty() && !pointer.starts_with('/')) {
-                    return Err("JSON pointer must be empty or begin with / and fit in 1024 bytes".into());
+                    return Err(
+                        "JSON pointer must be empty or begin with / and fit in 1024 bytes".into(),
+                    );
                 }
                 let mut chars = pointer.chars();
                 while let Some(ch) = chars.next() {
@@ -123,10 +125,20 @@ impl Acceptance {
                         return Err("JSON pointer contains an invalid escape".into());
                     }
                 }
-                let raw = view.expected_json.as_deref().ok_or("missing expectedJson")?;
-                if raw.len() > 16_384 { return Err("expectedJson exceeds 16384 bytes".into()); }
-                let expected = serde_json::from_str(raw).map_err(|_| "expectedJson must contain a valid JSON value")?;
-                Ok(Self::JsonEquals { path: field("path")?, pointer: pointer.into(), expected })
+                let raw = view
+                    .expected_json
+                    .as_deref()
+                    .ok_or("missing expectedJson")?;
+                if raw.len() > 16_384 {
+                    return Err("expectedJson exceeds 16384 bytes".into());
+                }
+                let expected = serde_json::from_str(raw)
+                    .map_err(|_| "expectedJson must contain a valid JSON value")?;
+                Ok(Self::JsonEquals {
+                    path: field("path")?,
+                    pointer: pointer.into(),
+                    expected,
+                })
             }
             "toolsOk" => Ok(Self::ToolsOk {
                 tool: field("tool")?,
@@ -214,7 +226,9 @@ pub fn parse(json: &str) -> Vec<Acceptance> {
     let views: Vec<AcceptanceView> = match serde_json::from_str(json) {
         Ok(views) => views,
         Err(e) => {
-            eprintln!("(jeeves) acceptance criteria could not be read (continuing as if there were none): {e}");
+            eprintln!(
+                "(jeeves) acceptance criteria could not be read (continuing as if there were none): {e}"
+            );
             return Vec::new();
         }
     };
@@ -408,7 +422,7 @@ impl Verifier {
                         false,
                         format!("Could not measure JSON document {path}: {error}"),
                         None,
-                    )
+                    );
                 }
             };
         let value: serde_json::Value = match serde_json::from_str(&text) {
@@ -418,7 +432,7 @@ impl Verifier {
                     false,
                     format!("{path} is not a valid JSON document"),
                     Some(measurement),
-                )
+                );
             }
         };
         let found = value.pointer(pointer);

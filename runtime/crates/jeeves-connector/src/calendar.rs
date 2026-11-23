@@ -1,12 +1,12 @@
 #[path = "calendar_parse.rs"]
 mod calendar_parse;
-pub use calendar_parse::{calendar_documents, events_in_range, CalendarEvent};
+pub use calendar_parse::{CalendarEvent, calendar_documents, events_in_range};
 
 use crate::config::CalendarConfig;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
-use jeeves_tools::{require_str, Tool, ToolCtx};
-use serde_json::{json, Value};
+use jeeves_tools::{Tool, ToolCtx, require_str};
+use serde_json::{Value, json};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -91,33 +91,34 @@ async fn fetch_documents(
         })
         .transpose()?;
     let auth = config.username.as_deref().zip(secret.as_deref());
-    if let Some((username, secret)) = auth {
-        if url.path() == "/" && url.query().is_none() && url.fragment().is_none() {
-            let client = reqwest::Client::builder()
-                .timeout(Duration::from_secs(20))
-                .redirect(reqwest::redirect::Policy::none())
-                .user_agent(concat!("jeeves/", env!("CARGO_PKG_VERSION")))
-                .build()?;
-            return tokio::time::timeout(Duration::from_secs(50), async {
-                let urls =
-                    crate::caldav_discovery::discover(&client, &url, username, secret).await?;
-                let mut documents = Vec::new();
-                let mut bytes = 0;
-                for url in urls {
-                    for document in fetch_documents_at(&url, auth, start, end, &client).await? {
-                        bytes += document.len();
-                        anyhow::ensure!(
-                            bytes <= MAX_RESPONSE_BYTES,
-                            "combined calendar response exceeds the 10 MiB limit"
-                        );
-                        documents.push(document);
-                    }
+    if let Some((username, secret)) = auth
+        && url.path() == "/"
+        && url.query().is_none()
+        && url.fragment().is_none()
+    {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(20))
+            .redirect(reqwest::redirect::Policy::none())
+            .user_agent(concat!("jeeves/", env!("CARGO_PKG_VERSION")))
+            .build()?;
+        return tokio::time::timeout(Duration::from_secs(50), async {
+            let urls = crate::caldav_discovery::discover(&client, &url, username, secret).await?;
+            let mut documents = Vec::new();
+            let mut bytes = 0;
+            for url in urls {
+                for document in fetch_documents_at(&url, auth, start, end, &client).await? {
+                    bytes += document.len();
+                    anyhow::ensure!(
+                        bytes <= MAX_RESPONSE_BYTES,
+                        "combined calendar response exceeds the 10 MiB limit"
+                    );
+                    documents.push(document);
                 }
-                Ok(documents)
-            })
-            .await
-            .context("CalDAV service discovery/query timed out")?;
-        }
+            }
+            Ok(documents)
+        })
+        .await
+        .context("CalDAV service discovery/query timed out")?;
     }
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))

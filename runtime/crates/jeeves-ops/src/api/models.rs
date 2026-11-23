@@ -1,16 +1,16 @@
 //! Models HTTP endpoints.
 
 use super::{failed, outcome, refusal};
-use crate::{capabilities, AppServer};
+use crate::{AppServer, capabilities};
+use axum::Json;
 use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
-use axum::Json;
 use jeeves_mcp::config::ServerSpec;
 use jeeves_protocol::{
-    methods, ModelProfilesResponse, ModelRemoveParams, ModelRemoveResponse, ModelRoutesResponse,
-    ModelRoutesSaveParams, ModelSaveParams, ModelSaveResponse,
+    ModelProfilesResponse, ModelRemoveParams, ModelRemoveResponse, ModelRoutesResponse,
+    ModelRoutesSaveParams, ModelSaveParams, ModelSaveResponse, methods,
 };
 use serde_json::json;
 use std::sync::Arc;

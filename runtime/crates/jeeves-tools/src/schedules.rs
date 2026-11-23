@@ -12,10 +12,10 @@ use std::sync::Arc;
 
 use jeeves_agent::schedule::{self, JobBody};
 use jeeves_state::{ScheduleJobRow, ScheduleJobs};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sqlx::SqlitePool;
 
-use crate::{require_str, Tool, ToolCtx};
+use crate::{Tool, ToolCtx, require_str};
 
 /// The next fire, or the sentence saying why there is none.
 fn next_label(cron: &str) -> String {

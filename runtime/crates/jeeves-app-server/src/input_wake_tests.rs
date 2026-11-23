@@ -1,7 +1,7 @@
 use crate::{EventSink, Frame, Server};
 use jeeves_protocol::{JsonRpcMessage, JsonRpcRequest, RequestId, TurnStartParams};
 use jeeves_provider::{CreateRequest, CreateResponse, Provider, ProviderError, Resolved, TextSink};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     future::Future,
     pin::Pin,
@@ -198,18 +198,24 @@ async fn external_wait_keeps_the_draft_allows_chat_and_consumes_one_event() {
     );
     let requests = model.requests.lock().unwrap();
     assert_eq!(requests.len(), 3);
-    assert!(!requests[1]
-        .messages
-        .iter()
-        .any(|message| message.text().contains("Private draft")));
-    assert!(requests[2]
-        .messages
-        .iter()
-        .any(|message| message.text().contains("Private draft")));
-    assert!(requests[2]
-        .messages
-        .iter()
-        .any(|message| message.text().contains("event-1")));
+    assert!(
+        !requests[1]
+            .messages
+            .iter()
+            .any(|message| message.text().contains("Private draft"))
+    );
+    assert!(
+        requests[2]
+            .messages
+            .iter()
+            .any(|message| message.text().contains("Private draft"))
+    );
+    assert!(
+        requests[2]
+            .messages
+            .iter()
+            .any(|message| message.text().contains("event-1"))
+    );
     assert!(requests[2].system_text().unwrap().contains(r#""value":42"#));
 }
 
@@ -251,10 +257,12 @@ async fn input_received_during_human_pause_waits_for_explicit_resume() {
     wait_status(&server, jeeves_state::TaskStatus::Done).await;
     let requests = model.requests.lock().unwrap();
     assert_eq!(requests.len(), 2);
-    assert!(requests[1]
-        .messages
-        .iter()
-        .any(|message| message.text().contains("event-1")));
+    assert!(
+        requests[1]
+            .messages
+            .iter()
+            .any(|message| message.text().contains("event-1"))
+    );
 }
 
 #[tokio::test]
@@ -388,14 +396,18 @@ async fn a_received_input_survives_restart_and_resumes_the_original_draft() {
     );
     let requests = model.requests.lock().unwrap();
     assert_eq!(requests.len(), 1);
-    assert!(requests[0]
-        .messages
-        .iter()
-        .any(|message| message.text().contains("Private draft")));
-    assert!(requests[0]
-        .system_text()
-        .unwrap()
-        .contains(r#""runId":"restart-run""#));
+    assert!(
+        requests[0]
+            .messages
+            .iter()
+            .any(|message| message.text().contains("Private draft"))
+    );
+    assert!(
+        requests[0]
+            .system_text()
+            .unwrap()
+            .contains(r#""runId":"restart-run""#)
+    );
 }
 
 #[tokio::test]

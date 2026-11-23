@@ -1,4 +1,4 @@
-use crate::{completions::Completions, NewTask, TaskStatus, Tasks};
+use crate::{NewTask, TaskStatus, Tasks, completions::Completions};
 
 #[tokio::test]
 async fn a_failed_notice_insert_rolls_back_the_task_transition() {
@@ -68,10 +68,12 @@ async fn task_and_exact_run_completion_commit_or_rollback_together() {
         .unwrap();
     tasks.set_running("task", "turn").await.unwrap();
     sqlx::query("CREATE TRIGGER fail_completion BEFORE INSERT ON task_completions BEGIN SELECT RAISE(FAIL,'injected completion failure'); END").execute(&pool).await.unwrap();
-    assert!(tasks
-        .finish_run("task", TaskStatus::Done, None, Some("run"))
-        .await
-        .is_err());
+    assert!(
+        tasks
+            .finish_run("task", TaskStatus::Done, None, Some("run"))
+            .await
+            .is_err()
+    );
     assert_eq!(
         tasks.get("task").await.unwrap().unwrap().status,
         TaskStatus::Running
@@ -83,16 +85,18 @@ async fn task_and_exact_run_completion_commit_or_rollback_together() {
         .unwrap();
     sqlx::query("CREATE TRIGGER fail_summary BEFORE UPDATE OF content ON chat_log BEGIN SELECT RAISE(FAIL,'injected summary write failure'); END")
         .execute(&pool).await.unwrap();
-    assert!(tasks
-        .finish_run_with_summary(
-            "task",
-            TaskStatus::Done,
-            None,
-            Some("run"),
-            Some("Fixture result")
-        )
-        .await
-        .is_err());
+    assert!(
+        tasks
+            .finish_run_with_summary(
+                "task",
+                TaskStatus::Done,
+                None,
+                Some("run"),
+                Some("Fixture result")
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(runs.get("run").await.unwrap().unwrap().status, "running");
     sqlx::query("DROP TRIGGER fail_summary")
         .execute(&pool)
@@ -201,9 +205,11 @@ async fn edits_replace_the_written_version_even_if_the_file_size_is_unchanged() 
     assert_eq!(first.len(), 1);
     assert_eq!(first[0].written_text.as_deref(), Some("two"));
     files.add("report", None, "weekly.md", 3).await.unwrap();
-    assert!(files.list("report", 10).await.unwrap()[0]
-        .written_text
-        .is_none());
+    assert!(
+        files.list("report", 10).await.unwrap()[0]
+            .written_text
+            .is_none()
+    );
 }
 
 #[tokio::test]

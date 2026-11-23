@@ -1,5 +1,5 @@
 //! Durable initial task dispatch. Unknown claimed work is never submitted again.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, SqlitePool};
 
 #[derive(Clone, Debug, FromRow)]
@@ -180,7 +180,10 @@ impl TaskDispatch {
         .execute(&mut *tx)
         .await?
         .rows_affected();
-        ensure!(changed==1,"Only a completed conversational task can accept a new follow-up; inspect other task states first");
+        ensure!(
+            changed == 1,
+            "Only a completed conversational task can accept a new follow-up; inspect other task states first"
+        );
         sqlx::query("UPDATE task_dispatch SET message=?,attachments_json=?,turn_id='task-turn:'||lower(hex(randomblob(16))),state='pending' WHERE task_id=? AND state='finished'")
             .bind(message).bind(attachments).bind(task_id).execute(&mut *tx).await?;
         Self::record_amendment(&mut tx, task_id, message_id, message).await?;

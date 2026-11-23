@@ -14,7 +14,7 @@
 
 use anyhow::Result;
 use jeeves_state::{Episodes, Facts};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// Protocol version. The server implements this one; clients reporting other versions are

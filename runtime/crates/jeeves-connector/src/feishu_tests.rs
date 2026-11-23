@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 
 use jeeves_tools::approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest};
 use jeeves_tools::{Tool, ToolCtx};
-use serde_json::{json, Value};
-use tempfile::{tempdir, TempDir};
+use serde_json::{Value, json};
+use tempfile::{TempDir, tempdir};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -245,7 +245,9 @@ async fn a_denied_approval_never_touches_the_network() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu(0, 0).await;
     let broker = Fake::answering(false);
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
@@ -287,7 +289,9 @@ async fn an_approved_send_carries_a_tenant_token_and_a_text_message() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu(0, 0).await;
     let broker = Fake::answering(true);
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
@@ -323,7 +327,9 @@ async fn the_token_is_fetched_once_and_reused() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu(0, 0).await;
     let broker = Fake::answering(true);
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
@@ -347,7 +353,9 @@ async fn feishu_s_own_error_words_are_passed_through() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu(0, 99991663).await;
     let broker = Fake::answering(true);
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
@@ -370,7 +378,9 @@ async fn a_missing_secret_is_reported_before_the_human_is_asked() {
         dir: tempdir().expect("temp dir"),
     };
     let broker = Fake::answering(true);
-    std::env::remove_var("JEEVES_FEISHU_TEST_SECRET_MISSING");
+    unsafe {
+        std::env::remove_var("JEEVES_FEISHU_TEST_SECRET_MISSING");
+    }
     let mut cfg = config("http://127.0.0.1:9".to_string(), true);
     cfg.app_secret = "env:JEEVES_FEISHU_TEST_SECRET_MISSING".to_string();
     let tool = feishu_send_tool(cfg);
@@ -416,7 +426,9 @@ async fn a_send_in_a_task_run_is_claimed_then_confirmed_by_read_back() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu_reading(0, 0, 0).await;
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
     let ctx = run_ctx(&fixture, Fake::answering(true)).await;
@@ -440,7 +452,9 @@ async fn a_read_back_that_does_not_see_the_message_leaves_the_receipt_failed() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu_reading(0, 0, 230002).await;
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
     let ctx = run_ctx(&fixture, Fake::answering(true)).await;
@@ -461,7 +475,9 @@ async fn a_send_outside_a_task_run_says_there_is_no_receipt() {
     let fixture = Fixture {
         dir: tempdir().expect("temp dir"),
     };
-    std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    unsafe {
+        std::env::set_var("JEEVES_FEISHU_TEST_SECRET", "s3cret");
+    }
     let server = fake_feishu(0, 0).await;
     let tool = feishu_send_tool(config(server.base_url.clone(), true));
     let ctx = fixture.ctx(Some(Fake::answering(true))).await;

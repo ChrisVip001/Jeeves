@@ -1,5 +1,5 @@
 //! Render excerpts verified against the owner’s named sources within an explicit time window.
-use super::{numbers, Claim};
+use super::{Claim, numbers};
 use chrono::{DateTime, Duration, Utc};
 use jeeves_state::verification::FileMeasurement;
 use serde::Deserialize;

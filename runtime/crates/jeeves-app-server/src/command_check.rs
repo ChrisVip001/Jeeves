@@ -76,17 +76,16 @@ impl CommandRunner for ExecRunner {
             };
             if let (Some(dir), CommandOutcome::Ran { .. }) = (log_dir, &outcome) {
                 let name = format!("check-{:016x}.log", fnv(&argv.join("\0")));
-                if let Some(root) = &policy.worktree {
-                    if let Err(error) = jeeves_tools::roots::check_worktree(root, &dir.join(&name))
-                    {
-                        eprintln!("(jeeves) check output was not kept: {error}");
-                        return outcome;
-                    }
+                if let Some(root) = &policy.worktree
+                    && let Err(error) = jeeves_tools::roots::check_worktree(root, &dir.join(&name))
+                {
+                    eprintln!("(jeeves) check output was not kept: {error}");
+                    return outcome;
                 }
-                if std::fs::create_dir_all(&dir).is_ok() {
-                    if let Err(e) = std::fs::write(dir.join(&name), &text) {
-                        eprintln!("(jeeves) check output was not kept ({name}): {e}");
-                    }
+                if std::fs::create_dir_all(&dir).is_ok()
+                    && let Err(e) = std::fs::write(dir.join(&name), &text)
+                {
+                    eprintln!("(jeeves) check output was not kept ({name}): {e}");
                 }
             }
             outcome

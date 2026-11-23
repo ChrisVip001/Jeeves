@@ -10,17 +10,17 @@
 //! also carries an end-to-end of the same flavor.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
+use crate::McpClient;
 use crate::config::{self, Config, ServerSpec, Transport as TransportSpec};
 use crate::transport::{HttpSession, StdioSession};
-use crate::McpClient;
 
 fn no_env(_key: &str) -> Option<String> {
     None
@@ -52,9 +52,11 @@ fn config_refuses_two_transports_and_two_credentials() {
         command: Some("npx".to_string()),
         ..ServerSpec::default()
     };
-    assert!(config::resolve(&both_transports, &no_env)
-        .unwrap_err()
-        .contains("pick one transport"));
+    assert!(
+        config::resolve(&both_transports, &no_env)
+            .unwrap_err()
+            .contains("pick one transport")
+    );
 
     let both_creds = ServerSpec {
         name: "x".to_string(),
@@ -63,9 +65,11 @@ fn config_refuses_two_transports_and_two_credentials() {
         oauth: Some(true),
         ..ServerSpec::default()
     };
-    assert!(config::resolve(&both_creds, &no_env)
-        .unwrap_err()
-        .contains("pick one"));
+    assert!(
+        config::resolve(&both_creds, &no_env)
+            .unwrap_err()
+            .contains("pick one")
+    );
 
     let neither = ServerSpec {
         name: "x".to_string(),
@@ -1058,15 +1062,19 @@ async fn legacy_files_are_never_refreshed_in_the_background_and_login_owns_rotat
         })
         .unwrap();
     let lock = store.lock().unwrap();
-    assert!(crate::renewal::refresh(&store, "http://127.0.0.1:1", true)
-        .await
-        .unwrap_err()
-        .contains("concurrent"));
+    assert!(
+        crate::renewal::refresh(&store, "http://127.0.0.1:1", true)
+            .await
+            .unwrap_err()
+            .contains("concurrent")
+    );
     drop(lock);
-    assert!(crate::renewal::refresh(&store, "http://127.0.0.1:1", true)
-        .await
-        .unwrap_err()
-        .contains("legacy"));
+    assert!(
+        crate::renewal::refresh(&store, "http://127.0.0.1:1", true)
+            .await
+            .unwrap_err()
+            .contains("legacy")
+    );
     assert_eq!(store.tokens().unwrap().access_token, "old");
 }
 

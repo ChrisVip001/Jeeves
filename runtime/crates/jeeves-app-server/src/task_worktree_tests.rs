@@ -18,13 +18,15 @@ fn repo() -> tempfile::TempDir {
             "i",
         ],
     ] {
-        assert!(Command::new("git")
-            .arg("-C")
-            .arg(dir.path())
-            .args(args)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(args)
+                .status()
+                .unwrap()
+                .success()
+        );
     }
     dir
 }
@@ -48,14 +50,16 @@ async fn a_repo_task_runs_in_its_own_worktree_and_the_view_says_so() {
         "the worktree is the only working directory"
     );
     assert_eq!(task["branch"], format!("jeeves/{id}"));
-    assert!(path.starts_with(
-        home.path()
-            .canonicalize()
-            .unwrap()
-            .join("worktrees")
-            .to_str()
-            .unwrap()
-    ));
+    assert!(
+        path.starts_with(
+            home.path()
+                .canonicalize()
+                .unwrap()
+                .join("worktrees")
+                .to_str()
+                .unwrap()
+        )
+    );
     let got = rpc(&server, "task/get", json!({"taskId": id}))
         .await
         .unwrap();
@@ -93,20 +97,24 @@ async fn checkpoint_commits_only_explicit_files_and_never_the_human_branch() {
     let worktree = std::path::Path::new(task["worktreePath"].as_str().unwrap());
     std::fs::write(worktree.join("approved.txt"), "approved").unwrap();
     std::fs::write(worktree.join("not-approved.txt"), "not approved").unwrap();
-    assert!(rpc(
-        &server,
-        "task/gitCheckpoint",
-        json!({"taskId":id,"paths":["approved.txt"],"confirmed":false})
-    )
-    .await
-    .is_err());
-    assert!(rpc(
-        &server,
-        "task/gitCheckpoint",
-        json!({"taskId":id,"paths":["../elsewhere"],"confirmed":true})
-    )
-    .await
-    .is_err());
+    assert!(
+        rpc(
+            &server,
+            "task/gitCheckpoint",
+            json!({"taskId":id,"paths":["approved.txt"],"confirmed":false})
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        rpc(
+            &server,
+            "task/gitCheckpoint",
+            json!({"taskId":id,"paths":["../elsewhere"],"confirmed":true})
+        )
+        .await
+        .is_err()
+    );
     let result = rpc(
         &server,
         "task/gitCheckpoint",
@@ -129,13 +137,15 @@ async fn checkpoint_commits_only_explicit_files_and_never_the_human_branch() {
     .unwrap();
     assert_eq!(listed.trim(), "approved.txt");
     assert!(worktree.join("not-approved.txt").exists());
-    assert!(server
-        .events
-        .list(id, 10)
-        .await
-        .unwrap()
-        .iter()
-        .any(|e| e.kind == "git_checkpoint"));
+    assert!(
+        server
+            .events
+            .list(id, 10)
+            .await
+            .unwrap()
+            .iter()
+            .any(|e| e.kind == "git_checkpoint")
+    );
 
     let file = "中文说明.txt";
     std::fs::write(worktree.join(file), "fixture").unwrap();
@@ -146,13 +156,15 @@ async fn checkpoint_commits_only_explicit_files_and_never_the_human_branch() {
     )
     .await
     .unwrap();
-    assert!(Command::new("git")
-        .arg("-C")
-        .arg(worktree)
-        .args(["config", "core.quotePath", "true"])
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("git")
+            .arg("-C")
+            .arg(worktree)
+            .args(["config", "core.quotePath", "true"])
+            .status()
+            .unwrap()
+            .success()
+    );
     std::fs::remove_file(worktree.join(file)).unwrap();
     let saved = rpc(
         &server,
@@ -177,7 +189,7 @@ async fn checkpoint_commits_only_explicit_files_and_never_the_human_branch() {
 
 #[tokio::test]
 async fn automatic_policy_maps_real_execution_boundaries_only_after_human_opt_in() {
-    use jeeves_provider::{mock::Mock, Resolved};
+    use jeeves_provider::{Resolved, mock::Mock};
     let (_home, server, _model) = fixture().await;
     let repo = repo();
     let made = rpc(
@@ -215,13 +227,15 @@ async fn automatic_policy_maps_real_execution_boundaries_only_after_human_opt_in
             .unwrap()["enabled"],
         false
     );
-    assert!(rpc(
-        &server,
-        "task/gitCheckpointPolicy/set",
-        json!({"taskId":id,"paths":["result.txt"],"enabled":true,"confirmed":false})
-    )
-    .await
-    .is_err());
+    assert!(
+        rpc(
+            &server,
+            "task/gitCheckpointPolicy/set",
+            json!({"taskId":id,"paths":["result.txt"],"enabled":true,"confirmed":false})
+        )
+        .await
+        .is_err()
+    );
     assert_eq!(
         rpc(
             &server,

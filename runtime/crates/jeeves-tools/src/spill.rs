@@ -120,7 +120,9 @@ fn notice_for(omitted_lines: usize, total_chars: usize, path: Option<&str>) -> S
         Some(path) => format!(
             "…({total_chars} chars in total, truncated — {omitted_lines} lines omitted; full output at {path})"
         ),
-        None => format!("…({total_chars} characters in total, truncated — {omitted_lines} lines omitted)"),
+        None => format!(
+            "…({total_chars} characters in total, truncated — {omitted_lines} lines omitted)"
+        ),
     }
 }
 

@@ -1,7 +1,7 @@
 //! RFC 5397 / 4791 read-only discovery from a configured CalDAV service root.
 //! Never forward credentials outside the explicitly configured origin (for the iCloud
 //! root, also allow Apple's numbered CalDAV shard hosts). No XML entity expansion.
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use reqwest::{Client, Url};
 
 const MAX_XML: usize = 2 * 1024 * 1024;
@@ -187,7 +187,10 @@ fn collections(root: &Url, base: &Url, xml: &str) -> Result<Vec<Url>> {
         if !urls.contains(&url) {
             urls.push(url);
         }
-        anyhow::ensure!(urls.len()<=MAX_CALENDARS,"CalDAV account has more than eight collections; configure the desired collection URL explicitly");
+        anyhow::ensure!(
+            urls.len() <= MAX_CALENDARS,
+            "CalDAV account has more than eight collections; configure the desired collection URL explicitly"
+        );
     }
     anyhow::ensure!(
         !urls.is_empty(),

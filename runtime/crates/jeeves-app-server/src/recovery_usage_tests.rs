@@ -186,10 +186,11 @@ async fn a_charging_failure_keeps_evidence_and_requires_attention_until_retry() 
     crate::resume::resume_turn(&server, &sink, row.clone(), None).await;
     let task = server.tasks.get("task").await.unwrap().unwrap();
     assert_eq!(task.status, jeeves_state::TaskStatus::NeedsAttention);
-    assert!(task
-        .last_stop_reason
-        .unwrap()
-        .contains("could not be charged"));
+    assert!(
+        task.last_stop_reason
+            .unwrap()
+            .contains("could not be charged")
+    );
     assert_eq!(
         server
             .checkpoints

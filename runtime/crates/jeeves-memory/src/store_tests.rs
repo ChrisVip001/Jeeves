@@ -5,7 +5,7 @@ use jeeves_state::Facts;
 
 use crate::bundle::Bundle;
 use crate::mirror::{mirror_facts, reindex_from_pages};
-use crate::store::{apply, Change, Outcome};
+use crate::store::{Change, Outcome, apply};
 
 async fn home(name: &str) -> (Facts, Bundle) {
     let dir = tempfile::tempdir().expect("temp dir").keep().join(name);
@@ -228,18 +228,22 @@ async fn a_page_with_prose_is_never_overwritten_by_a_write() {
     )
     .await
     .unwrap();
-    assert!(bundle
-        .read("alex")
-        .unwrap()
-        .unwrap()
-        .body
-        .contains("My own notes."));
-    assert!(facts
-        .for_subject("alex")
-        .await
-        .unwrap()
-        .iter()
-        .any(|r| r.content == "keeps a cat"));
+    assert!(
+        bundle
+            .read("alex")
+            .unwrap()
+            .unwrap()
+            .body
+            .contains("My own notes.")
+    );
+    assert!(
+        facts
+            .for_subject("alex")
+            .await
+            .unwrap()
+            .iter()
+            .any(|r| r.content == "keeps a cat")
+    );
 }
 
 #[tokio::test]

@@ -59,20 +59,22 @@ async fn checkpoint_admission_records_the_round_before_work_can_start() {
         Some(2)
     );
     sqlx::query("CREATE TRIGGER fail_round BEFORE UPDATE OF rounds_used ON agent_tasks BEGIN SELECT RAISE(FAIL,'injected round failure'); END").execute(&pool).await.unwrap();
-    assert!(checkpoints
-        .save_numbered_round(crate::checkpoints::CheckpointWrite {
-            turn_id: "turn",
-            session_id: "chat",
-            user_message: "work",
-            messages_json: "[3]",
-            iterations: 1,
-            usage_json: "{}",
-            run_id: Some("run"),
-            round_id: Some("first"),
-            round_no: Some(1)
-        })
-        .await
-        .is_err());
+    assert!(
+        checkpoints
+            .save_numbered_round(crate::checkpoints::CheckpointWrite {
+                turn_id: "turn",
+                session_id: "chat",
+                user_message: "work",
+                messages_json: "[3]",
+                iterations: 1,
+                usage_json: "{}",
+                run_id: Some("run"),
+                round_id: Some("first"),
+                round_no: Some(1)
+            })
+            .await
+            .is_err()
+    );
     assert_eq!(
         checkpoints
             .get("turn")

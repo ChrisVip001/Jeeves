@@ -1,6 +1,6 @@
 use super::{FinishedTurn, TaskDecision};
-use crate::{dispatch::internal, EventSink, Server};
-use jeeves_protocol::{codes, ErrorObject, ServerNotification, TurnSuspendedNotification};
+use crate::{EventSink, Server, dispatch::internal};
+use jeeves_protocol::{ErrorObject, ServerNotification, TurnSuspendedNotification, codes};
 use jeeves_state::{RunStatus, TaskRow, TaskStatus};
 
 pub(super) struct Settlement {
@@ -54,10 +54,11 @@ pub(super) async fn settle_task(
     } else {
         ("done", None)
     };
-    if !wants_job_wait && !wants_input_wait {
-        if let Err(e) = server.checkpoints.finish(turn_id, final_status).await {
-            eprintln!("(jeeves) checkpoint close-out not recorded: {e}");
-        }
+    if !wants_job_wait
+        && !wants_input_wait
+        && let Err(e) = server.checkpoints.finish(turn_id, final_status).await
+    {
+        eprintln!("(jeeves) checkpoint close-out not recorded: {e}");
     }
 
     let carried_task = server.tasks.by_turn(turn_id).await.map_err(internal)?;

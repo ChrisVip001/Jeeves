@@ -120,7 +120,9 @@ async fn login(config_path: &Path, home: &Path, name: &str) -> Result<()> {
             )
         })?;
     if spec.get("oauth").and_then(serde_json::Value::as_bool) != Some(true) {
-        println!("Note: '{name}' does not set \"oauth\": true in mcp.json; trying the OAuth flow anyway.");
+        println!(
+            "Note: '{name}' does not set \"oauth\": true in mcp.json; trying the OAuth flow anyway."
+        );
     }
 
     println!("  Opening the authorisation page in the browser…");

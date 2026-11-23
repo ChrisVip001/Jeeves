@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use chrono::NaiveDate;
 
-use super::{cron_matches, due_now, last_missed, load_jobs, Delivery, Job};
+use super::{Delivery, Job, cron_matches, due_now, last_missed, load_jobs};
 
 fn at(y: i32, m: u32, d: u32, hh: u32, mm: u32) -> chrono::NaiveDateTime {
     NaiveDate::from_ymd_opt(y, m, d)
@@ -82,8 +82,8 @@ fn the_same_minute_only_fires_once() {
 async fn firing_runs_a_turn_and_writes_the_reply_to_the_outbox() {
     use std::sync::Arc;
 
-    use jeeves_provider::mock::Mock;
     use jeeves_provider::Resolved;
+    use jeeves_provider::mock::Mock;
 
     let dir = tempfile::tempdir().expect("temp dir");
     let home = dir.path().to_path_buf();
@@ -349,7 +349,7 @@ async fn an_uncertain_trigger_is_not_replayed_and_requires_explicit_review() {
     if !jeeves_tools::exec::sandbox_available() {
         return;
     }
-    use jeeves_provider::{mock::Mock, Resolved};
+    use jeeves_provider::{Resolved, mock::Mock};
     use std::sync::Arc;
     let home = tempfile::tempdir().unwrap();
     let effects = tempfile::tempdir().unwrap();
@@ -400,17 +400,19 @@ async fn an_uncertain_trigger_is_not_replayed_and_requires_explicit_review() {
         Some("2026-11-13T08:00")
     );
     super::acknowledge(&server, "uncertain").await.unwrap();
-    assert!(schedules
-        .pending_claim("uncertain")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        schedules
+            .pending_claim("uncertain")
+            .await
+            .unwrap()
+            .is_none()
+    );
     assert_eq!(mock.received.lock().unwrap().len(), 1);
 }
 
 mod gap_tests {
     use super::*;
-    use crate::scheduler::gap::{is_gap, missed_in_gap, verdict, Verdict};
+    use crate::scheduler::gap::{Verdict, is_gap, missed_in_gap, verdict};
 
     #[test]
     fn only_a_forward_jump_beyond_a_tick_is_a_gap() {
@@ -488,7 +490,7 @@ mod gap_tests {
 
 mod gap_reconcile_tests {
     use super::*;
-    use crate::{scheduler::gap, Server};
+    use crate::{Server, scheduler::gap};
     use jeeves_provider::Resolved;
     use std::sync::Arc;
 

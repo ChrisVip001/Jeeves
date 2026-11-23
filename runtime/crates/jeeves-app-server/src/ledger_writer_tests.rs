@@ -2,7 +2,7 @@
 
 use jeeves_provider::{ContentBlock, Message, Role};
 
-use crate::ledger_writer::{entries_for_turn, LedgerSink};
+use crate::ledger_writer::{LedgerSink, entries_for_turn};
 
 fn kinds(entries: &[jeeves_state::NewEntry]) -> Vec<&'static str> {
     entries.iter().map(|entry| entry.kind).collect()

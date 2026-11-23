@@ -183,14 +183,13 @@ pub(crate) async fn finish_task(
         if let Err(error) = server.checkpoints.finish(turn_id, "suspended").await {
             eprintln!("(jeeves) checkpoint could not be retained for review: {error}");
         }
-        if let Some(run_id) = run_id {
-            if let Err(error) = server
+        if let Some(run_id) = run_id
+            && let Err(error) = server
                 .runs
                 .close(run_id, jeeves_state::RunStatus::Waiting, Some(&message))
                 .await
-            {
-                eprintln!("(jeeves) run could not be retained for review: {error}");
-            }
+        {
+            eprintln!("(jeeves) run could not be retained for review: {error}");
         }
         if let Err(error) = server.tasks.needs_attention(task_id, &message).await {
             eprintln!("(jeeves) task attention state could not be recorded: {error}");

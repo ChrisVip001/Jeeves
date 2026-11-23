@@ -1,6 +1,6 @@
 use crate::{
-    schedule_completions::{ScheduleCompletion, ScheduleCompletions},
     Schedules,
+    schedule_completions::{ScheduleCompletion, ScheduleCompletions},
 };
 
 #[tokio::test]
@@ -98,24 +98,30 @@ async fn an_uncertain_schedule_stays_claimed_until_human_review() {
     })
     .await
     .unwrap();
-    assert!(!schedules
-        .claim_once("job", "2026-11-13T08:01")
-        .await
-        .unwrap());
+    assert!(
+        !schedules
+            .claim_once("job", "2026-11-13T08:01")
+            .await
+            .unwrap()
+    );
     assert!(schedules.last_fired("job").await.unwrap().is_none());
     assert_eq!(
         rows.acknowledge("job").await.unwrap().as_deref(),
         Some("2026-11-13T08:00")
     );
     assert!(rows.acknowledge("job").await.unwrap().is_none());
-    assert!(!schedules
-        .claim_once("job", "2026-11-13T08:00")
-        .await
-        .unwrap());
-    assert!(schedules
-        .claim_once("job", "2026-11-13T08:01")
-        .await
-        .unwrap());
+    assert!(
+        !schedules
+            .claim_once("job", "2026-11-13T08:00")
+            .await
+            .unwrap()
+    );
+    assert!(
+        schedules
+            .claim_once("job", "2026-11-13T08:01")
+            .await
+            .unwrap()
+    );
     let reviewed: Option<String> =
         sqlx::query_scalar("SELECT reviewed_at FROM schedule_completions WHERE name='job'")
             .fetch_one(&pool)

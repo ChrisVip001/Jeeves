@@ -5,10 +5,10 @@ mod wire;
 pub(crate) use delivery::notify;
 pub(crate) use subscription::{forget, public_key, subscribe};
 
-use crate::{dispatch::internal, Server};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use crate::{Server, dispatch::internal};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use jeeves_protocol::*;
-use ring::signature::{UnparsedPublicKey, ED25519};
+use ring::signature::{ED25519, UnparsedPublicKey};
 use sqlx::SqliteConnection;
 
 fn signed(p: &ApprovalNoticeParams, approved: Option<bool>, proof: &str) -> bool {

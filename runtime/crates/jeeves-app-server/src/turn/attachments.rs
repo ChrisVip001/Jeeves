@@ -1,4 +1,4 @@
-use jeeves_protocol::{codes, ErrorObject, TurnStartParams};
+use jeeves_protocol::{ErrorObject, TurnStartParams, codes};
 
 use crate::Server;
 
@@ -42,7 +42,7 @@ pub(super) fn resolve_attachments(
     };
     if !vision {
         return Err(bad(format!(
-"The model on this configuration ({provider_id}) cannot take images. Declare vision for it: /model add <name> {provider_id} <model> --vision (the same as adding \"vision\": true to that entry in <home>/models.json); to make it true of the whole provider, add \"vision\": true to its row in <home>/models-catalog.json and restart."
+            "The model on this configuration ({provider_id}) cannot take images. Declare vision for it: /model add <name> {provider_id} <model> --vision (the same as adding \"vision\": true to that entry in <home>/models.json); to make it true of the whole provider, add \"vision\": true to its row in <home>/models-catalog.json and restart."
         )));
     }
     let home = server.settings().home;
@@ -99,7 +99,7 @@ pub(super) fn resolve_attachments(
         })?;
         if width > crate::image_meta::MAX_EDGE || height > crate::image_meta::MAX_EDGE {
             return Err(bad(format!(
-"Attachment {} is {width}×{height}, one side over the local conservative limit of {}: a remote vision model would refuse it outright (a bare \"unsupported image\"), so it is caught here. Send a long screenshot in pieces — a few images no taller than {} keep the text legible; squeezing it into one only blurs it.",
+                "Attachment {} is {width}×{height}, one side over the local conservative limit of {}: a remote vision model would refuse it outright (a bare \"unsupported image\"), so it is caught here. Send a long screenshot in pieces — a few images no taller than {} keep the text legible; squeezing it into one only blurs it.",
                 attachment.path,
                 crate::image_meta::MAX_EDGE,
                 crate::image_meta::MAX_EDGE

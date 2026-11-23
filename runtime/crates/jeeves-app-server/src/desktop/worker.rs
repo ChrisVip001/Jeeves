@@ -1,5 +1,5 @@
 //! One ordered request at a time. Shutdown interrupts a blocked read and reaps the child.
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use jeeves_protocol::{DesktopWorkerCommand as Command, DesktopWorkerReply as Reply};
 use std::{path::Path, process::Stdio, time::Duration};
 use tokio::{

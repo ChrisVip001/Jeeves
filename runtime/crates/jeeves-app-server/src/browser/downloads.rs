@@ -1,7 +1,7 @@
 //! Human-approved files are published under Runtime-owned directories. The page never supplies a path.
-use super::{store, BrowserHost, Session};
-use anyhow::{anyhow, ensure, Context, Result};
-use base64::{engine::general_purpose::STANDARD, Engine};
+use super::{BrowserHost, Session, store};
+use anyhow::{Context, Result, anyhow, ensure};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use jeeves_protocol::*;
 use sqlx::{FromRow, SqlitePool};
 use std::{
@@ -112,10 +112,10 @@ pub(crate) async fn recover(pool: &SqlitePool, home: &Path) -> Result<()> {
     .fetch_all(pool)
     .await?;
     for (session, id) in rows {
-        if let Some(row) = pending(pool, &session, &id).await? {
-            if let Err(error) = deliver(pool, home, row).await {
-                eprintln!("(jeeves) accepted browser download {id} still needs delivery: {error}");
-            }
+        if let Some(row) = pending(pool, &session, &id).await?
+            && let Err(error) = deliver(pool, home, row).await
+        {
+            eprintln!("(jeeves) accepted browser download {id} still needs delivery: {error}");
         }
     }
     Ok(())

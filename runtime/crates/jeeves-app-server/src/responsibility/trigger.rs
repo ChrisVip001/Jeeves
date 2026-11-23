@@ -1,6 +1,6 @@
 //! Normalize owner-approved times and admit one durable occurrence per slot.
 use super::Server;
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use chrono::{DateTime, LocalResult, TimeZone, Utc};
 use chrono_tz::Tz;
 use jeeves_protocol::{ResponsibilityPlan, ResponsibilityTrigger as Trigger};
@@ -199,22 +199,22 @@ pub(super) fn describe(trigger: &Trigger) -> String {
             time_zone,
         } => {
             let fields: Vec<_> = expression.split_ascii_whitespace().collect();
-            if let [minute, hour, "*", "*", days] = fields.as_slice() {
-                if let (Ok(minute), Ok(hour)) = (minute.parse::<u8>(), hour.parse::<u8>()) {
-                    let days: String = if *days == "*" {
-                        "Every day".into()
-                    } else {
-                        let labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-                        days.chars()
-                            .map(|c| {
-                                c.to_digit(10)
-                                    .and_then(|n| labels.get(n as usize))
-                                    .map_or_else(|| c.to_string(), |day| (*day).into())
-                            })
-                            .collect()
-                    };
-                    return format!("{days} {hour:02}:{minute:02} {time_zone}");
-                }
+            if let [minute, hour, "*", "*", days] = fields.as_slice()
+                && let (Ok(minute), Ok(hour)) = (minute.parse::<u8>(), hour.parse::<u8>())
+            {
+                let days: String = if *days == "*" {
+                    "Every day".into()
+                } else {
+                    let labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                    days.chars()
+                        .map(|c| {
+                            c.to_digit(10)
+                                .and_then(|n| labels.get(n as usize))
+                                .map_or_else(|| c.to_string(), |day| (*day).into())
+                        })
+                        .collect()
+                };
+                return format!("{days} {hour:02}:{minute:02} {time_zone}");
             }
             format!("Calendar schedule ({time_zone})")
         }
@@ -309,7 +309,7 @@ pub(super) async fn tick(server: &Server, now: DateTime<Utc>) -> Result<(), sqlx
 
 mod claim {
     use super::*;
-    use jeeves_state::responsibility_runs::{admit_on, Occurrence};
+    use jeeves_state::responsibility_runs::{Occurrence, admit_on};
 
     pub(super) struct Claim<'a> {
         pub id: &'a str,

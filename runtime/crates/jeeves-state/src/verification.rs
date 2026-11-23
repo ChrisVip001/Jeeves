@@ -1,5 +1,5 @@
 //! Immutable verification receipts bind acceptance to observed file content and an exact run.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sha2::{Digest, Sha256};
 use sqlx::{FromRow, SqlitePool};
 use std::{io::Read, path::Path};

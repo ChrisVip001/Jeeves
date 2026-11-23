@@ -11,8 +11,8 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use tower::ServiceExt;
 
-use crate::client::client_tests::{fake_at, Fake};
-use crate::{router, Gate};
+use crate::client::client_tests::{Fake, fake_at};
+use crate::{Gate, router};
 
 fn hooks_file(home: &Path, json: &str) {
     std::fs::write(home.join("webhooks.json"), json).expect("write webhooks.json");

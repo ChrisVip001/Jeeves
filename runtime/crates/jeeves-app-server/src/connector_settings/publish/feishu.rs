@@ -1,6 +1,6 @@
 //! Feishu integration with account, destination and read-back verification.
 use super::{Check, Outbound, Request};
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use jeeves_connector::{
     config,
     feishu::{self, Delivery, TokenCache},

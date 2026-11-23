@@ -169,14 +169,18 @@ async fn persist(
         };
         for &old in &fact.replaces {
             if !known.contains(&old) {
-                eprintln!("(jeeves) ignored a replacement of fact {old}: it was not among the facts shown to the distiller");
+                eprintln!(
+                    "(jeeves) ignored a replacement of fact {old}: it was not among the facts shown to the distiller"
+                );
             } else if facts.supersede(old, row.id).await? {
                 eprintln!(
                     "(jeeves) memory fact {old} retired: replaced by fact {} ({subject}: {content})",
                     row.id
                 );
             } else {
-                eprintln!("(jeeves) kept fact {old}: only consolidation's own unbounded facts on the same subject can be replaced");
+                eprintln!(
+                    "(jeeves) kept fact {old}: only consolidation's own unbounded facts on the same subject can be replaced"
+                );
             }
         }
         if !is_new {

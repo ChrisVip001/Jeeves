@@ -74,7 +74,10 @@ pub fn acquire(home: &Path) -> Result<DaemonLock, String> {
                 .and_then(|text| text.trim().parse::<u32>().ok())
                 .map(|pid| pid.to_string())
                 .unwrap_or_else(|| "unknown".into());
-            return Err(format!("A Jeeves runtime for this state database is already running (pid {pid}, lock {}). Use its client or stop it before starting another runtime.",lock_path.display()));
+            return Err(format!(
+                "A Jeeves runtime for this state database is already running (pid {pid}, lock {}). Use its client or stop it before starting another runtime.",
+                lock_path.display()
+            ));
         }
         return Err(format!(
             "Runtime ownership lock failed ({}): {error}",

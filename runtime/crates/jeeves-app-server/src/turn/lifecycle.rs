@@ -1,12 +1,12 @@
 use super::run_turn;
-use crate::{narrow, EventSink, Server};
+use crate::{EventSink, Server, narrow};
 use jeeves_protocol::{
-    codes, RequestId, RetryNotification, ServerNotification, TurnCheckpointedNotification,
-    TurnStartParams,
+    RequestId, RetryNotification, ServerNotification, TurnCheckpointedNotification,
+    TurnStartParams, codes,
 };
 use jeeves_state::TaskRow;
-use std::sync::atomic::{AtomicI32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI32, Ordering};
 
 /// The checkpoint outlet, constructed once per turn (fresh or resumed): every tool-results
 /// boundary lands in state.db before execution advances. A failed save stops the turn;

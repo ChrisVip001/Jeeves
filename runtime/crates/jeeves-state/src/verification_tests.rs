@@ -1,6 +1,6 @@
 use crate::{
-    verification::{FileMeasurement, Verifications},
     NewTask, Tasks,
+    verification::{FileMeasurement, Verifications},
 };
 
 #[tokio::test]
@@ -33,15 +33,17 @@ async fn receipts_bind_versions_roll_back_with_checks_and_follow_reverted_conten
     let original = FileMeasurement::read(&file).unwrap();
     let store = Verifications::new(pool.clone());
     let checks = r#"[{"label":"report exists","passed":true,"detail":"Measured file"}]"#;
-    assert!(tasks
-        .finish_run(
-            "task",
-            crate::TaskStatus::Done,
-            Some("No evidence yet"),
-            Some("run")
-        )
-        .await
-        .is_err());
+    assert!(
+        tasks
+            .finish_run(
+                "task",
+                crate::TaskStatus::Done,
+                Some("No evidence yet"),
+                Some("run")
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(
         tasks.get("task").await.unwrap().unwrap().status,
         crate::TaskStatus::Running
@@ -77,17 +79,19 @@ async fn receipts_bind_versions_roll_back_with_checks_and_follow_reverted_conten
     sqlx::query("CREATE TRIGGER fail_verification_receipt BEFORE INSERT ON task_verifications BEGIN SELECT RAISE(FAIL,'injected verification receipt failure'); END").execute(&pool).await.unwrap();
     let different_checks =
         r#"[{"label":"report exists","passed":true,"detail":"New measured version"}]"#;
-    assert!(store
-        .record(
-            "task",
-            "run",
-            "round",
-            acceptance,
-            different_checks,
-            std::slice::from_ref(&changed)
-        )
-        .await
-        .is_err());
+    assert!(
+        store
+            .record(
+                "task",
+                "run",
+                "round",
+                acceptance,
+                different_checks,
+                std::slice::from_ref(&changed)
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(
         tasks.get("task").await.unwrap().unwrap().checks_json,
         checks

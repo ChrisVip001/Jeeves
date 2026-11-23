@@ -45,19 +45,23 @@ fn an_allowlist_entry_that_is_not_an_open_id_is_refused() {
 async fn start_refuses_without_credentials_and_says_why() {
     let (_dir, gateways) = gateways();
     gateways.set_url("http://127.0.0.1:1".into());
-    assert!(gateways
-        .start()
-        .await
-        .unwrap_err()
-        .to_string()
-        .contains("App ID"));
+    assert!(
+        gateways
+            .start()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("App ID")
+    );
     gateways.save(config(&[]), None).unwrap();
-    assert!(gateways
-        .start()
-        .await
-        .unwrap_err()
-        .to_string()
-        .contains("App Secret"));
+    assert!(
+        gateways
+            .start()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("App Secret")
+    );
 }
 
 #[tokio::test]
@@ -71,10 +75,12 @@ async fn only_the_waiting_sender_can_be_confirmed_as_owner() {
         "a different id is not the candidate"
     );
     gateways.save(config(&["ou_owner"]), None).unwrap();
-    assert!(gateways
-        .claim("ou_a")
-        .await
-        .unwrap_err()
-        .to_string()
-        .contains("already"));
+    assert!(
+        gateways
+            .claim("ou_a")
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("already")
+    );
 }

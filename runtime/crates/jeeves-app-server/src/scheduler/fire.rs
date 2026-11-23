@@ -1,6 +1,6 @@
 //! One claimed schedule execution; output delivery never reruns the model turn.
-use super::{append_run_log, run_log_line, Delivery, Job};
-use crate::{run_turn, EventSink, Frame, Server};
+use super::{Delivery, Job, append_run_log, run_log_line};
+use crate::{EventSink, Frame, Server, run_turn};
 use anyhow::Result;
 use chrono::NaiveDateTime;
 use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams};
@@ -123,7 +123,14 @@ pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Resul
     let file_name = (job.delivery != Delivery::Quiet)
         .then(|| format!("schedule-{}-{}.md", job.name, at.format("%Y%m%d-%H%M")));
     let body = if file_name.is_some() {
-        format!("# {}\n\n_fired by the Runtime at {} on cron '{}' _\n\n## Request\n\n{}\n\n## Answer\n\n{}\n",job.name,at.format("%Y-%m-%d %H:%M"),job.cron,job.prompt,reply)
+        format!(
+            "# {}\n\n_fired by the Runtime at {} on cron '{}' _\n\n## Request\n\n{}\n\n## Answer\n\n{}\n",
+            job.name,
+            at.format("%Y-%m-%d %H:%M"),
+            job.cron,
+            job.prompt,
+            reply
+        )
     } else {
         String::new()
     };

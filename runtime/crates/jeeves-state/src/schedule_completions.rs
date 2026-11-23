@@ -1,5 +1,5 @@
 //! Settle a trigger and produce its outcome/notification receipt in one transaction.
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use sqlx::{FromRow, SqlitePool};
 
 pub struct ScheduleCompletion<'a> {

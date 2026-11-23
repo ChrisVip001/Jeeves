@@ -19,10 +19,10 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -209,7 +209,9 @@ async fn renew_forever(config: FeishuConfig, home: PathBuf) {
                 return;
             }
             Err(error) => {
-                eprintln!("(jeeves) the Feishu user token was not refreshed this time; trying again in 5 minutes: {error:#}");
+                eprintln!(
+                    "(jeeves) the Feishu user token was not refreshed this time; trying again in 5 minutes: {error:#}"
+                );
                 tokio::time::sleep(RETRY_BACKOFF).await;
             }
         }
@@ -365,17 +367,17 @@ async fn exchange(config: &FeishuConfig, payload: &Value) -> Result<UserToken> {
         .json()
         .await
         .context("the Feishu authorisation endpoint did not return JSON")?;
-    if let Some(code) = body.get("code").and_then(Value::as_i64) {
-        if code != 0 {
-            return Err(anyhow::Error::new(Rejected(format!(
-                "Feishu refused to exchange the token: {} {} (redirect_uri must be registered exactly in the app console)",
-                code,
-                body.get("error_description")
-                    .or_else(|| body.get("msg"))
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-            ))));
-        }
+    if let Some(code) = body.get("code").and_then(Value::as_i64)
+        && code != 0
+    {
+        return Err(anyhow::Error::new(Rejected(format!(
+            "Feishu refused to exchange the token: {} {} (redirect_uri must be registered exactly in the app console)",
+            code,
+            body.get("error_description")
+                .or_else(|| body.get("msg"))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+        ))));
     }
     let access_token = body
         .get("access_token")
@@ -432,10 +434,10 @@ async fn wait_for_code(listener: TcpListener, expected_state: &str) -> Result<St
             body
         );
         let _ = stream.write_all(reply.as_bytes()).await;
-        if let (Some(code), Some(state)) = (code, state) {
-            if state == expected_state {
-                return Ok(code);
-            }
+        if let (Some(code), Some(state)) = (code, state)
+            && state == expected_state
+        {
+            return Ok(code);
         }
     }
 }

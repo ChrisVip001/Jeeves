@@ -1,5 +1,5 @@
 //! Accept authenticated source observations into the same wake inbox as timer slots.
-use super::{internal, invalid, trigger, ErrorObject, Server};
+use super::{ErrorObject, Server, internal, invalid, trigger};
 use chrono::{DateTime, Utc};
 use jeeves_protocol::{ResponsibilityEvent, ResponsibilityEventReceipt, ResponsibilityTrigger};
 use serde::Deserialize;
@@ -216,7 +216,7 @@ pub(crate) async fn admit(
     ).bind(ms).bind(&input.source).bind(&input.event_type).fetch_all(&mut *tx).await.map_err(internal)?;
     let mut admitted = 0;
     for (id, revision, enabled_at) in rows {
-        use jeeves_state::responsibility_runs::{admit_on, Occurrence};
+        use jeeves_state::responsibility_runs::{Occurrence, admit_on};
         let key = format!(
             "responsibility:{id}:event:{}:{}:{}",
             input.source, input.event_type, input.event_id

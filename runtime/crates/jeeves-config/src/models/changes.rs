@@ -1,6 +1,6 @@
 //! Profile metadata is the commit point for a credential replacement. The previous key stays
 //! usable until then. A pointer-only intent lets the next process retire the unused key.
-use super::{find, remove, save_models, upsert, ModelProfile, ModelsFile, SecretStore};
+use super::{ModelProfile, ModelsFile, SecretStore, find, remove, save_models, upsert};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -36,11 +36,7 @@ impl CredentialSlot {
     }
 
     fn next(self) -> Self {
-        if self == Self::A {
-            Self::B
-        } else {
-            Self::A
-        }
+        if self == Self::A { Self::B } else { Self::A }
     }
 }
 
@@ -224,10 +220,8 @@ pub fn save_profile(
         *file = candidate;
         Ok(source)
     })();
-    if switching {
-        if let Err(e) = recover_change(home, file, store) {
-            eprintln!("(jeeves) model credential cleanup pending: {e}");
-        }
+    if switching && let Err(e) = recover_change(home, file, store) {
+        eprintln!("(jeeves) model credential cleanup pending: {e}");
     }
     result
 }

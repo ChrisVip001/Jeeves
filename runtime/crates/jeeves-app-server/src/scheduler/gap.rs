@@ -6,7 +6,7 @@
 
 use chrono::{NaiveDateTime, TimeDelta};
 
-use super::{last_missed, Job};
+use super::{Job, last_missed};
 
 /// The loop ticks every 20 s; more than this between two ticks means the clock jumped.
 pub const GAP_THRESHOLD_SECS: i64 = 90;
@@ -100,7 +100,10 @@ pub(super) async fn reconcile(
                     ..job.clone()
                 };
                 if let Err(error) = super::fire::fire(server, &late, now).await {
-                    eprintln!("(jeeves) the catch-up run of job '{}' failed: {error}", job.name);
+                    eprintln!(
+                        "(jeeves) the catch-up run of job '{}' failed: {error}",
+                        job.name
+                    );
                 }
                 fired.insert(job.name.clone(), now.format("%Y-%m-%dT%H:%M").to_string());
             }

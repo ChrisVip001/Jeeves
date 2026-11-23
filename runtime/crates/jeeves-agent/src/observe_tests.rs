@@ -6,7 +6,7 @@
 use crate::observe::SettledCall;
 use serde_json::json;
 
-use crate::observe::{observe, Fact};
+use crate::observe::{Fact, observe};
 
 fn round(tool: &str, args: serde_json::Value, output: &str, success: bool) -> Vec<SettledCall> {
     vec![SettledCall {
@@ -158,7 +158,9 @@ fn a_denied_write_to_an_existing_file_cannot_publish_an_artifact() {
         "Denied",
         false,
     );
-    assert!(observe(&messages, "turn", Some(dir.path()))
-        .artifacts()
-        .is_empty());
+    assert!(
+        observe(&messages, "turn", Some(dir.path()))
+            .artifacts()
+            .is_empty()
+    );
 }

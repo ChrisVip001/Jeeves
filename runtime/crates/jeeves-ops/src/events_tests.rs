@@ -7,9 +7,9 @@
 
 use super::api::EventPing;
 use super::router_tests::{auto_respond, fake, status_of};
-use axum::body::Body;
-use axum::http::{header, Request, StatusCode};
 use axum::Router;
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
 use jeeves_protocol::{ServerNotification, TurnStartedNotification};
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -124,10 +124,12 @@ async fn no_cross_origin_access_to_the_api() {
         )
         .await
         .expect("the routed response");
-    assert!(response
-        .headers()
-        .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
-        .is_none());
+    assert!(
+        response
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .is_none()
+    );
 }
 
 #[test]

@@ -14,14 +14,14 @@ use chrono::Local;
 
 /// Append one JSON line. Create the directory if missing; report write failures to stderr, never panic.
 fn append_jsonl(path: &Path, line: &str) {
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            eprintln!(
-                "(jeeves) the spill directory could not be created ({}): {e}",
-                parent.display()
-            );
-            return;
-        }
+    if let Some(parent) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        eprintln!(
+            "(jeeves) the spill directory could not be created ({}): {e}",
+            parent.display()
+        );
+        return;
     }
     match std::fs::OpenOptions::new()
         .create(true)

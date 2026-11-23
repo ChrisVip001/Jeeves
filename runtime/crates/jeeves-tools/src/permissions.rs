@@ -1,7 +1,7 @@
 //! The host owns authorization; tools know only this boundary.
 use crate::{
-    approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest},
     ToolCtx,
+    approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest},
 };
 use serde_json::Value;
 use std::{future::Future, pin::Pin};

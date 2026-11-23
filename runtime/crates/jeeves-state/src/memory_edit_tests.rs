@@ -19,11 +19,13 @@ async fn memory_edits_are_atomic_and_invalidate_old_vectors() {
         .await
         .unwrap();
     facts.update(row.id, "New address").await.unwrap();
-    assert!(facts
-        .add_consolidated("person", " old address ", "user")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_consolidated("person", " old address ", "user")
+            .await
+            .unwrap()
+            .is_none()
+    );
     let stored = facts.recent(10, 0).await.unwrap();
     assert_eq!(stored[0].source, "user");
     assert_eq!(stored[0].content, "New address");
@@ -41,20 +43,24 @@ async fn explicit_memory_writes_do_not_reenable_automatic_subject_extraction() {
     let pool = crate::open(&home.path().join("state.db")).await.unwrap();
     let facts = Facts::new(pool.clone());
     facts.forget_subject("project").await.unwrap();
-    assert!(facts
-        .add_consolidated("project", "Old detail", "project")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_consolidated("project", "Old detail", "project")
+            .await
+            .unwrap()
+            .is_none()
+    );
     let (row, _) = facts
         .add("project", "Explicit new detail", "user", "project")
         .await
         .unwrap();
-    assert!(facts
-        .add_consolidated("project", "Old detail", "project")
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        facts
+            .add_consolidated("project", "Old detail", "project")
+            .await
+            .unwrap()
+            .is_none()
+    );
     facts.delete(row.id).await.unwrap();
     facts
         .add("project", "Explicit new detail", "user", "project")
@@ -105,10 +111,12 @@ async fn extraction_context_is_atomic_deduplicated_and_cleared_on_correction() {
         .unwrap();
     assert_eq!(facts.meta(row.id).await.unwrap().unwrap().confirm_count, 2);
     sqlx::query("CREATE TRIGGER fail_observation BEFORE INSERT ON memory_observations BEGIN SELECT RAISE(FAIL,'injected observation failure'); END").execute(&pool).await.unwrap();
-    assert!(facts
-        .add_consolidated_from("person", "Likes coffee", "user", &refs)
-        .await
-        .is_err());
+    assert!(
+        facts
+            .add_consolidated_from("person", "Likes coffee", "user", &refs)
+            .await
+            .is_err()
+    );
     assert!(facts.search("coffee", 10).await.unwrap().is_empty());
     sqlx::query("DROP TRIGGER fail_observation")
         .execute(&pool)
@@ -144,18 +152,22 @@ async fn validity_filters_all_recall_paths_without_destroying_history() {
     assert!(facts.subjects().await.unwrap().is_empty());
     assert!(facts.all_by_subject(10).await.unwrap().is_empty());
     assert_eq!(facts.count().await.unwrap(), 1);
-    assert!(facts
-        .set_validity(row.id, Some("invalid"), None)
-        .await
-        .is_err());
-    assert!(facts
-        .set_validity(
-            row.id,
-            Some("2030-01-01T00:00:00Z"),
-            Some("2000-01-01T00:00:00Z")
-        )
-        .await
-        .is_err());
+    assert!(
+        facts
+            .set_validity(row.id, Some("invalid"), None)
+            .await
+            .is_err()
+    );
+    assert!(
+        facts
+            .set_validity(
+                row.id,
+                Some("2030-01-01T00:00:00Z"),
+                Some("2000-01-01T00:00:00Z")
+            )
+            .await
+            .is_err()
+    );
     assert_eq!(
         facts.validity(row.id).await.unwrap().1.as_deref(),
         Some("2000-01-01T00:00:00+00:00")

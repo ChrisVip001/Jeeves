@@ -1,7 +1,7 @@
 //! Validate durable constraints before any planning, retrieval, or execution model call.
 use crate::{EventSink, Server};
 use jeeves_agent::verify::Acceptance;
-use jeeves_protocol::{codes, ErrorObject};
+use jeeves_protocol::{ErrorObject, codes};
 use jeeves_state::TaskRow;
 
 pub(crate) fn validate(task: &TaskRow) -> Result<Vec<Acceptance>, String> {
@@ -145,12 +145,11 @@ pub(crate) async fn stop_recovery(
         eprintln!("(jeeves) recovery review could not be committed: {error}");
         return;
     }
-    if let Some(id) = &row.run_id {
-        if let Ok(Some(run)) = server.runs.get(id).await {
-            if let Ok(Some(task)) = server.tasks.get(&run.task_id).await {
-                crate::task::notify(sink, &task, task.last_stop_reason.as_deref());
-            }
-        }
+    if let Some(id) = &row.run_id
+        && let Ok(Some(run)) = server.runs.get(id).await
+        && let Ok(Some(task)) = server.tasks.get(&run.task_id).await
+    {
+        crate::task::notify(sink, &task, task.last_stop_reason.as_deref());
     }
 }
 

@@ -313,9 +313,11 @@ fn removing_a_server_only_touches_the_users_file() {
     )
     .expect("write the config");
 
-    assert!(remove_server(home.path(), "cloud")
-        .unwrap_err()
-        .contains("no connector named"));
+    assert!(
+        remove_server(home.path(), "cloud")
+            .unwrap_err()
+            .contains("no connector named")
+    );
     assert!(remove_server(home.path(), "../escape").is_err());
     remove_server(home.path(), "fs").expect("it deletes");
 

@@ -1,7 +1,7 @@
 use crate::task::waits::arm;
 use crate::{EventSink, Server};
-use jeeves_provider::{mock::Mock, Resolved};
-use jeeves_state::waits::{JobWaits, JOB_WAIT_REASON};
+use jeeves_provider::{Resolved, mock::Mock};
+use jeeves_state::waits::{JOB_WAIT_REASON, JobWaits};
 use std::sync::Arc;
 
 async fn fixture() -> (Server, Arc<Mock>, tempfile::TempDir) {
@@ -105,10 +105,12 @@ async fn a_waiting_task_wakes_on_known_job_completion_and_verifies() {
     {
         let requests = mock.received.lock().unwrap();
         assert_eq!(requests.len(), 2);
-        assert!(requests[1]
-            .messages
-            .iter()
-            .any(|m| m.text().contains("job: completed")));
+        assert!(
+            requests[1]
+                .messages
+                .iter()
+                .any(|m| m.text().contains("job: completed"))
+        );
     }
     assert_eq!(
         JobWaits::new(server.pool.clone())

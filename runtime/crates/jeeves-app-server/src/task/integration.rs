@@ -2,8 +2,8 @@
 //! Git changes only the pending parent's worktree. The parent still runs its own final checks.
 use super::git_checkpoint::{git, validate_root};
 use super::{invalid, reload, worktree};
-use crate::{dispatch::internal, Server};
-use jeeves_agent::verify::{parse_checked, Acceptance};
+use crate::{Server, dispatch::internal};
+use jeeves_agent::verify::{Acceptance, parse_checked};
 use jeeves_protocol::{ErrorObject, TaskGitCheckpointResponse, TaskIntegrateParams};
 use jeeves_state::TaskStatus;
 use std::path::Path;

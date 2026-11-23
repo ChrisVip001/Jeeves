@@ -2,7 +2,7 @@
 
 use super::refusal;
 use crate::AppServer;
-use axum::{extract::Extension, response::IntoResponse, response::Response, Json};
+use axum::{Json, extract::Extension, response::IntoResponse, response::Response};
 use jeeves_config::{models::SecretStore, vault};
 use serde::Deserialize;
 use serde_json::json;

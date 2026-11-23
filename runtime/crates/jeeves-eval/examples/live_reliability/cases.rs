@@ -189,20 +189,25 @@ mod tests {
             assert_eq!(result["passed"], expected);
             assert_eq!(result["qualityReview"], "pending");
             assert_eq!(result["input"], scenario.message);
-            assert!(mock.received.lock().unwrap().iter().any(|request| request
-                .system_text()
-                .unwrap_or_default()
-                .contains("No tools are available")));
-            assert!(mock.received.lock().unwrap().iter().any(|request| request
-                .system_text()
-                .unwrap_or_default()
-                .contains("Current-message references are not remembered history.")));
-            assert!(mock
-                .received
-                .lock()
-                .unwrap()
-                .iter()
-                .all(|request| request.tools.is_empty()));
+            assert!(mock.received.lock().unwrap().iter().any(|request| {
+                request
+                    .system_text()
+                    .unwrap_or_default()
+                    .contains("No tools are available")
+            }));
+            assert!(mock.received.lock().unwrap().iter().any(|request| {
+                request
+                    .system_text()
+                    .unwrap_or_default()
+                    .contains("Current-message references are not remembered history.")
+            }));
+            assert!(
+                mock.received
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .all(|request| request.tools.is_empty())
+            );
         }
         Ok(())
     }

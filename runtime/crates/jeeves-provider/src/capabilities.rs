@@ -108,10 +108,12 @@ mod tests {
             max_tokens: 10,
         };
         assert!(checked.create(request.clone()).await.is_err());
-        assert!(checked
-            .stream(request.clone(), Arc::new(|_| {}))
-            .await
-            .is_err());
+        assert!(
+            checked
+                .stream(request.clone(), Arc::new(|_| {}))
+                .await
+                .is_err()
+        );
         assert_eq!(inner.0.load(Ordering::SeqCst), 0);
         let incompatible = Checked {
             inner: inner.clone(),

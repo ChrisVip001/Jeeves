@@ -33,11 +33,11 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::AsyncReadExt;
 
 use crate::approval::RememberTarget;
-use crate::{require_str, Tool, ToolCtx};
+use crate::{Tool, ToolCtx, require_str};
 
 /// Output cap. Past it, truncate and **label honestly** — a `find /` can flood the context,
 /// and the model must know "this isn't everything".
@@ -582,10 +582,10 @@ async fn read_stdout(
         out.push_str(&text);
         pending.push_str(&text);
     }
-    if let Some(sink) = sink {
-        if !pending.is_empty() {
-            sink(&pending);
-        }
+    if let Some(sink) = sink
+        && !pending.is_empty()
+    {
+        sink(&pending);
     }
     Ok(total)
 }
@@ -776,13 +776,12 @@ pub fn run_command(policy: ExecPolicy) -> Tool {
                     .filter(|p| p.is_dir())
                     .or_else(|| ctx.cwd.clone())
                     .or_else(|| std::env::current_dir().ok());
-                if let (Some(requested), Some(workspace)) = (&cwd, &ctx.cwd) {
-                    if crate::fs_write::inside_workspace(requested, workspace).is_err() {
+                if let (Some(requested), Some(workspace)) = (&cwd, &ctx.cwd)
+                    && crate::fs_write::inside_workspace(requested, workspace).is_err() {
                         return Err(anyhow::anyhow!(
                             "cwd {requested:?} is not inside this turn's working directory {workspace:?} — run_command may only run in the working directory and its subdirectories."
                         ));
                     }
-                }
                 let mut writable: Vec<PathBuf> = Vec::new();
                 if let Some(cwd) = &cwd {
                     writable.push(cwd.clone());

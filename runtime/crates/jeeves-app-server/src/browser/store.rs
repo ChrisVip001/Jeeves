@@ -1,4 +1,4 @@
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use jeeves_protocol::BrowserSessionView;
 use sqlx::{FromRow, SqlitePool};
 #[derive(Clone, FromRow)]

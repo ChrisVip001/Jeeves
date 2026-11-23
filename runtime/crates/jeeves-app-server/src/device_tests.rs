@@ -14,7 +14,7 @@ async fn device_pairing_requires_the_current_generation() {
     assert!(rpc(&server, "device/pair", params).await.is_err());
 }
 
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use serde_json::Value;
 
@@ -90,13 +90,15 @@ async fn device_pairing_binds_signer_capability_epoch_and_sequence_across_restar
     assert_ne!(renewed["grantId"], grant["grantId"]);
     assert!(rpc(&server, "device/report", late).await.is_err());
     let wrong_epoch = json!({"grantId":grant["grantId"], "generation":3, "deviceId":phone_id});
-    assert!(rpc(
-        &server,
-        "device/report",
-        signed(&phone, &wrong_epoch, "approvalReview", 1)
-    )
-    .await
-    .is_err());
+    assert!(
+        rpc(
+            &server,
+            "device/report",
+            signed(&phone, &wrong_epoch, "approvalReview", 1)
+        )
+        .await
+        .is_err()
+    );
     for (key, row, cap) in [
         (&phone, &renewed, "approvalReview"),
         (&mac, &desktop, "desktopControl"),

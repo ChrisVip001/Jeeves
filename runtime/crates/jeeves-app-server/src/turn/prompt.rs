@@ -205,7 +205,7 @@ pub(crate) fn capability_note(
         return vault;
     }
     let mut note = format!(
-"What this machine cannot do right now:\n{}\nIf a request needs one of these, say so in one sentence and stop — do not approximate it with the tools you do have, and do not go reading source code to find a workaround.",
+        "What this machine cannot do right now:\n{}\nIf a request needs one of these, say so in one sentence and stop — do not approximate it with the tools you do have, and do not go reading source code to find a workaround.",
         missing.join("\n")
     );
     if !settings.exec_enabled {
@@ -257,7 +257,7 @@ pub(crate) fn build_system(parts_in: PromptParts<'_>) -> SystemPrompt {
     } = parts_in;
     let now = Local::now();
     let stable = format!(
-"{soul}\nYour model: you are running on '{model}' via the '{provider}' provider, inside Jeeves, an open-source personal assistant.\n{CONVERSATION_RULES}"
+        "{soul}\nYour model: you are running on '{model}' via the '{provider}' provider, inside Jeeves, an open-source personal assistant.\n{CONVERSATION_RULES}"
     );
 
     let mut parts = vec![format!(
@@ -276,19 +276,19 @@ pub(crate) fn build_system(parts_in: PromptParts<'_>) -> SystemPrompt {
     if !memory.is_empty() {
         parts.push(format!("\nRelevant memory:\n{memory}"));
     }
-    if let Some(index) = memory_index {
-        if !index.trim().is_empty() {
-            parts.push(format!(
-                "\nMemory library (catalog only — call read_page(kind=memory) for a page):\n{index}"
-            ));
-        }
+    if let Some(index) = memory_index
+        && !index.trim().is_empty()
+    {
+        parts.push(format!(
+            "\nMemory library (catalog only — call read_page(kind=memory) for a page):\n{index}"
+        ));
     }
-    if let Some(index) = skill_index {
-        if !index.trim().is_empty() {
-            parts.push(format!(
+    if let Some(index) = skill_index
+        && !index.trim().is_empty()
+    {
+        parts.push(format!(
                 "\nSkills (catalog only — call read_page(kind=skill) for a body when one fits):\n{index}"
             ));
-        }
     }
     if !skills.is_empty() {
         parts.push(format!("\nRelevant skill instructions:\n{skills}"));

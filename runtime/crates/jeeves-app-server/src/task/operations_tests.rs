@@ -1,5 +1,5 @@
 use crate::{EventSink, Server};
-use jeeves_provider::{mock::Mock, ContentBlock, Message, Resolved, Role};
+use jeeves_provider::{ContentBlock, Message, Resolved, Role, mock::Mock};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -116,9 +116,11 @@ async fn a_human_receipt_resolves_only_its_operation_and_requires_explicit_conti
     let (sink, _receiver) = EventSink::channel();
     let mut stale = params.clone();
     stale.checkpoint_digest = "stale".into();
-    assert!(crate::task::operations::reconcile(&server, &sink, stale)
-        .await
-        .is_err());
+    assert!(
+        crate::task::operations::reconcile(&server, &sink, stale)
+            .await
+            .is_err()
+    );
     let _actor = server.begin_turn("turn", "work").unwrap();
     assert!(
         crate::task::operations::reconcile(&server, &sink, params.clone())

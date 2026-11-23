@@ -1,6 +1,6 @@
 //! The tool layer owns schemas only; the Runtime supplies browser execution.
 use crate::{BoxFut, Tool, ToolCtx};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 pub trait BrowserHost: Send + Sync {
     fn observe(self: Arc<Self>, ctx: ToolCtx) -> BoxFut;

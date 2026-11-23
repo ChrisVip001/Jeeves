@@ -22,15 +22,15 @@
 //!   `run_command` (that door has its own gate);
 //! * mid-read IO error → error out; never present half the content as a good result.
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 
 use crate::Tool;
 
@@ -61,15 +61,15 @@ pub(crate) fn expand_tilde(path: &str) -> PathBuf {
             .or_else(|| std::env::var_os("USERPROFILE"))
             .map(PathBuf::from)
     };
-    if path == "~" {
-        if let Some(home) = home() {
-            return home;
-        }
+    if path == "~"
+        && let Some(home) = home()
+    {
+        return home;
     }
-    if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) {
-        if let Some(home) = home() {
-            return home.join(rest);
-        }
+    if let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\"))
+        && let Some(home) = home()
+    {
+        return home.join(rest);
     }
     PathBuf::from(path)
 }

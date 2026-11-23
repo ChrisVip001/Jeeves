@@ -484,10 +484,9 @@ impl ToolRegistry {
             && self.is_exclusive(name)
             && name != "delegate_task"
             && !steering
+            && let Some(resources) = &self.resources
         {
-            if let Some(resources) = &self.resources {
-                ctx.resource_lease = Some(resources.acquire(name, ctx.worktree.as_deref()).await?);
-            }
+            ctx.resource_lease = Some(resources.acquire(name, ctx.worktree.as_deref()).await?);
         }
         if let (Some(policy), Some(ticket)) = (&self.policy, ticket) {
             policy.validate(&ctx.session_id, ticket.revision)?;
@@ -523,23 +522,23 @@ impl ToolRegistry {
         }
 
         let mut args = args;
-        if let Some(Some(validator)) = self.validators.get(name) {
-            if let Err(why) = describe_violations(validator, &args) {
-                match arg_coerce::coerce(&tool.input_schema, &args)
-                    .filter(|(repaired, _)| validator.is_valid(repaired))
-                {
-                    Some((repaired, keys)) => {
-                        eprintln!(
-                            "(jeeves) {name}: arguments {} arrived as strings; parsed them to the schema's types and ran the call",
-                            keys.join(", ")
-                        );
-                        args = repaired;
-                    }
-                    None => {
-                        return ToolOutput::failure(format!(
-                            "Error: the arguments do not match the {name} schema — {why}. Rewrite the input to satisfy the schema."
-                        ));
-                    }
+        if let Some(Some(validator)) = self.validators.get(name)
+            && let Err(why) = describe_violations(validator, &args)
+        {
+            match arg_coerce::coerce(&tool.input_schema, &args)
+                .filter(|(repaired, _)| validator.is_valid(repaired))
+            {
+                Some((repaired, keys)) => {
+                    eprintln!(
+                        "(jeeves) {name}: arguments {} arrived as strings; parsed them to the schema's types and ran the call",
+                        keys.join(", ")
+                    );
+                    args = repaired;
+                }
+                None => {
+                    return ToolOutput::failure(format!(
+                        "Error: the arguments do not match the {name} schema — {why}. Rewrite the input to satisfy the schema."
+                    ));
                 }
             }
         }

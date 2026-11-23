@@ -1,4 +1,4 @@
-use super::edit_match::{fit_line_endings, lines_equivalent, locate, miss_hint, Located, Tier};
+use super::edit_match::{Located, Tier, fit_line_endings, lines_equivalent, locate, miss_hint};
 
 fn one(text: &str, needle: &str) -> (String, Tier) {
     match locate(text, needle) {

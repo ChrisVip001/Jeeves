@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::{discover, MAX_BYTES};
+use super::{MAX_BYTES, discover};
 
 fn repo() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("temporary directory");

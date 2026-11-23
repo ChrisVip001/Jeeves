@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::json;
 
-use super::subagent::{delegate_task, SubagentRunner, NAME};
+use super::subagent::{NAME, SubagentRunner, delegate_task};
 use super::{BoxFut, ToolRegistry};
 
 #[derive(Debug, Clone)]

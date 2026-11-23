@@ -4,11 +4,11 @@
 use std::sync::Arc;
 
 use jeeves_protocol::{RequestId, ServerNotification, TurnStartParams};
-use jeeves_provider::mock::Mock;
 use jeeves_provider::Resolved;
+use jeeves_provider::mock::Mock;
 use serde_json::json;
 
-use crate::{run_turn, EventSink, Frame};
+use crate::{EventSink, Frame, run_turn};
 
 async fn server_with(
     responses: Vec<jeeves_provider::CreateResponse>,
