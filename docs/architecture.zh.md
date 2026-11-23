@@ -175,6 +175,8 @@ jeeves-cli               `jeeves` 二进制                                   �
 | history | 从 `chat_log` 读取最近 N 轮对话 | `JEEVES_HISTORY_TURNS` |
 | summary | 滚动压缩摘要 | `JEEVES_COMPACT_THRESHOLD` |
 
+对话规则规定：只有本轮调用返回的输出、错误或效果，Jeeves 才能当作当前结果报告；更早的结果要注明来自哪一轮。
+
 尾部有四样东西刻意不计入六段仪表：时钟、todo 面板和能力说明（各几十个恒定 token），以及
 **项目约定**（`agents_md.rs`）。从本轮工作目录向上到外围 `.git`，每个目录按
 `AGENTS.override.md`、`AGENTS.md`、`CLAUDE.md` 的顺序取一个文件，从根到内拼接。总量上限

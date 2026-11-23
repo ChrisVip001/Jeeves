@@ -203,6 +203,8 @@ the memory center's meter:
 | history | the last N conversation turns from `chat_log` | `JEEVES_HISTORY_TURNS` |
 | summary | the rolling compaction summary | `JEEVES_COMPACT_THRESHOLD` |
 
+The conversation rules let Jeeves present a tool output, error or effect as current only when a call in this turn returned it; earlier results are attributed to their turn.
+
 Four things in the tail are deliberately outside the six-section meter: the clock, the todo
 board and the capability note (a few dozen constant tokens each), and **project conventions**
 (`agents_md.rs`). From the turn's working directory up to the enclosing `.git`, one file per

@@ -1506,6 +1506,55 @@ async fn a_finished_turn_lands_in_the_ledger() {
 }
 
 #[test]
+fn the_system_prompt_grounds_tool_results_in_current_turn_calls() {
+    let prompt = crate::turn::build_system(crate::turn::PromptParts {
+        soul: "A custom persona.",
+        model: "test-model",
+        provider: "mock",
+        memory: "",
+        memory_index: None,
+        skill_index: None,
+        skills: "",
+        todo: None,
+        summary: None,
+        instructions: None,
+        capabilities: None,
+    })
+    .full();
+    let rule = prompt
+        .lines()
+        .find(|line| line.contains("lines record calls from earlier turns"))
+        .expect("the system prompt must explain historical tool calls");
+    assert!(rule.contains("a call in this turn returned it"), "{rule}");
+    assert!(rule.contains("attribute earlier results"), "{rule}");
+    assert!(
+        rule.contains("failed without changing anything may be retried"),
+        "{rule}"
+    );
+    assert!(
+        rule.contains("partial effect is unknown, check it first"),
+        "{rule}"
+    );
+    assert!(
+        rule.contains("the work stays in this conversation"),
+        "{rule}"
+    );
+}
+
+#[test]
+fn the_built_in_personas_only_forbid_redoing_calls_that_took_effect() {
+    use super::prompt::{DEFAULT_SOUL, THIN_SOUL};
+    for soul in [THIN_SOUL, DEFAULT_SOUL] {
+        let line = soul
+            .lines()
+            .find(|line| line.contains("[tools used: ...]"))
+            .expect("each persona explains the history footer");
+        assert!(line.contains("已经生效的不要重做"), "{line}");
+        assert!(line.contains("对方拒绝过的不要再申请"), "{line}");
+    }
+}
+
+#[test]
 fn the_system_prompt_carries_the_catalog_not_the_pages() {
     let catalog = "# Memory index\n\n2 pages · last updated 2026-11-12T00:00:00Z\n\n- [Alex](alex.md) · person — likes morning meetings\n";
     let with = crate::turn::build_system(crate::turn::PromptParts {
@@ -1611,10 +1660,15 @@ fn both_previous_default_souls_upgrade_without_overwriting_edits() {
     let old_intro = "你是 Jeeves，负责完成复杂长任务的超级个人助理。把用户的目标、约束和交付物贯穿计划、执行和恢复；用可核验的结果说明完成情况。";
     for (thin, seed) in [(true, THIN_SOUL), (false, DEFAULT_SOUL)] {
         let (_, body) = seed.split_once("\n\n").unwrap();
-        let old_body = body.replace(
-            "动手前想清楚目标和完成的标准。做完后对照标准检查，再汇报。",
-            "动手前想清楚目标和完成的标准；做完后对照标准检查，再汇报。\n- 遇到对方没说清楚、又会影响结果的地方，先问一个问题，不要猜。",
-        );
+        let old_body = body
+            .replace(
+                "动手前想清楚目标和完成的标准。做完后对照标准检查，再汇报。",
+                "动手前想清楚目标和完成的标准；做完后对照标准检查，再汇报。\n- 遇到对方没说清楚、又会影响结果的地方，先问一个问题，不要猜。",
+            )
+            .replace(
+                "[tools used: ...] 是你之前做过的调用。已经生效的不要重做；对方拒绝过的不要再申请，除非对方重新要求。",
+                "[tools used: ...] 是你之前真正做过的事，不要重做。",
+            );
         let retired = format!("{old_intro}\n\n{old_body}");
         assert_ne!(retired, seed);
 
