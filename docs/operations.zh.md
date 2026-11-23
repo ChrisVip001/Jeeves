@@ -137,6 +137,8 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
 
+关闭开发版 App 的窗口只会隐藏它，Runtime 继续执行定时任务，点 Dock 图标即可恢复窗口；用 ⌘Q 退出。App 会在上次的窗口大小和位置打开，位置保存在应用配置目录下的 `window-frame`。如果这个位置已经不在任何已连接的显示器内，窗口改为居中。
+
 共同测试前运行 `just desktop-status`，核对已有 App 与 Runtime 的 PID、监听地址、数据和追踪路径。命令显示的提交号是源码版本，正在运行的应用可能来自较早的构建。共同验收沿用同一窗口和账号，完成后把窗口留在对应的事项或报错处。复现问题时记下操作步骤和本机时间，有任务 ID 或回合 ID 就一并记下。可到命令显示的追踪目录查找对应回合。App 将 Runtime 诊断日志写到 `<home>/jeeves.log`。自动冒烟使用测试数据，结果单独记录。
 
 Mac 和 Web 共用开发工作区时，在 `<home>/desktop-gateway` 写一行 Go 网关地址，例如 `https://localhost:8743`。启动网关时把 `GW_RUNTIME_HOME` 设为同一个 `JEEVES_HOME` 的绝对路径。网关使用 `GW_RUNTIME_TOKEN`，Runtime 使用仅所有者可读的 `<home>/runtime-token`，两者使用同一服务凭据。App 启动 Runtime 时由系统分配端口，网关每次重启后都会发现它。浏览器和 App 使用同一个网关地址。Finder 启动仓库构建的 App 时可沿用仓库中的 `.jeeves`，安装到系统的副本默认使用 `~/.jeeves`。

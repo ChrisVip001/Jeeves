@@ -4,6 +4,8 @@
 mod cloud_device;
 #[cfg(not(feature = "cloud-device"))]
 mod development;
+#[cfg(not(feature = "cloud-device"))]
+mod window_state;
 
 fn main() {
     #[cfg(feature = "cloud-device")]

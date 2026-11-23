@@ -6,10 +6,12 @@ use std::{
     io::{BufRead, BufReader},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::{mpsc, Mutex},
+    sync::{Mutex, mpsc},
     time::Duration,
 };
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+use crate::window_state::{self, MIN_SIZE};
 
 /// The Runtime child we started (none when attached to a remote one).
 #[derive(Default)]
@@ -57,7 +59,7 @@ fn runtime_home(app: &tauri::AppHandle, binary: &Path) -> Result<PathBuf, String
         return Ok(PathBuf::from(home));
     }
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    if cwd != "/" {
+    if cwd != Path::new("/") {
         return Ok(cwd.join(".jeeves"));
     }
     let user_home = app
@@ -209,11 +211,11 @@ fn window_target(target: Result<String, String>) -> WebviewUrl {
 
 fn open_window(app: &tauri::AppHandle, target: Result<String, String>) -> tauri::Result<()> {
     let url = window_target(target);
-    WebviewWindowBuilder::new(app, "main", url)
+    let builder = WebviewWindowBuilder::new(app, "main", url)
         .title("Jeeves")
         .inner_size(1180.0, 800.0)
-        .min_inner_size(900.0, 640.0)
-        .build()?;
+        .min_inner_size(MIN_SIZE.0, MIN_SIZE.1);
+    window_state::place(app, builder).build()?;
     Ok(())
 }
 
@@ -224,20 +226,29 @@ pub(super) fn main() {
             open_window(app.handle(), desktop_target(app.handle()))?;
             Ok(())
         })
+        .on_window_event(window_state::on_close)
         .build(tauri::generate_context!())
         .expect("Jeeves 桌面端无法启动")
-        .run(|app, event| {
-            if let tauri::RunEvent::Exit = event {
-                if let Some(mut child) = app
+        .run(|app, event| match event {
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => window_state::reveal(app),
+            tauri::RunEvent::ExitRequested { .. } => {
+                if let Some(main) = app.get_webview_window("main") {
+                    window_state::remember(&main);
+                }
+            }
+            tauri::RunEvent::Exit => {
+                let child = app
                     .state::<Runtime>()
                     .0
                     .lock()
                     .expect("runtime lock")
-                    .take()
-                {
+                    .take();
+                if let Some(mut child) = child {
                     stop_child(&mut child);
                 }
             }
+            _ => (),
         });
 }
 
