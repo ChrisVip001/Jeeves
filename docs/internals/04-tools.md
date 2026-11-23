@@ -44,7 +44,7 @@ and MCP tools. Connector reads declare `read`; an undeclared tool effect is alwa
 
 | Case | Result |
 |---|---|
-| Unknown name | `Error: no tool named '{name}'. Available: …` |
+| Unknown name | `Error: no tool named '{name}'. Available: …` (a name that differs from exactly one registered tool only in case, `_`/`-`/space separators, a trailing `tool`, or a leaked `"`/`<` fragment runs that tool and logs the repair on stderr) |
 | Arguments violate the schema | `Error: the arguments do not match the {name} schema — …` (at most three violations, each with its field path) |
 | Handler returns `Err` | `Error: {name} failed: {e}` |
 | Refusal or business failure | The handler reports a failure and the registry renders its message |

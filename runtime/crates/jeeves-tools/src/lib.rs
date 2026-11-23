@@ -46,6 +46,7 @@ pub mod snapshot;
 pub mod spill;
 pub mod subagent;
 pub mod todo;
+mod tool_name;
 pub mod web;
 
 #[cfg(test)]
@@ -501,6 +502,15 @@ impl ToolRegistry {
     }
 
     pub async fn execute_result(&self, mut ctx: ToolCtx, name: &str, args: Value) -> ToolOutput {
+        let repaired = (!self.tools.contains_key(name))
+            .then(|| tool_name::resolve(name, self.tools.keys().map(String::as_str)))
+            .flatten();
+        if let Some(registered) = &repaired {
+            eprintln!(
+                "(jeeves) the model called '{name}'; running the registered tool '{registered}'"
+            );
+        }
+        let name = repaired.as_deref().unwrap_or(name);
         let Some(tool) = self.tools.get(name) else {
             return ToolOutput::failure(format!(
                 "Error: no tool named '{name}'. Available: {}",

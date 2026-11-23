@@ -44,7 +44,7 @@
 
 | 情形 | 结果 |
 |---|---|
-| 未知名称 | `Error: no tool named '{name}'. Available: …` |
+| 未知名称 | `Error: no tool named '{name}'. Available: …`（若名称与恰好一个已注册工具只差大小写、`_`/`-`/空格分隔、末尾的 `tool` 或泄漏的 `"`/`<` 片段，则执行该工具并在 stderr 记下修复） |
 | 参数不符合 schema | `Error: the arguments do not match the {name} schema — …`（最多三条违规，各带字段路径） |
 | handler 返回 `Err` | `Error: {name} failed: {e}` |
 | 拒绝或业务失败 | handler 返回失败原因，由注册表生成可读文本 |

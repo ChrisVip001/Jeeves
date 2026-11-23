@@ -837,3 +837,53 @@ async fn a_number_for_a_string_property_is_not_coerced() {
         .await;
     assert!(out.contains("schema") && out.contains("label"), "{out}");
 }
+
+fn named_tools(names: &[&str]) -> ToolRegistry {
+    let mut registry = ToolRegistry::new();
+    for name in names {
+        let label = name.to_string();
+        registry.register(Tool {
+            name: name.to_string(),
+            description: "reports its own name".to_string(),
+            input_schema: json!({"type": "object"}),
+            handler: Arc::new(move |_ctx: ToolCtx, _args: serde_json::Value| {
+                let label = label.clone();
+                Box::pin(async move { Ok(format!("ran {label}")) })
+            }),
+        });
+    }
+    registry
+}
+
+#[tokio::test]
+async fn a_tool_name_in_another_spelling_runs_the_registered_tool() {
+    let registry = named_tools(&["read_file", "grep"]);
+    for spelled in [
+        "ReadFile",
+        "readFile",
+        "READ_FILE",
+        "read-file",
+        "read file",
+        "read_file_tool",
+        "read_file\" parameter=\"path",
+    ] {
+        let out = registry.execute(ctx().await, spelled, json!({})).await;
+        assert_eq!(out, "ran read_file", "{spelled}: {out}");
+    }
+}
+
+#[tokio::test]
+async fn a_tool_name_that_is_not_a_spelling_variant_stays_unknown() {
+    let registry = named_tools(&["read_file"]);
+    for name in ["write_file", "reed_file", "tool", "\"read_file"] {
+        let out = registry.execute(ctx().await, name, json!({})).await;
+        assert!(out.starts_with("Error: no tool named"), "{name}: {out}");
+    }
+}
+
+#[tokio::test]
+async fn a_tool_name_matching_two_tools_is_not_repaired() {
+    let registry = named_tools(&["read_file", "read-file-tool"]);
+    let out = registry.execute(ctx().await, "ReadFile", json!({})).await;
+    assert!(out.starts_with("Error: no tool named 'ReadFile'"), "{out}");
+}
