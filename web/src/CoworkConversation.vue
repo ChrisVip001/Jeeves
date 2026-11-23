@@ -106,7 +106,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
     </div>
     <form class="cowork-compose" v-if="['pending','running','done'].includes(task.status)" @submit.prevent="send">
       <label class="sr" for="cowork-input">{{ t("补充要求") }}</label>
-      <textarea id="cowork-input" v-model="text" :disabled="sending" :placeholder="t('给这个任务补充要求…')" rows="2" @keydown.meta.enter.prevent="send" />
+      <textarea id="cowork-input" v-model="text" :disabled="sending" :placeholder="t('给这个任务补充要求…')" rows="2" @keydown.enter.meta.prevent="send" @keydown.enter.ctrl.prevent="send" />
       <button id="cowork-send" type="submit" class="primary-button" :disabled="sending || !text.trim()"><ArrowUp :size="16" />{{ t("发送") }}</button>
     </form>
     <p v-if="feedback" class="cw-feedback" role="status">{{ feedback }}</p>
