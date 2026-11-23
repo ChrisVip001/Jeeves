@@ -253,6 +253,24 @@ pub(crate) fn fold_tool_activity(
     format!("{reply}\n[tools used: {summary}]")
 }
 
+/// The reply without trailing `[tools used: …]` lines the model wrote itself.
+///
+/// History shows that footer at the end of every earlier reply, so models copy it, sometimes
+/// with a call from a previous turn. A copied footer misleads the user, and once folded the
+/// stored reply carries two, which teaches the next turn the same habit. Only
+/// [`fold_tool_activity`] writes the footer, from the calls that actually ran.
+pub(crate) fn strip_echoed_footer(reply: &str) -> &str {
+    let mut kept = reply.trim_end();
+    loop {
+        let start = kept.rfind('\n').map_or(0, |i| i + 1);
+        let line = kept[start..].trim();
+        if !(line.starts_with("[tools used:") && line.ends_with(']')) {
+            return kept;
+        }
+        kept = kept[..start].trim_end();
+    }
+}
+
 /// A result longer than this, with no spill address of its own, is spilled when folded.
 ///
 /// The folded line keeps 160 characters of the first line; below ~2k the rest is a few lines

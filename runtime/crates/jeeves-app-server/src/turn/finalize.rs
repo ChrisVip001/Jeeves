@@ -1,4 +1,6 @@
-use super::{fold_tool_activity, settle_task, HistoryStats, Settlement, TaskDecision};
+use super::{
+    fold_tool_activity, settle_task, strip_echoed_footer, HistoryStats, Settlement, TaskDecision,
+};
 use crate::{narrow, trace, EventSink, Server};
 use chrono::Local;
 use jeeves_loop::LoopResult;
@@ -39,6 +41,7 @@ pub(crate) async fn finalize_turn(
     mut t: FinishedTurn<'_>,
 ) -> Result<(), ErrorObject> {
     let settings = server.settings();
+    t.result.reply = strip_echoed_footer(&t.result.reply).to_string();
     let Settlement {
         carried_task,
         waiting_for_jobs,

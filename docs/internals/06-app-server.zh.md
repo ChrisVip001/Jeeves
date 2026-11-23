@@ -108,7 +108,7 @@ std 锁只守一次读改写，绝不跨 await。每会话写段锁覆盖历史�
 
 1. `settle_task`（`settlement.rs`）关闭检查点（`done`；`turn/interrupt` 为 `abandoned`；`task/suspend` 或结果未知为 `suspended`；已提交等待时为 `waiting_jobs` 或 `waiting_input`），并按决定关闭任务，发 `taskUpdated`。
 2. 按请求顺序为每个调用发 `toolCompleted`。
-3. `fold_tool_activity` 在存储的回复后为每个调用追加一行：`[tools used: name(N chars[, full output at spill/…]; first line…)]`。超过 `FOLD_SPILL_CHARS`（2000）且自身没有地址的输出，在折叠时溢出到 `<home>/spill/`。这是阻止下一轮重复动作的证据；`turnCompleted.reply` 带的是未折叠文本。
+3. `fold_tool_activity` 在存储的回复后为每个调用追加一行：`[tools used: name(N chars[, full output at spill/…]; first line…)]`。超过 `FOLD_SPILL_CHARS`（2000）且自身没有地址的输出，在折叠时溢出到 `<home>/spill/`。这是阻止下一轮重复动作的证据；`turnCompleted.reply` 带的是未折叠文本。模型照着历史抄在自己回复末尾的这行会先被去掉（`strip_echoed_footer`），所以列出的只有本轮真正运行的调用。
 4. 写一行 trace 与一行用量（失败只记日志）。
 5. 在会话写段锁下：追加 `chat_log`（浏览器任务的来源为 `browser-task`，记忆提取会跳过）、追加账本（`ledger_writer.rs`）、保存（实测、估算）输入 token 对、武装作业或输入等待。
 6. 唤醒记忆 worker 并 spawn 预压缩；没有 worker 则内联整理并发 `consolidationCompleted`。

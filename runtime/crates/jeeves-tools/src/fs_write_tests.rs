@@ -544,3 +544,183 @@ async fn edit_miss_points_at_the_closest_lines() {
     assert!(out.contains("lines 2-3"), "{out}");
     assert_eq!(std::fs::read_to_string(&path).expect("untouched"), body);
 }
+
+#[tokio::test]
+async fn an_edit_on_a_file_changed_since_it_was_read_is_refused_until_read_again() {
+    let ctx = test_ctx(None).await;
+    let mut reg = registry();
+    reg.register(crate::fs::read_file());
+    let path = ctx.home.join("notes.md");
+    std::fs::write(&path, "one\ntwo\n").expect("place the file");
+    let read = json!({ "path": path.display().to_string() });
+    reg.execute(ctx.clone(), "read_file", read.clone()).await;
+
+    std::fs::write(&path, "one\ntwo\nthree (from the user's editor)\n").expect("change it");
+    let change = json!({
+        "path": path.display().to_string(),
+        "old_string": "two",
+        "new_string": "2"
+    });
+    let out = reg.execute(ctx.clone(), "edit", change.clone()).await;
+    assert!(
+        out.contains("changed on disk since you last read it"),
+        "{out}"
+    );
+    assert!(
+        std::fs::read_to_string(&path)
+            .expect("read")
+            .contains("three"),
+        "the user's change must survive"
+    );
+
+    reg.execute(ctx.clone(), "read_file", read).await;
+    let out = reg.execute(ctx.clone(), "edit", change).await;
+    assert!(out.starts_with("Edited"), "{out}");
+    let again = json!({
+        "path": path.display().to_string(),
+        "old_string": "one",
+        "new_string": "1"
+    });
+    let out = reg.execute(ctx, "edit", again).await;
+    assert!(
+        out.starts_with("Edited"),
+        "its own edit counts as seen: {out}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "1\n2\nthree (from the user's editor)\n"
+    );
+}
+
+#[tokio::test]
+async fn a_file_never_read_can_still_be_overwritten() {
+    let ctx = test_ctx(None).await;
+    let reg = registry();
+    let path = ctx.home.join("fresh.txt");
+    std::fs::write(&path, "old\n").expect("place the file");
+    let out = reg
+        .execute(
+            ctx,
+            "write_file",
+            json!({ "path": path.display().to_string(), "content": "new\n" }),
+        )
+        .await;
+    assert!(out.starts_with("Wrote"), "{out}");
+}
+
+#[tokio::test]
+async fn a_stale_file_is_refused_before_anyone_is_asked_to_approve() {
+    let broker = Fake::answering(true);
+    let ctx = test_ctx(Some(broker.clone())).await;
+    let mut reg = registry();
+    reg.register(crate::fs::read_file());
+    let path = ctx.home.join("draft.md");
+    std::fs::write(&path, "alpha\n").expect("place the file");
+    reg.execute(
+        ctx.clone(),
+        "read_file",
+        json!({ "path": path.display().to_string() }),
+    )
+    .await;
+    std::fs::write(&path, "alpha\nbeta from the user\n").expect("change it");
+    let asked_before = broker.seen.lock().expect("lock").len();
+
+    let out = reg
+        .execute(
+            ctx.clone(),
+            "edit",
+            json!({
+                "path": path.display().to_string(),
+                "old_string": "alpha",
+                "new_string": "ALPHA"
+            }),
+        )
+        .await;
+    assert!(out.contains("changed on disk"), "{out}");
+    let out = reg
+        .execute(
+            ctx,
+            "write_file",
+            json!({ "path": path.display().to_string(), "content": "replaced\n" }),
+        )
+        .await;
+    assert!(out.contains("changed on disk"), "{out}");
+    assert_eq!(
+        broker.seen.lock().expect("lock").len(),
+        asked_before,
+        "no approval card for a write that will be refused"
+    );
+}
+
+struct CountingPolicy(Mutex<u32>);
+
+impl crate::permissions::ExecutionPolicy for CountingPolicy {
+    fn authorize(
+        &self,
+        _ctx: ToolCtx,
+        _name: String,
+        _effect: crate::ToolEffect,
+        _args: serde_json::Value,
+    ) -> crate::permissions::AuthorizationFuture {
+        *self.0.lock().expect("lock") += 1;
+        Box::pin(async {
+            Ok(crate::permissions::Authorization {
+                revision: 0,
+                approved: true,
+            })
+        })
+    }
+
+    fn validate(&self, _session_id: &str, _revision: i32) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn the_session_policy_is_not_consulted_for_a_stale_write() {
+    let ctx = test_ctx(None).await;
+    let policy = Arc::new(CountingPolicy(Mutex::new(0)));
+    let mut reg = registry();
+    reg.register(crate::fs::read_file());
+    reg.register(crate::patch::apply_patch(WritePolicy::default()));
+    reg.set_execution_policy(policy.clone());
+    let path = ctx.home.join("plan.md");
+    std::fs::write(&path, "first\nsecond\n").expect("place the file");
+    reg.execute(
+        ctx.clone(),
+        "read_file",
+        json!({ "path": path.display().to_string() }),
+    )
+    .await;
+    let consulted = *policy.0.lock().expect("lock");
+    std::fs::write(&path, "first\nsecond\nthird from the user\n").expect("change it");
+
+    let patch = format!(
+        "*** Begin Patch\n*** Update File: {}\n@@\n-first\n+FIRST\n*** End Patch",
+        path.display()
+    );
+    let out = reg
+        .execute(ctx.clone(), "apply_patch", json!({ "patch": patch }))
+        .await;
+    assert!(out.contains("changed on disk"), "{out}");
+    let out = reg
+        .execute(
+            ctx,
+            "edit",
+            json!({
+                "path": path.display().to_string(),
+                "old_string": "second",
+                "new_string": "SECOND"
+            }),
+        )
+        .await;
+    assert!(out.contains("changed on disk"), "{out}");
+    assert_eq!(
+        *policy.0.lock().expect("lock"),
+        consulted,
+        "a refused write must never reach the approval policy"
+    );
+    assert!(std::fs::read_to_string(&path)
+        .expect("read")
+        .contains("third from the user"));
+}

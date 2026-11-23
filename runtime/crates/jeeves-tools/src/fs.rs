@@ -194,6 +194,7 @@ async fn execute_read(
         tokio::task::spawn_blocking(move || scan_lines(scan_path, offset, limit))
             .await
             .map_err(|e| anyhow!("Could not read the task: {e}"))??;
+    crate::file_seen::record(&ctx.session_id, &path);
 
     let from = offset as u64;
     let mut out = String::new();

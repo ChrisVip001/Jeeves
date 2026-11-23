@@ -303,6 +303,8 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                         Op::Update { path, hunks } => {
                             let resolved = resolve(&ctx, path);
                             let old = if resolved.is_file() {
+                                crate::file_seen::check(&ctx.session_id, &resolved, path)
+                                    .map_err(|why| anyhow!("{why}"))?;
                                 read_text(&resolved)?
                             } else {
                                 return Err(anyhow!(
@@ -335,6 +337,8 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                             if !resolved.is_file() {
                                 return Err(anyhow!("No such file to delete: {path}"));
                             }
+                            crate::file_seen::check(&ctx.session_id, &resolved, path)
+                                .map_err(|why| anyhow!("{why}"))?;
                             planned.push((resolved, None, None));
                         }
                     }
@@ -372,6 +376,7 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                             }
                             std::fs::write(path, new)
                                 .map_err(|e| anyhow!("Could not write {path:?}: {e}"))?;
+                            crate::file_seen::record(&ctx.session_id, path);
                             report.push(format!(
                                 "Changed {}: {} lines{}",
                                 path.display(),
@@ -387,6 +392,7 @@ pub fn apply_patch(policy: WritePolicy) -> Tool {
                         (_, None) => {
                             std::fs::remove_file(path)
                                 .map_err(|e| anyhow!("Could not delete {path:?}: {e}"))?;
+                            crate::file_seen::forget(&ctx.session_id, path);
                             report.push(format!("Deleted {}", path.display()));
                         }
                     }

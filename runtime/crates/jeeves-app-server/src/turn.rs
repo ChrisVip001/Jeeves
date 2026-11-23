@@ -50,6 +50,7 @@ use history::budget_tokens;
 pub(crate) use history::fold_tool_activity;
 use history::is_context_overflow;
 use history::load_history;
+pub(crate) use history::strip_echoed_footer;
 pub(crate) use history::HistoryStats;
 pub(crate) use history::Loaded;
 use history::FORCED_RETRY_TURNS;

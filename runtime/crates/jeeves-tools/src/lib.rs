@@ -24,6 +24,7 @@ mod code_map;
 pub mod edit_checks;
 pub mod edit_match;
 pub mod exec;
+pub mod file_seen;
 pub mod fs;
 pub mod fs_write;
 pub mod handlers;
@@ -516,6 +517,10 @@ impl ToolRegistry {
                     "Error: the arguments do not match the {name} schema — {why}. Rewrite the input to satisfy the schema."
                 ));
             }
+        }
+
+        if let Err(why) = file_seen::check_call(&ctx, name, &args) {
+            return ToolOutput::failure(format!("Error: {name} failed: {why}"));
         }
 
         if let Err(reason) = self.admit_call(&mut ctx, name, &args).await {

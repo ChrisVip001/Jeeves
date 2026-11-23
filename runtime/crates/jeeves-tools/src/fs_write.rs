@@ -283,6 +283,8 @@ pub fn write_file(policy: WritePolicy) -> Tool {
                 let content = raw_str(&args, "content")?;
                 check_content(&content, "content")?;
                 let path = crate::fs::resolve_against_cwd(&ctx, crate::fs::expand_tilde(&raw));
+                crate::file_seen::check(&ctx.session_id, &path, &raw)
+                    .map_err(|why| anyhow!("{why}"))?;
 
                 if let Err(why) = admit(
                     &ctx,
@@ -314,6 +316,7 @@ pub fn write_file(policy: WritePolicy) -> Tool {
                 }
 
                 std::fs::write(&path, &content).map_err(|e| anyhow!("Could not write {path:?}: {e}"))?;
+                crate::file_seen::record(&ctx.session_id, &path);
                 let was = old
                     .as_ref()
                     .map(|o| format!("(was {} lines)", o.lines().count().max(1)))
@@ -364,6 +367,8 @@ pub fn edit(policy: WritePolicy) -> Tool {
                     ));
                 }
                 check_content(&new_string, "new_string")?;
+                crate::file_seen::check(&ctx.session_id, &path, &raw)
+                    .map_err(|why| anyhow!("{why}"))?;
 
                 if let Err(why) = admit(
                     &ctx,
@@ -405,6 +410,7 @@ pub fn edit(policy: WritePolicy) -> Tool {
                 }
                 std::fs::write(&path, &new_content)
                     .map_err(|e| anyhow!("Could not write {path:?}: {e}"))?;
+                crate::file_seen::record(&ctx.session_id, &path);
                 let note = tier.note().map_or(String::new(), |note| format!(" ({note})"));
                 let result = format!(
                     "Edited {path:?}: 1 replacement{note}\n{}",

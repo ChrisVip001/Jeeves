@@ -1929,3 +1929,37 @@ async fn the_home_cap_refuses_when_the_home_is_full() {
     server.set_settings(settings);
     assert!(server.home_capacity().await.is_ok(), "0 means no cap");
 }
+
+#[test]
+fn a_footer_the_model_copied_from_history_is_dropped_before_folding() {
+    let reply = "The edit was refused.\n[tools used: edit(40 chars: Error: Action denied or approval expired)]\n";
+    let stripped = crate::turn::strip_echoed_footer(reply);
+    assert_eq!(stripped, "The edit was refused.");
+    let folded = crate::turn::fold_tool_activity(
+        stripped,
+        &[outcome(
+            "edit",
+            "Error: edit failed: notes.txt changed on disk",
+        )],
+        None,
+    );
+    assert_eq!(folded.matches("[tools used:").count(), 1, "{folded}");
+    assert!(folded.contains("changed on disk"), "{folded}");
+    assert!(!folded.contains("approval expired"), "{folded}");
+}
+
+#[test]
+fn only_trailing_footer_lines_are_dropped() {
+    assert_eq!(
+        crate::turn::strip_echoed_footer(
+            "a\n[tools used: x(1 chars: y)]\n[tools used: z(1 chars: w)]"
+        ),
+        "a"
+    );
+    let quoted = "The footer looks like `[tools used: …]`.\nThat is all.";
+    assert_eq!(crate::turn::strip_echoed_footer(quoted), quoted);
+    assert_eq!(
+        crate::turn::strip_echoed_footer("[tools used: x(1 chars: y)]"),
+        ""
+    );
+}
