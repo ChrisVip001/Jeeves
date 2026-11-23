@@ -41,7 +41,68 @@ async fn initialize_hands_back_capabilities_and_identity() {
         result["capabilities"]["tools"].is_object(),
         "it has to declare the tools capability"
     );
+    assert!(
+        result["capabilities"]["resources"].is_object(),
+        "it has to declare the resources capability"
+    );
     assert_eq!(result["serverInfo"]["name"], "jeeves-memory");
+}
+
+#[tokio::test]
+async fn resources_list_exposes_the_two_read_only_memory_views() {
+    let server = server().await;
+    let response = call(&server, "resources/list", json!({})).await;
+    let uris: Vec<&str> = response["result"]["resources"]
+        .as_array()
+        .expect("the resources array")
+        .iter()
+        .map(|r| r["uri"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(
+        uris,
+        vec!["jeeves://memory/facts", "jeeves://memory/episodes"]
+    );
+    assert!(response["error"].is_null(), "{}", response);
+}
+
+#[tokio::test]
+async fn resources_read_returns_what_was_remembered() {
+    let server = server().await;
+    call(
+        &server,
+        "tools/call",
+        json!({"name": "memory_remember",
+               "arguments": {"subject": "resource-reader", "content": "visible as a resource"}}),
+    )
+    .await;
+
+    let response = call(
+        &server,
+        "resources/read",
+        json!({"uri": "jeeves://memory/facts"}),
+    )
+    .await;
+    assert!(response["error"].is_null(), "{}", response);
+    let contents = response["result"]["contents"]
+        .as_array()
+        .expect("the contents array");
+    assert_eq!(contents.len(), 1);
+    assert_eq!(contents[0]["mimeType"], "text/plain");
+    assert!(
+        contents[0]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("visible as a resource"),
+        "the fact written through tools must be readable as a resource: {response}"
+    );
+
+    let unknown = call(
+        &server,
+        "resources/read",
+        json!({"uri": "jeeves://memory/nope"}),
+    )
+    .await;
+    assert_eq!(unknown["error"]["code"], -32602, "{}", unknown);
 }
 
 #[tokio::test]

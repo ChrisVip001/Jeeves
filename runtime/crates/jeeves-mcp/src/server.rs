@@ -1,4 +1,4 @@
-//! `jeeves mcp serve` — the reverse side: expose Jeeves's **memory** as MCP tools.
+//! `jeeves mcp serve` — the reverse side: expose Jeeves's **memory** as MCP tools and resources.
 //!
 //! On the client side Jeeves plugs other MCP servers in as its tools; here Jeeves itself becomes
 //! an MCP server, letting other agents (Claude Code, codex, anything speaking MCP) read and
@@ -20,6 +20,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 /// Protocol version. The server implements this one; clients reporting other versions are
 /// answered all the same — version negotiation must not fail as "not a word gets through".
 const PROTOCOL_VERSION: &str = "2025-06-18";
+
+/// Read-only memory views exposed as MCP resources. Tools can write; resources cannot.
+const FACT_URI: &str = "jeeves://memory/facts";
+const EPISODE_URI: &str = "jeeves://memory/episodes";
 
 pub struct MemoryServer {
     facts: Facts,
@@ -46,12 +50,17 @@ impl MemoryServer {
         let result = match method.as_str() {
             "initialize" => Ok(json!({
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {}},
+                "capabilities": {"tools": {}, "resources": {}},
                 "serverInfo": {"name": "jeeves-memory", "version": env!("CARGO_PKG_VERSION")},
             })),
             "tools/list" => Ok(json!({"tools": tool_declarations()})),
             "tools/call" => {
                 self.call_tool(request.get("params").cloned().unwrap_or_default())
+                    .await
+            }
+            "resources/list" => Ok(json!({"resources": resource_declarations()})),
+            "resources/read" => {
+                self.read_resource(request.get("params").cloned().unwrap_or_default())
                     .await
             }
             "ping" => Ok(json!({})),
@@ -91,6 +100,22 @@ impl MemoryServer {
                 "isError": true,
             })),
         }
+    }
+
+    async fn read_resource(&self, params: Value) -> Result<Value, (i64, String)> {
+        let uri = params
+            .get("uri")
+            .and_then(Value::as_str)
+            .ok_or((-32602, "resources/read is missing uri".to_string()))?;
+        let (content, name) = match uri {
+            FACT_URI => (self.list(&json!({"limit": 100})).await, "memories"),
+            EPISODE_URI => (self.episodes(&json!({"limit": 100})).await, "episodes"),
+            other => return Err((-32602, format!("no resource named '{other}'"))),
+        };
+        let text = content.map_err(|why| (-32603, why))?;
+        Ok(json!({
+            "contents": [{"uri": uri, "mimeType": "text/plain", "name": name, "text": text}],
+        }))
     }
 
     async fn search(&self, args: &Value) -> Result<String, String> {
@@ -229,6 +254,24 @@ fn require_str(args: &Value, key: &str) -> Result<String, String> {
         .filter(|v| !v.is_empty())
         .map(str::to_string)
         .ok_or_else(|| format!("Parameter '{key}' must be a non-empty string."))
+}
+
+/// Read-only memory resources. Same boundary as the tools: memory only, no commands.
+fn resource_declarations() -> Vec<Value> {
+    vec![
+        json!({
+            "uri": FACT_URI,
+            "name": "memories",
+            "description": "The most recent long-term facts in Jeeves's memory.",
+            "mimeType": "text/plain",
+        }),
+        json!({
+            "uri": EPISODE_URI,
+            "name": "episodes",
+            "description": "The most recent dated episodes in Jeeves's memory.",
+            "mimeType": "text/plain",
+        }),
+    ]
 }
 
 /// The five memory tools exposed outside. **Memory only** — see the module header for why.
