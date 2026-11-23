@@ -178,11 +178,15 @@ function settings(value: "notifications" | "connections" = "notifications") {
   tab.value = value;
   open.value = true;
 }
-function manageMcp() {
+/** The skills, MCP and memory panels still live in the workspace drawer; open the one asked for. */
+function manageCapability(which: "skills" | "mcp" | "memory") {
   open.value = false;
-  const trigger = document.querySelector<HTMLButtonElement>("#cap-mcp");
+  const trigger = document.querySelector<HTMLButtonElement>(which === "memory" ? "#nav-memory" : `#cap-${which}`);
   trigger?.click();
   trigger?.focus();
+}
+function manageMcp() {
+  manageCapability("mcp");
 }
 const SETUP_KEY = "jeeves.setup.dismissed";
 const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
@@ -342,6 +346,7 @@ watch(
       :initial-tab="tab"
       @close="open = false"
       @mcp="manageMcp"
+      @capability="manageCapability"
     >
       <template #approval-notifications><ApprovalPushSettings /></template>
     </SettingsPanel>

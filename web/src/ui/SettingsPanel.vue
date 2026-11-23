@@ -4,14 +4,15 @@ const t = useUiText();
 import { onMounted, reactive, ref } from "vue";
 import JeevesLogo from "./JeevesLogo.vue";
 import ConnectionsPanel from "./ConnectionsPanel.vue";
-import { Bell, Inbox, Plug, X } from "lucide-vue-next";
+import { Bell, Blocks, Inbox, Plug, X } from "lucide-vue-next";
 import type { SettingsActions } from "./types";
 const props = defineProps<{
   busy: boolean;
   actions: SettingsActions;
-  initialTab?: "notifications" | "connections" | "inbox";
+  initialTab?: "notifications" | "connections" | "inbox" | "capabilities";
 }>();
-const emit = defineEmits<{ close: []; mcp: [] }>();
+/** `capability` asks the host to open that panel once this dialog has closed. */
+const emit = defineEmits<{ close: []; mcp: []; capability: [which: "skills" | "mcp" | "memory"] }>();
 const dialog = ref<HTMLDialogElement>();
 const tab = ref(props.initialTab ?? "notifications");
 const saving = ref(false);
@@ -21,7 +22,17 @@ const tabs = [
   { id: "notifications", name: t("审批通知"), icon: Bell },
   { id: "connections", name: t("连接管理"), icon: Plug },
   { id: "inbox", name: t("收件箱"), icon: Inbox },
+  { id: "capabilities", name: t("能力"), icon: Blocks },
 ] as const;
+const capabilities = [
+  { id: "skills", name: t("技能") },
+  { id: "mcp", name: t("MCP 连接器") },
+  { id: "memory", name: t("记忆") },
+] as const;
+function openCapability(which: "skills" | "mcp" | "memory") {
+  dialog.value?.close();
+  emit("capability", which);
+}
 const lark = reactive({
   enabled: false,
   appId: "",
@@ -185,6 +196,13 @@ onMounted(() => {
       </header>
       <div v-if="tab === 'notifications'" class="preferences-content">
         <slot name="approval-notifications" />
+      </div>
+      <div v-if="tab === 'capabilities'" class="preferences-content">
+        <p>{{ t("Jeeves 会用的技能、连接的外部工具，以及它记住的事。") }}</p>
+        <div v-for="item in capabilities" :key="item.id" class="setting-row">
+          <strong>{{ item.name }}</strong>
+          <button type="button" class="quiet-button" @click="openCapability(item.id)">{{ t("管理") }}</button>
+        </div>
       </div>
       <div v-if="tab === 'inbox'" class="preferences-content">
         <h3>{{ t("等你处理") }}</h3>
