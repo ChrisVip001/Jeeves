@@ -232,8 +232,10 @@ watch(
     </nav>
   </Teleport>
   <Teleport to="#activity-view">
-    <ResponsibilityCards v-if="state.view === 'activity'" :busy="state.busy" history />
-    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant" />
+    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant">
+      <ResponsibilityCards :busy="state.busy" />
+      <template #after><ResponsibilityCards :busy="state.busy" list /></template>
+    </ActivityPage>
   </Teleport>
   <Teleport to="#chat-decisions">
     <button v-if="lastWork && state.view === 'chat' && state.sessionId === state.mainSessionId && !followingTask" class="return-work" type="button" @click="inspectActivity(lastWork.id)"><CornerUpLeft :size="15" /><span>{{ t("继续上次的事项") }}</span><strong>{{ lastWork.title }}</strong></button>

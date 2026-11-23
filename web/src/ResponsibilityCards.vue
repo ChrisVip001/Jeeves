@@ -3,7 +3,8 @@ import { ref, watch } from "vue";
 import { responsibilityRequest } from "./api";
 import { getLang } from "./i18n";
 import type { ResponsibilityReview, ResponsibilityListResponse, ResponsibilityContract, ResponsibilityReportsResponse } from "./protocol";
-const props = defineProps<{ busy: boolean; history?: boolean }>();
+/** `list` shows only the standing 长期 list, for a page that shows the reviews elsewhere. */
+const props = defineProps<{ busy: boolean; history?: boolean; list?: boolean }>();
 const reviews=ref<ResponsibilityReview[]>([]);
 const duties=ref<ResponsibilityListResponse["responsibilities"]>([]);
 const working=ref(false);
@@ -55,9 +56,9 @@ async function inspect(id:string) {
 }
 </script>
 <template>
-  <section v-if="reviews.length || error || (history && duties.length)" class="duty-cards" :aria-label="phrase('周期委托','Recurring work')">
-    <p v-if="error" role="status">{{ error }}</p>
-    <article v-for="r in reviews" :key="r.id">
+  <section v-if="list ? duties.length : reviews.length || error || (history && duties.length)" class="duty-cards" :aria-label="phrase('周期委托','Recurring work')">
+    <p v-if="error && !list" role="status">{{ error }}</p>
+    <article v-for="r in list ? [] : reviews" :key="r.id">
       <strong>{{ r.contract.purpose }}</strong>
       <p>{{ r.request }}</p>
       <template v-if="r.action==='amend' && duties.some(d=>d.contract.id===r.contract.id)">
@@ -75,7 +76,8 @@ async function inspect(id:string) {
       <button :disabled="working" @click="act(()=>responsibilityRequest('/decide',{id:r.id,accept:false}))">{{ phrase("取消","Dismiss") }}</button>
       <pre v-if="samples[r.id]">{{ samples[r.id] }}</pre>
     </article>
-    <template v-if="history">
+    <template v-if="(history || list) && duties.length">
+      <h2 class="duty-head">{{ phrase("长期","Long-term") }} <span>{{ duties.length }}</span></h2>
       <article v-for="d in duties" :key="d.contract.id">
         <strong>{{ d.contract.purpose }}</strong>
         <p>{{ d.presentation ? [d.presentation.trigger, d.presentation.action, d.presentation.delivery, d.presentation.blocked].filter(Boolean).join(" · ") : describe(d.contract) }} · {{ d.status==='active'?phrase("已启用","Active"):d.status==='paused'?phrase("已暂停","Paused"):phrase("已到期","Expired") }}</p>
@@ -90,5 +92,8 @@ async function inspect(id:string) {
 .duty-cards {max-width:48rem;margin:0 auto;width:100%}
 article {padding:1rem;border:1px solid var(--line);border-radius:12px;margin:.5rem 0;overflow-wrap:anywhere}
 button {margin-inline-end:.5rem}
+.duty-head {font-size:14px;font-weight:550;color:var(--text-2);margin:24px 0 8px}
+.duty-head span {margin-left:4px;font-size:12px;color:var(--text-3)}
+.duty-cards:has(.duty-head) {margin-top:32px}
 pre {white-space:pre-wrap;font:inherit}
 </style>
