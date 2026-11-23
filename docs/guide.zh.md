@@ -137,7 +137,7 @@ jeeves skill export --to claude,codex                # 复制到其他 agent（-
 
 ## 8. 定时
 
-在对话里说：「每个工作日早上 8 点把今天的日历发给我」。查看时间、来源和投递位置后确认。之后可以在同一对话中修改或暂停。见[周期委托](design/composable-responsibilities.zh.md)。
+在对话里说：「每个工作日早上 8 点把今天的日历发给我」。查看时间、来源和投递位置后确认。之后可以在同一对话中修改或暂停。见[周期委托](design/main-entry.zh.md#6-周期委托)。
 
 ## 9. 凭据
 

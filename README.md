@@ -26,7 +26,7 @@ Coding tasks can run an approved CLI in a private Git worktree. A parent can int
 
 ## Install
 
-Develop from the repository root with `just build`, `just check` and `just release-package`. See the [repository layout](AGENTS.md#repository-layout).
+Develop from the repository root with `just build`, `just check` and `just release-package`. See the [repository layout](docs/architecture.md#module-responsibilities).
 
 **Hosted** users register or sign in at the service's public HTTPS origin. The browser and iOS PWA share the same account and workspace. Pair the Mac app with that account to authorize work in selected windows. [Cloud deployment](control-plane/README.md)
 
@@ -96,7 +96,7 @@ Twelve LLM providers are pre-adapted (`jeeves-provider`), including local Ollama
 |---|---|
 | [docs/guide.md](docs/guide.md) | getting started: install, wizard, models, permissions, chat gateways, skills |
 | [docs/architecture.md](docs/architecture.md) | deployment topology, module responsibilities, dependencies and turn lifecycle |
-| [Recurring work](docs/design/composable-responsibilities.md) | Chat review, configurable triggers and actions, and migration |
+| [Recurring work](docs/design/main-entry.md#6-recurring-work) | Chat review, configurable triggers and actions, and migration |
 | [docs/protocol.md](docs/protocol.md) | JSON-RPC methods, session list and detail responses, recurring duties and delivery approvals, notifications and error codes |
 | [docs/configuration.md](docs/configuration.md) | runtime settings, model key rotation and recovery, and every `JEEVES_*` variable |
 | [docs/operations.md](docs/operations.md) | deployment modes, backups, legacy database migration rehearsals and troubleshooting |

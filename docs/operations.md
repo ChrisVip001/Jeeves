@@ -80,7 +80,7 @@ by other agents are labelled `source: mcp` so the origin stays visible.
 
 ## Recurring work upgrades
 
-A saved briefing enabled through the prior launch environment appears in My Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/composable-responsibilities.md)
+A saved briefing enabled through the prior launch environment appears in My Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/main-entry.md#6-recurring-work)
 
 ## Driving it from a script
 

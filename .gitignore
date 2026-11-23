@@ -52,8 +52,8 @@ desktop/src-tauri/gen/
 .cursor/
 .claude/
 
-# Working notes stay local only — never in the repository.
-# docs/planning/
+# Working notes and agent instructions stay local only — never in the repository.
+docs/planning/
 
 # AOCI local cognition index and runtime (rebuilt via aoci init/scan + MCP).
 .aoci/
@@ -61,6 +61,8 @@ aoci.txt
 aoci.meta.txt
 aoci.code.txt
 aoci.database.txt
+AGENTS.md
+CLAUDE.md
 .gitattributes
 
 # Local browser validation artifacts.

@@ -450,7 +450,7 @@ destination 完全一致时匹配；授权带内容哈希时，内容也必须�
 
 人可以通过 `POST /api/responsibilities` 登记，通过 `GET /api/responsibilities` 查询，向 `POST /api/responsibilities/pause` 发送 `{"id":"weekly","paused":true}` 暂停。接口沿用控制台的访问控制。模型和聊天网关没有登记或暂停权限。
 
-登记需要唯一标识、目的、未来的 RFC 3339 截止时间，以及至少一项正数预算（`tokens`、`tools` 或 `wallMs`）。可组合的定义包含 `plan.trigger`、`plan.action` 和 `plan.delivery`。通过 `recurring_work` 的能力目录获取对应版本的动作参数。Runtime 返回可审阅的 `presentation`，确认和执行时重新校验。历史摘要和周报字段仍可用于兼容入口。来源只标识证据，连接器操作须单独授权。需要修改迁移定义的委托会返回 `migrationNote`。[执行与兼容说明](design/composable-responsibilities.zh.md)
+登记需要唯一标识、目的、未来的 RFC 3339 截止时间，以及至少一项正数预算（`tokens`、`tools` 或 `wallMs`）。可组合的定义包含 `plan.trigger`、`plan.action` 和 `plan.delivery`。通过 `recurring_work` 的能力目录获取对应版本的动作参数。Runtime 返回可审阅的 `presentation`，确认和执行时重新校验。历史摘要和周报字段仍可用于兼容入口。来源只标识证据，连接器操作须单独授权。需要修改迁移定义的委托会返回 `migrationNote`。[执行与兼容说明](design/main-entry.zh.md#6-周期委托)
 
 ### 外部投递
 

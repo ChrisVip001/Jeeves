@@ -26,7 +26,7 @@
 
 ## 安装
 
-从仓库根目录运行 `just build`、`just check` 和 `just release-package`。参见[仓库布局](AGENTS.md#repository-layout)。
+从仓库根目录运行 `just build`、`just check` 和 `just release-package`。参见[仓库布局](docs/architecture.zh.md#模块职责)。
 
 **托管版**使用服务公开的 HTTPS 地址注册或登录。浏览器和 iOS PWA 共用一个账号与任务工作台。Mac 客户端用同一账号配对，在任务需要时授权操作所选窗口。[云端部署](control-plane/README.zh.md)
 
@@ -96,7 +96,7 @@ Runtime 会按模型目录和上下文余量调整每次模型请求的输出额
 |---|---|
 | [docs/guide.zh.md](docs/guide.zh.md) | 上手指南：安装、向导、模型、权限、聊天网关、技能 |
 | [docs/architecture.zh.md](docs/architecture.zh.md) | 原则、crate 依赖图、turn 数据流、设计决策 |
-| [周期委托](docs/design/composable-responsibilities.zh.md) | 聊天审阅、组合触发与动作、旧委托迁移 |
+| [周期委托](docs/design/main-entry.zh.md#6-周期委托) | 聊天审阅、组合触发与动作、旧委托迁移 |
 | [docs/protocol.zh.md](docs/protocol.zh.md) | JSON-RPC 方法、会话列表与详情响应、周期委托与投递审批、通知序列与错误码 |
 | [docs/configuration.zh.md](docs/configuration.zh.md) | 运行设置、模型密钥轮换与故障恢复、全部 `JEEVES_*` 变量 |
 | [docs/operations.zh.md](docs/operations.zh.md) | 运行手册：各种运行形态、备份、旧版数据库迁移演练、故障排查 |

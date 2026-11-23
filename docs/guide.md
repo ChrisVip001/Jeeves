@@ -137,7 +137,7 @@ The dashboard's **Capabilities** center lists every loaded skill with version, p
 
 ## 8. Schedules
 
-Ask in chat, “At 8 each weekday, send my calendar for the day here.” Review the time, source and destination before activating it. Amend or pause it from the same conversation. [Recurring work](design/composable-responsibilities.md)
+Ask in chat, “At 8 each weekday, send my calendar for the day here.” Review the time, source and destination before activating it. Amend or pause it from the same conversation. [Recurring work](design/main-entry.md#6-recurring-work)
 
 ## 9. Credentials
 

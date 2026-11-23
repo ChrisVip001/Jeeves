@@ -77,7 +77,7 @@ JEEVES_PROVIDER=deepseek DEEPSEEK_API_KEY=… ./target/debug/jeeves
 
 ## 周期委托升级
 
-曾通过启动环境开启的晨报已迁入「我的工作」，可查看旧草稿。请在对话中确认新的来源、时间和接收位置。见[周期委托](design/composable-responsibilities.zh.md)。
+曾通过启动环境开启的晨报已迁入「我的工作」，可查看旧草稿。请在对话中确认新的来源、时间和接收位置。见[周期委托](design/main-entry.zh.md#6-周期委托)。
 
 ## 用脚本驱动它
 
