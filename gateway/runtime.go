@@ -182,5 +182,5 @@ func (g *gateway) asset(w http.ResponseWriter, r *http.Request, name string) {
 		cloudkit.Error(w, 404, "not found")
 		return
 	}
-	http.ServeContent(w, r, name, info.ModTime(), file)
+	g.deliver(w, r, name, info, file)
 }
