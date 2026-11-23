@@ -52,7 +52,7 @@
 执行循环使用 `execute_result`，把授权、参数校验和处理函数给出的状态与正文一起读取。成功正文可以以 `Error:` 开头。
 
 `register` 用 `jsonschema` 预编译 `input_schema`；`execute` 先校验，校验失败绝不进入 handler。
-无法编译的 schema 跳过校验，并在 stderr 打一行日志。`require_str` 会去空白，并拒绝缺失、非字符串和空值；`opt_u32` 拒绝负数。
+无法编译的 schema 跳过校验，并在 stderr 打一行日志。若校验失败仅因顶层的 integer、number、boolean、array 或 object 参数以 JSON 字符串传来（`"5"`、`"true"`、`"[…]"`），`execute` 会解析它，解析后通过校验就执行，并在 stderr 记下修复的键；其他情况仍返回上述错误。`require_str` 会去空白，并拒绝缺失、非字符串和空值；`opt_u32` 拒绝负数。
 
 `execute` 内部顺序：schema 校验，然后宿主的 `ExecutionPolicy::authorize`（见[授权](#授权)），
 再对独占工具从 `ResourceCoordinator` 取变更许可（`delegate_task` 除外，它的子循环各自取），

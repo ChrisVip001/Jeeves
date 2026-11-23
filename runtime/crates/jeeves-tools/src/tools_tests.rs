@@ -779,3 +779,61 @@ async fn readonly_drops_the_exclusive_tools_and_nothing_else() {
         "the one missing is exactly the exclusive tool"
     );
 }
+
+fn typed_tool() -> ToolRegistry {
+    let mut registry = ToolRegistry::new();
+    registry.register(Tool {
+        name: "typed".to_string(),
+        description: "echoes its arguments".to_string(),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer"},
+                "flag": {"type": "boolean"},
+                "items": {"type": "array", "items": {"type": "string"}},
+                "label": {"type": "string"}
+            },
+            "required": ["count"]
+        }),
+        handler: Arc::new(|_ctx: ToolCtx, args: serde_json::Value| {
+            Box::pin(async move { Ok(format!("ran with {args}")) })
+        }),
+    });
+    registry
+}
+
+#[tokio::test]
+async fn scalars_sent_as_strings_are_parsed_to_the_schema_types() {
+    let out = typed_tool()
+        .execute(
+            ctx().await,
+            "typed",
+            json!({"count": "5", "flag": "true", "items": "[\"a\",\"b\"]", "label": "7"}),
+        )
+        .await;
+    assert_eq!(
+        out, r#"ran with {"count":5,"flag":true,"items":["a","b"],"label":"7"}"#,
+        "a string property keeps its string: {out}"
+    );
+}
+
+#[tokio::test]
+async fn a_string_that_is_not_the_declared_type_is_still_rejected() {
+    for count in [json!("abc"), json!("1.5"), json!("[1]")] {
+        let out = typed_tool()
+            .execute(ctx().await, "typed", json!({ "count": count }))
+            .await;
+        assert!(
+            out.starts_with("Error: the arguments do not match the typed schema"),
+            "{count}: {out}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_number_for_a_string_property_is_not_coerced() {
+    let out = typed_tool()
+        .execute(ctx().await, "typed", json!({"count": 1, "label": 7}))
+        .await;
+    assert!(out.contains("schema") && out.contains("label"), "{out}");
+}

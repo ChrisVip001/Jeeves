@@ -19,6 +19,7 @@ use jeeves_state::{Chat, Episodes, Facts};
 use serde_json::Value;
 
 pub mod approval;
+mod arg_coerce;
 pub mod browser;
 mod code_map;
 pub mod edit_checks;
@@ -511,11 +512,25 @@ impl ToolRegistry {
             return ToolOutput::failure(format!("Error: {name}: {why}"));
         }
 
+        let mut args = args;
         if let Some(Some(validator)) = self.validators.get(name) {
             if let Err(why) = describe_violations(validator, &args) {
-                return ToolOutput::failure(format!(
-                    "Error: the arguments do not match the {name} schema — {why}. Rewrite the input to satisfy the schema."
-                ));
+                match arg_coerce::coerce(&tool.input_schema, &args)
+                    .filter(|(repaired, _)| validator.is_valid(repaired))
+                {
+                    Some((repaired, keys)) => {
+                        eprintln!(
+                            "(jeeves) {name}: arguments {} arrived as strings; parsed them to the schema's types and ran the call",
+                            keys.join(", ")
+                        );
+                        args = repaired;
+                    }
+                    None => {
+                        return ToolOutput::failure(format!(
+                            "Error: the arguments do not match the {name} schema — {why}. Rewrite the input to satisfy the schema."
+                        ));
+                    }
+                }
             }
         }
 

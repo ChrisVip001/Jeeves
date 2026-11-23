@@ -53,6 +53,7 @@ The loop uses `execute_result` to read the status from authorization, validation
 
 `register` precompiles `input_schema` with `jsonschema`; `execute` validates before anything else, so a
 failed validation never reaches a handler. A schema that does not compile skips validation and logs one line on stderr.
+When validation fails only because a top-level integer, number, boolean, array or object argument arrived as a JSON string (`"5"`, `"true"`, `"[…]"`), `execute` parses it, runs the call if the result validates, and logs the repaired keys on stderr; anything else keeps the error above.
 `require_str` trims and rejects missing, non-string and empty values; `opt_u32` rejects negatives.
 
 Order inside `execute`: schema validation, then the host's `ExecutionPolicy::authorize` (see
