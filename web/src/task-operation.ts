@@ -1,6 +1,6 @@
 import { el } from "./render";
 import { t } from "./i18n";
-import { reconcileTaskOperation, taskOperations, reconcileTurnOperation, turnOperations } from "./api";
+import { errorText, reconcileTaskOperation, taskOperations, reconcileTurnOperation, turnOperations } from "./api";
 import type { AgentTaskView, OperationResolution, OperationStatus, TaskOperationsResponse, ToolOperationView } from "./protocol";
 
 function outcomeLabel(status: OperationStatus): string {
@@ -110,7 +110,7 @@ function operationForm(
     if (!panel.isConnected) { onDetachedError(failure); return; }
     status.textContent = "";
     error.hidden = false;
-    error.textContent = failure instanceof Error ? failure.message : String(failure);
+    error.textContent = errorText(failure);
   }
   panel.addEventListener("keydown", event => {
     if (event.key === "Escape") { event.stopPropagation(); onClose(); }

@@ -3,7 +3,7 @@ import { accountKey, accountStorage } from "./hosted.ts";
 import { computed, ref, watch } from "vue";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import { ArrowUp, Ellipsis } from "lucide-vue-next";
-import { interact } from "./api";
+import { errorText, interact } from "./api";
 import { workspaceActions } from "./controls";
 import { t } from "./i18n";
 import { webTasks } from "./tasks";
@@ -70,7 +70,7 @@ async function send() {
       }
     }
     feedback.value=t("未收到任务回执，可重试这条补充。");
-  } catch(error) { feedback.value = error instanceof Error ? error.message : String(error); }
+  } catch(error) { feedback.value = errorText(error); }
   finally { sending.value=false; }
 }
 watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed, props.task.runCount, revision.value],

@@ -11,7 +11,7 @@ import {
   refreshPolicy,
   saveWorkspace,
 } from "./controls";
-import { preferenceRequest } from "./api";
+import { errorText, preferenceRequest } from "./api";
 import { webTasks } from "./tasks";
 import { submissionTracker } from "./ui/submission.ts";
 const submissions = submissionTracker(accountStorage);
@@ -1092,7 +1092,7 @@ let lostMessage: string | null = null;
 function connectionLost(error: unknown): string {
   if (error instanceof TypeError || !navigator.onLine)
     return t("连不上 Jeeves，正在自动重试…");
-  return error instanceof Error ? error.message : String(error);
+  return errorText(error);
 }
 
 /** Refresh at once when the network or the tab comes back, instead of waiting for the poll. */

@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import { errorText } from "../api.ts";
 import type * as V2 from "../../../protocol/schema/typescript/v2/index";
 export interface BrowserActions {
   list(sessionId: string): Promise<V2.BrowserListResponse>;
@@ -10,10 +11,6 @@ export interface BrowserActions {
   download(
     params: V2.BrowserDownloadParams,
   ): Promise<V2.BrowserDownloadsResponse>;
-}
-/** The human-facing text of a thrown error, without the `ApiError:` class-name prefix String() adds. */
-function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 /** Presentation only; scope, permission and control fences belong to the Runtime. */
 export function useBrowsers(actions: BrowserActions) {
@@ -72,7 +69,7 @@ export function useBrowsers(actions: BrowserActions) {
       }
     } catch (error) {
       if (owner === state.owner && epoch === version)
-        state.errors.list = message(error);
+        state.errors.list = errorText(error);
     } finally {
       refreshing = false;
     }
@@ -121,7 +118,7 @@ export function useBrowsers(actions: BrowserActions) {
         if (input) {
           delete state.frames[taskId];
           state.inputFailed[taskId] = true;
-        } else state.errors[taskId] = message(error);
+        } else state.errors[taskId] = errorText(error);
       }
     } finally {
       if (owner === state.owner && ownerEpoch === ownerVersion) {

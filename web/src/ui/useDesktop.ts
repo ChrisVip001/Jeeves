@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import { errorText } from "../api.ts";
 import type {
   DesktopAction,
   DesktopActParams,
@@ -57,7 +58,7 @@ export function useDesktop(taskId: string, request: Request) {
       state.observation = null;
       state.status = null;
       clearPreview();
-      state.error = error instanceof Error ? error.message : String(error);
+      state.error = errorText(error);
       if (reconcile) {
         try {
           const current = await status();

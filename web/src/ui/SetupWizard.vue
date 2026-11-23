@@ -3,6 +3,7 @@ import { useUiText } from "./translate";
 const t = useUiText();
 import { onMounted, reactive, ref } from "vue";
 import JeevesLogo from "./JeevesLogo.vue";
+import { errorText } from "../api.ts";
 import type { ModelInfo, SettingsActions } from "./types";
 const props = defineProps<{
   models: ModelInfo[];
@@ -41,7 +42,7 @@ async function saveModel() {
     });
     step.value = 2;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    error.value = errorText(e);
   } finally {
     saving.value = false;
     form.apiKey = "";
@@ -57,7 +58,7 @@ async function finish() {
       await props.remember(t("用户关心的事"), about.cares.trim());
     emit("done");
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e);
+    error.value = errorText(e);
   } finally {
     saving.value = false;
   }

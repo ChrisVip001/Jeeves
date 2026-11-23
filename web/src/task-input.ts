@@ -1,6 +1,6 @@
 import { el } from "./render";
 import { t } from "./i18n";
-import { signalTaskInput, taskAction } from "./api";
+import { errorText, signalTaskInput, taskAction } from "./api";
 import type { AgentTaskView } from "./protocol";
 
 /** Human input controls preserve the form on refusal and never start a task. */
@@ -77,7 +77,7 @@ export function taskInputForm(
         onSaved();
       } catch (failure) {
         if (!panel.isConnected) { onDetachedError(failure); return; }
-        error.textContent = failure instanceof Error ? failure.message : String(failure);
+        error.textContent = errorText(failure);
         error.hidden = false;
         body.focus();
       } finally {
