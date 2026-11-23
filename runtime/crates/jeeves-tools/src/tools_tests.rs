@@ -667,6 +667,47 @@ async fn schedule_job_writes_the_declaration_into_home() {
 }
 
 #[tokio::test]
+async fn a_run_at_job_is_saved_as_a_one_shot_and_listed_with_its_time() {
+    let registry = handlers::build_default();
+    let ctx = ctx().await;
+    let when = (chrono::Local::now().naive_local() + chrono::TimeDelta::days(1))
+        .format("%Y-%m-%d %H:%M")
+        .to_string();
+
+    let out = registry
+        .execute(
+            ctx.clone(),
+            "schedule_job",
+            json!({"name": "dentist", "run_at": when, "prompt": "remind me to leave for the dentist"}),
+        )
+        .await;
+    assert!(out.contains(&format!("once at {when}")), "{out}");
+    assert!(out.contains("removed after it runs"), "{out}");
+    assert!(
+        !out.contains("Next run"),
+        "a one-shot job has no cron next run: {out}"
+    );
+
+    let listed = registry
+        .execute(ctx.clone(), "list_schedules", json!({}))
+        .await;
+    assert!(
+        listed.contains(&format!("dentist · once at {when}")),
+        "{listed}"
+    );
+
+    let past = registry
+        .execute(
+            ctx.clone(),
+            "schedule_job",
+            json!({"name": "late", "run_at": "2020-01-01 09:00", "prompt": "too late"}),
+        )
+        .await;
+    assert!(past.starts_with("Error"), "{past}");
+    assert!(past.contains("already passed"), "{past}");
+}
+
+#[tokio::test]
 async fn a_bad_cron_comes_back_as_a_sentence() {
     let registry = handlers::build_default();
     let ctx = ctx().await;

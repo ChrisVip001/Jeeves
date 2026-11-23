@@ -12,4 +12,8 @@ export type ScheduleSaveParams = {
    * Absent = true.
    */
   catchUp?: boolean | null;
+  /**
+   * Run once at this local `YYYY-MM-DD HH:MM` instead of on `cron` (then leave `cron` empty).
+   */
+  runAt?: string | null;
 };

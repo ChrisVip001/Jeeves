@@ -17,10 +17,14 @@ use sqlx::SqlitePool;
 
 use crate::{Tool, ToolCtx, require_str};
 
+/// The local wall clock every door validates against.
+fn local_now() -> chrono::NaiveDateTime {
+    chrono::Local::now().naive_local()
+}
+
 /// The next fire, or the sentence saying why there is none.
 fn next_label(cron: &str) -> String {
-    let now = chrono::Local::now().naive_local();
-    match schedule::next_run_at(cron, now) {
+    match schedule::next_run_at(cron, local_now()) {
         Ok(when) => format!("Next run {when}"),
         Err(why) => format!("({why}, so it will not run)"),
     }
@@ -37,7 +41,10 @@ pub fn reserved(home: &Path) -> Vec<String> {
 
 /// Validates and stores one job; the answer is a sentence for the panel or the model.
 pub async fn save_job(home: &Path, pool: &SqlitePool, body: &JobBody) -> Result<String, String> {
-    let job = schedule::validate(body, &reserved(home))?;
+    let job = schedule::validate(body, &reserved(home), local_now())?;
+    let run_at = job
+        .run_at
+        .map(|at| at.format(schedule::RUN_AT_FORMAT).to_string());
     ScheduleJobs::new(pool.clone())
         .save(&ScheduleJobRow {
             name: job.name.clone(),
@@ -45,13 +52,20 @@ pub async fn save_job(home: &Path, pool: &SqlitePool, body: &JobBody) -> Result<
             prompt: job.prompt,
             delivery: job.delivery.clone(),
             catch_up: job.catch_up,
+            run_at: run_at.clone(),
         })
         .await
         .map_err(|error| format!("could not save the job: {error}"))?;
-    Ok(format!(
-        "saved \"{}\": {}, delivery {}",
-        job.name, job.cron, job.delivery
-    ))
+    Ok(match run_at {
+        Some(when) => format!(
+            "saved \"{}\": once at {when}, delivery {}; it is removed after it runs",
+            job.name, job.delivery
+        ),
+        None => format!(
+            "saved \"{}\": {}, delivery {}",
+            job.name, job.cron, job.delivery
+        ),
+    })
 }
 
 /// Deletes one stored job; a skill-owned name is refused with the way out.
@@ -104,8 +118,9 @@ pub async fn import_legacy_file(home: &Path, pool: &SqlitePool) -> Result<usize,
             prompt: prompt.to_string(),
             delivery: text_of("delivery").unwrap_or("outbox").to_string(),
             catch_up: entry.get("catch_up").and_then(Value::as_bool),
+            run_at: None,
         };
-        let valid = match schedule::validate(&body, &[]) {
+        let valid = match schedule::validate(&body, &[], local_now()) {
             Ok(valid) => valid,
             Err(why) => {
                 eprintln!("(jeeves) schedules.json: skipped \"{name}\": {why}");
@@ -118,6 +133,7 @@ pub async fn import_legacy_file(home: &Path, pool: &SqlitePool) -> Result<usize,
             prompt: valid.prompt,
             delivery: valid.delivery,
             catch_up: valid.catch_up,
+            run_at: None,
         };
         if jobs
             .insert_if_absent(&row)
@@ -153,6 +169,10 @@ fn body_from(args: &Value) -> JobBody {
             }
         },
         catch_up: args.get("catch_up").and_then(Value::as_bool),
+        run_at: args
+            .get("run_at")
+            .and_then(Value::as_str)
+            .map(str::to_string),
     }
 }
 
@@ -163,13 +183,14 @@ pub fn schedule_tools() -> Vec<Tool> {
 fn schedule_job() -> Tool {
     Tool {
         name: "schedule_job".to_string(),
-        description: "Create a scheduled job: when (five-field cron) and what (one sentence). At that time it runs as a turn and the result goes to <home>/outbox/. The Runtime fires it while it is up. Use it when the user says things like \"send me a briefing at eight every day\"."
+        description: "Create a scheduled job: when (a five-field cron to repeat, or run_at to run once) and what (one sentence). At that time it runs as a turn and the result goes to <home>/outbox/. The Runtime fires it while it is up. Use cron for \"send me a briefing at eight every day\" and run_at for \"remind me at 3pm tomorrow\"; a run_at job is removed after it runs."
             .to_string(),
         input_schema: json!({
             "type": "object",
             "properties": {
                 "name": {"type": "string", "description": "The job name: lowercase letters, digits, hyphens, e.g. morning-news"},
-                "cron": {"type": "string", "description": "Five-field cron: minute hour day month weekday, e.g. `0 8 * * 1-5` for 08:00 on weekdays"},
+                "cron": {"type": "string", "description": "Five-field cron: minute hour day month weekday, e.g. `0 8 * * 1-5` for 08:00 on weekdays. Leave empty when run_at is set"},
+                "run_at": {"type": "string", "description": "Run once at this local time, `YYYY-MM-DD HH:MM` (e.g. 2026-11-25 15:00); work it out from the current time in the prompt. Give this or cron, not both"},
                 "prompt": {"type": "string", "description": "The sentence sent to Jeeves when it fires"},
                 "delivery": {
                     "type": "string",
@@ -178,7 +199,7 @@ fn schedule_job() -> Tool {
                 },
                 "catch_up": {"type": "boolean", "description": "Catch up once after a missed run? Default true"}
             },
-            "required": ["name", "cron", "prompt"]
+            "required": ["name", "prompt"]
         }),
         handler: Arc::new(|ctx: ToolCtx, args: Value| {
             Box::pin(async move {
@@ -186,10 +207,14 @@ fn schedule_job() -> Tool {
                 let summary = save_job(&ctx.home, &ctx.chat.pool(), &body)
                     .await
                     .map_err(|why| anyhow::anyhow!(why))?;
-                let cron = body.cron.split_whitespace().collect::<Vec<_>>().join(" ");
+                let next = if body.run_at.as_deref().is_some_and(|at| !at.trim().is_empty()) {
+                    String::new()
+                } else {
+                    let cron = body.cron.split_whitespace().collect::<Vec<_>>().join(" ");
+                    format!(" {}.", next_label(&cron))
+                };
                 Ok(format!(
-                    "{summary}.{}.\n\n                     It fires while the Runtime is up (the cockpit shows this job under Capabilities → Scheduled jobs).",
-                    next_label(&cron)
+                    "{summary}.{next}\n\nIt fires while the Runtime is up (the cockpit shows this job under Capabilities → Scheduled jobs)."
                 ))
             })
         }),
@@ -217,10 +242,12 @@ fn list_schedules() -> Tool {
                     ));
                 }
                 for job in stored {
+                    let when = job
+                        .run_at
+                        .map_or(job.cron, |at| format!("once at {at}"));
                     lines.push(format!(
-                        "- {} · {} · {}",
+                        "- {} · {when} · {}",
                         job.name,
-                        job.cron,
                         job.prompt.chars().take(60).collect::<String>()
                     ));
                 }

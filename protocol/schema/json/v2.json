@@ -5306,6 +5306,13 @@
         "prompt": {
           "type": "string"
         },
+        "runAt": {
+          "description": "Local `YYYY-MM-DD HH:MM` for a one-shot job (removed after it runs); null repeats on `cron`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "skill": {
           "description": "The skill this job comes from, when `source == \"skill\"`.",
           "type": [
@@ -5392,6 +5399,14 @@
         },
         "prompt": {
           "type": "string"
+        },
+        "runAt": {
+          "default": null,
+          "description": "Run once at this local `YYYY-MM-DD HH:MM` instead of on `cron` (then leave `cron` empty).",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [

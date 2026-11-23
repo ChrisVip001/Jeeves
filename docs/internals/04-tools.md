@@ -224,6 +224,7 @@ It makes no network call; the reply says nothing was sent.
 **`schedule_job`** (`name`, `cron`, `prompt`, `delivery` = outbox / notify / quiet, `catch_up`), **`list_schedules`**, **`cancel_schedule`** (`name`) share the validation and
 cron semantics of `jeeves_agent::schedule` / `cron` with the runtime that fires the jobs. Names are lowercase letters, digits and hyphens (at most 64) and must not collide with a skill's `schedule:` line; the reply states the next run and that the job fires only while the Runtime is up.
 A job declared by a skill cannot be cancelled with the tool.
+`run_at` (local `YYYY-MM-DD HH:MM`, instead of `cron`) makes a one-shot job: it is refused in the past or more than a year ahead, its stored cron pins the same minute for display, and the scheduler (`scheduler/once.rs`) fires it once and removes the row; the cron paths skip it.
 
 ## To-do list
 

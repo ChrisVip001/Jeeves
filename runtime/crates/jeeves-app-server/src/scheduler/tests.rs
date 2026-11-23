@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use chrono::NaiveDate;
 
-use super::{Delivery, Job, cron_matches, due_now, last_missed, load_jobs};
+use super::{Delivery, Job, cron_matches, due_now, last_missed, load_jobs, once};
 
 fn at(y: i32, m: u32, d: u32, hh: u32, mm: u32) -> chrono::NaiveDateTime {
     NaiveDate::from_ymd_opt(y, m, d)
@@ -20,6 +20,7 @@ fn job(name: &str, cron: &str) -> Job {
         prompt: "do something".to_string(),
         catch_up: true,
         delivery: Delivery::Outbox,
+        run_at: None,
     }
 }
 
@@ -154,6 +155,7 @@ async fn jobs_load_from_both_skills_and_the_table() {
             prompt: "what is on today?".into(),
             delivery: "outbox".into(),
             catch_up: true,
+            run_at: None,
         })
         .await
         .unwrap();
@@ -188,6 +190,7 @@ async fn per_job_policy_fields_are_loaded() {
                 prompt: "do it".into(),
                 delivery: delivery.into(),
                 catch_up,
+                run_at: None,
             })
             .await
             .unwrap();
@@ -609,4 +612,73 @@ mod gap_reconcile_tests {
         .await;
         assert!(model.received.lock().unwrap().is_empty());
     }
+}
+
+#[test]
+fn a_one_shot_job_fires_at_its_minute_and_never_on_its_pinned_cron() {
+    let run_at = at(2026, 11, 25, 15, 0);
+    let reminder = Job {
+        run_at: Some(run_at),
+        ..job("dentist", "0 15 25 11 *")
+    };
+    let jobs = [reminder];
+    assert!(
+        due_now(&jobs, run_at, &HashMap::new()).is_empty(),
+        "the cron path must leave one-shot jobs to once::tick"
+    );
+    assert_eq!(
+        once::step(run_at, true, at(2026, 11, 25, 14, 59), false),
+        once::Step::Wait
+    );
+    let mid_minute = run_at + chrono::TimeDelta::seconds(40);
+    assert_eq!(
+        once::step(run_at, true, mid_minute, false),
+        once::Step::Fire
+    );
+    assert_eq!(once::step(run_at, true, mid_minute, true), once::Step::Wait);
+}
+
+#[test]
+fn a_missed_one_shot_job_runs_late_once_or_is_dropped() {
+    let run_at = at(2026, 11, 25, 15, 0);
+    let next_day = at(2026, 11, 26, 9, 0);
+    assert_eq!(once::step(run_at, true, next_day, false), once::Step::Late);
+    assert_eq!(once::step(run_at, false, next_day, false), once::Step::Drop);
+    assert_eq!(
+        once::step(run_at, true, at(2026, 12, 3, 9, 0), false),
+        once::Step::Drop,
+        "more than a week late is not worth running"
+    );
+}
+
+#[tokio::test]
+async fn a_one_shot_job_loads_with_its_time_and_is_removed_only_for_that_time() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let pool = pool_in(dir.path()).await;
+    let store = jeeves_state::ScheduleJobs::new(pool.clone());
+    let row = jeeves_state::ScheduleJobRow {
+        name: "dentist".into(),
+        cron: "0 15 25 11 *".into(),
+        prompt: "remind me to leave for the dentist".into(),
+        delivery: "notify".into(),
+        catch_up: true,
+        run_at: Some("2026-11-25 15:00".into()),
+    };
+    store.save(&row).await.unwrap();
+    let jobs = load_jobs(dir.path(), &pool).await;
+    assert_eq!(jobs[0].run_at, Some(at(2026, 11, 25, 15, 0)));
+    assert_eq!(once::key(at(2026, 11, 25, 15, 0)), "2026-11-25 15:00");
+    assert!(
+        !store
+            .remove_one_shot("dentist", "2026-11-26 15:00")
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .remove_one_shot("dentist", "2026-11-25 15:00")
+            .await
+            .unwrap()
+    );
+    assert!(load_jobs(dir.path(), &pool).await.is_empty());
 }

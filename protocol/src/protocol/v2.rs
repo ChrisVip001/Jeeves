@@ -2179,6 +2179,8 @@ pub struct ScheduleJob {
     pub next_run: Option<String>,
     /// Why `next_run` is null, when it is null for an interesting reason.
     pub next_run_note: Option<String>,
+    /// Local `YYYY-MM-DD HH:MM` for a one-shot job (removed after it runs); null repeats on `cron`.
+    pub run_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -2204,6 +2206,10 @@ pub struct ScheduleSaveParams {
     /// Absent = true.
     #[ts(optional = nullable)]
     pub catch_up: Option<bool>,
+    /// Run once at this local `YYYY-MM-DD HH:MM` instead of on `cron` (then leave `cron` empty).
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub run_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]

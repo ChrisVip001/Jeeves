@@ -1,4 +1,4 @@
-//! Scheduled-job declarations (migration 0048): what to run, when, and where the result goes.
+//! Scheduled-job declarations (migration 0001; `run_at` from 0016): what to run, when, and where the result goes.
 //! The runtime half (last fired, claimed slot) stays in `schedules.rs`.
 
 use sqlx::SqlitePool;
@@ -11,6 +11,8 @@ pub struct ScheduleJobRow {
     pub prompt: String,
     pub delivery: String,
     pub catch_up: bool,
+    /// Local `YYYY-MM-DD HH:MM` for a one-shot job (migration 0016); `None` repeats on `cron`.
+    pub run_at: Option<String>,
 }
 
 #[derive(Clone)]
@@ -26,15 +28,16 @@ impl ScheduleJobs {
     /// Adds or replaces one job (the name is the key).
     pub async fn save(&self, job: &ScheduleJobRow) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT INTO schedule_jobs (name, cron, prompt, delivery, catch_up) VALUES (?, ?, ?, ?, ?) \
+            "INSERT INTO schedule_jobs (name, cron, prompt, delivery, catch_up, run_at) VALUES (?, ?, ?, ?, ?, ?) \
              ON CONFLICT(name) DO UPDATE SET cron = excluded.cron, prompt = excluded.prompt, \
-             delivery = excluded.delivery, catch_up = excluded.catch_up",
+             delivery = excluded.delivery, catch_up = excluded.catch_up, run_at = excluded.run_at",
         )
         .bind(&job.name)
         .bind(&job.cron)
         .bind(&job.prompt)
         .bind(&job.delivery)
         .bind(job.catch_up)
+        .bind(&job.run_at)
         .execute(&self.pool)
         .await
         .map(|_| ())
@@ -44,15 +47,27 @@ impl ScheduleJobs {
     /// was edited after the first import).
     pub async fn insert_if_absent(&self, job: &ScheduleJobRow) -> Result<bool, sqlx::Error> {
         let done = sqlx::query(
-            "INSERT OR IGNORE INTO schedule_jobs (name, cron, prompt, delivery, catch_up) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO schedule_jobs (name, cron, prompt, delivery, catch_up, run_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(&job.name)
         .bind(&job.cron)
         .bind(&job.prompt)
         .bind(&job.delivery)
         .bind(job.catch_up)
+        .bind(&job.run_at)
         .execute(&self.pool)
         .await?;
+        Ok(done.rows_affected() > 0)
+    }
+
+    /// Deletes a one-shot job only if it is still the same one-shot time: a person who re-saved the
+    /// name for another time (or as a repeating job) keeps the new declaration.
+    pub async fn remove_one_shot(&self, name: &str, run_at: &str) -> Result<bool, sqlx::Error> {
+        let done = sqlx::query("DELETE FROM schedule_jobs WHERE name = ? AND run_at = ?")
+            .bind(name)
+            .bind(run_at)
+            .execute(&self.pool)
+            .await?;
         Ok(done.rows_affected() > 0)
     }
 
@@ -68,7 +83,7 @@ impl ScheduleJobs {
     /// All jobs, sorted by name.
     pub async fn list(&self) -> Result<Vec<ScheduleJobRow>, sqlx::Error> {
         sqlx::query_as(
-            "SELECT name, cron, prompt, delivery, catch_up FROM schedule_jobs ORDER BY name",
+            "SELECT name, cron, prompt, delivery, catch_up, run_at FROM schedule_jobs ORDER BY name",
         )
         .fetch_all(&self.pool)
         .await

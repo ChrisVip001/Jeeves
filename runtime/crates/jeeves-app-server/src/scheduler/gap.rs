@@ -2,7 +2,8 @@
 //! process that was down. The resident loop notices the jump and runs one reconcile pass over the
 //! gap, with the same rules as startup catch-up: a trigger that was never claimed and is inside
 //! `catch_up` fires once (the latest one, not a chain); a claimed one is never replayed; a job with
-//! `catch_up` off is reported as missed and left alone. Nothing here is silent.
+//! `catch_up` off is reported as missed and left alone. One-shot jobs are skipped: `once` sees
+//! their overdue minute on the next tick. Nothing here is silent.
 
 use chrono::{NaiveDateTime, TimeDelta};
 
@@ -65,7 +66,7 @@ pub(super) async fn reconcile(
         last_tick.format("%Y-%m-%d %H:%M"),
         now.format("%Y-%m-%d %H:%M")
     );
-    for job in jobs {
+    for job in jobs.iter().filter(|job| job.run_at.is_none()) {
         let after = match schedules.last_fired(&job.name).await {
             Ok(Some(text)) => NaiveDateTime::parse_from_str(&text, "%Y-%m-%dT%H:%M")
                 .ok()

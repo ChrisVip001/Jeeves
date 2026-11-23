@@ -189,14 +189,21 @@ cron      0 8 * * 1-5         five fields: minute hour day month weekday
 prompt    Give me today's tech news   one sentence — it becomes one turn
 delivery  outbox | notify | quiet
 catch_up  run once after a miss (default), or drop it
+run_at    2026-11-25 15:00    instead of cron: run once at this local minute, then the job is removed
 ```
+
+A `run_at` job is a reminder, not a pattern: it fires once and its row is deleted. If the
+Runtime was down at that minute, it runs once late (with a note saying so) when `catch_up` is on
+and the miss is under a week old; otherwise it is reported, written to `schedule-runs.jsonl` as
+`missed`, and removed. A time in the past or more than a year away is refused when it is saved.
 
 The panel is an editor for jobs, not a scheduler: the Runtime fires them, and the panel says so at
 the bottom of the list — a form that silently needed a running process would be worse than no form.
 
 The panel is not the only door: say it in chat — "every day at eight, give me a tech news brief" — and the model
 calls `schedule_job`, which stores the same row through the same validation. It answers
-with the next fire time and the reminder that the Runtime has to be up. Deleting
+with the next fire time and the reminder that the Runtime has to be up. "Remind me
+at three tomorrow" becomes a `run_at` job the same way. Deleting
 from chat is `cancel_schedule`; listing is `list_schedules`.
 
 Why a tool and not "let it write a file": a job declaration is Jeeves's own state, not project content,

@@ -132,11 +132,15 @@ impl Server {
                         prompt: String,
                         delivery: String,
                         catch_up: bool,
-                        skill: Option<String>| {
+                        skill: Option<String>,
+                        run_at: Option<String>| {
             let row = state.iter().find(|row| row.name == name);
-            let (next_run, next_run_note) = match jeeves_agent::schedule::next_run_at(&cron, now) {
-                Ok(when) => (Some(when), None),
-                Err(why) => (None, Some(why)),
+            let (next_run, next_run_note) = match run_at.as_deref() {
+                Some(at) => (Some(at.to_string()), None),
+                None => match jeeves_agent::schedule::next_run_at(&cron, now) {
+                    Ok(when) => (Some(when), None),
+                    Err(why) => (None, Some(why)),
+                },
             };
             jobs.push(ScheduleJob {
                 source: if skill.is_some() { "skill" } else { "store" }.to_string(),
@@ -150,6 +154,7 @@ impl Server {
                 prompt,
                 delivery,
                 catch_up,
+                run_at,
             });
         };
         for skill in jeeves_memory::skills::loaded_skills(&home) {
@@ -166,6 +171,7 @@ impl Server {
                 "outbox".to_string(),
                 true,
                 Some(skill.name.clone()),
+                None,
             );
         }
         for job in stored {
@@ -176,6 +182,7 @@ impl Server {
                 job.delivery,
                 job.catch_up,
                 None,
+                job.run_at,
             );
         }
         jobs.sort_by(|left, right| left.name.cmp(&right.name));
@@ -193,6 +200,7 @@ impl Server {
             prompt: p.prompt,
             delivery: p.delivery.unwrap_or_default(),
             catch_up: p.catch_up,
+            run_at: p.run_at,
         };
         let home = self.settings().home.clone();
         jeeves_tools::schedules::save_job(&home, &self.pool, &body)

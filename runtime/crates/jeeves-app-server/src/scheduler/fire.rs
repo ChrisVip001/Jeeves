@@ -23,6 +23,9 @@ pub(super) async fn fire(server: &Server, job: &Job, at: NaiveDateTime) -> Resul
         );
         return Ok(());
     }
+    if let Some(run_at) = job.run_at {
+        super::once::remove(server, &job.name, &super::once::key(run_at)).await;
+    }
     let wake_key = format!("schedule:{}:{minute}", job.name);
     if !crate::wake::register(server, &wake_key, &job.name, &job.prompt).await {
         return Ok(());

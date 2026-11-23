@@ -42,4 +42,8 @@ export type ScheduleJob = {
    * Why `next_run` is null, when it is null for an interesting reason.
    */
   nextRunNote: string | null;
+  /**
+   * Local `YYYY-MM-DD HH:MM` for a one-shot job (removed after it runs); null repeats on `cron`.
+   */
+  runAt: string | null;
 };

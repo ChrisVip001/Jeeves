@@ -43,6 +43,7 @@ use chrono::{Local, NaiveDateTime, Utc};
 
 mod fire;
 pub mod gap;
+pub mod once;
 use fire::fire;
 
 /// Where output is delivered.
@@ -84,6 +85,8 @@ pub struct Job {
     pub catch_up: bool,
     /// How output is delivered. Defaults to Outbox.
     pub delivery: Delivery,
+    /// Set for a one-shot job: [`once`] owns its clock and the cron paths skip it.
+    pub run_at: Option<NaiveDateTime>,
 }
 
 /// Collects jobs from skills and the `schedule_jobs` table. A table that cannot be read is
@@ -103,17 +106,34 @@ pub async fn load_jobs(home: &Path, pool: &sqlx::SqlitePool) -> Vec<Job> {
                 ),
                 catch_up: true,
                 delivery: Delivery::Outbox,
+                run_at: None,
             });
         }
     }
 
     match jeeves_state::ScheduleJobs::new(pool.clone()).list().await {
-        Ok(rows) => jobs.extend(rows.into_iter().map(|job| Job {
-            name: job.name,
-            cron: job.cron,
-            prompt: job.prompt,
-            catch_up: job.catch_up,
-            delivery: Delivery::parse(&job.delivery),
+        Ok(rows) => jobs.extend(rows.into_iter().filter_map(|job| {
+            let run_at = match job.run_at.as_deref() {
+                None => None,
+                Some(text) => match jeeves_agent::schedule::parse_run_at(text) {
+                    Some(at) => Some(at),
+                    None => {
+                        eprintln!(
+                            "(jeeves) job '{}' has an unreadable run_at '{text}'; skipped until it is saved again",
+                            job.name
+                        );
+                        return None;
+                    }
+                },
+            };
+            Some(Job {
+                name: job.name,
+                cron: job.cron,
+                prompt: job.prompt,
+                catch_up: job.catch_up,
+                delivery: Delivery::parse(&job.delivery),
+                run_at,
+            })
         })),
         Err(error) => eprintln!("(jeeves) the scheduled-job table could not be read: {error}"),
     }
@@ -128,7 +148,7 @@ pub async fn load_jobs(home: &Path, pool: &sqlx::SqlitePool) -> Vec<Job> {
 /// callers; the tests below test the shared one.
 pub use jeeves_agent::cron::matches as cron_matches;
 
-/// Which jobs should fire this minute. `fired` maps "job → minute last fired";
+/// Which repeating jobs should fire this minute (one-shot jobs are [`once`]'s). `fired` maps "job → minute last fired";
 /// the same job is handed out only once per minute.
 pub fn due_now<'a>(
     jobs: &'a [Job],
@@ -137,6 +157,7 @@ pub fn due_now<'a>(
 ) -> Vec<&'a Job> {
     let minute_key = at.format("%Y-%m-%dT%H:%M").to_string();
     jobs.iter()
+        .filter(|job| job.run_at.is_none())
         .filter(|job| cron_matches(&job.cron, at))
         .filter(|job| fired.get(&job.name) != Some(&minute_key))
         .collect()
@@ -234,7 +255,7 @@ pub async fn run(server: Server) -> Result<()> {
 
     crate::wake::reconcile_unsettled_schedules(&server).await;
     let startup = Utc::now();
-    for job in initial {
+    for job in initial.into_iter().filter(|job| job.run_at.is_none()) {
         let now0 = startup.with_timezone(&chrono::Local).naive_local();
         let delivery = match job.delivery {
             Delivery::Outbox => "outbox",
@@ -335,6 +356,7 @@ async fn tick(
     if gap::is_gap(before, at) {
         gap::reconcile(server, jobs, before, at, fired).await;
     }
+    once::tick(server, jobs, at, fired).await;
     for job in due_now(jobs, at, fired) {
         fired.insert(job.name.clone(), at.format("%Y-%m-%dT%H:%M").to_string());
         if let Err(error) = fire(server, job, at).await {

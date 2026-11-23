@@ -208,6 +208,7 @@ HTML 由本模块自己的转换器转成文本。正文经 `report::as_external
 **`schedule_job`**（`name`、`cron`、`prompt`、`delivery` = outbox / notify / quiet、`catch_up`）、**`list_schedules`**、**`cancel_schedule`**（`name`）与触发任务的运行时共用
 `jeeves_agent::schedule` / `cron` 的校验与 cron 语义。名称为小写字母、数字和连字符（最长 64），且不得与技能的 `schedule:` 行重名；回复会给出下一次运行，并说明任务只在 Runtime 运行期间触发。
 技能声明的任务不能用该工具取消。
+`run_at`（本地 `YYYY-MM-DD HH:MM`，代替 `cron`）表示一次性任务：已过去或超过一年后的时间会被拒绝，存下的 cron 固定在同一分钟仅用于展示，由调度器（`scheduler/once.rs`）触发一次后删除那一行；cron 路径会跳过它。
 
 ## 待办清单
 
