@@ -145,8 +145,8 @@ MCP 工具和未知工具永远不算已证明只读。
 通过后，在 `JEEVES_APPROVAL=on-request` 下每次写入都问一次，除非其目录已被批准（`write_approved_dirs`，持久化为 `JEEVES_WRITE_ALLOW_DIRS`）；批准不能解锁范围之外的路径。
 
 - **`write_file`**（`path`、`content`）：覆盖文件，创建父目录，最多 1 000 000 字节，不含 NUL 字节；内容相同则报告“nothing was written”。
-- **`edit`**（`path`、`old_string`、`new_string`）：`old_string` 必须恰好出现一次，零次或多次都拒绝。结果是变更片段（3 行上下文，最多 40 行）。
-- **`apply_patch`**（`patch`，最多 512 KB）：`*** Begin Patch` 格式，含 `Update File` / `Add File` / `Delete File`；所有片段先在内存中解析，只有全部匹配才写盘；`Add File` 遇到已存在的文件会拒绝；未知的段标题会拒绝。
+- **`edit`**（`path`、`old_string`、`new_string`）：`old_string` 必须恰好出现一次，零次或多次都拒绝。匹配分层进行，在第一个有结果的层停下：先按字节精确匹配；再把 CRLF、弯引号、各种破折号和特殊空格折成 ASCII 后匹配；最后按整行匹配并忽略行尾空白。缩进从不忽略。宽松层命中时结果会写明，写进 CRLF 区域的 LF 替换文本会改用 CRLF。未命中时，错误信息要么指出 `new_string` 已在文件中，要么列出 `old_string` 多数行对得上的那段文件，最多 12 行并带行号（`edit_match.rs`）。结果是变更片段（3 行上下文，最多 40 行）。
+- **`apply_patch`**（`patch`，最多 512 KB）：`*** Begin Patch` 格式，含 `Update File` / `Add File` / `Delete File`；上下文行和删除行先精确匹配，再按 `edit` 的逐行宽松规则匹配；所有片段先在内存中解析，只有全部匹配才写盘；`Add File` 遇到已存在的文件会拒绝；未知的段标题会拒绝。
 
 ## `run_command`
 

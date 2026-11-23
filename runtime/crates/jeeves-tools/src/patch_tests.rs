@@ -294,3 +294,17 @@ async fn a_patch_outside_the_workspace_is_refused_before_anything_is_written() {
         "a patch outside the workspace must not reach the disk"
     );
 }
+
+#[test]
+fn context_lines_tolerate_trailing_spaces_and_typographic_quotes() {
+    let file = "title = \u{201C}draft\u{201D}   \nbody\n";
+    let patch = "*** Begin Patch\n*** Update File: a.toml\n@@\n-title = \"draft\"\n+title = \"final\"\n body\n*** End Patch\n";
+    let ops = parse(patch).expect("parse");
+    let Op::Update { hunks, .. } = &ops[0] else {
+        panic!("should be Update");
+    };
+    assert_eq!(
+        apply(file, hunks).expect("the loose tier lines up"),
+        "title = \"final\"\nbody\n"
+    );
+}

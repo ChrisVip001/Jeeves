@@ -112,7 +112,7 @@ impl Client {
                 _ => {}
             }
         }
-        Err(ProviderError::Parse(
+        Err(ProviderError::Incomplete(
             "Responses stream ended before a terminal response".into(),
         ))
     }
@@ -133,7 +133,11 @@ impl Provider for Client {
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<CreateResponse, ProviderError>> + Send + '_>,
     > {
-        Box::pin(self.stream_inner(request, on_text))
+        Box::pin(crate::retry::stream_with_retries(
+            self.max_retries,
+            on_text,
+            move |sink| self.stream_inner(request.clone(), sink),
+        ))
     }
 }
 
@@ -267,10 +271,7 @@ pub fn from_responses(value: &Value) -> Result<CreateResponse, ProviderError> {
                             ProviderError::Parse(format!("Responses function call missing {name}"))
                         })
                 };
-                let args = field("arguments")?;
-                let args = serde_json::from_str::<Value>(&args).map_err(|e| {
-                    ProviderError::Parse(format!("Responses tool arguments are not JSON: {e}"))
-                })?;
+                let args = crate::tool_input(&field("arguments")?);
                 let call_id = field("call_id")?;
                 if call_id.is_empty() || !call_ids.insert(call_id.clone()) {
                     return Err(ProviderError::Parse(

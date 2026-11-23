@@ -157,8 +157,8 @@ asks once unless its directory was already approved (`write_approved_dirs`, pers
 an out-of-scope path.
 
 - **`write_file`** (`path`, `content`): replaces the file, creates parent directories, at most 1 000 000 bytes, no NUL bytes; identical content reports "nothing was written".
-- **`edit`** (`path`, `old_string`, `new_string`): `old_string` must occur exactly once; zero or several matches are refused. The result is a change hunk (3 lines of context, at most 40 lines).
-- **`apply_patch`** (`patch`, at most 512 KB): `*** Begin Patch` format with `Update File` / `Add File` / `Delete File`; all hunks are resolved in memory first and nothing is written unless every one matches; `Add File` refuses an existing file; unknown section headers are refused.
+- **`edit`** (`path`, `old_string`, `new_string`): `old_string` must occur exactly once; zero or several matches are refused. Matching runs in tiers and stops at the first that finds anything: exact bytes; then with CRLF, typographic quotes, dashes and special spaces folded to ASCII; then whole lines with trailing whitespace ignored. Indentation is never ignored. A tolerant match is named in the result, and an LF replacement written into a CRLF region takes CRLF. On a miss the error either says `new_string` is already in the file or shows up to 12 numbered lines of the stretch most `old_string` lines agree on (`edit_match.rs`). The result is a change hunk (3 lines of context, at most 40 lines).
+- **`apply_patch`** (`patch`, at most 512 KB): `*** Begin Patch` format with `Update File` / `Add File` / `Delete File`; context and removed lines match exactly first, then with `edit`'s per-line tolerance; all hunks are resolved in memory first and nothing is written unless every one matches; `Add File` refuses an existing file; unknown section headers are refused.
 
 ## `run_command`
 

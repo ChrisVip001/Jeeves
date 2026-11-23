@@ -43,7 +43,9 @@ where
                         Some(Ok(chunk)) => buffer.extend_from_slice(&chunk),
                         Some(Err(e)) => {
                             return Some((
-                                Err(ProviderError::Network(e)),
+                                Err(ProviderError::Incomplete(format!(
+                                    "the connection dropped mid-stream: {e}"
+                                ))),
                                 (stream, bytes::BytesMut::new(), 0, true),
                             ))
                         }

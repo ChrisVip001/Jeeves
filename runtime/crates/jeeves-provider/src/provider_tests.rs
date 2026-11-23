@@ -917,3 +917,109 @@ fn prompt_size_counts_cached_tokens_on_every_wire() {
     };
     assert_eq!(bare.prompt_size(), 42);
 }
+
+#[test]
+fn tool_arguments_are_repaired_or_marked_for_the_model() {
+    use crate::{malformed_tool_input, tool_input, tool_input_value};
+    assert_eq!(tool_input(""), serde_json::json!({}));
+    assert_eq!(tool_input(r#"{"a":1}"#), serde_json::json!({"a":1}));
+    assert_eq!(
+        tool_input(r#""{\"a\":1}""#),
+        serde_json::json!({"a":1}),
+        "an object encoded twice is decoded once more"
+    );
+    assert_eq!(
+        tool_input_value(serde_json::Value::Null),
+        serde_json::json!({})
+    );
+    let broken = tool_input(r#"{"path": "a.txt""#);
+    let why = malformed_tool_input(&broken).expect("marked malformed");
+    assert!(why.contains("not valid JSON"), "{why}");
+    assert!(
+        why.contains(r#""path": "a.txt""#),
+        "the model sees what it sent: {why}"
+    );
+    assert!(malformed_tool_input(&tool_input("[1,2]")).is_some());
+    assert!(malformed_tool_input(&serde_json::json!({"a":1})).is_none());
+}
+
+#[test]
+fn retry_after_reads_milliseconds_seconds_and_dates() {
+    use crate::retry::parse_retry_after;
+    let now = chrono::DateTime::parse_from_rfc2822("Mon, 23 Nov 2026 08:00:00 GMT")
+        .expect("date")
+        .with_timezone(&chrono::Utc);
+    assert_eq!(parse_retry_after(Some("1500"), Some("9"), now), Some(2));
+    assert_eq!(parse_retry_after(None, Some("7"), now), Some(7));
+    assert_eq!(
+        parse_retry_after(None, Some("Mon, 23 Nov 2026 08:00:05 GMT"), now),
+        Some(5)
+    );
+    assert_eq!(
+        parse_retry_after(None, Some("Mon, 23 Nov 2026 07:59:00 GMT"), now),
+        Some(0),
+        "a date in the past means now"
+    );
+    assert_eq!(parse_retry_after(None, Some("soon"), now), None);
+}
+
+#[tokio::test]
+async fn a_stream_that_breaks_before_any_text_is_started_again() {
+    let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let (seen, sink) = notice_sink();
+    let counted = attempts.clone();
+    let result = crate::retry::with_note_sink(
+        sink,
+        crate::retry::stream_with_retries(2, std::sync::Arc::new(|_| {}), move |_text| {
+            let n = counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            async move {
+                if n == 0 {
+                    Err(crate::ProviderError::Incomplete("cut".into()))
+                } else {
+                    Ok("whole")
+                }
+            }
+        }),
+    )
+    .await;
+    assert_eq!(result.expect("the second attempt completes"), "whole");
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::Relaxed), 2);
+    let seen = seen.lock().expect("lock");
+    assert_eq!(seen.len(), 1, "the restart is announced");
+    assert!(seen[0].reason.contains("ended early"), "{:?}", seen[0]);
+}
+
+#[tokio::test]
+async fn a_stream_that_breaks_after_text_was_shown_is_reported() {
+    let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let counted = attempts.clone();
+    let result: Result<(), _> =
+        crate::retry::stream_with_retries(2, std::sync::Arc::new(|_| {}), move |text| {
+            counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            async move {
+                text("half an answer");
+                Err(crate::ProviderError::Incomplete("cut".into()))
+            }
+        })
+        .await;
+    assert!(result.is_err());
+    assert_eq!(
+        attempts.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "a retry would print the text twice"
+    );
+}
+
+#[tokio::test]
+async fn a_malformed_stream_is_not_retried() {
+    let attempts = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    let counted = attempts.clone();
+    let result: Result<(), _> =
+        crate::retry::stream_with_retries(2, std::sync::Arc::new(|_| {}), move |_text| {
+            counted.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            async move { Err(crate::ProviderError::Parse("not JSON".into())) }
+        })
+        .await;
+    assert!(result.is_err());
+    assert_eq!(attempts.load(std::sync::atomic::Ordering::Relaxed), 1);
+}

@@ -256,7 +256,7 @@ async fn running_out_of_rounds_is_reported_honestly() {
 async fn a_truncated_answer_cannot_complete_a_goal_or_reach_the_judge() {
     let mut partial = Mock::text("The report begins...");
     partial.stop_reason = jeeves_provider::StopReason::MaxTokens;
-    let mock = Arc::new(Mock::new(vec![partial]));
+    let mock = Arc::new(Mock::new(vec![partial.clone(), partial.clone(), partial]));
     let (server, _home) = server(mock.clone(), 2).await;
     let task = server
         .set_task_goal("goal-session", Some("finish the report"))
@@ -278,7 +278,11 @@ async fn a_truncated_answer_cannot_complete_a_goal_or_reach_the_judge() {
     let task = server.tasks.get(&task.id).await.unwrap().unwrap();
     assert_eq!(task.status, jeeves_state::TaskStatus::NeedsAttention);
     assert!(task.last_stop_reason.unwrap().contains("token limit"));
-    assert_eq!(mock.received.lock().unwrap().len(), 1);
+    assert_eq!(
+        mock.received.lock().unwrap().len(),
+        3,
+        "two continuations, then the cut is reported and the judge is never asked"
+    );
 }
 
 #[tokio::test]

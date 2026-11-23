@@ -126,7 +126,11 @@ impl Provider for Client {
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<CreateResponse, ProviderError>> + Send + '_>,
     > {
-        Box::pin(self.stream_inner(request, on_text))
+        Box::pin(crate::retry::stream_with_retries(
+            self.max_retries,
+            on_text,
+            move |sink| self.stream_inner(request.clone(), sink),
+        ))
     }
 }
 
@@ -420,7 +424,7 @@ impl Client {
         }
 
         if !complete {
-            return Err(ProviderError::Parse(
+            return Err(ProviderError::Incomplete(
                 "Anthropic stream ended before message_stop".into(),
             ));
         }
@@ -429,15 +433,11 @@ impl Client {
             content.push(ContentBlock::Text { text });
         }
         for (_, (id, name, initial, arguments)) in tools {
-            let input: Value = if arguments.is_empty() {
-                initial
+            let input = if arguments.trim().is_empty() {
+                crate::tool_input_value(initial)
             } else {
-                serde_json::from_str(&arguments)
-                    .map_err(|e| ProviderError::Parse(format!("Invalid tool arguments: {e}")))?
+                crate::tool_input(&arguments)
             };
-            if !input.is_object() {
-                return Err(ProviderError::Parse("Tool input must be an object".into()));
-            }
             content.push(ContentBlock::ToolUse {
                 id,
                 name,
@@ -457,9 +457,14 @@ impl Client {
 /// Extract the three things loop needs from an Anthropic response body: content blocks,
 /// stop reason, usage. Split into its own function for unit testing — no real HTTP server.
 pub fn parse_message(value: &Value) -> Result<CreateResponse, ProviderError> {
-    let content: Vec<ContentBlock> =
+    let mut content: Vec<ContentBlock> =
         serde_json::from_value(value.get("content").cloned().unwrap_or(Value::Null))
             .map_err(|e| ProviderError::Parse(format!("bad content block: {e}")))?;
+    for block in &mut content {
+        if let ContentBlock::ToolUse { input, .. } = block {
+            *input = crate::tool_input_value(std::mem::take(input));
+        }
+    }
 
     let stop_reason = value
         .get("stop_reason")

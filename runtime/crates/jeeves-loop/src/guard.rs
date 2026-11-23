@@ -3,10 +3,14 @@
 //! Repeated calls can spend tokens without making progress. `fold_tool_activity`
 //! guards **cross-turn** forgetting (history); this layer guards **within-turn** dead loops.
 //!
-//! Two criteria:
+//! Three criteria:
 //!
 //! 1. **Consecutive identical**: the same `(tool, args, result)` appearing 3 times in a row;
-//! 2. **Alternating cycles**: batches like `A,B,A,B…` repeating on a period.
+//! 2. **Alternating cycles**: batches like `A,B,A,B…` repeating on a period;
+//! 3. **One tool failing in a row**: the same tool failing 3 times with *different* arguments.
+//!    Criteria 1 and 2 cannot see this — every attempt differs — yet a model guessing paths or
+//!    names against a wall burns its budget the same way. This one only warns: a failing test
+//!    command is ordinary output, so it never counts toward stopping the turn.
 //!
 //! Criterion 2 must be judged separately, because every alternation **resets** criterion 1's
 //! consecutive count — with consecutive detection alone, a model replaying the same 2–4 calls
@@ -22,6 +26,9 @@ use serde_json::Value;
 
 /// Consecutive identical calls that count as "stuck". 3, not 2: one repeat may be a recheck.
 const IDENTICAL_THRESHOLD: u32 = 3;
+
+/// Consecutive failures of one tool (any arguments) before the model is told to change approach.
+const FAILURE_THRESHOLD: u32 = 3;
 
 /// Max period of an alternating cycle (`A,B` has period 2, `A,B,C` has 3).
 const MAX_CYCLE_PERIOD: usize = 4;
@@ -52,11 +59,25 @@ pub enum GuardVerdict {
     Cyclic {
         period: usize,
     },
+    /// The same tool failed for the `times`-th consecutive time, with varying arguments.
+    Failing {
+        name: String,
+        times: u32,
+    },
 }
 
 impl GuardVerdict {
     pub fn is_ok(&self) -> bool {
         matches!(self, GuardVerdict::Ok)
+    }
+
+    /// Whether this verdict means the loop made no progress (repetition), as opposed to a
+    /// warning that leaves the turn running.
+    pub fn is_stall(&self) -> bool {
+        matches!(
+            self,
+            GuardVerdict::Repeated { .. } | GuardVerdict::Cyclic { .. }
+        )
     }
 }
 
@@ -65,6 +86,7 @@ impl GuardVerdict {
 #[derive(Default)]
 pub struct StallGuard {
     recent: VecDeque<Call>,
+    failures: std::collections::HashMap<String, u32>,
     hits: i32,
     last_note: Option<String>,
 }
@@ -85,7 +107,16 @@ impl StallGuard {
     }
 
     /// Observe one call, return the verdict. The caller decides what text to feed back.
-    pub fn observe(&mut self, name: &str, args: &Value, output: &str) -> GuardVerdict {
+    pub fn observe(
+        &mut self,
+        name: &str,
+        args: &Value,
+        output: &str,
+        success: bool,
+    ) -> GuardVerdict {
+        let failures = self.failures.entry(name.to_string()).or_default();
+        *failures = if success { 0 } else { *failures + 1 };
+        let failures = *failures;
         let call = Call {
             name: name.to_string(),
             args: hash(&args.to_string()),
@@ -96,7 +127,13 @@ impl StallGuard {
             self.recent.pop_front();
         }
 
-        let verdict = self.classify(&call);
+        let mut verdict = self.classify(&call);
+        if verdict.is_ok() && failures >= FAILURE_THRESHOLD {
+            verdict = GuardVerdict::Failing {
+                name: name.to_string(),
+                times: failures,
+            };
+        }
         if !verdict.is_ok() {
             self.hits += 1;
             self.last_note = reminder(&verdict);
@@ -143,6 +180,9 @@ pub fn reminder(verdict: &GuardVerdict) -> Option<String> {
         )),
         GuardVerdict::Cyclic { period } => Some(format!(
             "\n[guard] you are repeating the same group of calls on a {period}-step cycle.\n             Stop repeating it — take another route, or tell the user where you are stuck."
+        )),
+        GuardVerdict::Failing { name, times } => Some(format!(
+            "\n[guard] {name} has now failed {times} times in a row with different arguments.\n             Read the error text, check the assumption behind it (a path, a name, a permission) with one small read, or tell the user what blocks you."
         )),
     }
 }

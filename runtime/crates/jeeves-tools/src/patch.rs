@@ -201,7 +201,8 @@ pub fn parse(text: &str) -> Result<Vec<Op>, String> {
 /// Apply every hunk of one file, in order, all or nothing.
 ///
 /// Matching is by **line sequence** from the previous hunk's end, so two identical hunks apply at
-/// two different places instead of both hitting the first one. A hunk that does not fit refuses
+/// two different places instead of both hitting the first one. Exact lines are tried first, then
+/// the tolerance `edit` uses (`edit_match::lines_equivalent`). A hunk that does not fit refuses
 /// the whole file; a hunk that fits in more than one place takes the first one at or after the
 /// cursor (that is what the surrounding context is for, and the diff we hand back shows where it
 /// landed).
@@ -235,19 +236,22 @@ pub fn apply(current: &str, hunks: &[Hunk]) -> Result<String, String> {
             ));
         }
 
-        let found = if before.len() > lines.len() {
-            None
-        } else {
+        let seek = |same: &dyn Fn(&str, &str) -> bool| {
+            if before.len() > lines.len() {
+                return None;
+            }
             (cursor..=lines.len() - before.len()).find(|start| {
                 lines[*start..*start + before.len()]
                     .iter()
                     .zip(&before)
-                    .all(|(actual, expected)| actual == *expected)
+                    .all(|(actual, expected)| same(actual, expected))
             })
         };
+        let found = seek(&|actual, expected| actual == expected)
+            .or_else(|| seek(&crate::edit_match::lines_equivalent));
         let Some(start) = found else {
             return Err(format!(
-                "Hunk {} (@@ {}) matches nothing in the file. The context lines in a patch must match the file character for character — read_file first, or write fewer context lines.",
+                "Hunk {} (@@ {}) matches nothing in the file. The context and removed lines must match the file (line endings, typographic quotes, dashes and trailing whitespace are tolerated; indentation is not) — read_file first, or write fewer context lines.",
                 index + 1,
                 hunk.hint
             ));

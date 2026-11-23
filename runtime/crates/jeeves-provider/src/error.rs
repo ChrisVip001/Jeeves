@@ -30,6 +30,11 @@ pub enum ProviderError {
     /// The response format did not match expectations.
     #[error("could not parse the response: {0}")]
     Parse(String),
+
+    /// The stream closed before its terminal event. Retried only while nothing was shown to the
+    /// user (`retry::stream_with_retries`): a retry after visible text would print it twice.
+    #[error("the stream ended early: {0}")]
+    Incomplete(String),
 }
 
 impl ProviderError {
@@ -59,14 +64,15 @@ impl ProviderError {
     }
 
     /// **Worth a backoff retry?** Only two classes: rate limiting (429) and transient server
-    /// faults (5xx), plus network-layer jitter.
+    /// faults (5xx), plus network-layer jitter and a stream that ended early (the streaming
+    /// retry additionally requires that no text was shown yet).
     ///
     /// Retrying other errors only fails again the same way — doubled wait, one more quota.
     /// Especially never retry "context overflow": that calls for compacting, not slamming again.
     pub fn retryable(&self) -> bool {
         match self {
             ProviderError::Http { status, .. } => *status == 429 || *status >= 500,
-            ProviderError::Network(_) => true,
+            ProviderError::Network(_) | ProviderError::Incomplete(_) => true,
             _ => false,
         }
     }

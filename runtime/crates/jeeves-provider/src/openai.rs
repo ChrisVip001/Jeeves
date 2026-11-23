@@ -122,7 +122,11 @@ impl Provider for Client {
     ) -> std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<CreateResponse, ProviderError>> + Send + '_>,
     > {
-        Box::pin(self.stream_inner(request, on_text))
+        Box::pin(crate::retry::stream_with_retries(
+            self.max_retries,
+            on_text,
+            move |sink| self.stream_inner(request.clone(), sink),
+        ))
     }
 }
 
@@ -239,7 +243,7 @@ impl Client {
         }
 
         if finish_reason.is_none() && !saw_done {
-            return Err(ProviderError::Parse(
+            return Err(ProviderError::Incomplete(
                 "Chat Completions stream ended before completion".into(),
             ));
         }
@@ -251,9 +255,7 @@ impl Client {
             content.push(ContentBlock::Text { text });
         }
         for (_, call) in std::mem::take(&mut tools) {
-            let input = serde_json::from_str(&call.arguments).map_err(|e| {
-                ProviderError::Parse(format!("Tool arguments are incomplete or invalid: {e}"))
-            })?;
+            let input = crate::tool_input(&call.arguments);
             content.push(ContentBlock::ToolUse {
                 id: call.id,
                 name: call.name,
@@ -469,13 +471,11 @@ pub fn from_openai(text: &str) -> Result<CreateResponse, ProviderError> {
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string();
-            let raw = call
-                .pointer("/function/arguments")
-                .and_then(|v| v.as_str())
-                .unwrap_or("{}");
-            let input = serde_json::from_str(raw).map_err(|e| {
-                ProviderError::Parse(format!("Tool arguments are incomplete or invalid: {e}"))
-            })?;
+            let input = crate::tool_input_value(
+                call.pointer("/function/arguments")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            );
             let extra = call.get("extra_content").cloned();
             content.push(ContentBlock::ToolUse {
                 id,

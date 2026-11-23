@@ -1,7 +1,8 @@
 //! Tiered backoff retries: **bounded, visible, never switching vendors**.
 //!
 //! Only two error classes are worth retrying (see `ProviderError::retryable`): rate
-//! limiting (429) and transient server faults (5xx), plus network jitter. Retrying other
+//! limiting (429) and transient server faults (5xx), plus network jitter and a stream that
+//! breaks off before any text was shown (`stream_with_retries`). Retrying other
 //! errors only fails again the same way — doubling the wait and burning one more quota.
 //!
 //! Three self-imposed constraints:
@@ -113,13 +114,82 @@ fn next_delay(
     Some(delay)
 }
 
-/// The seconds form of `Retry-After`. The HTTP-date form is not parsed — backoff backstops.
+/// The wait a response asks for, in whole seconds (rounded up): `retry-after-ms` first, then
+/// `Retry-After` as seconds or as an HTTP date. A date in the past means "now".
 fn retry_after_secs(response: &reqwest::Response) -> Option<u64> {
-    response
-        .headers()
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.trim().parse::<u64>().ok())
+    let header = |name: &str| {
+        response
+            .headers()
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+    };
+    parse_retry_after(
+        header("retry-after-ms"),
+        header(reqwest::header::RETRY_AFTER.as_str()),
+        chrono::Utc::now(),
+    )
+}
+
+pub(crate) fn parse_retry_after(
+    millis: Option<&str>,
+    value: Option<&str>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<u64> {
+    if let Some(ms) = millis.and_then(|text| text.parse::<f64>().ok()) {
+        if ms.is_finite() && ms >= 0.0 {
+            return Some((ms / 1000.0).ceil() as u64);
+        }
+    }
+    let value = value?;
+    if let Ok(secs) = value.parse::<u64>() {
+        return Some(secs);
+    }
+    let at = chrono::DateTime::parse_from_rfc2822(value).ok()?;
+    Some((at.with_timezone(&chrono::Utc) - now).num_seconds().max(0) as u64)
+}
+
+/// Run one streamed model call, starting it again when the stream breaks off **before any text
+/// reached the user**. The HTTP-level retries inside `send` cover failures before the stream
+/// starts; this covers a connection that opens and then dies. Once text has been shown, a retry
+/// would print it twice, so the break is reported instead.
+pub async fn stream_with_retries<F, Fut, T>(
+    max_retries: u32,
+    on_text: crate::TextSink,
+    mut attempt_once: F,
+) -> Result<T, ProviderError>
+where
+    F: FnMut(crate::TextSink) -> Fut,
+    Fut: Future<Output = Result<T, ProviderError>>,
+{
+    let started = Instant::now();
+    let mut attempt = 0u32;
+    loop {
+        let shown = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let sink: crate::TextSink = {
+            let shown = shown.clone();
+            let on_text = on_text.clone();
+            Arc::new(move |piece: &str| {
+                shown.store(true, std::sync::atomic::Ordering::Release);
+                on_text(piece);
+            })
+        };
+        let error = match attempt_once(sink).await {
+            Ok(value) => return Ok(value),
+            Err(error) => error,
+        };
+        let quiet = !shown.load(std::sync::atomic::Ordering::Acquire);
+        let delay = matches!(error, ProviderError::Incomplete(_))
+            .then(|| next_delay(&error, attempt, max_retries, started))
+            .flatten()
+            .filter(|_| quiet);
+        let Some(delay) = delay else {
+            return Err(error);
+        };
+        note_retry(&error, attempt + 1, delay);
+        tokio::time::sleep(delay).await;
+        attempt += 1;
+    }
 }
 
 /// Say "retrying" out loud. This is a hard requirement: retries must never happen silently.
@@ -141,6 +211,7 @@ fn reason_of(error: &ProviderError) -> String {
     match error {
         ProviderError::Http { status, .. } => format!("HTTP {status}"),
         ProviderError::Network(e) => format!("network error: {e}"),
+        ProviderError::Incomplete(why) => format!("stream ended early: {why}"),
         other => other.to_string(),
     }
 }

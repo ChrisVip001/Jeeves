@@ -5,7 +5,11 @@ use serde_json::json;
 use super::guard::{for_model, reminder, GuardVerdict, StallGuard};
 
 fn feed(guard: &mut StallGuard, name: &str, args: serde_json::Value, output: &str) -> GuardVerdict {
-    guard.observe(name, &args, output)
+    guard.observe(name, &args, output, true)
+}
+
+fn fail(guard: &mut StallGuard, name: &str, args: serde_json::Value) -> GuardVerdict {
+    guard.observe(name, &args, &format!("Error: {args} not found"), false)
 }
 
 #[test]
@@ -110,4 +114,45 @@ fn a_clean_run_returns_the_output_untouched() {
         output
     );
     assert!(reminder(&GuardVerdict::Ok).is_none());
+}
+
+#[test]
+fn one_tool_failing_with_different_arguments_is_flagged_but_not_a_stall() {
+    let mut guard = StallGuard::new();
+    assert!(fail(&mut guard, "read_file", json!({"path": "a"})).is_ok());
+    assert!(fail(&mut guard, "read_file", json!({"path": "b"})).is_ok());
+    let verdict = fail(&mut guard, "read_file", json!({"path": "c"}));
+    assert_eq!(
+        verdict,
+        GuardVerdict::Failing {
+            name: "read_file".into(),
+            times: 3
+        }
+    );
+    assert!(
+        !verdict.is_stall(),
+        "a warning, never a reason to stop the turn"
+    );
+    let text = for_model(
+        "Error: c not found",
+        "read_file",
+        &json!({"path": "c"}),
+        &verdict,
+    );
+    assert!(text.starts_with("Error: c not found"), "{text}");
+    assert!(text.contains("failed 3 times in a row"), "{text}");
+}
+
+#[test]
+fn a_success_or_another_tool_resets_the_failure_streak() {
+    let mut guard = StallGuard::new();
+    fail(&mut guard, "read_file", json!({"path": "a"}));
+    fail(&mut guard, "read_file", json!({"path": "b"}));
+    feed(&mut guard, "read_file", json!({"path": "c"}), "contents");
+    assert!(fail(&mut guard, "read_file", json!({"path": "d"})).is_ok());
+    fail(&mut guard, "grep", json!({"q": "x"}));
+    assert!(
+        fail(&mut guard, "read_file", json!({"path": "e"})).is_ok(),
+        "streaks are per tool: two read_file failures since its last success"
+    );
 }

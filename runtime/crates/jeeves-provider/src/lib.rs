@@ -237,6 +237,61 @@ pub fn truncate_chars(text: &str, max: usize) -> String {
     }
 }
 
+/// The key of the stand-in input a malformed tool call carries instead of its arguments.
+const MALFORMED_INPUT_KEY: &str = "jeeves_malformed_arguments";
+
+/// Decode the arguments a model streamed for one tool call.
+///
+/// A malformed call is the model's mistake, not a broken response: failing the whole request
+/// would end the turn over something the model can fix when told. So the call survives with
+/// a stand-in input that the tool registry answers with an error result. Two common slips are
+/// repaired instead: empty arguments mean `{}`, and an object encoded twice as a JSON string
+/// is decoded once more.
+pub fn tool_input(raw: &str) -> serde_json::Value {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return serde_json::json!({});
+    }
+    match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(value) if value.is_object() => value,
+        Ok(serde_json::Value::String(inner)) => {
+            match serde_json::from_str::<serde_json::Value>(&inner) {
+                Ok(value) if value.is_object() => value,
+                _ => malformed_input(raw, "the arguments are a string, not a JSON object"),
+            }
+        }
+        Ok(_) => malformed_input(raw, "the arguments are not a JSON object"),
+        Err(error) => malformed_input(raw, &format!("the arguments are not valid JSON ({error})")),
+    }
+}
+
+/// The same rule for wires that hand over arguments already decoded.
+pub fn tool_input_value(value: serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Object(_) => value,
+        serde_json::Value::Null => serde_json::json!({}),
+        serde_json::Value::String(text) => tool_input(&text),
+        other => malformed_input(&other.to_string(), "the arguments are not a JSON object"),
+    }
+}
+
+fn malformed_input(raw: &str, why: &str) -> serde_json::Value {
+    serde_json::json!({ MALFORMED_INPUT_KEY: { "error": why, "received": truncate_chars(raw, 400) } })
+}
+
+/// The model-facing sentence for a call whose arguments could not be decoded.
+pub fn malformed_tool_input(input: &serde_json::Value) -> Option<String> {
+    let detail = input.get(MALFORMED_INPUT_KEY)?;
+    let why = detail.get("error").and_then(serde_json::Value::as_str)?;
+    let received = detail
+        .get("received")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    Some(format!(
+        "{why}; the call did not run. Received: {received}. Call the tool again with one JSON object that matches its schema."
+    ))
+}
+
 /// Extracts the outermost `{...}` from a model reply.
 /// Reasoning models often wrap JSON in prose, so the whole reply can't be assumed JSON.
 pub fn extract_json(text: &str) -> Option<String> {

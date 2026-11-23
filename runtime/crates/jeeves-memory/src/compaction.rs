@@ -25,12 +25,30 @@ use jeeves_provider::{CreateRequest, Message, Provider};
 const FALLBACK_CHARS: usize = 600;
 
 /// The summarizer prompt. The goal is **keeping facts**, not literary polish.
-const SUMMARIZER_PROMPT: &str = "\
+///
+/// Fixed sections, because a free paragraph loses the two things a resumed conversation needs
+/// most: which requests are still open, and which actions already happened (a model that only
+/// reads "we discussed the email" sends it again). Each section may be left out when empty, so
+/// a short chat stays a few lines.
+pub(crate) const SUMMARIZER_PROMPT: &str = "\
 You are compressing the older part of a conversation between a user and their \
-assistant, so it can stay in the context window as a short paragraph. Keep \
-every fact, name, decision, number and open thread. Drop pleasantries and \
-repetition. Write plain prose in the language of the conversation. No \
-headings, no lists, no commentary about the task itself.";
+assistant, so it can stay in the context window. Write in the language of the \
+conversation, using these sections in this order and leaving out any that would \
+be empty:
+
+Goal: what the user is trying to achieve, in one or two lines.
+Done: actions already completed, as past-tense facts with their outcome \
+(\"Sent the draft to Lin; she approved it\"), so they are not repeated.
+Decisions and preferences: what was decided or what the user asked for, with \
+the reason when one was given.
+Open: requests not yet answered or work not yet finished, quoting the user's \
+words where they matter.
+Facts: names, numbers, dates, paths, links and identifiers, exactly as written.
+
+Use short single-line bullets. When an earlier summary is given, keep everything \
+in it that is still true, move finished items from Open to Done, and let the \
+newer turns win where they disagree. Drop pleasantries and repetition. No \
+commentary about the task of summarizing.";
 
 /// Folds newly evicted turns into the existing summary. **Never returns Err** — the
 /// deterministic fallback covers model failures.

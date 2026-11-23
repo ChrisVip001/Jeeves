@@ -129,7 +129,7 @@
 
 - `newly_evicted(pairs, window, covered)`：取回合 `[covered, len - window)`。`covered` 即
   `context_rollups.covered_turns`，因此摘要只向前滚动。
-- `roll_forward_with`：对旧摘要加新回合调用一次（`max_tokens` 700），可附带人工给出的重点一行。
+- `roll_forward_with`：对旧摘要加新回合调用一次（`max_tokens` 700），可附带人工给出的重点一行。摘要使用固定段落（目标、以过去式事实写成的已完成、决定与偏好、未完成、事实），空段省略，已完成的事项从未完成移到已完成。
   出错或回复为空时用 `fallback_summary`：旧摘要加每轮用户文本截到 120、助手文本截到 160 个字符，总长截到 600 字符。它从不返回 Err。
 - `refresh` 用 `save_rollup` 保存结果，该函数拒绝覆盖更多回合的已存摘要。保存失败或被拒是一行 stderr。
 - `summary_section` 在提示尾部渲染 `Earlier in this conversation:` 加摘要。

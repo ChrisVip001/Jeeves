@@ -184,36 +184,47 @@ fn thought_signature_round_trips_through_the_openai_wire() {
     assert_eq!(signature, "sig-abc");
 }
 
+fn anthropic_client(base: &str) -> crate::anthropic::Client {
+    crate::anthropic::Client::new("fixture", Some(base), std::time::Duration::from_secs(3), 0)
+}
+
+fn fixture_request() -> crate::CreateRequest {
+    crate::CreateRequest {
+        cache_prefix: None,
+        model: "fixture".into(),
+        system: None,
+        messages: vec![crate::Message::user_text("hi")],
+        tools: vec![],
+        max_tokens: 16,
+    }
+}
+
 #[tokio::test]
-async fn anthropic_rejects_incomplete_streams_and_invalid_tool_arguments() {
+async fn anthropic_rejects_an_incomplete_stream() {
+    let call = json!({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"one","name":"clock","input":{}}});
+    let base = spawn_sse_server(format!("data: {call}\n\n"));
+    let result = anthropic_client(&base)
+        .stream(fixture_request(), Arc::new(|_| {}))
+        .await;
+    assert!(result.is_err(), "an unfinished stream returned a response");
+}
+
+#[tokio::test]
+async fn anthropic_keeps_a_call_with_broken_arguments_for_the_model_to_fix() {
     let call = json!({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"one","name":"clock","input":{}}});
     let partial = json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{"}});
     let end = json!({"type":"message_stop"});
-    for events in [vec![call.clone()], vec![call, partial, end]] {
-        let body = events.iter().map(|e| format!("data: {e}\n\n")).collect();
-        let base = spawn_sse_server(body);
-        let client = crate::anthropic::Client::new(
-            "fixture",
-            Some(&base),
-            std::time::Duration::from_secs(3),
-            0,
-        );
-        let result = client
-            .stream(
-                crate::CreateRequest {
-                    cache_prefix: None,
-                    model: "fixture".into(),
-                    system: None,
-                    messages: vec![crate::Message::user_text("hi")],
-                    tools: vec![],
-                    max_tokens: 16,
-                },
-                Arc::new(|_| {}),
-            )
-            .await;
-        assert!(
-            result.is_err(),
-            "invalid stream returned a completed response"
-        );
-    }
+    let body = [call, partial, end]
+        .iter()
+        .map(|e| format!("data: {e}\n\n"))
+        .collect();
+    let base = spawn_sse_server(body);
+    let response = anthropic_client(&base)
+        .stream(fixture_request(), Arc::new(|_| {}))
+        .await
+        .expect("a malformed call is the model's mistake, not a broken response");
+    let (id, name, input) = response.tool_uses()[0];
+    assert_eq!((id, name), ("one", "clock"));
+    let why = crate::malformed_tool_input(input).expect("the call is marked malformed");
+    assert!(why.contains("not valid JSON"), "{why}");
 }

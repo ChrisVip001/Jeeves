@@ -69,7 +69,7 @@ Two methods only; a smaller interface lets more providers plug in. The futures a
 - The token limit is sent as `max_completion_tokens`; `tools` only when non-empty. No `cache_control`: unknown fields are a 400 on some gateways.
 - `from_openai` turns a body with an `error` key (OpenRouter answers rate limits with 200 + error) or without `choices` into `ProviderError::Api`. `stop_reason` is inferred: `ToolUse` if there are tool calls, else `EndTurn`.
 - The one parameter retry lives in non-streaming `create_inner`: a 400 whose body mentions `max_completion_tokens` or `max_tokens` is resent once with the old `max_tokens` name, for older gateways. It is separate from the backoff in 3.6.
-- Streaming adds `stream_options.include_usage`; without it streamed usage is all zeros and the trace costs are fake. Content deltas go to `on_text`; tool calls are keyed by `index` in a `BTreeMap` (id/name overwrite, `arguments` fragments append) and parsed only at the end, so malformed arguments are a `Parse` error. The stream is complete only after `[DONE]` or a `finish_reason`; otherwise it is a `Parse` error. `finish_reason` maps to `StopReason` (`tool_calls`/`function_call` to `ToolUse`, `length` to `MaxTokens`, `stop` to `EndTurn`).
+- Streaming adds `stream_options.include_usage`; without it streamed usage is all zeros and the trace costs are fake. Content deltas go to `on_text`; tool calls are keyed by `index` in a `BTreeMap` (id/name overwrite, `arguments` fragments append) and parsed only at the end with `tool_input`. The stream is complete only after `[DONE]` or a `finish_reason`; otherwise it is `Incomplete`. `finish_reason` maps to `StopReason` (`tool_calls`/`function_call` to `ToolUse`, `length` to `MaxTokens`, `stop` to `EndTurn`).
 - An empty key sends no `Authorization` header: an empty `Bearer ` header makes some gateways answer 401. Local endpoints take this path.
 
 ### Anthropic (`anthropic.rs`)
@@ -77,11 +77,13 @@ Two methods only; a smaller interface lets more providers plug in. The futures a
 - Headers are `x-api-key` and a pinned `anthropic-version`. `tools` is omitted when empty (some endpoints reject an empty array).
 - With a `cache_prefix`, `system` becomes two text blocks, the prefix carrying `cache_control: ephemeral`, and the last non-thinking block of the last message gets a second breakpoint (see 3.8).
 - Extended thinking is enabled only for the configured main model and only when the budget is at least 1024 and below `max_tokens`; otherwise the request goes out without thinking instead of failing. Thinking blocks, with signatures, are kept in working memory and sent back first in the assistant turn.
-- Streaming events: `message_start` gives input and cache tokens, `content_block_start` opens a thinking/tool slot, `content_block_delta` carries `text_delta` (to `on_text`), `input_json_delta`, `thinking_delta`, `signature_delta`; `message_delta` gives the stop reason and output tokens; `error` becomes `ProviderError::Api`. Tool arguments that fail to parse fall back to `{}` on this wire.
+- Streaming events: `message_start` gives input and cache tokens, `content_block_start` opens a thinking/tool slot, `content_block_delta` carries `text_delta` (to `on_text`), `input_json_delta`, `thinking_delta`, `signature_delta`; `message_delta` gives the stop reason and output tokens; `error` becomes `ProviderError::Api`. A stream without `message_stop` is `Incomplete`.
 
 ### Responses (`responses.rs`)
 
-Stateless: every request is sent with `store: false` and `include: ["reasoning.encrypted_content"]`, and the encrypted reasoning items come back as `ResponseItem` blocks that local working memory replays on the next request. A response whose reasoning lacks the encrypted continuation is an error. Streaming forwards text and refusal deltas to `on_text` and returns the assembled response from the terminal `response.completed` / `response.incomplete` event; a stream that ends without one is a `Parse` error.
+Stateless: every request is sent with `store: false` and `include: ["reasoning.encrypted_content"]`, and the encrypted reasoning items come back as `ResponseItem` blocks that local working memory replays on the next request. A response whose reasoning lacks the encrypted continuation is an error. Streaming forwards text and refusal deltas to `on_text` and returns the assembled response from the terminal `response.completed` / `response.incomplete` event; a stream that ends without one is `Incomplete`.
+
+Malformed tool arguments never fail the response: `tool_input` decodes them (empty means `{}`, an object encoded twice as a string is decoded once more) and otherwise keeps the call with a marked stand-in input, which the registry answers with an `Error:` result naming what was received, so the model can call again.
 
 ### SSE framing (`sse.rs`)
 
@@ -89,14 +91,14 @@ Stateless: every request is sent with `store: false` and `include: ["reasoning.e
 
 ## 3.6 Retries and errors
 
-`ProviderError` separates `Http { status, body, retry_after_secs }`, `Network`, `ContextOverflow`, `Api` (2xx with a wrong body) and `Parse`. Every HTTP status of 400 or above goes through `from_http_retry`, so overflow detection has one implementation: only 400/413/422 whose body matches a phrase list (English and Chinese) become `ContextOverflow`.
+`ProviderError` separates `Http { status, body, retry_after_secs }`, `Network`, `ContextOverflow`, `Api` (2xx with a wrong body), `Parse` and `Incomplete` (a stream that closed before its terminal event). Every HTTP status of 400 or above goes through `from_http_retry`, so overflow detection has one implementation: only 400/413/422 whose body matches a phrase list (English and Chinese) become `ContextOverflow`.
 
-`retry.rs` retries only 429, 5xx and network errors (`retryable()`); other errors would fail identically. The invariants:
+`retry.rs` retries only 429, 5xx, network errors and `Incomplete` (`retryable()`); other errors would fail identically. The invariants:
 
-- **Bounded**: `settings.llm_retries` attempts, exponential backoff from 500 ms capped at 8 s per wait and 30 s total; a server `Retry-After` (seconds form only) is honored but under the same caps.
+- **Bounded**: `settings.llm_retries` attempts, exponential backoff from 500 ms capped at 8 s per wait and 30 s total; a server wait is honored under the same caps: `retry-after-ms` first, then `Retry-After` as seconds or an HTTP date.
 - **Visible**: each retry emits a `RetryNotice`. The outlet is a task-local (`with_note_sink`) rather than a `Provider` parameter, so the trait stays a stable contract and a turn's retries cannot leak into another concurrent turn. With no outlet it falls back to stderr.
 - **Never switches vendors**: that is a different decision.
-- Retries wrap only getting the response (`with_retries`). A disconnect after streaming has begun is not resent, which would duplicate the half answer already shown.
+- `with_retries` wraps getting the response. `stream_with_retries` starts a streamed call again when it ends `Incomplete` before any text reached `on_text`; once text was shown, the break is reported instead, because a retry would print it twice.
 - `ContextOverflow` is never retried here; app-server compacts history and re-runs the loop once (see [06-app-server](06-app-server.md)).
 
 ## 3.7 Token estimation
@@ -161,7 +163,7 @@ An interruption is not an error: it returns `Ok(LoopResult { interrupted: true, 
 
 ## 3.14 Exits and wrap-up
 
-The loop delivers a reply when the model requests no tools and there is no pending user input. Cancellation, uncertain effects, exhausted resources, repeated tool batches and provider errors have distinct exit paths. Tool calls from a truncated model response are discarded.
+The loop delivers a reply when the model requests no tools and there is no pending user input. Cancellation, uncertain effects, exhausted resources, repeated tool batches and provider errors have distinct exit paths. Tool calls from a truncated model response are discarded. A reply cut by the output limit (`MaxTokens`, not the turn's token budget) is continued up to twice: the loop sends a note asking the model to carry on without repeating itself, and the delivered reply joins the pieces. A third cut ends the turn with `MaxTokens`.
 
 When the context estimate crosses its threshold, the request keeps the current instructions and recent complete tool exchanges, with excerpts from older messages. The full transcript remains available to checkpoint and account for the work. On a provider overflow during execution, the Runtime can retry that request once with less context and the settled tool results.
 
@@ -173,8 +175,9 @@ When the context estimate crosses its threshold, the request keeps the current i
 |---|---|
 | Repeated | The same call and result a 3rd consecutive time (a single repeat may be a harmless recheck) |
 | Cyclic | The last `2p` calls are pairwise identical for `p` in 2 to 4 (alternation resets the consecutive count, so it needs its own test); a window that is all one call is "repeated", not a cycle |
+| Failing | The same tool failed a 3rd consecutive time with any arguments; a success of that tool resets its count |
 
-On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard`. Three successive batches with exclusively repeated or cyclic calls stop for review.
+On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard`. Three successive batches with exclusively repeated or cyclic calls stop for review. A failing streak only adds a reminder to check the assumption behind the error; it never counts toward that stop, because a failing test command is ordinary output.
 
 ## 3.16 Tool-result budget
 

@@ -339,7 +339,7 @@ async fn repeated_batches_eventually_yield_for_review() {
 async fn a_truncated_response_cannot_execute_tools() {
     let mut truncated = Mock::tool_use("call-truncated", "write", json!({}));
     truncated.stop_reason = StopReason::MaxTokens;
-    let mock = Mock::new(vec![truncated]);
+    let mock = Mock::new(vec![truncated.clone(), truncated.clone(), truncated]);
     let mut tools = jeeves_tools::ToolRegistry::new();
     tools.register_with_effect(
         slow_tool("write", 0, "would be a side effect"),
@@ -1392,4 +1392,56 @@ async fn uncertain_effect_stops_remaining_tools_and_keeps_the_intent_checkpoint(
     let transcript = serde_json::to_string(&saved[3].messages).unwrap();
     assert!(transcript.contains("Error: sample report"));
     assert!(!transcript.contains("must_not_run"));
+}
+
+#[tokio::test]
+async fn a_call_with_broken_arguments_is_answered_and_the_turn_goes_on() {
+    let broken = Mock::tool_use(
+        "call-broken",
+        "fetch",
+        jeeves_provider::tool_input(r#"{"url": "#),
+    );
+    let mock = Mock::new(vec![broken, Mock::text("fixed it")]);
+    let mut tools = jeeves_tools::ToolRegistry::new();
+    tools.register_with_effect(
+        slow_tool("fetch", 0, "must not run"),
+        jeeves_tools::ToolEffect::Read,
+    );
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.reply, "fixed it");
+    assert_eq!(result.tool_calls.len(), 1);
+    let call = &result.tool_calls[0];
+    assert!(!call.success);
+    assert!(call.output.contains("not valid JSON"), "{}", call.output);
+    assert!(!call.output.contains("must not run"), "{}", call.output);
+}
+
+#[tokio::test]
+async fn a_reply_cut_by_the_output_limit_is_continued() {
+    let mut first = Mock::text("The first half, ");
+    first.stop_reason = StopReason::MaxTokens;
+    let mock = Mock::new(vec![first, Mock::text("and the second half.")]);
+    let tools = jeeves_tools::ToolRegistry::new();
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.stop_reason, StopReason::EndTurn);
+    assert_eq!(result.reply, "The first half, and the second half.");
+    let received = mock.received.lock().expect("lock");
+    assert_eq!(received.len(), 2);
+    let asked = received[1].messages.last().expect("a message").text();
+    assert!(
+        asked.contains("Continue exactly where it stopped"),
+        "{asked}"
+    );
+}
+
+#[tokio::test]
+async fn continuation_after_the_output_limit_is_bounded() {
+    let mut cut = Mock::text("more ");
+    cut.stop_reason = StopReason::MaxTokens;
+    let mock = Mock::new(vec![cut.clone(), cut.clone(), cut]);
+    let tools = jeeves_tools::ToolRegistry::new();
+    let result = turn(&mock, &tools, ctx().await, None).await;
+    assert_eq!(result.stop_reason, StopReason::MaxTokens);
+    assert_eq!(result.reply, "more more more ");
+    assert_eq!(mock.received.lock().expect("lock").len(), 3);
 }

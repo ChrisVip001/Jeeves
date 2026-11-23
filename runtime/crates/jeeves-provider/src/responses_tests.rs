@@ -61,7 +61,8 @@ fn incomplete_or_malformed_function_calls_never_become_executable_tools() {
     assert!(from_responses(&response).is_err());
     response["output"][1]["status"] = json!("completed");
     response["output"][1]["arguments"] = json!("{broken");
-    assert!(from_responses(&response).is_err());
+    let broken = from_responses(&response).expect("broken arguments go back to the model");
+    assert!(crate::malformed_tool_input(broken.tool_uses()[0].2).is_some());
     response = tool_response();
     response["output"][0]
         .as_object_mut()

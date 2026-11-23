@@ -72,7 +72,7 @@ just desktop-open      # 已运行时回到原窗口
 | `fetch_url` | 抓取网页：优先 Parallel MCP 提取，本地 HTTP 兜底并校验公开目标 |
 | `job` | 读、列、停后台作业（`action` = output / list / kill）；`JEEVES_EXEC=1` 才有 |
 | `todo_write` | 维护一张每轮重新注入的待办清单 |
-| `write_file` / `edit` | 写文本文件 / 一次精确匹配替换；`JEEVES_WRITE=1` 才开，范围限于会话工作目录加 `JEEVES_EXEC_WRITABLE_ROOTS` |
+| `write_file` / `edit` | 写文本文件 / 一次唯一匹配替换（容忍行尾符、引号和行尾空格的差异）；`JEEVES_WRITE=1` 才开，范围限于会话工作目录加 `JEEVES_EXEC_WRITABLE_ROOTS` |
 | `apply_patch` | 按补丁跨文件修改，全中才落盘；与 `write_file` 同一范围与审批 |
 | `run_command` | 沙箱 + 放行表的 shell 命令；`JEEVES_EXEC=1` 才开（见 [SECURITY.zh.md](SECURITY.zh.md)） |
 | `delegate_task` | 把自成一体的活交给子代理；`JEEVES_DELEGATE=1` 才开 |

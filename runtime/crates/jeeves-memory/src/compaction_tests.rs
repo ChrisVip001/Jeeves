@@ -170,3 +170,15 @@ async fn unreadable_rollup_does_not_trigger_a_paid_recomputation() {
         .is_err());
     assert!(mock.received.lock().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn the_summarizer_is_asked_for_open_requests_and_completed_actions() {
+    let mock = Mock::new(vec![Mock::text("Goal: plan the trip")]);
+    let _ = roll_forward(&mock, "small", None, &pairs(2)).await;
+    let received = mock.received.lock().expect("lock");
+    let system = received[0].system.as_deref().expect("a system prompt");
+    for section in ["Goal:", "Done:", "Open:", "Facts:"] {
+        assert!(system.contains(section), "missing {section}: {system}");
+    }
+    assert!(system.contains("past-tense"), "{system}");
+}

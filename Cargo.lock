@@ -1487,6 +1487,7 @@ name = "jeeves-provider"
 version = "0.18.0"
 dependencies = [
  "bytes",
+ "chrono",
  "futures-util",
  "jeeves-config",
  "jeeves-protocol",

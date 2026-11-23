@@ -22,6 +22,7 @@ pub mod approval;
 pub mod browser;
 mod code_map;
 pub mod edit_checks;
+pub mod edit_match;
 pub mod exec;
 pub mod fs;
 pub mod fs_write;
@@ -88,6 +89,10 @@ mod fs_tests;
 #[cfg(test)]
 #[path = "fs_write_tests.rs"]
 mod fs_write_tests;
+
+#[cfg(test)]
+#[path = "edit_match_tests.rs"]
+mod edit_match_tests;
 
 #[cfg(test)]
 #[path = "patch_tests.rs"]
@@ -500,6 +505,10 @@ impl ToolRegistry {
                 self.names().join(", ")
             ));
         };
+
+        if let Some(why) = jeeves_provider::malformed_tool_input(&args) {
+            return ToolOutput::failure(format!("Error: {name}: {why}"));
+        }
 
         if let Some(Some(validator)) = self.validators.get(name) {
             if let Err(why) = describe_violations(validator, &args) {

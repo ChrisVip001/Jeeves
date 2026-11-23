@@ -69,7 +69,7 @@ trait Provider: Send + Sync {
 - token 上限以 `max_completion_tokens` 发送；`tools` 仅在非空时发送。不发 `cache_control`：未知字段在某些网关上是 400。
 - `from_openai` 把带 `error` 键的响应体（OpenRouter 用 200 + error 表示限流）或没有 `choices` 的响应体变成 `ProviderError::Api`。`stop_reason` 是推断的：有 tool call 为 `ToolUse`，否则 `EndTurn`。
 - 唯一的参数重试在非流式的 `create_inner` 里：响应体提到 `max_completion_tokens` 或 `max_tokens` 的 400，会改用旧名 `max_tokens` 重发一次，照顾老网关。它与 3.6 的退避重试是两回事。
-- 流式会加 `stream_options.include_usage`；否则流式的 usage 全是 0，trace 里的成本是假的。content 增量交给 `on_text`；tool call 按 `index` 放进 `BTreeMap`（id/name 覆盖，`arguments` 片段追加），最后才解析，所以参数畸形会是 `Parse` 错误。只有收到 `[DONE]` 或 `finish_reason` 才算流完整，否则是 `Parse` 错误。`finish_reason` 映射到 `StopReason`（`tool_calls`/`function_call` 为 `ToolUse`，`length` 为 `MaxTokens`，`stop` 为 `EndTurn`）。
+- 流式会加 `stream_options.include_usage`；否则流式的 usage 全是 0，trace 里的成本是假的。content 增量交给 `on_text`；tool call 按 `index` 放进 `BTreeMap`（id/name 覆盖，`arguments` 片段追加），最后才用 `tool_input` 解析。只有收到 `[DONE]` 或 `finish_reason` 才算流完整，否则是 `Incomplete`。`finish_reason` 映射到 `StopReason`（`tool_calls`/`function_call` 为 `ToolUse`，`length` 为 `MaxTokens`，`stop` 为 `EndTurn`）。
 - 密钥为空时不发 `Authorization` 头：空的 `Bearer ` 头会让某些网关回 401。本地端点走这条路。
 
 ### Anthropic（`anthropic.rs`）
@@ -77,11 +77,13 @@ trait Provider: Send + Sync {
 - 请求头是 `x-api-key` 和固定版本的 `anthropic-version`。`tools` 为空时省略（有些端点拒绝空数组）。
 - 有 `cache_prefix` 时，`system` 变成两个 text 块，前缀块带 `cache_control: ephemeral`，最后一条消息的最后一个非 thinking 块再加第二个断点（见 3.8）。
 - 扩展思考只对配置的主模型开启，且仅当预算不小于 1024 并小于 `max_tokens`；否则请求不带思考发出，而不是失败。带签名的 thinking 块保存在工作记忆里，并在 assistant 回合中排在最前面回传。
-- 流式事件：`message_start` 给出 input 与缓存 token，`content_block_start` 打开 thinking/tool 槽位，`content_block_delta` 携带 `text_delta`（交给 `on_text`）、`input_json_delta`、`thinking_delta`、`signature_delta`；`message_delta` 给出停止原因与 output token；`error` 变成 `ProviderError::Api`。这种 wire 上解析失败的工具参数回退为 `{}`。
+- 流式事件：`message_start` 给出 input 与缓存 token，`content_block_start` 打开 thinking/tool 槽位，`content_block_delta` 携带 `text_delta`（交给 `on_text`）、`input_json_delta`、`thinking_delta`、`signature_delta`；`message_delta` 给出停止原因与 output token；`error` 变成 `ProviderError::Api`。没有 `message_stop` 的流是 `Incomplete`。
 
 ### Responses（`responses.rs`）
 
-无状态：每个请求都带 `store: false` 与 `include: ["reasoning.encrypted_content"]`，加密的 reasoning 条目以 `ResponseItem` 块返回，由本地工作记忆在下一次请求中回放。reasoning 缺少加密延续的响应是错误。流式把文本与拒绝的增量转给 `on_text`，并从终止事件 `response.completed` / `response.incomplete` 返回组装好的响应；流结束时没有终止事件是 `Parse` 错误。
+无状态：每个请求都带 `store: false` 与 `include: ["reasoning.encrypted_content"]`，加密的 reasoning 条目以 `ResponseItem` 块返回，由本地工作记忆在下一次请求中回放。reasoning 缺少加密延续的响应是错误。流式把文本与拒绝的增量转给 `on_text`，并从终止事件 `response.completed` / `response.incomplete` 返回组装好的响应；流结束时没有终止事件是 `Incomplete`。
+
+畸形的工具参数从不让整个响应失败：`tool_input` 会先解码（空参数视为 `{}`，被二次编码成字符串的对象再解一次）；仍无法解码时保留这次调用，换上带标记的替代输入，由工具注册表返回一条写明收到内容的 `Error:` 结果，模型据此重新调用。
 
 ### SSE 分帧（`sse.rs`）
 
@@ -89,14 +91,14 @@ trait Provider: Send + Sync {
 
 ## 3.6 重试与错误
 
-`ProviderError` 区分 `Http { status, body, retry_after_secs }`、`Network`、`ContextOverflow`、`Api`（2xx 但响应体不对）与 `Parse`。所有 400 及以上的 HTTP 状态都经过 `from_http_retry`，溢出检测因此只有一份实现：只有 400/413/422 且响应体匹配短语表（中英文）才算 `ContextOverflow`。
+`ProviderError` 区分 `Http { status, body, retry_after_secs }`、`Network`、`ContextOverflow`、`Api`（2xx 但响应体不对）、`Parse` 与 `Incomplete`（流在终止事件之前关闭）。所有 400 及以上的 HTTP 状态都经过 `from_http_retry`，溢出检测因此只有一份实现：只有 400/413/422 且响应体匹配短语表（中英文）才算 `ContextOverflow`。
 
-`retry.rs` 只重试 429、5xx 和网络错误（`retryable()`）；其他错误重试也会同样失败。不变量：
+`retry.rs` 只重试 429、5xx、网络错误和 `Incomplete`（`retryable()`）；其他错误重试也会同样失败。不变量：
 
-- **有界**：次数为 `settings.llm_retries`，指数退避从 500 ms 起，单次等待上限 8 秒、总计上限 30 秒；服务端 `Retry-After`（仅秒数形式）会被遵守，但受同样的上限约束。
+- **有界**：次数为 `settings.llm_retries`，指数退避从 500 ms 起，单次等待上限 8 秒、总计上限 30 秒；服务端要求的等待会被遵守，但受同样的上限约束：先看 `retry-after-ms`，再看秒数或 HTTP 日期形式的 `Retry-After`。
 - **可见**：每次重试都发出 `RetryNotice`。出口是 task-local（`with_note_sink`），而不是 `Provider` 的参数，这样 trait 保持稳定契约，一个回合的重试也不会串到另一个并发回合。没有出口时回退到 stderr。
 - **从不换厂商**：那是另一个决策。
-- 重试只包「拿到响应」这一步（`with_retries`）。流开始后的断连不重发，否则会把已展示给用户的半句话重复一遍。
+- `with_retries` 包住「拿到响应」这一步。`stream_with_retries` 在流式调用以 `Incomplete` 结束、且还没有任何文本送到 `on_text` 时重新发起；已经展示过文本时如实报告中断，因为重试会把文本打印两遍。
 - `ContextOverflow` 在这里从不重试；由 app-server 压缩历史并把循环重跑一次（见 [06-app-server](06-app-server.zh.md)）。
 
 ## 3.7 token 估算
@@ -161,7 +163,7 @@ trait Provider: Send + Sync {
 
 ## 3.14 退出与收尾
 
-模型停止调用工具，且没有待接收的追加输入时，循环交付回复。用户取消、无法核实的外部操作、资源额度耗尽、持续重复的工具调用和模型报错都有独立的停止路径。工具请求被模型输出截断时，Runtime 不执行该批请求。
+模型停止调用工具，且没有待接收的追加输入时，循环交付回复。用户取消、无法核实的外部操作、资源额度耗尽、持续重复的工具调用和模型报错都有独立的停止路径。工具请求被模型输出截断时，Runtime 不执行该批请求。回复被输出上限截断（`MaxTokens`，不是回合的 token 预算）时最多续写两次：循环发一条提示，请模型从断处接着写、不要重复，交付的回复把各段拼起来。第三次截断以 `MaxTokens` 结束回合。
 
 超过上下文阈值时，模型请求保留当前用户指令和最近一批完整的工具往来，用摘录压缩更早的内容。完整记录仍用来核验检查点和记账。模型在执行中报告上下文溢出时，Runtime 可缩减当前请求并重试一次，接着使用已经落定的工具结果。
 
@@ -173,8 +175,9 @@ trait Provider: Send + Sync {
 |---|---|
 | 重复 | 同一调用、同一结果连续第 3 次（单次重复可能只是无害的复查） |
 | 循环 | 最近 `2p` 次调用两两相同，`p` 取 2 到 4（交替会重置连续计数，所以要单独判；整个窗口都是同一个调用算「重复」，不算循环） |
+| 连续失败 | 同一工具不论参数连续第 3 次失败；该工具一次成功即清零 |
 
-命中时，模型会收到 `[guard]` 提醒。过长的重复结果会用简短的引用桩代替。`LoopResult.tool_calls` 与 `Tool` 事件保留真实结果，命中次数与最后一条提示进入 `LoopResult.guard`。连续三批工具调用都触发重复或循环判定时，任务停止并等待核对。
+命中时，模型会收到 `[guard]` 提醒。过长的重复结果会用简短的引用桩代替。`LoopResult.tool_calls` 与 `Tool` 事件保留真实结果，命中次数与最后一条提示进入 `LoopResult.guard`。连续三批工具调用都触发重复或循环判定时，任务停止并等待核对。连续失败只追加一条提醒，请模型核对报错背后的假设；它从不计入上述停止，因为测试命令失败本是正常输出。
 
 ## 3.16 工具结果预算
 

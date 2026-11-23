@@ -500,3 +500,47 @@ async fn extra_root_requires_a_selected_workspace_for_file_writes() {
     assert!(reply.starts_with("Error:"), "{reply}");
     assert!(!output.exists());
 }
+
+#[tokio::test]
+async fn edit_tolerates_crlf_and_reports_the_normalized_match() {
+    let ctx = test_ctx(None).await;
+    let reg = registry();
+    let path = ctx.home.join("windows.txt");
+    std::fs::write(&path, "one\r\ntwo\r\nthree\r\n").expect("place the file");
+    let out = reg
+        .execute(
+            ctx,
+            "edit",
+            json!({"path": path.display().to_string(), "old_string": "one\ntwo", "new_string": "uno\ndos"}),
+        )
+        .await;
+    assert!(out.starts_with("Edited"), "{out}");
+    assert!(out.contains("after normalizing"), "{out}");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("it should be rewritten"),
+        "uno\r\ndos\r\nthree\r\n"
+    );
+}
+
+#[tokio::test]
+async fn edit_miss_points_at_the_closest_lines() {
+    let ctx = test_ctx(None).await;
+    let reg = registry();
+    let path = ctx.home.join("lib.rs");
+    let body = "fn a() {}\nfn total(items: &[u32]) -> u32 {\n    items.iter().sum()\n}\n";
+    std::fs::write(&path, body).expect("place the file");
+    let out = reg
+        .execute(
+            ctx,
+            "edit",
+            json!({
+                "path": path.display().to_string(),
+                "old_string": "fn total(items: &[u32]) -> u32 {\n  items.iter().sum()\n}",
+                "new_string": "fn total() {}"
+            }),
+        )
+        .await;
+    assert!(out.starts_with("Error:"), "{out}");
+    assert!(out.contains("lines 2-3"), "{out}");
+    assert_eq!(std::fs::read_to_string(&path).expect("untouched"), body);
+}

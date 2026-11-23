@@ -72,7 +72,7 @@ Tell Jeeves what you need in your own words — even if the request is still vag
 | `fetch_url` | fetch a page: Parallel MCP extraction first, local HTTP fallback with public-target validation |
 | `job` | read, list and stop background jobs (`action` = output / list / kill); needs `JEEVES_EXEC=1` |
 | `todo_write` | keep a per-session todo list, re-injected every turn |
-| `write_file` / `edit` | write a text file / one exact-match replacement; off unless `JEEVES_WRITE=1`, limited to the session's working directory plus `JEEVES_EXEC_WRITABLE_ROOTS` |
+| `write_file` / `edit` | write a text file / one unique-match replacement (tolerates line-ending, quote and trailing-space drift); off unless `JEEVES_WRITE=1`, limited to the session's working directory plus `JEEVES_EXEC_WRITABLE_ROOTS` |
 | `apply_patch` | apply a patch across files, all or nothing; same boundary and approval as `write_file` |
 | `run_command` | sandboxed, allowlisted shell commands; off unless `JEEVES_EXEC=1` ([SECURITY.md](SECURITY.md)) |
 | `delegate_task` | hand self-contained jobs to subagents; off unless `JEEVES_DELEGATE=1` |

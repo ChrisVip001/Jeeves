@@ -1,4 +1,5 @@
-//! Write tools: `write_file` (whole-file write) and `edit` (one exact-match replacement).
+//! Write tools: `write_file` (whole-file write) and `edit` (one unique-match replacement; the
+//! tolerant matching tiers live in `edit_match`).
 //!
 //! **Off by default** (`JEEVES_WRITE=1` registers them; off, the model can't even see the names).
 //! The trust boundary is `crate::roots` — the chosen workspace plus
@@ -19,6 +20,7 @@ use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
 
 use crate::approval::{ApprovalBroker, RememberTarget};
+use crate::edit_match::{fit_line_endings, locate, miss_hint, Located};
 use crate::{require_str, Tool, ToolCtx};
 
 /// Raw string argument — **no trimming**. `require_str` trims, which is right for
@@ -332,13 +334,13 @@ pub fn edit(policy: WritePolicy) -> Tool {
     let policy = Arc::new(policy);
     Tool {
         name: "edit".to_string(),
-        description: "Replace one stretch of a file with another exactly (old_string must appear exactly once in the file: zero or several occurrences are both refused — include a few surrounding lines to make it unique). It may only change text files inside the working directory and the directories listed in JEEVES_EXEC_WRITABLE_ROOTS."
+        description: "Replace one stretch of a file with another (old_string must appear exactly once in the file: zero or several occurrences are both refused — include a few surrounding lines to make it unique). Copy old_string from read_file without the line-number prefix; differences in line endings, typographic quotes, dashes and trailing whitespace are tolerated and reported, indentation is not. It may only change text files inside the working directory and the directories listed in JEEVES_EXEC_WRITABLE_ROOTS."
             .to_string(),
         input_schema: json!({
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "The file to edit (it must already exist). ~ is expanded."},
-                "old_string": {"type": "string", "description": "The text to be replaced; it must match the file character for character and appear exactly once."},
+                "old_string": {"type": "string", "description": "The text to be replaced; it must appear exactly once and match the file including indentation."},
                 "new_string": {"type": "string", "description": "The replacement text (identical to old_string means no change, and is refused)."}
             },
             "required": ["path", "old_string", "new_string"]
@@ -376,25 +378,36 @@ pub fn edit(policy: WritePolicy) -> Tool {
                 }
 
                 let old = read_text(&path)?;
-                match old.matches(&old_string).count() {
-                    0 => {
+                let (range, tier) = match locate(&old, &old_string) {
+                    Located::One { range, tier } => (range, tier),
+                    Located::Many { count, tier } => {
+                        let how = tier.note().map_or(String::new(), |note| format!(" ({note})"));
                         return Err(anyhow!(
-                            "old_string was not found in {raw} (0 occurrences). read_file first to confirm the text — spaces and line endings must match character for character."
-                        ))
+                            "old_string occurs {count} times in {raw}{how} — edit replaces exactly one match. Include the surrounding lines so it becomes unique."
+                        ));
                     }
-                    1 => {}
-                    n => {
+                    Located::Nothing => {
+                        let hint = miss_hint(&old, &old_string, &new_string)
+                            .map_or(String::new(), |hint| format!("\n{hint}"));
                         return Err(anyhow!(
-                            "old_string occurs {n} times in {raw} — edit replaces exactly one match. Include the surrounding lines so it becomes unique."
-                        ))
+                            "old_string was not found in {raw} (0 occurrences, also after normalizing line endings, quotes, dashes and trailing whitespace). read_file first to confirm the text — indentation must match.{hint}"
+                        ));
                     }
-                }
+                };
 
-                let new_content = old.replacen(&old_string, &new_string, 1);
+                let replacement = fit_line_endings(&old[range.clone()], &new_string, tier);
+                let mut new_content = old.clone();
+                new_content.replace_range(range, &replacement);
+                if new_content == old {
+                    return Err(anyhow!(
+                        "The matched text already equals new_string — there is nothing to change."
+                    ));
+                }
                 std::fs::write(&path, &new_content)
                     .map_err(|e| anyhow!("Could not write {path:?}: {e}"))?;
+                let note = tier.note().map_or(String::new(), |note| format!(" ({note})"));
                 let result = format!(
-                    "Edited {path:?}: 1 replacement\n{}",
+                    "Edited {path:?}: 1 replacement{note}\n{}",
                     render_change(Some(&old), &new_content)
                 );
                 Ok(crate::edit_checks::append(&ctx, result).await)

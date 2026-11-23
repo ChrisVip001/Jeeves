@@ -258,6 +258,19 @@ pub struct LoopResult {
     pub observed_input_tokens: usize,
 }
 
+/// How many times one turn may ask the model to carry on after its reply hit the output limit.
+/// Two, then the cut is reported: a reply that still does not fit needs a different plan.
+const MAX_OUTPUT_CONTINUATIONS: u32 = 2;
+
+/// Sent after a reply that hit the output limit, so the model finishes instead of the turn
+/// ending on half an answer.
+const CONTINUE_AFTER_LIMIT: &str = "(Your last reply hit the output token limit and was cut off; any tool call in it did not run.) \
+Continue exactly where it stopped. Do not apologize, recap or repeat what you already wrote. \
+If you were writing a large file or command, split the work into smaller pieces.";
+
+/// Stands in for a cut-off reply that kept no text, so the transcript stays well formed.
+const CUT_OFF_PLACEHOLDER: &str = "(This reply was cut off by the output limit.)";
+
 /// A tool-free reply can report progress when a turn exhausts its token budget.
 const WRAP_UP_TOKENS: &str = "(Budget note: this turn's token budget is spent; the tools have been put away.)\
 Answer in three sentences: what is done, where you are stuck, what you need from me next —\
@@ -471,6 +484,8 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
 
     let mut iterations = completed_before;
     let mut stalled_batches = 0;
+    let mut continuations = 0u32;
+    let mut continued_reply = String::new();
     let stop_detail = loop {
         let iteration = iterations.saturating_add(1);
         if turn
@@ -652,15 +667,37 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                 }
             }
         }
+        let mut kept: Vec<ContentBlock> = response
+            .content
+            .iter()
+            .filter(|block| tools_allowed || !matches!(block, ContentBlock::ToolUse { .. }))
+            .cloned()
+            .collect();
+        let cut_off = response.stop_reason == StopReason::MaxTokens && !out_of_tokens;
+        if cut_off && kept.is_empty() {
+            kept.push(ContentBlock::Text {
+                text: CUT_OFF_PLACEHOLDER.to_string(),
+            });
+        }
         messages.push(Message {
             role: Role::Assistant,
-            content: response
-                .content
-                .iter()
-                .filter(|block| tools_allowed || !matches!(block, ContentBlock::ToolUse { .. }))
-                .cloned()
-                .collect(),
+            content: kept,
         });
+
+        if cut_off && continuations < MAX_OUTPUT_CONTINUATIONS {
+            continuations += 1;
+            continued_reply.push_str(&response.text());
+            eprintln!(
+                "(jeeves) the reply hit the output limit; asking the model to continue ({continuations}/{MAX_OUTPUT_CONTINUATIONS})"
+            );
+            messages.push(Message {
+                role: Role::User,
+                content: vec![ContentBlock::Text {
+                    text: CONTINUE_AFTER_LIMIT.to_string(),
+                }],
+            });
+            continue;
+        }
 
         if tools_allowed
             && uses.is_empty()
@@ -680,7 +717,7 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                 token_budget_reached: out_of_tokens,
                 stop_detail: None,
                 round_id: round_id.clone(),
-                reply: response.text(),
+                reply: format!("{continued_reply}{}", response.text()),
                 tool_calls,
                 iterations: iteration,
                 usage,
@@ -907,8 +944,8 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
                     success,
                     duration_ms,
                 });
-                let verdict = guard.observe(name, input, &output);
-                progressed |= verdict.is_ok();
+                let verdict = guard.observe(name, input, &output, success);
+                progressed |= !verdict.is_stall();
                 let for_model = guard::for_model(&output, name, input, &verdict);
                 results.push(ContentBlock::ToolResult {
                     tool_use_id: id.clone(),

@@ -147,7 +147,8 @@ spend ([06](06-app-server.md)).
 - `newly_evicted(pairs, window, covered)`: turns `[covered, len - window)`. `covered` is
   `context_rollups.covered_turns`, so the summary only rolls forward.
 - `roll_forward_with`: one call (`max_tokens` 700) over the previous summary plus the new turns, with an optional
-  human focus line. On error or an empty reply it uses `fallback_summary`: previous summary plus each turn's
+  human focus line. The summary uses fixed sections (Goal, Done as past-tense facts, Decisions and preferences,
+  Open, Facts), each left out when empty, and folds finished items from Open into Done. On error or an empty reply it uses `fallback_summary`: previous summary plus each turn's
   user text clipped to 120 and assistant text to 160 characters, cut to 600 characters in total. It never returns Err.
 - `refresh` stores the result with `save_rollup`, which refuses a summary covering fewer turns than the stored one.
   A failed or refused store is a stderr line.
