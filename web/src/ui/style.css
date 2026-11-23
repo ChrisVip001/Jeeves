@@ -617,7 +617,7 @@
 /* First-run wizard: one column of stacked fields, sized to its content. */
 .setup-wizard {
   width: 460px;
-  height: auto;
+  height: fit-content;
 }
 .setup-wizard[open] {
   display: block;
