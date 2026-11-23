@@ -139,8 +139,11 @@
 ## 模型路由
 
 只有三档（`fast` / `chat` / `reasoning`）：profile 上没有成本或速度标签，没有视觉档路由（图片跟随该回合的档位，
-由 provider 的 `vision` 标志把关），没有同级档位故障转移。路由到的 profile 解析失败时，回合退回当前 profile。
-L1 分类器只看消息文本。
+由 provider 的 `vision` 标志把关）。L1 分类器只看消息文本。同级故障转移需要显式配置，不是自动发生：
+`model-routes.json` 里 profile 的 `fallback` 列表按顺序给出备选 profile，仅在主 provider 自身重试后仍遇到
+429/5xx/401/402/403、网络错误或流在出现任何文本前断开时启用；已经向用户显示文本后、上下文溢出或其他 4xx 不启用。
+若路由解析不到任何可用 profile，回合退回当前 profile 并明说。
+→ `runtime/crates/jeeves-provider/src/fallback.rs`、`runtime/crates/jeeves-app-server/src/route.rs`
 
 * **刻意** — 声明的 `tier` 优先于 `fixed` 模式。`model-routes.json` 中没有该档位条目时，退到当前 profile，
   并由 `TurnMeta.routeReason` 明说，而不是藏起来。
@@ -237,8 +240,8 @@ L1 分类器只看消息文本。
   → `runtime/crates/jeeves-connector/src/config.rs`
 * **边界** — 日历是只读 CalDAV/ICS。TZID 必须能由 IANA 数据库解析，自定义 `VTIMEZONE` 定义不被解释。
   重复展开覆盖 `RRULE` 与 `EXDATE`；`RECURRENCE-ID` 覆盖实例和 `EXRULE` 被忽略。邮件只读取 UNSEEN
-  邮件的纯文本，不保存附件，每封正文最多保留 16,000 字符。发送是纯文本，不支持附件。连接器没有自动重试，
-  所以 SMTP 结果未知时只报告，不重放。
+  邮件的纯文本，不保存附件，每封正文最多保留 16,000 字符。发送是纯文本，不支持附件。邮件发送没有自动重试
+  （不同于幂等的飞书 token 请求），所以 SMTP 结果未知时只报告，不重放。
   → `runtime/crates/jeeves-connector/src/{calendar,email}.rs`
 * **未做** — Lark 网关从未对接过真实平台，只对假服务测试过。语音网关不存在。
   → `integrations/channels/`
@@ -268,8 +271,9 @@ L1 分类器只看消息文本。
 
 ## 质量体系
 
-* **刻意** — 确定性评测对着脚本化 provider 跑（无密钥、无网络）。judge 评测需要真模型和密钥，是单独的命令（`jeeves judge`）；
-  分数从不阻塞发布。
+* **刻意** — 确定性评测对着脚本化 provider 跑（无密钥、无网络）。真模型评测是两个单独的命令，分数从不阻塞发布：
+  `jeeves judge` 用 rubric 给单轮打 0-10 分；`jeeves research` 在未见过的材料上评测研究简报，把引文、审查解码与综合质量
+  分开计分。两者都需要密钥，无密钥时诚实跳过。
   → `runtime/crates/jeeves-eval/src/`、`evals/`
 * **刻意** — 需要机器上可能没有的东西（python3、shell、可用沙箱）的场景声明 `prereq`，被计为跳过，绝不计为通过。
   → `evals/deterministic/exec.jsonl`

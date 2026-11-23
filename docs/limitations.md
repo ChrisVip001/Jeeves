@@ -192,9 +192,13 @@ high-quality extraction use `run_command` with curl or an MCP fetching service.
 ## Model routing
 
 Three tiers only (`fast` / `chat` / `reasoning`): no cost or speed labels on profiles, no
-vision-tier routing (images ride on the turn's tier, gated by the provider's `vision` flag), no
-sibling-tier failover. If a routed profile fails to resolve, the turn falls back to the active
-profile. The L1 classifier sees only the message text.
+vision-tier routing (images ride on the turn's tier, gated by the provider's `vision` flag). The L1
+classifier sees only the message text. Same-tier failover is configured explicitly, not automatic:
+a profile's `fallback` list in `model-routes.json` names backup profiles tried in order after the
+main provider's own retries fail on 429/5xx/401/402/403, a network error, or a stream that breaks
+before any text; it never fires after text was shown, on context overflow, or on other 4xx. If a
+route resolves to no usable profile at all, the turn falls back to the active profile and says so.
+→ `runtime/crates/jeeves-provider/src/fallback.rs`, `runtime/crates/jeeves-app-server/src/route.rs`
 
 * **Deliberate** — A declared `tier` beats `fixed` mode. When `model-routes.json` has no entry
   for that tier it falls through to the active profile, and `TurnMeta.routeReason` says so
@@ -341,8 +345,9 @@ straight from the file header.
   database; a custom `VTIMEZONE` definition is not interpreted. Recurrence expansion covers
   `RRULE` and `EXDATE`; `RECURRENCE-ID` overrides and `EXRULE` are ignored. Email reads UNSEEN
   messages as plain text, does not store attachments, and keeps at most 16,000 characters of
-  each body. Sending is plain text; attachments are not supported. Connectors have no automatic
-  retry, so an uncertain SMTP result is reported rather than replayed.
+  each body. Sending is plain text; attachments are not supported. Email sending has no automatic
+  retry (unlike the idempotent Feishu token request), so an uncertain SMTP result is reported rather
+  than replayed.
   → `runtime/crates/jeeves-connector/src/{calendar,email}.rs`
 * **Gap** — The Lark gateway has never been pointed at the real platform; it is tested against
   fakes only. Voice gateways do not exist.
@@ -381,8 +386,9 @@ straight from the file header.
 ## Quality system
 
 * **Deliberate** — Deterministic evals run against a scripted provider (no keys, no network).
-  Judge evals need a real model and key and are a separate command (`jeeves judge`); their scores
-  never block a release.
+  Real-model evals are separate commands that never block a release: `jeeves judge` scores a single
+  turn 0-10 by rubric, and `jeeves research` grades an unseen-source research brief with citation,
+  review-decoding and overall scores kept separate. Both need a key and skip honestly without one.
   → `runtime/crates/jeeves-eval/src/`, `evals/`
 * **Deliberate** — Scenarios that need something the machine may lack (python3, a shell, a
   working sandbox) declare `prereq` and are counted as skipped, never as passed.
