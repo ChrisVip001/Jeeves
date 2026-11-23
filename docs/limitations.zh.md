@@ -227,8 +227,8 @@ L1 分类器只看消息文本。
 
 ## 连接器与网关
 
-* **边界** — 连接器没有重试、退避或限流：发送失败会交还给模型，由它决定下一步。大批量第三方调用不在范围内。
-  → `runtime/crates/jeeves-connector/src/feishu.rs`
+* **边界** — 飞书 token 请求（幂等）会对网络错误、429 与 5xx 做有界指数退避重试（最多 2 次，500ms→8s）；其他 4xx 立即上报。发消息刻意不重试——重发会重复人只批准过一次的动作——且仍没有通用限流。大批量第三方调用不在范围内。
+  → `runtime/crates/jeeves-connector/src/retry.rs`、`feishu.rs`
 * **边界** — 飞书默认以应用身份（`tenant_access_token`）发送；以个人身份行事需要一次浏览器授权
   （`jeeves connector feishu login`）。该流程没有 PKCE，回调固定为 `127.0.0.1:41766/callback`，必须在控制台登记。
   续期会轮换 refresh token，所以长驻的 app-server 在到期前十分钟续期；所有进程都停了就没人续期，refresh token 过期后需要重新登录。

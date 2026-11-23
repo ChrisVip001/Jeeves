@@ -20,6 +20,7 @@ use jeeves_tools::{Tool, ToolCtx, require_str};
 use serde_json::{Value, json};
 
 use crate::config::FeishuConfig;
+use crate::retry::with_retries;
 
 /// Approval wait.
 const APPROVAL_TIMEOUT_SECS: i64 = 120;
@@ -288,15 +289,20 @@ fn response_items_match(body: &Value, expected: &str) -> bool {
 
 /// The app-identity token. `code != 0` is a real answer from Feishu, quote it verbatim.
 async fn tenant_token(config: &FeishuConfig, secret: &str) -> Result<String> {
-    let response = client()?
-        .post(format!(
-            "{}/open-apis/auth/v3/tenant_access_token/internal",
-            config.base_url.trim_end_matches('/')
-        ))
-        .json(&json!({ "app_id": config.app_id, "app_secret": secret }))
-        .send()
-        .await
-        .context("could not reach the Feishu auth endpoint")?;
+    let url = format!(
+        "{}/open-apis/auth/v3/tenant_access_token/internal",
+        config.base_url.trim_end_matches('/')
+    );
+    let app_id = config.app_id.clone();
+    let response = with_retries(|| async {
+        client()?
+            .post(&url)
+            .json(&json!({ "app_id": app_id, "app_secret": secret }))
+            .send()
+            .await
+            .context("could not reach the Feishu auth endpoint")
+    })
+    .await?;
     let body: Value = response
         .json()
         .await

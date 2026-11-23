@@ -17,6 +17,7 @@ pub mod config;
 pub mod email;
 pub mod feishu;
 pub mod feishu_oauth;
+pub mod retry;
 
 pub use config::{ConnectorConfig, FeishuConfig};
 pub use feishu::feishu_send_tool;

@@ -322,9 +322,11 @@ straight from the file header.
 
 ## Connectors and gateways
 
-* **Boundary** — Connectors have no retry, backoff or rate limiting: a failed send goes back to
-  the model, which decides the next step. Bulk third-party calls are out of scope.
-  → `runtime/crates/jeeves-connector/src/feishu.rs`
+* **Boundary** — The Feishu token request (idempotent) retries network errors, 429 and 5xx with
+  bounded exponential backoff (2 retries, 500ms→8s); other 4xx surface at once. Message sends are
+  deliberately NOT retried — a resend would duplicate an action the human approved once — and
+  there is still no general rate limiting. Bulk third-party calls remain out of scope.
+  → `runtime/crates/jeeves-connector/src/retry.rs`, `feishu.rs`
 * **Boundary** — Feishu sends as the app (`tenant_access_token`) by default; acting as a person
   needs one browser authorization (`jeeves connector feishu login`). The flow has no PKCE and the
   callback is fixed at `127.0.0.1:41766/callback`, which must be registered in the console.
