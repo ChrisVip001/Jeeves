@@ -85,6 +85,7 @@ export const UI_EN: Record<string, string> = {
   "无法读取账号，请重试。": "Could not load your account. Try again.",
   "连接失败，请重试。": "Connection failed. Try again.",
   "尝试过于频繁，请稍后重试。": "Too many attempts. Try again later.",
+  "尝试过于频繁，请 {seconds} 秒后重试。": "Too many attempts. Try again in {seconds} seconds.",
   "登录失败，请检查邮箱和密码。": "Sign-in failed. Check your email and password.",
   "退出失败，请重试。": "Could not sign out. Try again.",
   "任务详情": "Task details",

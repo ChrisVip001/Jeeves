@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,10 +52,16 @@ func (g *gateway) rate(w http.ResponseWriter, r *http.Request, id string, max in
 		return false
 	}
 	if !ok {
-		w.Header().Set("Retry-After", "60")
+		w.Header().Set("Retry-After", strconv.Itoa(untilNextWindow(time.Now())))
 		cloudkit.Error(w, 429, "try again in a minute")
 	}
 	return ok
+}
+
+// untilNextWindow is how many seconds remain before the per-minute rate window resets,
+// which is exactly how long a refused client has to wait.
+func untilNextWindow(now time.Time) int {
+	return 60 - int(now.Unix()%60)
 }
 func failure(w http.ResponseWriter, err error) {
 	if errors.Is(err, context.Canceled) {

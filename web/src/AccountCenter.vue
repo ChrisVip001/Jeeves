@@ -200,7 +200,9 @@ function submit() {
     if (!response.ok)
       throw Error(
         response.status === 429
-          ? t("尝试过于频繁，请稍后重试。")
+          ? Number(response.headers.get("retry-after")) > 0
+            ? t("尝试过于频繁，请 {seconds} 秒后重试。", { seconds: Number(response.headers.get("retry-after")) })
+            : t("尝试过于频繁，请稍后重试。")
           : step === "verify" || step === "reset"
             ? t("请检查密码和邮件链接，或重新申请邮件。")
             : step === "factor"
