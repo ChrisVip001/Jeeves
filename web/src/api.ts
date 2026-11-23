@@ -57,6 +57,11 @@ export class ApiError extends Error {
   }
 }
 
+/** A thrown value's human-facing text, without the `ApiError:` class-name prefix String() adds. */
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** How many times a read waits out "workspace is starting" before showing it. */
 const STARTING_RETRIES = 4;
 

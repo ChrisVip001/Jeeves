@@ -2,6 +2,9 @@
 import { accountKey } from "./hosted.ts";
 import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
+import WorkRail from "./WorkRail.vue";
+import WorkScreen from "./WorkScreen.vue";
+import { waitingCount } from "./work-status";
 import ActivityPage from "./ActivityPage.vue";
 import ResponsibilityCards from "./ResponsibilityCards.vue";
 import ChatDecisions from "./ChatDecisions.vue";
@@ -137,7 +140,7 @@ function closeDetail() {
 function showActivity() {
   setRoute("activity");
 }
-const needsYou = computed(() => Object.keys(webTasks.state.approvals).length);
+const needsYou = computed(() => waitingCount(webTasks));
 watch(() => state.view, view => {
   if (view === "chat" && (new URLSearchParams(location.search).has("work") || new URLSearchParams(location.search).has("list"))) {
     const url = new URL(location.href);
@@ -238,7 +241,13 @@ watch(
     <ChatDecisions v-if="state.view === 'chat' && state.sessionId === state.mainSessionId" :center="webTasks" :main-busy="state.busy" />
   </Teleport>
   <Teleport to="#cowork-view">
-    <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" />
+    <div v-if="state.view === 'cowork' && coworkTask" class="work-columns">
+      <WorkRail :center="webTasks" :selected="coworkTask.id" @inspect="inspectActivity" @all="showActivity" />
+      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" />
+      <WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks">
+        <DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" />
+      </WorkScreen>
+    </div>
     <div v-else-if="state.view === 'cowork'" class="missing-work" role="status">
       <p>{{ webTasks.state.error || (webTasks.state.loadedOwner ? t("暂时无法打开原任务，请重试。") : t("正在读取任务…")) }}</p>
       <button type="button" class="today-btn" @click="showActivity">{{ t("我的事项") }}</button>

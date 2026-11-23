@@ -79,7 +79,7 @@ const vMarkdown = {
     </section>
     <details v-if="task.checks.length" class="work-checks">
       <summary>{{ t("验收结果") }}</summary>
-      <p v-for="check in task.checks" :key="check.label"><Check v-if="check.passed" :size="16" />{{ check.passed ? t("通过") : t("未通过") }} · {{ check.label }}<br>{{ check.detail }}</p>
+      <p v-for="check in task.checks" :key="check.label"><Check v-if="check.passed" :size="16" />{{ check.passed ? t("通过") : t("未通过") }} · {{ check.label }}<template v-if="check.detail"><br>{{ check.detail }}</template></p>
     </details>
   </article>
 </template>

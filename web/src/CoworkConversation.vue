@@ -3,10 +3,11 @@ import { accountKey, accountStorage } from "./hosted.ts";
 import { computed, ref, watch } from "vue";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import { ArrowUp, Ellipsis } from "lucide-vue-next";
-import { interact } from "./api";
+import { errorText, interact } from "./api";
 import { workspaceActions } from "./controls";
 import { t } from "./i18n";
 import { webTasks } from "./tasks";
+import { workStatus } from "./work-status";
 import { submissionTracker } from "./ui/submission";
 import TaskDelivery from "./TaskDelivery.vue";
 import TaskFileReview from "./TaskFileReview.vue";
@@ -16,6 +17,15 @@ import type { AgentTaskView } from "./ui/types";
 const props=defineProps<{task:AgentTaskView}>();
 const emit=defineEmits<{details:[]}>();
 const approval = computed(() => webTasks.approvalFor(props.task));
+/** The task's acceptance conditions as a step list: passed, failing, or not measured yet. */
+const steps = computed(() => props.task.acceptance.map((condition, index) => {
+  const check = props.task.checks[index];
+  return {
+    label: check?.label || condition.label || condition.path || condition.kind,
+    state: check === undefined ? "todo" : check.passed ? "done" : props.task.status === "running" ? "doing" : "failed",
+    detail: check?.detail ?? "",
+  };
+}));
 const tracker=submissionTracker(accountStorage);
 const draftKey = accountKey("jeeves.task-draft." + props.task.id);
 const text = ref(sessionStorage.getItem(draftKey) ?? "");
@@ -60,7 +70,7 @@ async function send() {
       }
     }
     feedback.value=t("未收到任务回执，可重试这条补充。");
-  } catch(error) { feedback.value=String(error); }
+  } catch(error) { feedback.value = errorText(error); }
   finally { sending.value=false; }
 }
 watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed, props.task.runCount, revision.value],
@@ -70,10 +80,16 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
   <div class="cowork-layout" :class="{ 'with-file-review': reviewFile }">
   <section class="cowork-detail" :aria-label="task.title" :data-task-id="task.id">
     <header class="cowork-head">
-      <div class="work-title"><h2>{{ task.title }}</h2></div>
+      <div class="work-title"><h2>{{ task.title }}</h2><small class="cowork-status">{{ workStatus(webTasks, task) }}</small></div>
       <button id="cowork-details" type="button" class="icon-action" :aria-label="t('任务详情')" :title="t('任务详情')" @click="emit('details')"><Ellipsis :size="21" /></button>
     </header>
     <div class="cowork-thread">
+      <ol v-if="steps.length" class="work-steps" :aria-label="t('步骤')">
+        <li v-for="(step, index) in steps" :key="index" :class="step.state" :title="step.detail">
+          <span class="work-step-mark" aria-hidden="true">{{ step.state === "done" ? "✓" : step.state === "failed" ? "✕" : step.state === "doing" ? "◐" : "○" }}</span>
+          <span class="work-step-text">{{ step.label }}<small v-if="step.detail && step.state === 'failed'" class="work-step-detail">{{ step.detail }}</small></span>
+        </li>
+      </ol>
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
         :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />

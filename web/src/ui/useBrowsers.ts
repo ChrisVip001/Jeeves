@@ -1,4 +1,5 @@
 import { reactive } from "vue";
+import { errorText } from "../api.ts";
 import type * as V2 from "../../../protocol/schema/typescript/v2/index";
 export interface BrowserActions {
   list(sessionId: string): Promise<V2.BrowserListResponse>;
@@ -68,7 +69,7 @@ export function useBrowsers(actions: BrowserActions) {
       }
     } catch (error) {
       if (owner === state.owner && epoch === version)
-        state.errors.list = String(error);
+        state.errors.list = errorText(error);
     } finally {
       refreshing = false;
     }
@@ -117,7 +118,7 @@ export function useBrowsers(actions: BrowserActions) {
         if (input) {
           delete state.frames[taskId];
           state.inputFailed[taskId] = true;
-        } else state.errors[taskId] = String(error);
+        } else state.errors[taskId] = errorText(error);
       }
     } finally {
       if (owner === state.owner && ownerEpoch === ownerVersion) {

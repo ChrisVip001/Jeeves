@@ -37,7 +37,14 @@ var gzipCache sync.Map
 // an unchanged bundle costs a 304, and text assets travel gzipped when the client accepts it.
 func (g *gateway) deliver(w http.ResponseWriter, r *http.Request, name string, info fs.FileInfo, file io.ReadSeeker) {
 	tag := fmt.Sprintf("%x-%x", info.ModTime().UnixNano(), info.Size())
-	w.Header().Set("Cache-Control", "private, no-cache")
+	// Vite writes a content hash into the name of everything under assets/ (index-CrX5_YAh.css),
+	// so that URL can never change meaning; cache it for a year instead of revalidating each load.
+	// Everything else (index.html, main.js, the service worker) keeps must-revalidate freshness.
+	if fingerprinted(name) {
+		w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "private, no-cache")
+	}
 	if compressible[path.Ext(name)] {
 		w.Header().Add("Vary", "Accept-Encoding")
 	}
@@ -57,6 +64,25 @@ func (g *gateway) deliver(w http.ResponseWriter, r *http.Request, name string, i
 	}
 	w.Header().Set("ETag", `"`+tag+`"`)
 	http.ServeContent(w, r, name, info.ModTime(), file)
+}
+
+// fingerprinted reports whether a bundle path carries a build content hash, so its URL is
+// immutable. Vite emits these under assets/ as <name>-<hash>.<ext>, e.g. assets/index-CrX5_YAh.css.
+func fingerprinted(name string) bool {
+	if !strings.HasPrefix(name, "assets/") && !strings.Contains(name, "/assets/") {
+		return false
+	}
+	stem := strings.TrimSuffix(path.Base(name), path.Ext(name))
+	dash := strings.LastIndexByte(stem, '-')
+	if dash < 0 || dash == len(stem)-1 {
+		return false
+	}
+	for _, c := range stem[dash+1:] {
+		if !(c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c == '_') {
+			return false
+		}
+	}
+	return len(stem[dash+1:]) >= 8
 }
 
 // compressed returns the cached gzip body for this file version, building it on first use.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { AppWindow } from "lucide-vue-next";
-import { preferenceRequest } from "../api.ts";
+import { errorText, preferenceRequest } from "../api.ts";
 import type { DesktopAction, ModelProfilesResponse } from "../protocol.ts";
 import { useDesktop } from "./useDesktop.ts";
 import { useUiText } from "./translate.ts";
@@ -122,7 +122,7 @@ async function loadProfiles(event: Event) {
       await preferenceRequest<ModelProfilesResponse>("/api/model/profiles")
     ).profiles;
   } catch (error) {
-    profileError.value = error instanceof Error ? error.message : String(error);
+    profileError.value = errorText(error);
   }
 }
 function receipt(status: string) {

@@ -5,37 +5,17 @@ import { t } from "./i18n";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import type { TaskCenter } from "./ui/useTasks";
 import type { AgentTaskView } from "./protocol";
+import { workSections, workStatus } from "./work-status";
 const props = defineProps<{ center: TaskCenter }>();
 defineEmits<{ inspect: [id: string]; chat: [] }>();
 const search = ref("");
 const query = computed(() => search.value.trim().toLocaleLowerCase());
 const chatRequests = computed(() => Object.values(props.center.state.approvals).filter(request => !props.center.taskOf(request)));
 
-function status(task: AgentTaskView) {
-  if (props.center.approvalFor(task)) return t("需要你确认");
-  if (task.inputCondition?.state === "pending") return t("等{what}", { what: task.inputCondition.description });
-  switch (task.status) {
-    case "running": return t("正在执行");
-    case "pending": return t("等待执行");
-    case "suspended": return t("已暂停");
-    case "needsAttention": case "needs_attention": return t("需要你处理");
-    case "failed": return t("执行失败");
-    case "cancelled": return t("已取消");
-    case "done": return task.acceptance.length && task.checks.length === task.acceptance.length && task.checks.every(c => c.passed)
-      ? t("验收通过") : t("已生成，待验收");
-    default: return task.status;
-  }
-}
+const status = (task: AgentTaskView) => workStatus(props.center, task);
 
 const sections = computed(() => {
-  const waiting: AgentTaskView[] = [], working: AgentTaskView[] = [], past: AgentTaskView[] = [];
-  for (const task of props.center.state.tasks) {
-    if (query.value && !task.title.toLocaleLowerCase().includes(query.value)) continue;
-    if (["done", "failed", "cancelled"].includes(task.status)) past.push(task);
-    else if (props.center.approvalFor(task) || ["needs_attention", "needsAttention"].includes(task.status)
-      || (task.inputCondition?.state === "pending" && task.inputCondition.source === "manual")) waiting.push(task);
-    else working.push(task);
-  }
+  const { waiting, working, past } = workSections(props.center, query.value);
   return [
     { label: t("等你决定"), rows: waiting, requests: chatRequests.value.filter(request => !query.value || request.tool.toLocaleLowerCase().includes(query.value)) },
     { label: t("进行中"), rows: working, requests: [] },

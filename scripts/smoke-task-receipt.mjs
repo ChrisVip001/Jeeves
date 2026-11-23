@@ -30,7 +30,7 @@ try {
       await row.click();
       const work = page.locator("#cowork-view");
       await work.getByRole("heading", {name:"task-alpha-fixture", level:2}).waitFor();
-      await work.getByText("已生成，待验收", {exact:true}).waitFor();
+      await work.locator(".cowork-detail").getByText("已生成，待验收", {exact:true}).waitFor();
       const taskComposer = work.locator("#cowork-input");
       await taskComposer.fill("unsent task draft");
       await page.reload();

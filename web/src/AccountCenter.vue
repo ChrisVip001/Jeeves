@@ -160,7 +160,14 @@ async function requestMail(path: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: email.value }),
   });
-  if (!response.ok) throw Error(t("发送失败，请稍后重试。"));
+  if (!response.ok)
+    throw Error(
+      response.status === 429
+        ? Number(response.headers.get("retry-after")) > 0
+          ? t("尝试过于频繁，请 {seconds} 秒后重试。", { seconds: Number(response.headers.get("retry-after")) })
+          : t("尝试过于频繁，请稍后重试。")
+        : t("发送失败，请稍后重试。"),
+    );
   challenge.value = (await response.json()).challenge ?? "";
   mailCode.value = "";
   mailPath.value = path;
@@ -423,7 +430,7 @@ onUnmounted(() => {
           autocomplete="username"
           required
       /></label>
-      <small v-if="mode === 'verify' || mode === 'reset'">{{
+      <small v-if="['verify', 'reset', 'setup'].includes(mode)">{{
         t("密码至少 10 个字符。")
       }}</small>
       <small v-if="mode === 'verify'">{{

@@ -56,6 +56,8 @@ class Provider(BaseHTTPRequestHandler):
         user = next((m.get('content', '') for m in reversed(messages) if m['role'] == 'user'), '')
         if isinstance(user, list):
             user = ' '.join(b.get('text', '') for b in user)
+        if user.startswith('[Sent ') and '\n' in user:
+            user = user.split('\n', 1)[1]  # the live ask carries a `[Sent …]` line; match on what the person typed
         tool_result = messages[-1]['role'] == 'tool'
         try:
             instruction = user.rsplit('Current human task:', 1)[-1].strip()

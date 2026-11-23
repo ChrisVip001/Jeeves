@@ -64,6 +64,8 @@ def serve(home, origin):
 def respond(provider, messages, tools):
     user = next(m['content'] for m in reversed(messages) if m['role'] == 'user')
     query = user if isinstance(user, str) else ' '.join(b.get('text', '') for b in user)
+    if query.startswith('[Sent ') and '\n' in query:
+        query = query.split('\n', 1)[1]  # the live ask carries a `[Sent …]` line; match on what the person typed
     query = query.rsplit('Current human task:', 1)[-1].strip()
     last = messages[-1]
     if query == '这两款主要在家用，哪个更安静？':
