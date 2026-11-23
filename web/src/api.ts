@@ -57,11 +57,47 @@ export class ApiError extends Error {
   }
 }
 
-/** Workspace requests use the Go gateway's account session. */
+/** How many times a read waits out "workspace is starting" before showing it. */
+const STARTING_RETRIES = 4;
+
+/**
+ * Workspace requests use the Go gateway's account session. A read the gateway answers
+ * with 503 + Retry-After (the workspace is still starting) is retried a few times, so a
+ * cold start looks like a short wait instead of an error.
+ */
 async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const response = await fetch(hostedBase() + path, { ...init, credentials: "same-origin" });
-  if (response.headers.get("x-jeeves-session") === "required") location.replace(loginPage());
-  return response;
+  const read = (init.method ?? "GET").toUpperCase() === "GET";
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(hostedBase() + path, { ...init, credentials: "same-origin" });
+    if (response.headers.get("x-jeeves-session") === "required") location.replace(loginPage());
+    const wait = Number(response.headers.get("retry-after"));
+    if (!read || response.status !== 503 || !(wait > 0) || attempt >= STARTING_RETRIES || init.signal?.aborted)
+      return response;
+    await new Promise((resolve) => setTimeout(resolve, Math.min(wait, 5) * 1000));
+  }
+}
+
+/** The gateway's own refusals, worded for a person; the key is its plain English text. */
+const GATEWAY_TEXT: Record<string, () => string> = {
+  "workspace is starting": () => t("工作区正在启动，请稍等几秒再试。"),
+  "workspace connection interrupted": () => t("和工作区的连接断了，请稍后重试。"),
+  "workspace belongs to another account": () => t("这个工作区属于另一个账号，请用对应账号登录。"),
+  "service temporarily unavailable": () => t("服务暂时不可用，请稍后重试。"),
+  "request origin rejected": () => t("请求来源不被允许，请从 Jeeves 页面重新打开。"),
+  "use the configured gateway": () => t("请通过配置的网关地址访问 Jeeves。"),
+  "invalid or expired request": () => t("请求已失效，请刷新页面后重试。"),
+};
+
+/** A gateway `{"error": …}` body as an `ErrorObject` whose code is the HTTP status. */
+export function gatewayError(status: number, text: string): ErrorObject | null {
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+    if (typeof parsed.error !== "string") return null;
+    const known = GATEWAY_TEXT[parsed.error];
+    return { code: status, message: known ? known() : parsed.error };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -381,6 +417,8 @@ async function errorOf(response: Response): Promise<ErrorObject> {
     }
   } catch {
   }
+  const gateway = gatewayError(response.status, text);
+  if (gateway) return gateway;
   return {
     code: response.status,
     message: text.trim() || `HTTP ${response.status} ${response.statusText}`,
