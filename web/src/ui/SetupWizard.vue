@@ -41,7 +41,7 @@ async function saveModel() {
     });
     step.value = 2;
   } catch (e) {
-    error.value = String(e);
+    error.value = e instanceof Error ? e.message : String(e);
   } finally {
     saving.value = false;
     form.apiKey = "";
@@ -57,7 +57,7 @@ async function finish() {
       await props.remember(t("用户关心的事"), about.cares.trim());
     emit("done");
   } catch (e) {
-    error.value = String(e);
+    error.value = e instanceof Error ? e.message : String(e);
   } finally {
     saving.value = false;
   }
