@@ -83,3 +83,43 @@ func TestAcceptEncodingParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestFingerprintedAssetsCacheImmutably(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"assets/index-CrX5_YAh.css": "body{color:red}",
+		"index.html":                "<!doctype html>",
+		"main.js":                   "console.log(1)",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(name)), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	g := &gateway{bundle: dir}
+	cache := func(name string) string {
+		r := httptest.NewRequest("GET", "/app/"+name, nil)
+		w := httptest.NewRecorder()
+		g.asset(w, r, name)
+		if w.Code != 200 {
+			t.Fatalf("%s: code %d", name, w.Code)
+		}
+		return w.Header().Get("Cache-Control")
+	}
+	if got := cache("assets/index-CrX5_YAh.css"); got != "private, max-age=31536000, immutable" {
+		t.Fatalf("fingerprinted asset cache-control %q", got)
+	}
+	if got := cache("index.html"); got != "private, no-cache" {
+		t.Fatalf("index.html cache-control %q", got)
+	}
+	if got := cache("main.js"); got != "private, no-cache" {
+		t.Fatalf("main.js cache-control %q", got)
+	}
+	for _, name := range []string{"assets/style.css", "assets/x-short.css", "assets/index-.css"} {
+		if fingerprinted(name) {
+			t.Fatalf("%s should not count as fingerprinted", name)
+		}
+	}
+}
