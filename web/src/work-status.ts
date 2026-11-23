@@ -31,3 +31,9 @@ export function workSections(center: TaskCenter, query = "") {
   }
   return { waiting, working, past };
 }
+
+/** How many things wait on the person: tasks in the 等你决定 group, plus approvals not tied to a task. */
+export function waitingCount(center: TaskCenter): number {
+  const chatApprovals = Object.values(center.state.approvals).filter(approval => !center.taskOf(approval)).length;
+  return workSections(center).waiting.length + chatApprovals;
+}

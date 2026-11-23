@@ -4,6 +4,7 @@ import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
 import WorkRail from "./WorkRail.vue";
 import WorkScreen from "./WorkScreen.vue";
+import { waitingCount } from "./work-status";
 import ActivityPage from "./ActivityPage.vue";
 import ResponsibilityCards from "./ResponsibilityCards.vue";
 import ChatDecisions from "./ChatDecisions.vue";
@@ -139,7 +140,7 @@ function closeDetail() {
 function showActivity() {
   setRoute("activity");
 }
-const needsYou = computed(() => Object.keys(webTasks.state.approvals).length);
+const needsYou = computed(() => waitingCount(webTasks));
 watch(() => state.view, view => {
   if (view === "chat" && (new URLSearchParams(location.search).has("work") || new URLSearchParams(location.search).has("list"))) {
     const url = new URL(location.href);
