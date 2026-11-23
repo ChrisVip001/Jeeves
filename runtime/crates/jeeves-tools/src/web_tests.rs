@@ -265,10 +265,13 @@ fn backend_plan_prefers_keyed_and_uses_ddg_lite_before_bing() {
         "Bing is retained as a fallback"
     );
 
-    assert!(matches!(
-        plan_backends(None, None, false, true)[0],
-        Backend::DuckDuckGo
-    ));
+    assert!(
+        matches!(
+            plan_backends(None, None, false, true)[0],
+            Backend::DuckDuckGo
+        ),
+        "DDG Lite is the primary keyless endpoint"
+    );
     assert!(matches!(
         plan_backends(None, None, true, false)[0],
         Backend::Bing

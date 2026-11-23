@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 const OUTPUT_LIMIT: usize = 4096;
-const EDIT_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+const EDIT_CHECK_TIMEOUT: Duration = Duration::from_mins(1);
 
 pub(crate) struct HostEditChecks(pub(crate) Server, pub(crate) jeeves_tools::ToolCtx);
 
@@ -17,10 +17,7 @@ fn clip(text: &str) -> String {
     if text.len() <= OUTPUT_LIMIT {
         return text.to_string();
     }
-    let mut end = OUTPUT_LIMIT;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
+    let end = text.floor_char_boundary(OUTPUT_LIMIT.min(text.len()));
     format!("{}\n… (output cut at {OUTPUT_LIMIT} bytes)", &text[..end])
 }
 

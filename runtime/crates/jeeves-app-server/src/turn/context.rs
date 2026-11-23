@@ -70,7 +70,7 @@ pub(crate) fn resolve_turn_cwd(
 /// The longest a pre-loop step (local retrieval or compaction) may take before Jeeves
 /// proceeds without it. Cancellation is the real protection — this only keeps a hung
 /// provider from holding the turn hostage.
-pub(super) const PRELOOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+pub(super) const PRELOOP_TIMEOUT: std::time::Duration = std::time::Duration::from_mins(1);
 
 /// Race a pre-loop step against the user's stop.
 ///

@@ -57,7 +57,7 @@ pub(crate) fn arm(server: Server, sink: EventSink, wait: InputWait) {
                         crate::connector_wait::kind(&condition.source, &condition.event_key)
                     {
                         next_connector_poll =
-                            tokio::time::Instant::now() + std::time::Duration::from_secs(60);
+                            tokio::time::Instant::now() + std::time::Duration::from_mins(1);
                         if let Err(_error) =
                             crate::connector_wait::poll(&server, &rows, &condition, kind).await
                         {

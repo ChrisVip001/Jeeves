@@ -279,7 +279,7 @@ fn unwrap_message(message: &Value) -> Result<Value, String> {
                 .get("message")
                 .and_then(Value::as_str)
                 .unwrap_or("(no description)");
-            let code = error.get("code").map(Value::to_string).unwrap_or_default();
+            let code = error.get("code").map_or_default(Value::to_string);
             return Err(format!("{text} ({code})"));
         }
     }
@@ -353,7 +353,7 @@ impl HttpSession {
                 .is_some_and(|v| {
                     v.split(',').any(|part| {
                         let part = part.trim();
-                        let part = part.strip_prefix("Bearer ").unwrap_or(part);
+                        let part = part.trim_prefix("Bearer ");
                         matches!(
                             part,
                             "error=\"insufficient_scope\"" | "error=insufficient_scope"
@@ -386,7 +386,7 @@ impl HttpSession {
             }
             body.extend_from_slice(&chunk);
         }
-        let text = String::from_utf8_lossy(&body).into_owned();
+        let text = String::from_utf8_lossy_owned(body);
         Ok((status, content_type, text))
     }
 

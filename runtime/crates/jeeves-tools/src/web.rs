@@ -373,7 +373,7 @@ pub fn urldecode(text: &str) -> String {
             }
         }
     }
-    String::from_utf8_lossy(&out).into_owned()
+    String::from_utf8_lossy_owned(out)
 }
 
 /// The search backend's key: Tavily's key has two common names; both are accepted.
@@ -794,7 +794,7 @@ pub(crate) fn html_to_text(html: &str) -> String {
                 i = end + 1;
             }
             b'&' => {
-                let mut window_end = (i + 12).min(lower.len());
+                let mut window_end = lower.floor_char_boundary((i + 12).min(lower.len()));
                 while window_end > i + 1 && !lower.is_char_boundary(window_end) {
                     window_end -= 1;
                 }

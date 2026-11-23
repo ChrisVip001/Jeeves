@@ -54,7 +54,7 @@ impl ApprovalBroker for Fake {
 #[test]
 fn on_request_turns_a_denial_into_a_question() {
     let deny = vet("echo hi", &policy(&["ls *"], false));
-    assert!(matches!(deny, Gate::Deny(_)), "{deny:?}");
+    std::assert_matches!(deny, Gate::Deny(_), "{deny:?}");
 
     let ask = vet("echo hi", &policy(&["ls *"], true));
     let Gate::NeedsApproval { reason } = &ask else {
@@ -84,10 +84,7 @@ fn a_hard_denied_command_is_never_negotiable() {
 #[test]
 fn the_sandbox_gate_is_not_negotiable_either() {
     if sandbox_available() {
-        assert!(matches!(
-            vet("echo hi", &policy(&["echo*"], true)),
-            Gate::Allow
-        ));
+        std::assert_matches!(vet("echo hi", &policy(&["echo*"], true)), Gate::Allow);
         return;
     }
     let verdict = vet("echo hi", &policy(&["echo*"], true));

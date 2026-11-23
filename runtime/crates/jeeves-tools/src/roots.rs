@@ -153,11 +153,11 @@ fn push_unique(roots: &mut Vec<PathBuf>, path: &Path) {
 /// [`HOME_CONTROL`] entry (or something inside one).
 fn is_control(path: &Path, home: &Path) -> bool {
     let real_path = resolve(path);
-    if real_path == Path::new("/") {
+    if real_path.as_path() == "/" {
         return true;
     }
     let real_home = resolve(home);
-    if real_home.as_os_str().is_empty() {
+    if real_home.is_empty() {
         return false;
     }
     if real_path == real_home || real_home.starts_with(&real_path) {
@@ -170,7 +170,7 @@ fn is_control(path: &Path, home: &Path) -> bool {
 }
 
 fn is_disk_root(path: &Path) -> bool {
-    path == Path::new("/") || resolve(path) == Path::new("/")
+    path == Path::new("/") || resolve(path).as_path() == "/"
 }
 
 /// The real path, **including for a file that does not exist yet**: resolve the parent
@@ -182,7 +182,7 @@ fn resolve(path: &Path) -> PathBuf {
         return real;
     }
     match (path.parent(), path.file_name()) {
-        (Some(parent), Some(name)) if !parent.as_os_str().is_empty() => resolve(parent).join(name),
+        (Some(parent), Some(name)) if !parent.is_empty() => resolve(parent).join(name),
         _ => path.to_path_buf(),
     }
 }

@@ -79,8 +79,9 @@ pub async fn upload(
     .map_err(std::io::Error::other)
     .and_then(|r| r);
     match result {
-        Ok(name) => Json(json!({ "path": format!("uploads/{date}/{}", name.to_string_lossy()) }))
-            .into_response(),
+        Ok(name) => {
+            Json(json!({ "path": format!("uploads/{date}/{}", name.display()) })).into_response()
+        }
         Err(e) => failed(
             StatusCode::INTERNAL_SERVER_ERROR,
             ErrorObject {

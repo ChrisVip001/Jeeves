@@ -551,12 +551,12 @@ async fn read_stdout(
             Err(invalid) => match invalid.error_len() {
                 Some(len) => {
                     let upto = invalid.valid_up_to();
-                    let mut text = String::from_utf8_lossy(&carry[..upto]).to_string();
+                    let mut text = String::from_utf8_lossy_owned(carry[..upto].to_vec());
                     text.push('\u{FFFD}');
                     (text, upto + len)
                 }
                 None => (
-                    String::from_utf8_lossy(&carry[..invalid.valid_up_to()]).to_string(),
+                    String::from_utf8_lossy_owned(carry[..invalid.valid_up_to()].to_vec()),
                     invalid.valid_up_to(),
                 ),
             },
@@ -578,7 +578,7 @@ async fn read_stdout(
     }
 
     if !carry.is_empty() {
-        let text = String::from_utf8_lossy(&carry).to_string();
+        let text = String::from_utf8_lossy_owned(carry.clone());
         out.push_str(&text);
         pending.push_str(&text);
     }
@@ -717,8 +717,7 @@ pub fn prune_spill(home: &Path, max_age_days: u64) {
     let Ok(days) = std::fs::read_dir(&spill) else {
         return;
     };
-    let cutoff =
-        std::time::SystemTime::now() - std::time::Duration::from_secs(max_age_days * 24 * 60 * 60);
+    let cutoff = std::time::SystemTime::now() - std::time::Duration::from_hours(max_age_days * 24);
     for day in days.flatten() {
         let path = day.path();
         if !path.is_dir() {

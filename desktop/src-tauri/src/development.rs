@@ -57,7 +57,7 @@ fn runtime_home(app: &tauri::AppHandle, binary: &Path) -> Result<PathBuf, String
         return Ok(PathBuf::from(home));
     }
     let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    if cwd != Path::new("/") {
+    if cwd != "/" {
         return Ok(cwd.join(".jeeves"));
     }
     let user_home = app
@@ -283,11 +283,11 @@ mod tests {
             "http://runtime.example.test",
             "https://user:pw@runtime.example.test",
         ] {
-            assert!(matches!(window_target(Ok(raw.into())), WebviewUrl::App(_)));
+            std::assert_matches!(window_target(Ok(raw.into())), WebviewUrl::App(_));
         }
-        assert!(matches!(
+        std::assert_matches!(
             window_target(Ok("http://127.0.0.1:7777".into())),
             WebviewUrl::External(_)
-        ));
+        );
     }
 }

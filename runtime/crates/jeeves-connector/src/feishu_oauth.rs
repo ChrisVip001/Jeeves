@@ -31,7 +31,7 @@ use crate::config::FeishuConfig;
 pub const CALLBACK_PORT: u16 = 41766;
 pub const CALLBACK_PATH: &str = "/callback";
 /// How long the human has to finish the browser round trip.
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
+const SIGN_IN_TIMEOUT: Duration = Duration::from_mins(5);
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
 const AUTH_DIR: &str = "connector-auth";
 /// Refresh this long before expiry. Long enough to survive a sleeping laptop, short enough
@@ -39,14 +39,14 @@ const AUTH_DIR: &str = "connector-auth";
 pub const REFRESH_LEAD: i64 = 600;
 /// Longest the background loop sleeps between glances at the token file (so a login that
 /// happens *after* the server booted is picked up too).
-const MAX_SLEEP: Duration = Duration::from_secs(300);
+const MAX_SLEEP: Duration = Duration::from_mins(5);
 /// Shortest sleep after a refresh, so a provider answering with a tiny `expires_in` cannot
 /// turn the loop into a hot spin.
 const MIN_SLEEP: Duration = Duration::from_secs(30);
 /// How long to wait after a *transient* failure (network, 500) before trying again.
-const RETRY_BACKOFF: Duration = Duration::from_secs(300);
+const RETRY_BACKOFF: Duration = Duration::from_mins(5);
 /// A lock file older than this is from a process that died mid-refresh; take it over.
-const LOCK_STALE: Duration = Duration::from_secs(60);
+const LOCK_STALE: Duration = Duration::from_mins(1);
 
 /// What the token file holds. `expires_at` is a unix timestamp in seconds.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -407,7 +407,7 @@ async fn wait_for_code(listener: TcpListener, expected_state: &str) -> Result<St
             .context("the callback port would not accept a connection")?;
         let mut buffer = vec![0u8; 8192];
         let n = stream.read(&mut buffer).await.unwrap_or(0);
-        let request = String::from_utf8_lossy(&buffer[..n]).to_string();
+        let request = String::from_utf8_lossy_owned(buffer[..n].to_vec());
         let Some(target) = request
             .lines()
             .next()
@@ -484,7 +484,7 @@ fn percent_decode(value: &str) -> String {
             }
         }
     }
-    String::from_utf8_lossy(&out).to_string()
+    String::from_utf8_lossy_owned(out)
 }
 
 /// Percent-encode what a query value must escape (app ids and URLs are ASCII).

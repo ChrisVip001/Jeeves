@@ -41,7 +41,7 @@ impl TokenCache {
             .expect("the token lock should not be poisoned");
         guard
             .as_ref()
-            .filter(|(_, at)| at.elapsed() < Duration::from_secs(100 * 60))
+            .filter(|(_, at)| at.elapsed() < Duration::from_mins(100))
             .map(|(token, _)| token.clone())
     }
 

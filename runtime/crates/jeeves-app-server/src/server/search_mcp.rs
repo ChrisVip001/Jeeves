@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 
 const ENDPOINT: &str = "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch";
 const DEADLINE: Duration = Duration::from_secs(20);
-const COOLDOWN: Duration = Duration::from_secs(60);
+const COOLDOWN: Duration = Duration::from_mins(1);
 
 #[derive(Default)]
 struct State {

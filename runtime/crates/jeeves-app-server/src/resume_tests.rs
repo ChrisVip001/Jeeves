@@ -125,11 +125,11 @@ async fn an_open_checkpoint_resumes_and_gets_full_accounting() {
     }
     assert!(completed, "the resume did not run through");
 
-    assert!(matches!(
+    std::assert_matches!(
         notifications.first(),
         Some(ServerNotification::TurnStarted(started))
             if started.turn_id == "t-crash" && started.user_message == "watch the server for me for three days"
-    ));
+    );
     assert!(notifications.iter().any(|n| matches!(
         n,
         ServerNotification::TurnResumed(resumed)

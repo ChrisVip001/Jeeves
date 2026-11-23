@@ -70,7 +70,7 @@ async fn fake_token_endpoint(
                         break pos;
                     }
                 };
-                let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+                let head = String::from_utf8_lossy_owned(buf[..header_end].to_vec());
                 let length: usize = head
                     .lines()
                     .find(|line| line.to_ascii_lowercase().starts_with("content-length:"))
@@ -269,12 +269,12 @@ fn the_renewer_wakes_ten_minutes_early_and_peeks_at_least_every_five() {
     let now = 1_000;
     assert_eq!(
         feishu_oauth::next_check(now + 3_600, now),
-        Duration::from_secs(300),
+        Duration::from_mins(5),
         "while it is still early, look every 5 minutes (a sign-in may just have happened)"
     );
     assert_eq!(
         feishu_oauth::next_check(now + feishu_oauth::REFRESH_LEAD + 60, now),
-        Duration::from_secs(60),
+        Duration::from_mins(1),
         "once inside the lead time, sleep for the real time left"
     );
     assert_eq!(

@@ -748,10 +748,7 @@ async fn a_new_timestamp_on_the_same_bytes_is_not_a_change() {
     .await;
 
     let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
-    std::fs::File::options()
-        .write(true)
-        .open(&path)
-        .and_then(|file| file.set_modified(later))
+    std::fs::set_times(&path, std::fs::FileTimes::new().set_modified(later))
         .expect("touch the file");
     let out = reg
         .execute(
@@ -780,10 +777,7 @@ async fn same_size_different_bytes_is_still_a_change() {
 
     std::fs::write(&path, "one\nTWO\n").expect("same length, new text");
     let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
-    std::fs::File::options()
-        .write(true)
-        .open(&path)
-        .and_then(|file| file.set_modified(later))
+    std::fs::set_times(&path, std::fs::FileTimes::new().set_modified(later))
         .expect("move the timestamp");
     let out = reg
         .execute(

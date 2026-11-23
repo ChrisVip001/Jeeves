@@ -176,7 +176,7 @@ async fn read_request(
             break pos;
         }
     };
-    let head = String::from_utf8_lossy(&buf[..header_end]).to_string();
+    let head = String::from_utf8_lossy_owned(buf[..header_end].to_vec());
     let path = head.lines().next()?.split_whitespace().nth(1)?.to_string();
     let auth = head
         .lines()

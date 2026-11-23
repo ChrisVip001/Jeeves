@@ -301,7 +301,7 @@ mod tests {
             port: 993,
             security: MailConnectorSecurity::Tls,
         };
-        let recipients: Vec<_> = (0..101).map(|n| format!("user{n}@example.test")).collect();
+        let recipients = Vec::from_fn(101, |n| format!("user{n}@example.test"));
         let username = "a".repeat(321);
         let source = format!("env:{}", "A".repeat(101));
         let saved = save(

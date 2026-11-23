@@ -30,7 +30,7 @@ use tokio::task::JoinHandle;
 
 /// How often the worker checks even when nobody nudges it. A turn wakes it immediately;
 /// this is what catches "the app sat idle and rows accumulated elsewhere".
-const HEARTBEAT: Duration = Duration::from_secs(60);
+const HEARTBEAT: Duration = Duration::from_mins(1);
 
 /// How long `stop()` waits for a run in flight. A claim that outlives it stays `claimed`
 /// and exclusive startup recovers it. Cancellation must be joined before shutdown returns.

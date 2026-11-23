@@ -777,10 +777,10 @@ fn anthropic_parse_keeps_thinking_out_of_answer_text() {
     });
     let response = parse_message(&body).expect("thinking blocks parse");
     assert_eq!(response.text(), "done");
-    assert!(matches!(
+    std::assert_matches!(
         &response.content[0],
         ContentBlock::Thinking { thinking, signature } if thinking == "weigh it" && signature == "sig"
-    ));
+    );
     let wire = crate::anthropic::anthropic_messages(&[Message {
         role: Role::Assistant,
         content: response.content,

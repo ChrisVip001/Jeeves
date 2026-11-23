@@ -163,7 +163,7 @@ async fn update_all_installs_skips_and_reports_failures() {
         "{:?}",
         outcomes[0]
     );
-    assert!(matches!(outcomes[1], Outcome::Installed { .. }));
+    std::assert_matches!(outcomes[1], Outcome::Installed { .. });
     assert!(
         matches!(outcomes[2], Outcome::Failed { .. }),
         "bad content has to be reported"

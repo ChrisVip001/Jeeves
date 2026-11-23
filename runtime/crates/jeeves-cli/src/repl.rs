@@ -341,7 +341,7 @@ async fn set_goal(server: &Server, session_id: &str, input: &str) {
     let condition = input.trim_start_matches("/goal").trim();
     let cleared = condition.is_empty() || condition.eq_ignore_ascii_case("clear");
     let row = server
-        .set_task_goal(session_id, if cleared { None } else { Some(condition) })
+        .set_task_goal(session_id, (!cleared).then_some(condition))
         .await;
 
     let Some(row) = row.filter(|row| row.goal_condition.is_some()) else {

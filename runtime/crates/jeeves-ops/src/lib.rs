@@ -57,7 +57,7 @@ pub const DEFAULT_PORT: u16 = 7777;
 /// How many ports to scan forward when the default port is taken.
 const PORT_SCAN: u16 = 10;
 
-const STARTUP_GRACE: std::time::Duration = std::time::Duration::from_secs(60);
+const STARTUP_GRACE: std::time::Duration = std::time::Duration::from_mins(1);
 const EARLY_EXIT_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// Ctrl-C, or SIGTERM (what a container runtime sends before it kills the process).

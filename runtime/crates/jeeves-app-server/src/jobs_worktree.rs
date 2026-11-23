@@ -45,7 +45,7 @@ pub(super) async fn evidence(
     .map_err(|_| "worktree diff timed out".to_string())?
     .map_err(|e| e.to_string())?;
     let diff = log.with_extension("diff");
-    let body = scrub(String::from_utf8_lossy(&output).into_owned(), policy);
+    let body = scrub(String::from_utf8_lossy_owned(output), policy);
     tokio::fs::write(&diff, &body)
         .await
         .map_err(|e| e.to_string())?;

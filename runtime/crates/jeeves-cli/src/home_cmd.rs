@@ -150,7 +150,7 @@ fn copy_tree(from: &Path, to: &Path) -> Result<usize> {
             let entry = entry?;
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if (rel.as_os_str().is_empty()
+            if (rel.is_empty()
                 && (SKIP.contains(&name_str.as_ref()) || name_str.starts_with(".jeeves-config-")))
                 || name_str.ends_with(".lock")
             {

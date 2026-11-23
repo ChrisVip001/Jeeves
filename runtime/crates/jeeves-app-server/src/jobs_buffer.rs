@@ -91,7 +91,7 @@ impl Ring {
         let offset = (start - self.dropped) as usize;
         let bytes: Vec<u8> = self.buf.iter().skip(offset).copied().collect();
         (
-            String::from_utf8_lossy(&bytes).to_string(),
+            String::from_utf8_lossy_owned(bytes),
             self.dropped + self.buf.len() as u64,
             lossy,
         )

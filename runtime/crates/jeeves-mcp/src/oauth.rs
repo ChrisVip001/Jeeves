@@ -28,7 +28,7 @@ use jeeves_tools::web::{urldecode, urlencode};
 pub const CALLBACK_PORT: u16 = 41765;
 pub const CALLBACK_PATH: &str = "/callback";
 /// Time a human needs to read the authorization page: minutes, not seconds.
-pub const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
+pub const SIGN_IN_TIMEOUT: Duration = Duration::from_mins(5);
 pub const AUTH_DIR: &str = "mcp-auth";
 
 /// A server name becomes a filename — user-provided, not clean.

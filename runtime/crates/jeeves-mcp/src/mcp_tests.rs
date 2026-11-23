@@ -491,7 +491,7 @@ where
     tokio::io::AsyncReadExt::read_exact(&mut reader, &mut body)
         .await
         .ok()?;
-    Some((headers, String::from_utf8_lossy(&body).to_string()))
+    Some((headers, String::from_utf8_lossy_owned(body)))
 }
 
 #[tokio::test]

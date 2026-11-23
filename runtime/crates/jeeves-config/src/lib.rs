@@ -538,14 +538,14 @@ impl Settings {
             exec_writable_roots: env("JEEVES_EXEC_WRITABLE_ROOTS")
                 .map(|raw| {
                     std::env::split_paths(&raw)
-                        .filter(|p| !p.as_os_str().is_empty())
+                        .filter(|p| !p.is_empty())
                         .collect()
                 })
                 .unwrap_or_default(),
             write_allow_dirs: env("JEEVES_WRITE_ALLOW_DIRS")
                 .map(|raw| {
                     std::env::split_paths(&raw)
-                        .filter(|p| !p.as_os_str().is_empty())
+                        .filter(|p| !p.is_empty())
                         .collect()
                 })
                 .unwrap_or_default(),

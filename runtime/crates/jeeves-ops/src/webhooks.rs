@@ -251,7 +251,7 @@ impl Admissions {
     fn rate(&mut self, name: &str, limit: u32, now: Instant) -> std::result::Result<(), u64> {
         let entry = self.windows.entry(name.to_string()).or_insert((now, 0));
         let elapsed = now.duration_since(entry.0);
-        if elapsed >= Duration::from_secs(60) {
+        if elapsed >= Duration::from_mins(1) {
             *entry = (now, 0);
         }
         if entry.1 >= limit {
@@ -515,10 +515,10 @@ mod webhooks_tests {
             timestamp: "",
             signature: "",
         };
-        assert!(matches!(
+        std::assert_matches!(
             admit(&admissions, &hook, &missing, body, epoch, now),
             Err(Refusal::Unauthorized(_))
-        ));
+        );
     }
 
     /// The signature is `hex(HMAC-SHA256(secret, "<timestamp>.<body>"))` — the exact string another
@@ -587,10 +587,10 @@ mod webhooks_tests {
             secret: "env:JEEVES_DEFINITELY_NOT_SET_67890".to_string(),
             ..plain("plain-unreadable", "x")
         };
-        assert!(matches!(
+        std::assert_matches!(
             admit(&admissions, &unreadable, &good, "boom", 0, now),
             Err(Refusal::Unauthorized(_))
-        ));
+        );
     }
 
     /// The cap counts **accepted** requests only: five wrong secrets must not eat the minute, and
@@ -615,10 +615,10 @@ mod webhooks_tests {
         };
 
         for _ in 0..5 {
-            assert!(matches!(
+            std::assert_matches!(
                 admit(&admissions, &hook, &bad, "boom", 0, start),
                 Err(Refusal::Unauthorized(_))
-            ));
+            );
         }
         assert_eq!(admit(&admissions, &hook, &good, "boom", 0, start), Ok(()));
         assert_eq!(admit(&admissions, &hook, &good, "boom", 0, start), Ok(()));

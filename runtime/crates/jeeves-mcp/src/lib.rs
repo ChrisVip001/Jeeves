@@ -61,7 +61,7 @@ impl Default for BreakerPolicy {
     fn default() -> Self {
         Self {
             failures: 3,
-            cooldown: std::time::Duration::from_secs(60),
+            cooldown: std::time::Duration::from_mins(1),
         }
     }
 }
@@ -508,7 +508,7 @@ impl McpClient {
                 if rule.is_some_and(|r| r.disabled) {
                     continue;
                 }
-                let effect = rule.map(|r| r.effect).unwrap_or_default();
+                let effect = rule.map_or_default(|r| r.effect);
                 let scope = rule.and_then(|r| r.resource.clone());
                 out.push((
                     Tool {

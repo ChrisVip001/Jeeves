@@ -201,8 +201,11 @@ mod tests {
     }
     #[test]
     fn claims_require_distinct_sources_and_exact_short_quotes() {
-        let sources = json!((0..6).map(|id|json!({"id":id,"url":format!("https://example.com/{id}"),"excerpt":"Exact source sentence."})).collect::<Vec<_>>());
-        let mut draft = json!({"claims":(0..6).map(|id|json!({"sourceId":id,"url":format!("https://example.com/{id}"),"quote":"Exact source sentence.","finding":"Finding","implication":"Inference","limitation":"Boundary"})).collect::<Vec<_>>()});
+        let sources = json!(Vec::from_fn(
+            6,
+            |id| json!({"id":id,"url":format!("https://example.com/{id}"),"excerpt":"Exact source sentence."})
+        ));
+        let mut draft = json!({"claims":Vec::from_fn(6, |id|json!({"sourceId":id,"url":format!("https://example.com/{id}"),"quote":"Exact source sentence.","finding":"Finding","implication":"Inference","limitation":"Boundary"}))});
         assert_eq!(
             draft_checks(&draft, &sources)["sixDistinctSourcesAndLiteralQuotes"],
             true
@@ -223,8 +226,11 @@ mod tests {
     async fn draft_survives_runtime_reopen_and_does_not_publish_early() -> Result<()> {
         use jeeves_provider::mock::Mock;
         let home = tempfile::tempdir()?;
-        let sources = json!((0..6).map(|id| json!({"id":id.to_string(),"url":format!("https://example.com/{id}"),"excerpt":"Exact source sentence."})).collect::<Vec<_>>());
-        let draft = json!({"claims":(0..6).map(|id|json!({"sourceId":id.to_string(),"url":format!("https://example.com/{id}"),"quote":"Exact source sentence.","finding":"Finding","implication":"Inference","limitation":"Boundary"})).collect::<Vec<_>>()});
+        let sources = json!(Vec::from_fn(
+            6,
+            |id| json!({"id":id.to_string(),"url":format!("https://example.com/{id}"),"excerpt":"Exact source sentence."})
+        ));
+        let draft = json!({"claims":Vec::from_fn(6, |id|json!({"sourceId":id.to_string(),"url":format!("https://example.com/{id}"),"quote":"Exact source sentence.","finding":"Finding","implication":"Inference","limitation":"Boundary"}))});
         std::fs::write(
             home.path().join("sources.json"),
             serde_json::to_vec(&sources)?,

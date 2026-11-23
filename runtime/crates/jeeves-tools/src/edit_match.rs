@@ -143,7 +143,7 @@ impl View {
 
 /// The comparison key of one line for the line tier.
 fn loose_line(line: &str) -> String {
-    let line = line.strip_suffix('\r').unwrap_or(line);
+    let line = line.trim_suffix("\r");
     line.chars()
         .map(fold)
         .collect::<String>()
@@ -162,8 +162,8 @@ fn line_spans(text: &str) -> Vec<(usize, usize, usize)> {
     let mut start = 0;
     for line in text.split_inclusive('\n') {
         let next = start + line.len();
-        let content = line.strip_suffix('\n').unwrap_or(line);
-        let content = content.strip_suffix('\r').unwrap_or(content);
+        let content = line.trim_suffix("\n");
+        let content = content.trim_suffix("\r");
         spans.push((start, start + content.len(), next));
         start = next;
     }
@@ -172,8 +172,8 @@ fn line_spans(text: &str) -> Vec<(usize, usize, usize)> {
 
 fn line_matches(text: &str, needle: &str) -> Vec<Range<usize>> {
     let takes_newline = needle.ends_with('\n');
-    let body = needle.strip_suffix('\n').unwrap_or(needle);
-    let body = body.strip_suffix('\r').unwrap_or(body);
+    let body = needle.trim_suffix("\n");
+    let body = body.trim_suffix("\r");
     let wanted: Vec<String> = body.split('\n').map(loose_line).collect();
     if wanted.iter().all(String::is_empty) {
         return Vec::new();

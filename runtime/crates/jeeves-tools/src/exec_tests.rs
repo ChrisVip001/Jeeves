@@ -79,7 +79,7 @@ fn rules_match_exactly_or_by_trailing_star() {
 fn the_sandbox_requirement_is_the_last_gate() {
     let verdict = vet("echo hi", &policy(&["echo*"]));
     if sandbox_available() {
-        assert!(matches!(verdict, Gate::Allow), "{verdict:?}");
+        std::assert_matches!(verdict, Gate::Allow, "{verdict:?}");
     } else {
         let Gate::Deny(error) = &verdict else {
             panic!("no sandbox means refuse, actually {verdict:?}");
@@ -321,14 +321,12 @@ fn spill_cleanup_removes_only_old_days() {
     std::fs::write(&old_file, "long ago").expect("write the file");
     std::fs::write(&new_file, "just now").expect("write the file");
 
-    let thirty_days_ago =
-        std::time::SystemTime::now() - std::time::Duration::from_secs(30 * 24 * 3600);
-    std::fs::File::options()
-        .write(true)
-        .open(&old_file)
-        .expect("open")
-        .set_modified(thirty_days_ago)
-        .expect("change the time");
+    let thirty_days_ago = std::time::SystemTime::now() - std::time::Duration::from_hours(30 * 24);
+    std::fs::set_times(
+        &old_file,
+        std::fs::FileTimes::new().set_modified(thirty_days_ago),
+    )
+    .expect("change the time");
 
     prune_spill(home.path(), 7);
 

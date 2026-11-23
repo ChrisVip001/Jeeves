@@ -28,13 +28,13 @@ impl Provider for Model {
                     .any(|b| matches!(b, jeeves_provider::ContentBlock::ToolResult { .. }))
             });
             if !has_result {
-                let message = r.messages.last().map(|m| m.text()).unwrap_or_default();
+                let message = r.messages.last().map_or_default(|m| m.text());
                 if let Some(response) = deliverables::reply(is_main, &message) {
                     return Ok(response);
                 }
             }
             if is_main && !has_result {
-                let message = r.messages.last().map(|m| m.text()).unwrap_or_default();
+                let message = r.messages.last().map_or_default(|m| m.text());
                 if message == lookup::QUERY {
                     return Ok(jeeves_provider::mock::Mock::tool_use(
                         "list",
@@ -99,7 +99,7 @@ impl Provider for Model {
             }) {
                 return Ok(jeeves_provider::mock::Mock::text("文件已生成。"));
             }
-            let text = r.messages.last().map(|m| m.text()).unwrap_or_default();
+            let text = r.messages.last().map_or_default(|m| m.text());
             if text.contains("生成alpha") || text.contains("生成beta") || text.contains("补充alpha")
             {
                 return Ok(jeeves_provider::mock::Mock::tool_use(

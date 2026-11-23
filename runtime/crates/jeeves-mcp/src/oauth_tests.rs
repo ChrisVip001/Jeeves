@@ -210,7 +210,7 @@ async fn sign_in_walks_the_whole_flow_against_a_local_authorization_server() {
                 .unwrap();
             let mut response = Vec::new();
             stream.read_to_end(&mut response).await.unwrap();
-            String::from_utf8_lossy(&response).to_string()
+            String::from_utf8_lossy_owned(response)
         })
     };
 
@@ -290,7 +290,7 @@ async fn read_http_request(socket: &mut tokio::net::TcpStream) -> String {
     let mut chunk = [0u8; 1024];
     loop {
         if let Some(head_end) = find_end(&buffer) {
-            let head = String::from_utf8_lossy(&buffer[..head_end]).to_string();
+            let head = String::from_utf8_lossy_owned(buffer[..head_end].to_vec());
             let length: usize = head
                 .lines()
                 .find_map(|line| {
@@ -309,7 +309,7 @@ async fn read_http_request(socket: &mut tokio::net::TcpStream) -> String {
             Ok(n) => buffer.extend_from_slice(&chunk[..n]),
         }
     }
-    String::from_utf8_lossy(&buffer).to_string()
+    String::from_utf8_lossy_owned(buffer)
 }
 
 fn find_end(buffer: &[u8]) -> Option<usize> {

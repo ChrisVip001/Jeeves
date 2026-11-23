@@ -131,7 +131,7 @@ async fn words_added_mid_turn_join_the_next_model_call_and_do_not_rerun_tools() 
         .messages
         .last()
         .expect("the second call is not empty");
-    assert!(matches!(last.role, Role::User));
+    std::assert_matches!(last.role, Role::User);
     assert!(
         last.content
             .iter()
@@ -956,10 +956,10 @@ async fn a_checkpoint_lands_at_every_tool_results_boundary() {
     assert!(cps[1].operations[0].output.is_none());
     assert!(cps[2].operations[0].output.is_some());
     let last = cps[2].messages.last().expect("there is a result block");
-    assert!(matches!(
+    std::assert_matches!(
         last.content.first(),
         Some(jeeves_provider::ContentBlock::ToolResult { .. })
-    ));
+    );
 }
 
 #[tokio::test]

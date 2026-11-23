@@ -20,7 +20,7 @@ fn tools(
             name,
             ConnectorToolView {
                 name: name.clone(),
-                effect: rule.map(|r| r.effect).unwrap_or_default(),
+                effect: rule.map_or_default(|r| r.effect),
                 disabled: rule.is_some_and(|r| r.disabled),
             },
         );

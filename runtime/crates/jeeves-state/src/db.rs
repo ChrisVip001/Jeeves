@@ -12,7 +12,7 @@ static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 /// Open (creating if needed) the state.db at `path`, and run all migrations.
 pub async fn open(path: &Path) -> Result<SqlitePool> {
     if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
+        if !parent.is_empty() {
             std::fs::create_dir_all(parent).with_context(|| {
                 format!("could not create the state directory: {}", parent.display())
             })?;
