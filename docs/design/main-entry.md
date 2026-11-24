@@ -124,6 +124,10 @@ unverified. A task run that used tools but has no checks and no `/goal` conditio
 self-check round before delivery, within its round limit. Jeeves rereads the original assignment,
 opens what it produced, fixes any gaps and states what it could not verify. The task timeline
 records the round. The result is still marked unverified, because a self-check is not a measurement.
+Correction stops early when it is not getting anywhere. After the first correction round, a round
+that ends with the same failed check or goal verdict as the round before, or that ran no tool
+successfully, counts as stalled. Two stalled rounds in a row hand the task back to the person as
+needing attention, with the repeated reason, instead of spending the rest of the round limit.
 
 ### Working on a long task
 

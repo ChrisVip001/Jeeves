@@ -110,6 +110,7 @@ pub(crate) async fn drive_task(
     }
     let mut round_started = started;
     let mut self_checked = false;
+    let mut progress = super::progress::Progress::default();
     let (decision, goal_status) = loop {
         let observation =
             match observe_round(server, &turn_id, &full.result.round_id, turn_cwd.as_deref()).await
@@ -311,8 +312,14 @@ pub(crate) async fn drive_task(
             );
         }
 
+        let worked = full.result.tool_calls.iter().any(|call| call.ok());
         if let Some(reason) = jeeves_agent::verify::failure_summary(&checks) {
             let who = task_id.as_deref().unwrap_or("(no task)");
+            if progress.stalled(&reason, worked) {
+                let reason = format!("No progress after {round_no} rounds: {reason}");
+                eprintln!("(jeeves) task {who} stalled at acceptance: {reason}");
+                break (TaskDecision::NeedsAttention(reason), Some("stalled".into()));
+            }
             if round_no >= max_rounds {
                 let reason = format!("{reason} (after {round_no} rounds it still has not passed)");
                 eprintln!("(jeeves) task {who} stopped at acceptance: {reason}");
@@ -372,7 +379,6 @@ pub(crate) async fn drive_task(
             );
         }
 
-        let worked = full.result.tool_calls.iter().any(|call| call.ok());
         if goal_condition.is_none()
             && acceptance.is_empty()
             && worked
@@ -467,6 +473,12 @@ pub(crate) async fn drive_task(
                 TaskDecision::Failed(judgement.reason),
                 Some("impossible".to_string()),
             );
+        }
+        if progress.stalled(&judgement.reason, worked) {
+            let reason = format!("No progress after {round_no} rounds: {}", judgement.reason);
+            notify_goal(sink, &turn_id, goal_rounds, max_rounds, "stalled", &reason);
+            eprintln!("(jeeves) goal loop stalled: {reason}");
+            break (TaskDecision::NeedsAttention(reason), Some("stalled".into()));
         }
         if round_no >= max_rounds {
             let reason = format!(

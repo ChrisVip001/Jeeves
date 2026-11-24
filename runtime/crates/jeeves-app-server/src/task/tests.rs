@@ -1639,3 +1639,52 @@ async fn an_unchecked_delivery_is_self_checked_against_the_request_before_it_clo
         Some("Checked: notes.md holds the agenda.")
     );
 }
+
+#[tokio::test]
+async fn a_correction_that_repeats_the_same_failure_goes_back_to_the_person_early() {
+    let draft = |id: &str| {
+        Mock::tool_use(
+            id,
+            "write_file",
+            json!({ "path": "notes.md", "content": "draft\n" }),
+        )
+    };
+    let mock = Arc::new(Mock::new(vec![
+        draft("call_1"),
+        Mock::text("written."),
+        draft("call_2"),
+        Mock::text("written again."),
+        draft("call_3"),
+        Mock::text("written a third time."),
+    ]));
+    let (server, _home) = boot(Some(mock.clone())).await;
+    let dir = tempfile::tempdir().expect("temporary directory");
+    let created = call(
+        &server,
+        jeeves_protocol::methods::TASK_CREATE,
+        json!({
+            "sessionId": "default", "title": "write notes", "maxRounds": 6,
+            "cwd": dir.path().display().to_string(),
+            "acceptance": [{ "kind": "fileContains", "path": "notes.md", "pattern": "Agenda" }],
+        }),
+    )
+    .await
+    .expect("create the task");
+    let id = created["task"]["id"].as_str().expect("id").to_string();
+
+    drive(&server, "default", "write the agenda into notes.md", None).await;
+
+    let row = server.tasks.get(&id).await.expect("query").expect("row");
+    assert_eq!(row.status, jeeves_state::TaskStatus::NeedsAttention);
+    assert!(
+        row.suspend_reason
+            .as_deref()
+            .is_some_and(|reason| reason.starts_with("No progress after 3 rounds")),
+        "{:?}",
+        row.suspend_reason
+    );
+    assert_eq!(
+        row.rounds_used, 3,
+        "two repeats of the first failure stop it"
+    );
+}

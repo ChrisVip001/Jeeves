@@ -1,6 +1,7 @@
 //! Turn lifecycle facade; stages share the same fresh/recovered execution contracts.
 
 pub(crate) mod driver;
+mod progress;
 
 mod entry;
 pub use entry::run_turn;
