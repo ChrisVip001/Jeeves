@@ -201,6 +201,8 @@ try {
   }, "first task").catch(async error => { console.error(await (await desktop.request.get(api+"tasks")).text()); console.error((await page.locator("body").innerText()).slice(-1700)); throw error; });
   await page.locator("#mode-cowork").click();
   await page.locator(`[data-cowork-task="${task.id}"]`).click();
+  await page.locator("#cowork-input").waitFor({state: "visible"});
+  assert.equal(await page.locator(".cowork-follow").count(), 0);
   await page.locator(".work-file").filter({ hasText: "report.txt" }).click();
   const review = page.getByRole("complementary", { name: /report.txt/ });
   assert.equal(await review.locator("pre").textContent(), "task-alpha-fixture");
@@ -224,8 +226,17 @@ try {
   await assertTealTheme(mobile, mobile.locator("#send"));
   await mobile.locator("#mode-cowork").click();
   await mobile.getByRole("button", { name: /task-alpha-fixture/ }).click();
-  await mobile.locator("#cowork-input").fill("task-follow-fixture");
-  await mobile.locator("#cowork-send").click();
+  const follow = mobile.locator(".cowork-follow");
+  await follow.waitFor({state: "visible"});
+  assert.equal(await mobile.locator("#cowork-input, #cowork-send").count(), 0);
+  await follow.click();
+  await mobile.locator("#input").fill("task-follow-fixture");
+  const [followPost] = await Promise.all([
+    mobile.waitForRequest(req => req.url().endsWith("/api/interaction") && req.method() === "POST"),
+    mobile.locator("#send").click(),
+  ]);
+  assert.equal(followPost.postDataJSON().taskId, task.id);
+  assert.equal(followPost.postDataJSON().message, "task-follow-fixture");
   const secondDecision = await approveReport(phone, "task-follow-fixture");
   assert.notEqual(secondDecision, firstDecision);
   await poll(async () => {
