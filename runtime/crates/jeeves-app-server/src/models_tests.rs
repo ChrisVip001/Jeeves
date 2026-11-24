@@ -563,3 +563,50 @@ async fn fallback_targets_skip_unknown_ids_and_the_model_in_use() {
         "editing tiers keeps the chain"
     );
 }
+
+#[tokio::test]
+async fn the_byok_rescue_switch_reaches_the_fallback_chain_end_to_end() {
+    let dir = tempfile::tempdir().expect("temporary directory");
+    let home = dir.path().to_path_buf();
+    std::fs::write(
+        home.join("models.json"),
+        r#"{"active":"included","profiles":[
+            {"id":"included","provider":"ollama","model":"platform-model","base_url":"http://localhost:11434","origin":"platform","line":"language"},
+            {"id":"mine","provider":"ollama","model":"own-model","key_source":"file","origin":"byok","line":"language"}
+        ]}"#,
+    )
+    .expect("write models.json");
+    let pool = jeeves_state::open(&home.join("state.db"))
+        .await
+        .expect("open the store");
+    let server = Server::boot(
+        pool,
+        jeeves_config::Settings {
+            home: home.clone(),
+            ..jeeves_config::Settings::default()
+        },
+    )
+    .await;
+    let primary = server
+        .resolved_profile("included")
+        .expect("the platform profile resolves");
+
+    let before = server.fallback_targets(&primary);
+    assert!(
+        before.is_empty(),
+        "the switch is off by default: {before:?}"
+    );
+
+    server
+        .apply_config_patch(&jeeves_protocol::SettingsPatch {
+            model_auto_switch_to_byok: Some(true),
+            ..Default::default()
+        })
+        .expect("save the switch");
+    assert!(server.settings().model_auto_switch_to_byok);
+
+    let after = server.fallback_targets(&primary);
+    assert_eq!(after.len(), 1, "one BYOK rescue profile is appended");
+    assert_eq!(after[0].0, "mine");
+    assert!(after[0].2, "it is marked rescue-only");
+}
