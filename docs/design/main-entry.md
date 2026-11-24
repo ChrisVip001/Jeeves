@@ -120,7 +120,10 @@ limit. Task details retain the criteria and measurements from each round. A foll
 delivery opens a new run in the same task and workspace. The previous run's checks do not carry
 over. When the follow-up itself names a file, required text or test command, those become the new
 run's checks and a failure is corrected in the same task; otherwise the output is marked
-unverified.
+unverified. A task run that used tools but has no checks and no `/goal` condition gets one
+self-check round before delivery, within its round limit. Jeeves rereads the original assignment,
+opens what it produced, fixes any gaps and states what it could not verify. The task timeline
+records the round. The result is still marked unverified, because a self-check is not a measurement.
 
 ### Working on a long task
 

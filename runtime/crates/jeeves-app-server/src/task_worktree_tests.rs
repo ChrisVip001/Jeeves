@@ -259,6 +259,7 @@ async fn automatic_policy_maps_real_execution_boundaries_only_after_human_opt_in
                 json!({"path":"result.txt","content":"fixture result"}),
             ),
             Mock::text("done"),
+            Mock::text("result.txt holds the fixture result."),
         ])),
         model: "fixture".into(),
         small_model: "fixture".into(),

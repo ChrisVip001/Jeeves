@@ -10,6 +10,11 @@ use jeeves_protocol::ErrorObject;
 use jeeves_provider::Resolved;
 use jeeves_state::TaskRow;
 
+/// A run that did real work but has no mechanical checks gets one round to compare its result
+/// with the original request before it is delivered. A self-report is still not a measurement:
+/// the output stays unverified, but obvious gaps are caught while the work is still open.
+const SELF_CHECK: &str = "Self-check before delivery: re-read the original assignment above and check every requirement against what you actually produced. Open the files you wrote and rerun what can be rerun. Fix anything missing or wrong now. Then give the person the final result, and say plainly what you could not verify. Do not claim checks you did not run.";
+
 pub(crate) struct DriveTask<'a> {
     pub server: &'a Server,
     pub resolved: &'a Resolved,
@@ -104,6 +109,7 @@ pub(crate) async fn drive_task(
         eprintln!("(jeeves) goal loop starts: {condition} (max {max_rounds} rounds)");
     }
     let mut round_started = started;
+    let mut self_checked = false;
     let (decision, goal_status) = loop {
         let observation =
             match observe_round(server, &turn_id, &full.result.round_id, turn_cwd.as_deref()).await
@@ -364,6 +370,53 @@ pub(crate) async fn drive_task(
                 TaskDecision::NeedsAttention(contradiction.clone()),
                 Some("contradiction".to_string()),
             );
+        }
+
+        let worked = full.result.tool_calls.iter().any(|call| call.ok());
+        if goal_condition.is_none()
+            && acceptance.is_empty()
+            && worked
+            && !self_checked
+            && round_no < max_rounds
+            && let Some(id) = &task_id
+        {
+            self_checked = true;
+            eprintln!("(jeeves) task {id}: one self-check round before delivery");
+            if let Err(e) = server
+                .events
+                .append(
+                    id,
+                    run_id.as_deref(),
+                    "self_check",
+                    Some("review against the request before delivery"),
+                )
+                .await
+            {
+                eprintln!("(jeeves) self-check event not recorded: {e}");
+            }
+            round_no += 1;
+            frame.checkpoint = checkpoint_for_round(round_no);
+            round_started = std::time::Instant::now();
+            wall_offset_ms = 0;
+            let review = next_round_message(assignment, SELF_CHECK, plan.as_ref());
+            match full_turn(server, resolved, &review, Vec::new(), frame.clone(), None).await {
+                Ok(next) => {
+                    full = next;
+                    continue;
+                }
+                Err(e) => {
+                    fail_turn(
+                        server,
+                        sink,
+                        &turn_id,
+                        run_id.as_deref(),
+                        Some(id),
+                        &e.message,
+                    )
+                    .await;
+                    return Err(e);
+                }
+            }
         }
 
         let Some(condition) = &goal_condition else {

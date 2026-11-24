@@ -109,6 +109,7 @@ const DICT: Record<string, string> = {
   "待办": "To-do",
   "尚未检查": "Not checked yet",
   "验收": "Acceptance",
+  "交付前自查": "Self-check before delivery",
   "还有 {rest} 条": "{rest} more",
   "交付物": "Deliverables",
   "还有 {rest} 个": "{rest} more",

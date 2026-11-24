@@ -1581,3 +1581,61 @@ async fn a_task_checks_current_spend_before_admitting_tools() {
     assert_eq!(view["task"]["spent"]["tokens"], 28);
     assert_eq!(view["task"]["status"], "needs_attention");
 }
+
+#[tokio::test]
+async fn an_unchecked_delivery_is_self_checked_against_the_request_before_it_closes() {
+    let mock = Arc::new(Mock::new(vec![
+        Mock::tool_use(
+            "call_1",
+            "write_file",
+            json!({ "path": "notes.md", "content": "Agenda\n" }),
+        ),
+        Mock::text("written."),
+        Mock::tool_use("call_2", "read_file", json!({ "path": "notes.md" })),
+        Mock::text("Checked: notes.md holds the agenda."),
+    ]));
+    let (server, _home) = boot(Some(mock.clone())).await;
+    let dir = tempfile::tempdir().expect("temporary directory");
+    let created = call(
+        &server,
+        jeeves_protocol::methods::TASK_CREATE,
+        json!({ "sessionId": "default", "title": "write notes", "cwd": dir.path().display().to_string() }),
+    )
+    .await
+    .expect("create the task");
+    let id = created["task"]["id"].as_str().expect("id").to_string();
+
+    drive(&server, "default", "write the agenda into notes.md", None).await;
+
+    let row = server.tasks.get(&id).await.expect("query").expect("row");
+    assert_eq!(
+        row.status,
+        jeeves_state::TaskStatus::Done,
+        "{:?}",
+        row.last_stop_reason
+    );
+    let asked = mock.received.lock().expect("lock").iter().any(|request| {
+        request
+            .messages
+            .iter()
+            .any(|m| m.text().contains("Self-check before delivery"))
+    });
+    assert!(asked, "the self-check round names the original request");
+    assert_eq!(row.rounds_used, 2, "the self-check is its own round");
+    let events = server.events.list(&id, 20).await.expect("events");
+    assert!(
+        events.iter().any(|event| event.kind == "self_check"),
+        "the self-check is on record"
+    );
+    let summary: Option<String> = sqlx::query_scalar(
+        "SELECT summary FROM task_completions WHERE task_id=? ORDER BY id DESC LIMIT 1",
+    )
+    .bind(&id)
+    .fetch_one(&server.pool)
+    .await
+    .expect("completion");
+    assert_eq!(
+        summary.as_deref(),
+        Some("Checked: notes.md holds the agenda.")
+    );
+}
