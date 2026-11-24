@@ -175,8 +175,6 @@ const dom = {
   composer: must<HTMLFormElement>("composer"),
   input: must<HTMLTextAreaElement>("input"),
   send: must<HTMLButtonElement>("send"),
-  /** Prefills a "save this as a skill" instruction; sending stays a human action. */
-  saveSkill: must<HTMLButtonElement>("save-skill"),
   /** Only shown while a turn can be followed: pressing it means this lands as the next turn,
    *  not as an addition to the current one. */
   queueToggle: must<HTMLButtonElement>("queue-toggle"),
@@ -214,12 +212,6 @@ const dom = {
   memLedger: must("mem-ledger"),
   memWiki: must("mem-wiki"),
   memContext: must("mem-context"),
-  capSkills: must<HTMLButtonElement>("cap-skills"),
-  capMcp: must<HTMLButtonElement>("cap-mcp"),
-  capSchedules: must<HTMLButtonElement>("cap-schedules"),
-  capSkillsCount: must<HTMLElement>("cap-skills-count"),
-  capMcpCount: must<HTMLElement>("cap-mcp-count"),
-  capSchedulesCount: must<HTMLElement>("cap-schedules-count"),
 };
 
 /**
@@ -869,14 +861,6 @@ async function boot(): Promise<void> {
   });
   dom.drawerClose.addEventListener("click", closeDrawer);
   setupSidebarResize();
-  document.getElementById("nav-memory")?.addEventListener("click", () => {
-    switchTab("memory");
-    closeMobileNavigation();
-  });
-  document.getElementById("nav-progress")?.addEventListener("click", () => {
-    switchTab("overview");
-    closeMobileNavigation();
-  });
   setupNavigation(closeDrawer);
 
   for (const area of [dom.messages, dom.staged]) {
@@ -893,13 +877,6 @@ async function boot(): Promise<void> {
     if (dom.drawer.hidden || currentTab !== "overview") switchTab("overview");
     else closeDrawer();
   });
-  for (const [button, tab] of [
-    [dom.capSkills, "skills"],
-    [dom.capMcp, "mcp"],
-    [dom.capSchedules, "schedule"],
-  ] as const) {
-    button.addEventListener("click", () => switchTab(tab));
-  }
   for (const [button, tab] of [
     [dom.tabOverview, "overview"],
     [dom.tabSkills, "skills"],
@@ -940,11 +917,6 @@ async function boot(): Promise<void> {
     dom.input.focus();
   });
 
-  dom.saveSkill.addEventListener("click", () => {
-    dom.input.value = t("把刚才这套流程存成技能：先给我看草稿，我确认后再写入。");
-    dom.input.dispatchEvent(new Event("input"));
-    dom.input.focus();
-  });
 
   refreshOnReturn();
   setInterval(() => {
@@ -1128,17 +1100,14 @@ async function refreshCapabilities(): Promise<void> {
   ]);
   if (skills !== null) {
     skillsView = skills;
-    dom.capSkillsCount.textContent = String(skills.skills.length);
     if (!dom.panelSkills.hidden) paintSkills();
   }
   if (mcp !== null) {
     mcpView = mcp;
-    dom.capMcpCount.textContent = String(mcp.servers.length);
     if (!dom.panelMcp.hidden) paintMcp();
   }
   if (schedules !== null) {
     schedulesView = schedules;
-    dom.capSchedulesCount.textContent = String(schedules.jobs.length);
     if (!dom.panelSchedule.hidden) paintSchedules();
   }
 }
@@ -2532,6 +2501,7 @@ function stalePage(id: string): void {
 
 workspaceActions.refresh = refresh;
 workspaceActions.browse = () => void cwdPicker();
+workspaceActions.openPanel = (tab) => switchTab(tab);
 workspaceActions.reviewOperations = (task) => void switchTask(task, "operations");
 workspaceActions.upload = () => dom.file.click();
 workspaceActions.cwdChanged = setWorkspace;

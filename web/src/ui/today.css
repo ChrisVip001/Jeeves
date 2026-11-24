@@ -605,7 +605,7 @@ body:not(.view-today) .new-chat.is-current {
 .phone-task-group small, .phone-task-group span { font-size: 12px; color: var(--text-2); }
 #phone-tasks:empty { display: none; }
 @media (max-width: 640px), (pointer: coarse) and (max-height: 500px) {
-  #today-entry, #new-session, .sidebar .conversations, #nav-progress, #progress, .sidebar .workspace-nav { display: none; }
+  #today-entry, #new-session, .sidebar .conversations, #progress { display: none; }
   #phone-tasks button { min-height: 44px; }
 }
 .task-notice { padding-inline-start: 12px; border-inline-start: 2px solid var(--line); }

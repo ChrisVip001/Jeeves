@@ -46,7 +46,6 @@ export const UI_EN: Record<string, string> = {
   "最近的回复": "Latest reply",
   "交给 Jeeves 什么事？": "What can I take care of?",
   "账号与安全": "Account and security",
-  "更多工具": "More tools",
   "继续上次的事项": "Return to your work",
   "等待任务开始": "Waiting to start",
   "正在处理这件事。": "Work is underway.",

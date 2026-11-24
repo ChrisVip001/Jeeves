@@ -1668,6 +1668,10 @@ fn both_previous_default_souls_upgrade_without_overwriting_edits() {
             .replace(
                 "[tools used: ...] 是你之前做过的调用。已经生效的不要重做；对方拒绝过的不要再申请，除非对方重新要求。",
                 "[tools used: ...] 是你之前真正做过的事，不要重做。",
+            )
+            .replace(
+                "一套流程做过不止一次，或者明显会反复用到，做完后主动提议存成 skill：一句话问对方要不要，同意后再写入。不要等对方自己想起来。",
+                "想把一套流程存成 skill 之前，先问对方。",
             );
         let retired = format!("{old_intro}\n\n{old_body}");
         assert_ne!(retired, seed);

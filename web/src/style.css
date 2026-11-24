@@ -147,10 +147,6 @@ code {
   font: 11px var(--font);
   color: var(--text-3);
 }
-.workspace-nav {
-  display: grid;
-  gap: 2px;
-}
 .nav-entry,
 .cap-entry,
 .settings-entry {
@@ -251,11 +247,6 @@ code {
 .capabilities {
   border-top: 1px solid var(--line);
   padding-top: 17px;
-}
-.cap-count {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-3);
 }
 .sidebar-foot {
   border-top: 1px solid var(--line);
@@ -917,7 +908,6 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
 .execution-details > summary { cursor: pointer; color: var(--text-2); padding: 8px 0; }
 .cowork-thread > .confirm { max-width: 760px; margin: 0 auto 16px; }
 @media (max-width: 640px) {
-  .sidebar .workspace-nav { display: grid; }
   #sidebar #progress { display: flex; }
 }
 
@@ -935,11 +925,8 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
 .chat .composer { padding:14px; border-radius:22px; box-shadow:0 2px 12px color-mix(in srgb,var(--text) 7%,transparent); }
 #send,.cowork-compose .primary-button { min-height:38px; border-radius:15px; font-size:14px; padding:6px 16px; }
 .message-meta { font-size:12px; color:var(--text-3); }
-.message-meta summary,.work-history summary,.work-checks summary,.rail-tools summary { cursor:pointer; padding:6px 0; }
+.message-meta summary,.work-history summary,.work-checks summary { cursor:pointer; padding:6px 0; }
 .message-meta .trace { margin:6px 0; }
-.rail-tools { margin:8px 10px; }
-.rail-tools > summary { font-weight:550; min-height:38px; }
-.rail-tools .workspace-nav { display:grid; }
 .return-work,.text-action,.icon-action { display:inline-flex; align-items:center; gap:7px; }
 .return-work { width:100%; padding:8px 4px; color:var(--text-2); }
 .return-work strong { white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }

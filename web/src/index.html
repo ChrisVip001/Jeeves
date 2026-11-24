@@ -37,32 +37,6 @@
           </button>
         </div>
         <div id="connections-entry"></div>
-        <details class="rail-tools">
-          <summary data-i18n="更多工具">更多工具</summary>
-        <div id="task-progress-entry"></div>
-        <nav class="workspace-nav" aria-label="Workspace">
-          <button class="nav-entry" id="nav-memory" type="button">
-            <span aria-hidden="true">▤</span><span data-i18n="记忆">记忆</span>
-          </button>
-          <button class="nav-entry" id="progress" type="button" data-i18n="概览">概览</button>
-          <button class="nav-entry" id="chat-operations" type="button" data-i18n="核对聊天操作">核对聊天操作</button>
-          <button type="button" id="save-skill" class="nav-entry" data-i18n="存为技能" data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿">存为技能</button>
-        </nav>
-          <div class="capabilities">
-          <button class="cap-entry" id="cap-skills" type="button">
-            <span class="cap-entry-name" data-i18n="技能">技能</span
-            ><span class="cap-count" id="cap-skills-count">0</span>
-          </button>
-          <button class="cap-entry" id="cap-mcp" type="button">
-            <span class="cap-entry-name" data-i18n="MCP 连接器">MCP 连接器</span
-            ><span class="cap-count" id="cap-mcp-count">0</span>
-          </button>
-          <button class="cap-entry" id="cap-schedules" type="button">
-            <span class="cap-entry-name" data-i18n="定时任务">定时任务</span
-            ><span class="cap-count" id="cap-schedules-count">0</span>
-          </button>
-        </div>
-        </details>
         <div class="sidebar-foot">
           <div id="settings-entry"></div>
           <div class="foot-row">
@@ -104,6 +78,8 @@
           </div>
           <div id="primary-navigation"></div>
           <div class="bar-actions">
+            <button class="ghost" id="progress" type="button" data-i18n="概览">概览</button>
+            <button class="ghost" id="chat-operations" type="button" data-i18n="核对操作" data-i18n-title="核对这段对话里 Jeeves 做过的外部操作">核对操作</button>
             <button
               class="ghost"
               id="older"

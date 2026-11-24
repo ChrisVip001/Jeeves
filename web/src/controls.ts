@@ -57,6 +57,7 @@ export const workspaceActions: {
   upload: () => void;
   cwdChanged: (cwd: string | null) => void;
   main: () => Promise<void>;
+  openPanel: (tab: "skills" | "mcp" | "memory" | "schedule") => void;
 } = {
   reviewOperations: () => {},
   openWork: () => {},
@@ -65,6 +66,7 @@ export const workspaceActions: {
   upload: () => {},
   cwdChanged: () => {},
   main: async () => {},
+  openPanel: () => {},
 };
 export function updateControls(data: DashboardData, sessionId: string): void {
   webState.connected = true;

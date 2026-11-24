@@ -178,12 +178,10 @@ function settings(value: "notifications" | "connections" = "notifications") {
   tab.value = value;
   open.value = true;
 }
-/** The skills, MCP and memory panels still live in the workspace drawer; open the one asked for. */
-function manageCapability(which: "skills" | "mcp" | "memory") {
+/** Skills, MCP, memory and schedules open in the workspace drawer once settings has closed. */
+function manageCapability(which: "skills" | "mcp" | "memory" | "schedule") {
   open.value = false;
-  const trigger = document.querySelector<HTMLButtonElement>(which === "memory" ? "#nav-memory" : `#cap-${which}`);
-  trigger?.click();
-  trigger?.focus();
+  workspaceActions.openPanel(which);
 }
 function manageMcp() {
   manageCapability("mcp");
@@ -266,20 +264,6 @@ watch(
       <button type="button" class="today-btn" @click="showActivity">{{ t("我的事项") }}</button>
     </div>
   </Teleport>
-  <Teleport to="#task-progress-entry"
-    ><button
-      type="button"
-      class="settings-entry"
-      @click="closeMobileNavigation(); webTasks.state.open = !webTasks.state.open"
-    >
-      {{ t("任务进展")
-      }}<span style="margin-left: auto">{{
-        webTasks.state.tasks.filter(
-          (task) => !["done", "failed", "cancelled"].includes(task.status),
-        ).length
-      }}</span>
-    </button></Teleport
-  >
   <Teleport to="#composer-attachments">
     <AttachmentPicker @files="workspaceActions.upload()" />
   </Teleport>

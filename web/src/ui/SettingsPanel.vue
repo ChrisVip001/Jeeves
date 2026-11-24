@@ -12,7 +12,7 @@ const props = defineProps<{
   initialTab?: "notifications" | "connections" | "inbox" | "capabilities";
 }>();
 /** `capability` asks the host to open that panel once this dialog has closed. */
-const emit = defineEmits<{ close: []; mcp: []; capability: [which: "skills" | "mcp" | "memory"] }>();
+const emit = defineEmits<{ close: []; mcp: []; capability: [which: "skills" | "mcp" | "memory" | "schedule"] }>();
 const dialog = ref<HTMLDialogElement>();
 const tab = ref(props.initialTab ?? "notifications");
 const saving = ref(false);
@@ -28,8 +28,9 @@ const capabilities = [
   { id: "skills", name: t("技能") },
   { id: "mcp", name: t("MCP 连接器") },
   { id: "memory", name: t("记忆") },
+  { id: "schedule", name: t("定时任务") },
 ] as const;
-function openCapability(which: "skills" | "mcp" | "memory") {
+function openCapability(which: "skills" | "mcp" | "memory" | "schedule") {
   dialog.value?.close();
   emit("capability", which);
 }
