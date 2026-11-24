@@ -356,14 +356,13 @@ impl Chat {
             &format!("SELECT {} AS approval_decisions, m.id, m.role, m.content, m.source, m.created_at AS at, m.meta,
                     CASE WHEN m.notice_key IS NOT NULL AND m.source IN ('task_decision','task_completion')
                          THEN m.task_id END AS task_id,
-                    CASE WHEN c.status='done' AND c.verification_id IS NULL THEN 'produced_unverified'
-                         ELSE c.status END AS receipt_status
+                    {} AS receipt_status
                FROM chat_log m
                LEFT JOIN task_completions c ON m.source='task_completion'
                     AND c.id=CAST(m.notice_key AS INTEGER) AND c.task_id=m.task_id AND c.session_id=m.session_id
               WHERE m.session_id = ? AND m.id < ?
               ORDER BY m.id DESC
-              LIMIT ?", crate::completions::RECEIPT_APPROVALS),
+              LIMIT ?", crate::completions::RECEIPT_APPROVALS, crate::completions::RECEIPT_STATUS),
         )
         .bind(session_id)
         .bind(before.unwrap_or(i64::MAX))

@@ -14,6 +14,7 @@ pub struct CompletionRow {
     pub notify_target: Option<String>,
 }
 pub(crate) const RECEIPT_APPROVALS: &str = include_str!("receipt_approvals.sql");
+pub(crate) const RECEIPT_STATUS: &str = include_str!("receipt_status.sql");
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +50,7 @@ impl Completions {
         Ok(())
     }
     pub async fn latest_delivery(&self, task_id: &str) -> Result<Option<DeliveryRow>> {
-        Ok(sqlx::query_as(&format!("SELECT {RECEIPT_APPROVALS} AS approval_decisions, CASE WHEN status='done' AND verification_id IS NULL THEN 'produced_unverified' ELSE status END AS status,
+        Ok(sqlx::query_as(&format!("SELECT {RECEIPT_APPROVALS} AS approval_decisions, {RECEIPT_STATUS} AS status,
                            summary, run_id, created_at AS at FROM task_completions c
                            WHERE task_id=? AND status IN ('done','produced_unverified','failed','cancelled')
                            ORDER BY id DESC LIMIT 1"))
