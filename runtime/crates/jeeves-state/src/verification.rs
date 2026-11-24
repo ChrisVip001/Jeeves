@@ -208,6 +208,11 @@ impl Verifications {
     }
 
     /// Receipt and current checks are one commit; unchanged observations reuse their receipt.
+    ///
+    /// An empty acceptance contract is rejected here. That is the invariant which lets the
+    /// `acceptance_json='[]'` test in the completion triggers and the `verification_id IS NULL`
+    /// test in the receipt/projection queries agree: a contractless task can never acquire a
+    /// receipt. Changing this rule means revisiting every one of those four sites.
     pub async fn record(
         &self,
         task_id: &str,
