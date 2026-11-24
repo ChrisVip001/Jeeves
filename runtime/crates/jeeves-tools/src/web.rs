@@ -30,14 +30,48 @@ const TIMEOUT: Duration = Duration::from_secs(20);
 /// One search result: title, snippet, link.
 type Hit = (String, String, String);
 
-/// A source identity shared by hosted and local search results.
+fn parse_source_url(text: &str) -> Option<reqwest::Url> {
+    let url = reqwest::Url::parse(text).ok()?;
+    (matches!(url.scheme(), "http" | "https") && url.host_str().is_some()).then_some(url)
+}
+
+/// Normalize the URL used for page identity without ignoring its query.
 pub fn canonical_source_url(text: &str) -> Option<String> {
-    let mut url = reqwest::Url::parse(text).ok()?;
-    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
-        return None;
-    }
+    let mut url = parse_source_url(text)?;
     url.set_fragment(None);
     Some(url.to_string())
+}
+
+/// Compare search leads without spending separate result slots on known campaign tags.
+/// The key is not a navigable URL; results retain their original source URL.
+pub fn search_source_key(text: &str) -> Option<String> {
+    parse_source_url(text).map(search_url_key)
+}
+
+fn search_url_key(mut url: reqwest::Url) -> String {
+    url.set_fragment(None);
+    if let Some(query) = url.query() {
+        let kept = query
+            .split('&')
+            .filter(|pair| {
+                let key = pair.split_once('=').map_or(*pair, |(key, _)| key);
+                !matches!(
+                    key,
+                    "utm_source"
+                        | "utm_medium"
+                        | "utm_campaign"
+                        | "utm_term"
+                        | "utm_content"
+                        | "utm_id"
+                )
+            })
+            .collect::<Vec<_>>();
+        let filtered = kept.join("&");
+        if filtered.len() != query.len() {
+            url.set_query((!kept.is_empty()).then_some(filtered.as_str()));
+        }
+    }
+    url.to_string()
 }
 
 type SearchKey = (String, u32);
@@ -514,16 +548,12 @@ pub(crate) fn clean_hits(hits: Vec<Hit>, max_results: u32) -> Vec<Hit> {
     let mut seen = std::collections::HashSet::new();
     hits.into_iter()
         .filter_map(|(title, snippet, link)| {
-            let mut url = reqwest::Url::parse(&link).ok()?;
-            if !matches!(url.scheme(), "http" | "https")
-                || url.host_str().is_none()
-                || title.trim().is_empty()
-            {
+            let url = parse_source_url(&link)?;
+            if title.trim().is_empty() {
                 return None;
             }
             let link = url.to_string();
-            url.set_fragment(None);
-            if !seen.insert(url.to_string()) {
+            if !seen.insert(search_url_key(url)) {
                 return None;
             }
             Some((truncate(&title, 240), truncate(&snippet, 400), link))

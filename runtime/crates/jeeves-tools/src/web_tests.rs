@@ -558,3 +558,25 @@ fn site_path_scope_requires_a_segment_boundary() {
         assert!(!super::web::matches_site(query, link), "{link}");
     }
 }
+
+#[test]
+fn tracking_variants_do_not_displace_distinct_source_revisions() {
+    let hit = |title: &str, url: &str| (title.to_string(), "公告".into(), url.to_string());
+    let first = "https://library.example/notices?id=145&utm_source=bulletin#hours";
+    let current = "https://library.example/notices?id=146";
+    let hits = super::web::clean_hits(
+        vec![
+            hit("图书馆公告 145", first),
+            hit(
+                "同一旧公告的搜索广告",
+                "https://library.example/notices?utm_medium=cpc&id=145",
+            ),
+            hit("图书馆公告 146", current),
+        ],
+        2,
+    );
+    assert_eq!(
+        hits,
+        [hit("图书馆公告 145", first), hit("图书馆公告 146", current)]
+    );
+}

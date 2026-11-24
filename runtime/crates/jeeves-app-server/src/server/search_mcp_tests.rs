@@ -112,3 +112,38 @@ fn fetch_requires_readable_full_content_instead_of_search_excerpts() {
         );
     }
 }
+
+#[test]
+fn parallel_search_deduplicates_tracking_links_but_preserves_distinct_revisions() {
+    let first = "https://museum.example/hours?id=7&utm_source=directory";
+    let current = "https://museum.example/hours?id=8";
+    let body = json!({"results":[
+        {"url":first, "excerpts":["旧版营业时间"]},
+        {"url":"https://museum.example/hours?utm_content=ad&id=7", "excerpts":["旧公告重复"]},
+        {"url":current, "excerpts":["新版营业时间"]},
+    ]});
+    let text = render(
+        &body.to_string(),
+        &json!({"query":"site:museum.example 营业时间","max_results":2}),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(text.contains(first), "{text}");
+    assert!(text.contains(current), "{text}");
+    assert!(!text.contains("旧公告重复"), "{text}");
+}
+
+#[test]
+fn exact_fetch_does_not_treat_tracking_normalization_as_page_identity() {
+    let body = json!({"results":[
+        {"url":"https://museum.example/hours?id=7&utm_source=directory","full_content":"Unmatched"}
+    ]});
+    assert!(
+        render(
+            &body.to_string(),
+            &json!({"url":"https://museum.example/hours?id=7"})
+        )
+        .unwrap()
+        .is_none()
+    );
+}

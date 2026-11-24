@@ -152,7 +152,12 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
         if content.trim().is_empty() {
             continue;
         }
-        if !seen.insert(url.clone()) {
+        let identity = if search {
+            jeeves_tools::web::search_source_key(&url).unwrap_or_else(|| url.clone())
+        } else {
+            url.clone()
+        };
+        if !seen.insert(identity) {
             continue;
         }
         let title = row
