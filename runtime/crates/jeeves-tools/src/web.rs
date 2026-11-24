@@ -567,11 +567,18 @@ fn single_site_scope(query: &str) -> Option<reqwest::Url> {
         let prefix = term.get(..5)?;
         prefix.eq_ignore_ascii_case("site:").then(|| &term[5..])
     });
-    let site = sites.next()?;
-    if sites.next().is_some() {
-        return None;
+    let parse = |site| reqwest::Url::parse(&format!("https://{site}")).ok();
+    let scope = parse(sites.next()?)?;
+    for site in sites {
+        let other = parse(site)?;
+        // Restating the same domain/path must not turn a scoped query into a broad one.
+        if other.host_str() != scope.host_str()
+            || other.path().trim_end_matches('/') != scope.path().trim_end_matches('/')
+        {
+            return None;
+        }
     }
-    reqwest::Url::parse(&format!("https://{site}")).ok()
+    Some(scope)
 }
 
 pub fn matches_site(query: &str, link: &str) -> bool {

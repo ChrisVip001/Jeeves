@@ -147,3 +147,19 @@ fn exact_fetch_does_not_treat_tracking_normalization_as_page_identity() {
         .is_none()
     );
 }
+
+#[test]
+fn repeated_official_scope_cannot_let_an_old_page_take_the_only_slot() {
+    let body = json!({"results":[
+        {"url":"https://library.example/notices-old/hours","excerpts":["去年营业时间"]},
+        {"url":"https://directory.example/notices/hours","excerpts":["第三方转述"]},
+        {"url":"https://library.example/notices/hours","excerpts":["官方最新营业时间"]}
+    ]});
+    let text = render(
+        &body.to_string(),
+        &json!({"query":"site:library.example/notices 营业时间 SITE:Library.Example/notices/","max_results":1}),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(text.contains("官方最新营业时间"), "{text}");
+}

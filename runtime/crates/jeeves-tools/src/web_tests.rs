@@ -580,3 +580,24 @@ fn tracking_variants_do_not_displace_distinct_source_revisions() {
         [hit("图书馆公告 145", first), hit("图书馆公告 146", current)]
     );
 }
+
+#[tokio::test]
+async fn repeated_official_scope_keeps_filtering_across_fallback_providers() {
+    let entry = |url: &str| ("营业时间".into(), "公告".into(), url.into());
+    let official = entry("https://library.example/notices/hours");
+    let plan = [
+        Backend::Fixture(Some(vec![
+            entry("https://library.example/notices-old/hours"),
+            entry("https://directory.example/notices/hours"),
+        ])),
+        Backend::Fixture(Some(vec![official.clone()])),
+    ];
+    let (_, hits) = super::web::search_backends(
+        &plan,
+        "site:library.example/notices 营业时间 SITE:Library.Example/notices/",
+        1,
+    )
+    .await
+    .unwrap();
+    assert_eq!(hits, [official]);
+}
