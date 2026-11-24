@@ -133,13 +133,6 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
             continue;
         }
         let content = if search {
-            None
-        } else {
-            row.get("full_content")
-                .and_then(Value::as_str)
-                .filter(|s| !s.trim().is_empty())
-        };
-        let content = content.map(str::to_owned).unwrap_or_else(|| {
             row.get("excerpts")
                 .and_then(Value::as_array)
                 .map(|items| {
@@ -150,7 +143,12 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
                         .join("\n")
                 })
                 .unwrap_or_default()
-        });
+        } else {
+            row.get("full_content")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        };
         if content.trim().is_empty() {
             continue;
         }

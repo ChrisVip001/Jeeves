@@ -89,3 +89,26 @@ async fn live_parallel_search_and_fetch() {
     assert!(fetched.to_lowercase().contains("tutorial"), "{fetched}");
     eprintln!("Live Parallel MCP returned scoped sources and readable tutorial content");
 }
+
+#[test]
+fn fetch_requires_readable_full_content_instead_of_search_excerpts() {
+    let source = "https://docs.example/rules";
+    for content in [Value::Null, json!(" \n ")] {
+        let body = json!({"results":[{
+            "url": source,
+            "full_content": content,
+            "excerpts":["A brief lead is not the full source"]
+        }]});
+        assert!(
+            render(&body.to_string(), &json!({"url":source}))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            render(&body.to_string(), &json!({"query":"new rules"}))
+                .unwrap()
+                .unwrap()
+                .contains("A brief lead")
+        );
+    }
+}
