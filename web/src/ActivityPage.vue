@@ -5,48 +5,92 @@ import { t } from "./i18n";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import type { TaskCenter } from "./ui/useTasks";
 import type { AgentTaskView } from "./protocol";
+import { formatWhen } from "./render";
 import { workSections, workStatus } from "./work-status";
 const props = defineProps<{ center: TaskCenter }>();
 defineEmits<{ inspect: [id: string]; chat: [] }>();
+/** Finished work stays short: the latest few, the rest one click away. */
+const RECENT = 5;
+/** Search only earns its place once the list is long enough to need it. */
+const SEARCH_FROM = 8;
 const search = ref("");
+const showAllPast = ref(false);
 const query = computed(() => search.value.trim().toLocaleLowerCase());
 const chatRequests = computed(() => Object.values(props.center.state.approvals).filter(request => !props.center.taskOf(request)));
+const loaded = computed(() => props.center.state.loadedOwner === props.center.state.owner);
+const total = computed(() => props.center.state.tasks.length + chatRequests.value.length);
 
 const status = (task: AgentTaskView) => workStatus(props.center, task);
+/** Why it waits, in the task's own words when it has them. */
+const reason = (task: AgentTaskView) =>
+  task.lastStopReason || task.suspendReason || (task.inputCondition?.state === "pending" ? task.inputCondition.description : "") || status(task);
+const when = (task: AgentTaskView) => formatWhen(task.finishedAt ?? task.createdAt);
+const tone = (task: AgentTaskView) =>
+  task.status === "running" ? "live" : task.status === "failed" ? "bad" : ["done", "cancelled"].includes(task.status) ? "done" : "idle";
 
-const sections = computed(() => {
-  const { waiting, working, past } = workSections(props.center, query.value);
-  return [
-    { label: t("等你决定"), rows: waiting, requests: chatRequests.value.filter(request => !query.value || request.tool.toLocaleLowerCase().includes(query.value)) },
-    { label: t("进行中"), rows: working, requests: [] },
-    { label: t("已结束"), rows: past, requests: [] },
-  ];
+const sections = computed(() => workSections(props.center, query.value));
+const requests = computed(() => chatRequests.value.filter(request => !query.value || request.tool.toLocaleLowerCase().includes(query.value)));
+const past = computed(() => showAllPast.value || query.value ? sections.value.past : sections.value.past.slice(0, RECENT));
+const waitingCount = computed(() => sections.value.waiting.length + requests.value.length);
+const summary = computed(() => {
+  const parts: string[] = [];
+  if (waitingCount.value) parts.push(t("{n} 件等你决定", { n: waitingCount.value }));
+  if (sections.value.working.length) parts.push(t("{n} 件进行中", { n: sections.value.working.length }));
+  return parts.length ? parts.join(" · ") : t("都处理完了，没有等你的事。");
 });
+const nothingFound = computed(() => query.value && !waitingCount.value && !sections.value.working.length && !sections.value.past.length);
 </script>
 
 <template>
   <section class="activity-page" aria-labelledby="activity-title">
-    <header class="work-list-head"><h1 id="activity-title">{{ t("我的事项") }}</h1>
-      <label v-if="center.state.tasks.length || chatRequests.length" class="work-search"><Search :size="18" /><input v-model="search" type="search" :aria-label="t('搜索事项')" :placeholder="t('搜索事项')" /></label>
+    <header class="work-list-head">
+      <div class="work-list-title">
+        <h1 id="activity-title">{{ t("我的事项") }}</h1>
+        <p v-if="loaded && total" class="work-summary" role="status">{{ summary }}</p>
+      </div>
+      <label v-if="total >= SEARCH_FROM" class="work-search"><Search :size="16" /><input v-model="search" type="search" :aria-label="t('搜索事项')" :placeholder="t('搜索事项')" /></label>
     </header>
     <!-- Recurring-work reviews wait on you, so they sit under the title; the 长期 list goes last. -->
     <slot />
-    <p v-if="query && sections.every(s => !s.rows.length && !s.requests.length)" role="status">{{ t("没有找到匹配的事项。") }}</p>
+    <p v-if="nothingFound" class="activity-note" role="status">{{ t("没有找到匹配的事项。") }}</p>
     <p v-if="center.state.error" role="alert">{{ center.state.error }} <button type="button" class="today-btn" @click="center.retry">{{ t("重试") }}</button></p>
-    <p v-else-if="!center.state.loadedOwner || center.state.loadedOwner !== center.state.owner" role="status">{{ t("正在读取任务…") }}</p>
-    <div v-else-if="!center.state.tasks.length && !chatRequests.length" class="activity-empty">
+    <p v-else-if="!loaded" class="activity-note" role="status">{{ t("正在读取任务…") }}</p>
+    <div v-else-if="!total" class="activity-empty">
+      <h2>{{ t("还没有交办的事") }}</h2>
       <p>{{ t("交办的事，结果会出现在这里。") }}</p>
-      <button type="button" class="today-btn" @click="$emit('chat')">{{ t("回到对话") }}</button>
+      <button type="button" class="today-btn primary" @click="$emit('chat')">{{ t("回到对话") }}</button>
     </div>
-    <template v-for="section in sections" :key="section.label">
-      <section v-if="center.state.loadedOwner === center.state.owner && (section.rows.length || section.requests.length)" class="activity-group">
-        <h2>{{ section.label }} <span>{{ section.rows.length + section.requests.length }}</span></h2>
-        <ApprovalCard v-for="request in section.requests" :key="request.requestId + ':' + request.version"
+    <template v-if="loaded">
+      <section v-if="waitingCount" class="activity-group waiting">
+        <h2>{{ t("等你决定") }}</h2>
+        <ApprovalCard v-for="request in requests" :key="request.requestId + ':' + request.version"
           :approval="request" :restored="center.state.restored[request.turnId]" :busy="!!center.state.busy"
           @answer="(ok, reviewed) => center.approve(reviewed, ok)" />
-        <button v-for="task in section.rows" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
+        <button v-for="task in sections.waiting" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
+          class="waiting-card" type="button" @click="$emit('inspect', task.id)">
+          <span class="waiting-text"><strong>{{ task.title }}</strong><small>{{ reason(task) }}</small></span>
+          <span class="waiting-go">{{ t("去处理") }}<ChevronRight :size="15" aria-hidden="true" /></span>
+        </button>
+      </section>
+      <section v-if="sections.working.length" class="activity-group">
+        <h2>{{ t("进行中") }}</h2>
+        <button v-for="task in sections.working" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
           class="activity-task" type="button" @click="$emit('inspect', task.id)">
-          <strong>{{ task.title }}</strong><small>{{ status(task) }}</small><ChevronRight :size="16" aria-hidden="true" />
+          <i :class="['work-dot', tone(task)]" aria-hidden="true"></i>
+          <span class="work-text"><strong>{{ task.title }}</strong><small>{{ status(task) }}</small></span>
+          <time>{{ when(task) }}</time>
+        </button>
+      </section>
+      <section v-if="sections.past.length" class="activity-group">
+        <h2>{{ t("已结束") }}</h2>
+        <button v-for="task in past" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
+          class="activity-task" type="button" @click="$emit('inspect', task.id)">
+          <i :class="['work-dot', tone(task)]" aria-hidden="true"></i>
+          <span class="work-text"><strong>{{ task.title }}</strong><small>{{ task.status === "failed" && task.lastStopReason ? task.lastStopReason : status(task) }}</small></span>
+          <time>{{ when(task) }}</time>
+        </button>
+        <button v-if="!query && sections.past.length > RECENT" type="button" class="text-action work-more" @click="showAllPast = !showAllPast">
+          {{ showAllPast ? t("收起") : t("显示全部（{n}）", { n: sections.past.length }) }}
         </button>
       </section>
     </template>
