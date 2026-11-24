@@ -25,6 +25,10 @@ const PROTOCOL_VERSION: &str = "2025-06-18";
 const FACT_URI: &str = "jeeves://memory/facts";
 const EPISODE_URI: &str = "jeeves://memory/episodes";
 
+/// Prompt templates: instructions for the client's model, not memory writes of their own.
+const RECALL_PROMPT: &str = "recall";
+const DIGEST_PROMPT: &str = "digest";
+
 pub struct MemoryServer {
     facts: Facts,
     episodes: Episodes,
@@ -50,7 +54,7 @@ impl MemoryServer {
         let result = match method.as_str() {
             "initialize" => Ok(json!({
                 "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {}, "resources": {}},
+                "capabilities": {"tools": {}, "resources": {}, "prompts": {}},
                 "serverInfo": {"name": "jeeves-memory", "version": env!("CARGO_PKG_VERSION")},
             })),
             "tools/list" => Ok(json!({"tools": tool_declarations()})),
@@ -63,6 +67,8 @@ impl MemoryServer {
                 self.read_resource(request.get("params").cloned().unwrap_or_default())
                     .await
             }
+            "prompts/list" => Ok(json!({"prompts": prompt_declarations()})),
+            "prompts/get" => self.prompt(request.get("params").cloned().unwrap_or_default()),
             "ping" => Ok(json!({})),
             other => Err((-32601, format!("unknown method '{other}'"))),
         };
@@ -115,6 +121,36 @@ impl MemoryServer {
         let text = content.map_err(|why| (-32603, why))?;
         Ok(json!({
             "contents": [{"uri": uri, "mimeType": "text/plain", "name": name, "text": text}],
+        }))
+    }
+
+    /// Prompt templates resolve to a user message; they never write memory themselves.
+    fn prompt(&self, params: Value) -> Result<Value, (i64, String)> {
+        let name = params
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or((-32602, "prompts/get is missing name".to_string()))?;
+        let args = params.get("arguments").cloned().unwrap_or(json!({}));
+        let text = match name {
+            RECALL_PROMPT => {
+                let topic = args
+                    .get("topic")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
+                    .ok_or((-32602, "prompt 'recall' needs a topic".to_string()))?;
+                format!(
+                    "Search Jeeves's memory for “{topic}” using memory_search, then summarize what it knows about that topic. Say so plainly if nothing is remembered."
+                )
+            }
+            DIGEST_PROMPT => {
+                "Use memory_list and memory_episodes to summarize what Jeeves currently remembers, grouped by subject. Keep it short, and say so plainly when the memory is empty."
+                    .to_string()
+            }
+            other => return Err((-32602, format!("no prompt named '{other}'"))),
+        };
+        Ok(json!({
+            "messages": [{"role": "user", "content": {"type": "text", "text": text}}],
         }))
     }
 
@@ -270,6 +306,26 @@ fn resource_declarations() -> Vec<Value> {
             "name": "episodes",
             "description": "The most recent dated episodes in Jeeves's memory.",
             "mimeType": "text/plain",
+        }),
+    ]
+}
+
+/// Prompt templates for the client's model: how to recall or digest this memory.
+fn prompt_declarations() -> Vec<Value> {
+    vec![
+        json!({
+            "name": RECALL_PROMPT,
+            "description": "Recall what Jeeves remembers about a topic.",
+            "arguments": [{
+                "name": "topic",
+                "description": "what to recall from memory",
+                "required": true
+            }]
+        }),
+        json!({
+            "name": DIGEST_PROMPT,
+            "description": "Summarize what Jeeves currently remembers.",
+            "arguments": []
         }),
     ]
 }
