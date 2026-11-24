@@ -241,7 +241,7 @@ async fn execute(
             );
             return receipt::acknowledge(server, p, id, sink, reply, started).await;
         }
-        let task = task_tool::continue_task(server, p, task_id, &p.message, sink, || {})
+        let task = task_tool::continue_task(server, p, task_id, &p.message, &[], sink, || {})
             .await
             .map_err(invalid)?;
         let reply = format!(

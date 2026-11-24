@@ -156,12 +156,15 @@ impl TaskDispatch {
         tx.commit().await?;
         Ok(rows)
     }
+    /// Reopens a finished conversational task for a follow-up run. `acceptance_json` is the
+    /// follow-up's own checks (`[]` when it named none); the previous run's checks never carry over.
     pub async fn continue_finished(
         &self,
         task_id: &str,
         message: &str,
         attachments: &str,
         message_id: &str,
+        acceptance_json: &str,
     ) -> Result<()> {
         ensure!(
             !message.trim().is_empty() && message.len() <= 64_000,
@@ -170,12 +173,13 @@ impl TaskDispatch {
         let mut tx = self.pool.begin().await?;
         let changed = sqlx::query(
             "UPDATE agent_tasks SET status='pending',finished_at=NULL,current_turn_id=NULL,
-                last_stop_reason=NULL,acceptance_json='[]',checks_json='[]',rounds_used=0
+                last_stop_reason=NULL,acceptance_json=?,checks_json='[]',rounds_used=0
              WHERE id=? AND status='done' AND goal_condition IS NULL AND EXISTS(
                  SELECT 1 FROM task_dispatch d WHERE d.task_id=agent_tasks.id AND d.state='finished'
                  AND (agent_tasks.acceptance_json='[]' OR d.origin_message_id IS NOT NULL)
              )",
         )
+        .bind(acceptance_json)
         .bind(task_id)
         .execute(&mut *tx)
         .await?

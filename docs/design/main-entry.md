@@ -117,8 +117,10 @@ Runtime can check files and required text, JSON values, quotations against saved
 of specified tests, and operation records or receipts. Acceptance commands use the workspace
 execution permissions. A failed check returns to the same task for correction within its round
 limit. Task details retain the criteria and measurements from each round. A follow-up after
-delivery opens a new run in the same task and workspace, without previous file checks, so its output
-is marked unverified.
+delivery opens a new run in the same task and workspace. The previous run's checks do not carry
+over. When the follow-up itself names a file, required text or test command, those become the new
+run's checks and a failure is corrected in the same task; otherwise the output is marked
+unverified.
 
 ### Working on a long task
 

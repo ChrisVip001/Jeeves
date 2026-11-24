@@ -149,7 +149,7 @@ async fn reload(server: &Server, id: &str) -> Result<TaskRow, ErrorObject> {
 
 /// Normalise + validate the acceptance list. Refusing at creation is deliberate: a condition
 /// nobody can check would sit on the card looking authoritative while never failing.
-fn normalise_acceptance(views: &[AcceptanceView]) -> Result<String, ErrorObject> {
+pub(crate) fn normalise_acceptance(views: &[AcceptanceView]) -> Result<String, ErrorObject> {
     let mut normalised = Vec::with_capacity(views.len());
     for (index, view) in views.iter().enumerate() {
         let acceptance = Acceptance::from_view(view)
