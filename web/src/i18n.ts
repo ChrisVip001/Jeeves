@@ -31,6 +31,7 @@ const DICT: Record<string, string> = {
   "重新读取操作": "Reload operations",
   "关闭": "Close",
   "核对操作": "Review operations",
+  "更多": "More",
   "当前会话的操作记录": "Operations in this conversation",
   "选择核对结果": "Choose the observed outcome",
   "已确认外部效果成功": "External effect confirmed",

@@ -78,8 +78,13 @@
           </div>
           <div id="primary-navigation"></div>
           <div class="bar-actions">
-            <button class="ghost" id="progress" type="button" data-i18n="概览">概览</button>
-            <button class="ghost" id="chat-operations" type="button" data-i18n="核对操作" data-i18n-title="核对这段对话里 Jeeves 做过的外部操作">核对操作</button>
+            <details class="bar-more" id="bar-more">
+              <summary class="ghost" data-i18n-aria="更多" data-i18n-title="更多"><span class="more-glyph" aria-hidden="true"></span></summary>
+              <div class="bar-more-menu" role="menu">
+                <button class="ghost" id="progress" type="button" role="menuitem" data-i18n="概览">概览</button>
+                <button class="ghost" id="chat-operations" type="button" role="menuitem" data-i18n="核对操作" data-i18n-title="核对这段对话里 Jeeves 做过的外部操作">核对操作</button>
+              </div>
+            </details>
             <button
               class="ghost"
               id="older"

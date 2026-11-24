@@ -1097,3 +1097,44 @@ body.view-activity .bar-actions, body.view-cowork .bar-actions { display: none; 
   .bottom-tabs button[aria-current="page"] { color:var(--text); }
   .bottom-tabs .decision-count { position:absolute; top:4px; left:calc(50% + 8px); margin:0; font-size:10px; }
 }
+
+/* WP58 chat home: one quiet header, an unframed reply column, metadata on demand. */
+.chat .bar { gap:10px; }
+.chat .bar-actions { gap:2px; align-items:center; }
+.bar-more { position:relative; }
+.bar-more > summary { list-style:none; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; cursor:pointer; color:var(--text-2); border:0; background:transparent; padding:0; }
+.bar-more > summary::-webkit-details-marker { display:none; }
+.bar-more > summary:hover,.bar-more[open] > summary { background:var(--surface-hover); color:var(--text); }
+.more-glyph { width:4px; height:4px; border-radius:50%; background:currentColor; box-shadow:-7px 0 currentColor, 7px 0 currentColor; }
+.bar-more-menu { position:absolute; top:calc(100% + 6px); right:0; z-index:20; min-width:168px; display:flex; flex-direction:column; padding:5px; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow-overlay); }
+.bar-more-menu button { justify-content:flex-start; text-align:start; width:100%; padding:8px 11px; border:0; border-radius:8px; font-size:13px; color:var(--text); }
+.bar-more-menu button:hover { background:var(--surface-hover); }
+.chat .bar #executor-entry .executor-stop { width:36px; height:36px; min-height:36px; padding:0; justify-content:center; border:0; border-radius:10px; color:var(--text-2); background:transparent; }
+.chat .bar #executor-entry .executor-stop:hover { color:var(--bad); background:var(--surface-hover); }
+.executor-stop-label { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+.messages { padding-top:28px; gap:26px; }
+.msg { margin-bottom:0; }
+.msg.jeeves { padding-left:0; }
+.msg.jeeves::before { content:none; }
+.msg.jeeves .bubble.md { font-size:15px; line-height:1.78; }
+.msg.me .bubble { font-size:15px; background:var(--surface-hover); border:0; border-radius:18px; padding:10px 16px; max-width:min(80%, 560px); }
+.msg.jeeves .message-meta { margin-top:-4px; line-height:1.4; }
+.msg.jeeves .message-meta > summary { padding:2px 0; }
+@media (hover:hover) {
+  .msg.jeeves .message-meta:not([open]) > summary { opacity:0; transition:opacity .15s ease; }
+  .msg.jeeves:hover .message-meta > summary,
+  .msg.jeeves .message-meta > summary:focus-visible { opacity:1; }
+}
+.msg.jeeves .message-meta > summary { list-style:none; display:inline-block; }
+.msg.jeeves .message-meta > summary::-webkit-details-marker { display:none; }
+
+.chat .composer { border-color:var(--line); box-shadow:0 1px 2px color-mix(in srgb,var(--text) 5%,transparent), 0 8px 28px color-mix(in srgb,var(--text) 6%,transparent); }
+.chat .composer:focus-within { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); box-shadow:0 1px 2px color-mix(in srgb,var(--text) 5%,transparent), 0 8px 28px color-mix(in srgb,var(--text) 8%,transparent); }
+.chat .composer textarea { min-height:52px; font-size:15px; }
+@media (max-width:640px) {
+  .msg.jeeves { padding-left:0; }
+  .msg.me .bubble { max-width:86%; }
+}
+.chat .welcome-sub { margin:10px 0 0; font-size:14px; color:var(--text-3); }
+.chat .welcome-starters { margin-top:30px; }

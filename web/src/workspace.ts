@@ -847,6 +847,17 @@ async function boot(): Promise<void> {
     });
   }
 
+  const barMore = must<HTMLDetailsElement>("bar-more");
+  barMore.addEventListener("click", (event) => {
+    if ((event.target as Element).closest("[role=menuitem]")) barMore.open = false;
+  });
+  document.addEventListener("click", (event) => {
+    if (barMore.open && !barMore.contains(event.target as Node)) barMore.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && barMore.open) barMore.open = false;
+  });
+
   dom.progress.addEventListener("click", () => {
     if (dom.drawer.hidden) openDrawer();
     else closeDrawer();
