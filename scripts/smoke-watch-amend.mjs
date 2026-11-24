@@ -13,7 +13,7 @@ try {
   });
   const page = await context.newPage();
   await page.goto(workspace);
-  await page.getByRole("button", {name:"我的事项", exact:true}).first().click();
+  await page.getByRole("button", {name:"工作", exact:true}).first().click();
   await page.locator(`[data-cowork-task="${task}"]`).click();
   await page.locator("#cowork-input").fill("改成低于1700才提醒，其他照旧。");
   const stream = page.waitForResponse(r=>r.url().endsWith("/api/interaction") && r.request().method()==="POST");

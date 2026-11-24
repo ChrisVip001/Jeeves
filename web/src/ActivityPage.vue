@@ -7,12 +7,10 @@ import type { TaskCenter } from "./ui/useTasks";
 import type { AgentTaskView } from "./protocol";
 import { formatWhen } from "./render";
 import { workSections, workStatus } from "./work-status";
-const props = defineProps<{ center: TaskCenter }>();
+const props = defineProps<{ center: TaskCenter; selected?: string }>();
 defineEmits<{ inspect: [id: string]; chat: [] }>();
 /** Finished work stays short: the latest few, the rest one click away. */
 const RECENT = 5;
-/** Search only earns its place once the list is long enough to need it. */
-const SEARCH_FROM = 8;
 const search = ref("");
 const showAllPast = ref(false);
 const query = computed(() => search.value.trim().toLocaleLowerCase());
@@ -30,7 +28,13 @@ const tone = (task: AgentTaskView) =>
 
 const sections = computed(() => workSections(props.center, query.value));
 const requests = computed(() => chatRequests.value.filter(request => !query.value || request.tool.toLocaleLowerCase().includes(query.value)));
-const past = computed(() => showAllPast.value || query.value ? sections.value.past : sections.value.past.slice(0, RECENT));
+const past = computed(() => {
+  const all = sections.value.past;
+  if (showAllPast.value || query.value) return all;
+  const recent = all.slice(0, RECENT);
+  const open = all.find(task => task.id === props.selected);
+  return open && !recent.includes(open) ? [...recent, open] : recent;
+});
 const waitingCount = computed(() => sections.value.waiting.length + requests.value.length);
 const summary = computed(() => {
   const parts: string[] = [];
@@ -45,10 +49,10 @@ const nothingFound = computed(() => query.value && !waitingCount.value && !secti
   <section class="activity-page" aria-labelledby="activity-title">
     <header class="work-list-head">
       <div class="work-list-title">
-        <h1 id="activity-title">{{ t("我的事项") }}</h1>
+        <h1 id="activity-title">{{ t("工作") }}</h1>
         <p v-if="loaded && total" class="work-summary" role="status">{{ summary }}</p>
       </div>
-      <label v-if="total >= SEARCH_FROM" class="work-search"><Search :size="16" /><input v-model="search" type="search" :aria-label="t('搜索事项')" :placeholder="t('搜索事项')" /></label>
+      <label v-if="total" class="work-search"><Search :size="16" /><input v-model="search" type="search" :aria-label="t('搜索事项')" :placeholder="t('搜索事项')" /></label>
     </header>
     <!-- Recurring-work reviews wait on you, so they sit under the title; the 长期 list goes last. -->
     <slot />
@@ -67,7 +71,7 @@ const nothingFound = computed(() => query.value && !waitingCount.value && !secti
           :approval="request" :restored="center.state.restored[request.turnId]" :busy="!!center.state.busy"
           @answer="(ok, reviewed) => center.approve(reviewed, ok)" />
         <button v-for="task in sections.waiting" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
-          class="waiting-card" type="button" @click="$emit('inspect', task.id)">
+          class="activity-task waiting-card" type="button" :aria-current="task.id === selected ? 'page' : undefined" @click="$emit('inspect', task.id)">
           <span class="waiting-text"><strong>{{ task.title }}</strong><small>{{ reason(task) }}</small></span>
           <span class="waiting-go">{{ t("去处理") }}<ChevronRight :size="15" aria-hidden="true" /></span>
         </button>
@@ -75,7 +79,7 @@ const nothingFound = computed(() => query.value && !waitingCount.value && !secti
       <section v-if="sections.working.length" class="activity-group">
         <h2>{{ t("进行中") }}</h2>
         <button v-for="task in sections.working" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
-          class="activity-task" type="button" @click="$emit('inspect', task.id)">
+          class="activity-task" type="button" :aria-current="task.id === selected ? 'page' : undefined" @click="$emit('inspect', task.id)">
           <i :class="['work-dot', tone(task)]" aria-hidden="true"></i>
           <span class="work-text"><strong>{{ task.title }}</strong><small>{{ status(task) }}</small></span>
           <time>{{ when(task) }}</time>
@@ -84,7 +88,7 @@ const nothingFound = computed(() => query.value && !waitingCount.value && !secti
       <section v-if="sections.past.length" class="activity-group">
         <h2>{{ t("已结束") }}</h2>
         <button v-for="task in past" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
-          class="activity-task" type="button" @click="$emit('inspect', task.id)">
+          class="activity-task" type="button" :aria-current="task.id === selected ? 'page' : undefined" @click="$emit('inspect', task.id)">
           <i :class="['work-dot', tone(task)]" aria-hidden="true"></i>
           <span class="work-text"><strong>{{ task.title }}</strong><small>{{ task.status === "failed" && task.lastStopReason ? task.lastStopReason : status(task) }}</small></span>
           <time>{{ when(task) }}</time>

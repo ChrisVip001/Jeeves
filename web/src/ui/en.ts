@@ -19,7 +19,7 @@ export const UI_EN: Record<string, string> = {
   "邮件验证码": "Email code",
   "工作区正在启动，你可以先写下要交办的事。": "Your workspace is starting. You can draft your request now.",
   "工作区还在准备中。": "Your workspace is still starting.",
-  "我的事项": "My work",
+  "工作": "Work",
   "搜索事项": "Search work",
   "没有找到匹配的事项。": "No matching work.",
   "查看往来记录": "Conversation history",

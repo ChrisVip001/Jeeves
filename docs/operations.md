@@ -33,7 +33,7 @@ Explicit memory and session reads report storage errors. If one memory index is 
 
 ## Web dashboard
 
-Sign in or register at the deployment's HTTPS address. The home page takes an existing session straight to its workbench. Use the main chat, follow assignments in **My work** and review delivered files under the same account. You can draft a message while the workspace starts.
+Sign in or register at the deployment's HTTPS address. The home page takes an existing session straight to its workbench. Use the main chat, follow assignments in **Work** and review delivered files under the same account. You can draft a message while the workspace starts.
 
 ### Putting it on a server (self-hosting)
 
@@ -80,7 +80,7 @@ by other agents are labelled `source: mcp` so the origin stays visible.
 
 ## Recurring work upgrades
 
-A saved briefing enabled through the prior launch environment appears in My Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/main-entry.md#6-recurring-work)
+A saved briefing enabled through the prior launch environment appears in Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/main-entry.md#6-recurring-work)
 
 ## Driving it from a script
 
@@ -149,7 +149,7 @@ For a shared Mac and Web development workspace, put the Go gateway's loopback or
 
 Run `just dashboard-build` and reload the gateway page to see frontend changes. Runtime changes take effect after replacing the binary and restarting it.
 
-The app opens in Chat. Open a receipt or My work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
+The app opens in Chat. Open a receipt or Work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
 
 To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `target/acceptance/mac-cockpit/<run>/`.
 

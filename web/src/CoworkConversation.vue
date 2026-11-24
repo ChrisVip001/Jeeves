@@ -85,6 +85,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
       <button id="cowork-details" type="button" class="icon-action" :aria-label="t('任务详情')" :title="t('任务详情')" @click="emit('details')"><Ellipsis :size="21" /></button>
     </header>
     <div class="cowork-thread">
+      <slot name="screen" />
       <ol v-if="steps.length" class="work-steps" :aria-label="t('步骤')">
         <li v-for="(step, index) in steps" :key="index" :class="step.state" :title="step.detail">
           <span class="work-step-mark" aria-hidden="true">{{ step.state === "done" ? "✓" : step.state === "failed" ? "✕" : step.state === "doing" ? "◐" : "○" }}</span>
@@ -100,6 +101,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
         <button v-if="task.runCount" type="button" class="today-btn" @click="workspaceActions.reviewOperations(task)">{{ t("核对操作") }}</button>
         <button type="button" class="today-btn primary" :disabled="!!webTasks.state.busy" @click="webTasks.action('resume', task.id)">{{ t("继续任务") }}</button>
       </div>
+      <slot name="tools" />
       <details class="work-history" @toggle="historyOpen = ($event.currentTarget as HTMLDetailsElement).open">
         <summary id="work-history-toggle">{{ t("查看往来记录") }}</summary>
         <TaskTranscript v-if="historyOpen" :task="task" :center="webTasks" :revision="revision" history-only />

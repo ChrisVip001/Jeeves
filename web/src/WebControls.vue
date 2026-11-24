@@ -2,7 +2,6 @@
 import { accountKey } from "./hosted.ts";
 import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
-import WorkRail from "./WorkRail.vue";
 import WorkScreen from "./WorkScreen.vue";
 import { waitingCount } from "./work-status";
 import ActivityPage from "./ActivityPage.vue";
@@ -222,21 +221,15 @@ watch(
   <Teleport to="#bottom-tabs">
     <nav class="bottom-tabs" :aria-label="t('主导航')">
       <button type="button" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="20" /><span>{{ t("对话") }}</span></button>
-      <button type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="20" /><span>{{ t("我的事项") }}</span><span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="20" /><span>{{ t("工作") }}</span><span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
       <button type="button" @click="settings()"><Settings :size="20" /><span>{{ t("设置") }}</span></button>
     </nav>
   </Teleport>
   <Teleport to="#primary-navigation">
     <nav class="primary-navigation" :aria-label="t('主导航')">
       <button id="mode-assistant" type="button" :aria-label="t('对话')" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
-      <button id="mode-cowork" type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="17" />{{ t("我的事项") }}<span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button id="mode-cowork" type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="17" />{{ t("工作") }}<span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
     </nav>
-  </Teleport>
-  <Teleport to="#activity-view">
-    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant">
-      <ResponsibilityCards :busy="state.busy" />
-      <template #after><ResponsibilityCards :busy="state.busy" list /></template>
-    </ActivityPage>
   </Teleport>
   <Teleport to="#chat-decisions">
     <button v-if="lastWork && state.view === 'chat' && state.sessionId === state.mainSessionId && !followingTask" class="return-work" type="button" @click="inspectActivity(lastWork.id)"><CornerUpLeft :size="15" /><span>{{ t("继续上次的事项") }}</span><strong>{{ lastWork.title }}</strong></button>
@@ -244,16 +237,24 @@ watch(
     <ChatDecisions v-if="state.view === 'chat' && state.sessionId === state.mainSessionId" :center="webTasks" :main-busy="state.busy" />
   </Teleport>
   <Teleport to="#cowork-view">
-    <div v-if="state.view === 'cowork' && coworkTask" class="work-columns">
-      <WorkRail :center="webTasks" :selected="coworkTask.id" @inspect="inspectActivity" @all="showActivity" />
-      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity" />
-      <WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks">
-        <DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" />
-      </WorkScreen>
-    </div>
-    <div v-else-if="state.view === 'cowork'" class="missing-work" role="status">
-      <p>{{ webTasks.state.error || (webTasks.state.loadedOwner ? t("暂时无法打开原任务，请重试。") : t("正在读取任务…")) }}</p>
-      <button type="button" class="today-btn" @click="showActivity">{{ t("我的事项") }}</button>
+    <div v-if="state.view !== 'chat'" class="work-split" :class="{ 'has-detail': state.view === 'cowork' }">
+      <div class="work-list-pane">
+        <ActivityPage :center="webTasks" :selected="state.view === 'cowork' ? coworkId : ''" @inspect="inspectActivity" @chat="showAssistant">
+          <ResponsibilityCards :busy="state.busy" />
+          <template #after><ResponsibilityCards :busy="state.busy" list /></template>
+        </ActivityPage>
+      </div>
+      <div class="work-detail-pane">
+        <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity">
+          <template #screen><WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks" /></template>
+          <template #tools><DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" /></template>
+        </CoworkConversation>
+        <div v-else-if="state.view === 'cowork'" class="missing-work" role="status">
+          <p>{{ webTasks.state.error || (webTasks.state.loadedOwner ? t("暂时无法打开原任务，请重试。") : t("正在读取任务…")) }}</p>
+          <button type="button" class="today-btn" @click="showActivity">{{ t("工作") }}</button>
+        </div>
+        <div v-else class="work-placeholder"><ListTodo :size="26" aria-hidden="true" /><p>{{ t("选一件事，在这里查看进展和交付。") }}</p></div>
+      </div>
     </div>
   </Teleport>
   <Teleport to="#composer-attachments">

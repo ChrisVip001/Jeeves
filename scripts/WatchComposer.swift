@@ -38,7 +38,7 @@ final class WatchComposer: UIResponder, UIApplicationDelegate, WKNavigationDeleg
             }
             throw Error('Missing workspace control at ' + location.pathname);
         }
-        (await until(() => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '我的事项'))).click();
+        (await until(() => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '工作'))).click();
         (await until(() => document.querySelector('[data-cowork-task="' + task + '"]'))).click();
         const input = await until(() => document.querySelector('#cowork-input'));
         const committed = new Promise((resolve,reject) => {

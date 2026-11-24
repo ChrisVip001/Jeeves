@@ -620,7 +620,7 @@ body:not(.view-today) .new-chat.is-current {
 }
 .mode-switch button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; }
 .mode-switch button:hover, .mode-task-list button:hover { background: var(--surface-hover); }
-body:is(.view-assistant,.view-cowork) .sidebar .conversations { display: none; }
+body:is(.view-assistant,.view-cowork,.view-activity) .sidebar .conversations { display: none; }
 #mode-task-rail:has(section) { flex: 1; min-height: 55px; overflow-y: auto; }
 .mode-task-list > .rail-label { font-size: 12px; font-weight: 500; }
 .mode-task-list > .cw-meta { margin: 0 10px; }
@@ -628,11 +628,11 @@ body:is(.view-assistant,.view-cowork) .sidebar .conversations { display: none; }
 .mode-task-list button[aria-current="page"] { background: var(--surface); }
 .mode-task-list button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .mode-task-list small,.cw-meta,.cw-feedback,.cw-empty p { font-size: 12px; color: var(--text-2); }
-.view-cowork main.chat > :is(#activity-view,#messages,#status,.composer-wrap) { display: none; }
-.view-cowork .bar :is(.chat-heading,.bar-actions) { display: none; }
-.view-cowork #executor-entry { margin-inline-start: auto; }
+body:is(.view-cowork,.view-activity) main.chat > :is(#messages,#status,#chat-decisions,#jump-latest,.composer-wrap) { display: none; }
+body:is(.view-cowork,.view-activity) .bar :is(.chat-heading,.bar-actions) { display: none; }
+body:is(.view-cowork,.view-activity) #executor-entry { margin-inline-start: auto; }
 #cowork-view { display: none; }
-.view-cowork #cowork-view { display: flex; flex: 1; min-height: 0; }
+body:is(.view-cowork,.view-activity) #cowork-view { display: flex; flex: 1; min-height: 0; }
 .cw-empty { margin: auto; max-width: 32rem; padding: 24px; text-align: center; color: var(--text-2); }
 .cw-empty h2 { margin: 8px 0 0; color: var(--text); }
 .cowork-detail { width: 100%; display: flex; flex-direction: column; min-height: 0; }

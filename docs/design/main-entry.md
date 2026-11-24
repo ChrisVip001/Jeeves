@@ -14,7 +14,7 @@ before you know exactly what to ask for.
 
 The Web and iOS workspaces share one Runtime conversation. Feishu retains its verified chat and
 sender and can follow up on work assigned from that origin. The paired Mac device grants access to
-selected windows when an assignment needs it. Chat and My work are the everyday entry points. The
+selected windows when an assignment needs it. Chat and Work are the everyday entry points. The
 menu provides account, device and connection management. Messages lead with the request and reply.
 The timestamp reveals the execution details.
 
@@ -58,7 +58,7 @@ from the service's response or confirmed record.
 | Delegate | Tell Jeeves what you need in Chat and attach files if needed. The task title summarizes the outcome and the task keeps the original request. A bound project folder is visible above the message. A new assignment in a clean Git repository uses its own checkout. Select it to switch back to automatic workspaces. |
 | Decide | One pending decision opens with its action and exact preview. Allow once or deny the current request. |
 | Recover | A stopped work page offers [operation review](../operations.md#reviewing-unknown-operations) and an explicit resume on the same assignment. |
-| Find work | Search titles in My work or follow a receipt. Mac and phone open the same work page. Reload, back and forward retain the destination. |
+| Find work | Search titles in Work or follow a receipt. On a wide screen the list stays on the left and the open item fills the right; on a phone the list opens the item as its own page. Reload, back and forward retain the destination. |
 | Inspect delivery | The latest terminal run has its own receipt. Results and files precede expandable conversation history. Replies from older runtimes are labeled separately. |
 | Review a file | Open a delivered file in the right pane on Mac or full screen on phone. For repository tasks, switch to Line changes to see additions and deletions with old and new line numbers. Save a copy from the text preview. |
 | Amend | Reply directly in the work page. Drafts are scoped to their chat or assignment within the current browser tab and survive reload. |
@@ -87,7 +87,7 @@ and any acceptance receipt. See the [task mail contract](../configuration.md#cal
 
 After comparing prices from a configured read-only quote source, you can ask Jeeves to watch one
 variant for a fixed number of days. The assignment keeps the source, variant and currency. Jeeves
-checks the price plus shipping hourly. You can open the same item in My work on your phone and
+checks the price plus shipping hourly. You can open the same item in Work on your phone and
 change the threshold. The first verified total strictly below the current threshold returns to the
 original chat with its source. An equal total, unknown shipping or an expired watch produces no
 alert. Watching a price authorizes no purchase.
@@ -212,7 +212,7 @@ operation and physical-device observations.
 ## 6. Recurring work
 
 Describe the schedule or event, the desired result and where it should appear. Jeeves proposes a
-card for the owner to review. A later request can amend, pause or resume the same duty. My Work
+card for the owner to review. A later request can amend, pause or resume the same duty. Work
 shows the confirmed definition and run history. A new account starts with no recurring duties.
 
 **Composition.** A trigger can be an exact time, a delay after approval, an interval, a calendar
