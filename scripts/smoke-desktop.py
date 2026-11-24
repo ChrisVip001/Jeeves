@@ -59,6 +59,10 @@ class Provider(BaseHTTPRequestHandler):
         if user.startswith('[Sent ') and '\n' in user:
             user = user.split('\n', 1)[1]  # the live ask carries a `[Sent …]` line; match on what the person typed
         tool_result = messages[-1]['role'] == 'tool'
+        # A worker review repeats the original fixture marker in a new user message.
+        # Review the existing outcome instead of asking to perform the write again.
+        approval_review = ('Round feedback: Self-check before delivery:' in user
+                           and ('custom-connector-fixture' in user or 'approval-fixture' in user))
         try:
             instruction = user.rsplit('Current human task:', 1)[-1].strip()
             task_tool = any(t.get('function', {}).get('name') == 'task' for t in body.get('tools', []))
@@ -86,6 +90,8 @@ class Provider(BaseHTTPRequestHandler):
             elif ('task-alpha-fixture' in user or 'task-beta-fixture' in user or 'task-follow-fixture' in user) and not tool_result:
                 self.chunk({'tool_calls': [{'index': 0, 'id': 'fixture-file', 'type': 'function', 'function': {'name': 'write_file', 'arguments': json.dumps({'path': 'report.txt', 'content': instruction})}}]})
                 self.chunk({}, 'tool_calls')
+            elif approval_review:
+                self.chunk({'content': 'Fixture review complete.'}, 'stop')
             elif 'custom-connector-fixture' in user and not tool_result:
                 if any(t['function']['name'] == 'custom_commit' for t in body.get('tools', [])):
                     self.chunk({'tool_calls': [{'index': 0, 'id': 'fixture-custom', 'type': 'function', 'function': {'name': 'custom_commit', 'arguments': '{"value":"synthetic"}'}}]})
@@ -229,7 +235,8 @@ def run(binary):
                 def answer(event):
                     if event['type'] == 'approvalRequested':
                         asked.append(event)
-                        rpc.call('approval/respond', {'turnId': event['turnId'], 'requestId': event['requestId'], 'approved': True, 'remember': 'once'})
+                        response = rpc.call('approval/respond', {'turnId': event['turnId'], 'requestId': event['requestId'], 'approved': True, 'remember': 'once'})
+                        assert response['accepted']
                 events = run_task('approval-fixture', answer)
                 assert len(asked) == 1, asked
                 assert any(e['type'] == 'toolCompleted' and not e['output'].startswith('Error:') for e in events)
