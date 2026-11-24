@@ -166,11 +166,13 @@ high-quality extraction use `run_command` with curl or an MCP fetching service.
   parallel. The circuit breaker is in-process: 3 consecutive failures open it for 60 seconds,
   with no persistence and no knob.
   → `runtime/crates/jeeves-mcp/src/transport.rs`, `lib.rs` (`Breaker`)
-* **Gap** — `jeeves mcp serve` implements `initialize`, `tools/list`, `tools/call`, `resources/list`
-  and `resources/read` (the two read-only memory views at `jeeves://memory/facts` and
-  `jeeves://memory/episodes`); MCP `prompts`, sampling and notifications are still not implemented.
-  MCP OAuth needs a manual `jeeves mcp login <name>`; there is no background re-authorisation after
-  a refresh token expires.
+* **Deliberate** — `jeeves mcp serve` implements `initialize`, `tools/list`, `tools/call`,
+  `resources/list`, `resources/read` (the two read-only memory views at `jeeves://memory/facts` and
+  `jeeves://memory/episodes`) and `prompts/list` / `prompts/get` (`recall` and `digest`). Sampling
+  and server-to-client notifications are not implemented: this server only exposes memory, so it
+  has no reason to ask the client to sample a model or push changes on its own. MCP OAuth needs a
+  manual `jeeves mcp login <name>`; there is no background re-authorisation after a refresh token
+  expires.
   → `runtime/crates/jeeves-mcp/src/server.rs`, `oauth.rs`
 * **Deliberate** — Model calls are retried only for 429/5xx/network, at most `JEEVES_LLM_RETRIES`
   times (default 2) inside a 30-second budget, and never by switching provider.

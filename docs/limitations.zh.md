@@ -117,9 +117,7 @@
 * **刻意** — MCP 反向请求（elicitation/sampling）得到明确的「不支持」错误。一个 MCP 连接一次只承载一个在途请求；
   不同服务器并行。熔断器是进程内的：连续 3 次失败后打开 60 秒，不持久化，也没有旋钮。
   → `runtime/crates/jeeves-mcp/src/transport.rs`、`lib.rs`（`Breaker`）
-* **未做** — `jeeves mcp serve` 实现了 `initialize`、`tools/list`、`tools/call`、`resources/list` 与
-  `resources/read`（两个只读记忆视图：`jeeves://memory/facts` 与 `jeeves://memory/episodes`）；MCP 的 `prompts`、
-  sampling 和通知仍未实现。MCP OAuth 需要手动 `jeeves mcp login <name>`；refresh token 过期后没有后台重新授权。
+* **刻意** — `jeeves mcp serve` 实现了 `initialize`、`tools/list`、`tools/call`、`resources/list`、`resources/read`（两个只读记忆视图：`jeeves://memory/facts` 与 `jeeves://memory/episodes`）以及`prompts/list` / `prompts/get`（`recall` 与 `digest`）。sampling 和服务端主动通知未实现：这个服务只暴露记忆，没有理由让客户端采样模型或自行推送变更。MCP OAuth 需要手动 `jeeves mcp login <name>`；refresh token 过期后没有后台重新授权。
   → `runtime/crates/jeeves-mcp/src/server.rs`、`oauth.rs`
 * **刻意** — 模型调用只对 429/5xx/网络错误重试，最多 `JEEVES_LLM_RETRIES` 次（默认 2），在 30 秒预算内，
   且从不靠切换 provider 来重试。

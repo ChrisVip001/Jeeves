@@ -32,12 +32,9 @@ pub async fn run(home: &Path, args: &[String]) -> Result<()> {
             install(home, source).await
         }
         Some("update") => update(home, args.get(1).map(String::as_str)).await,
-        Some(other) => {
-            println!(
-                "Unknown subcommand '{other}'. Options: list (default), export, install, update."
-            );
-            Ok(())
-        }
+        Some(other) => anyhow::bail!(
+            "Unknown subcommand '{other}'. Options: list (default), export, install, update."
+        ),
     }
 }
 
@@ -220,4 +217,17 @@ async fn update(home: &Path, index_arg: Option<&str>) -> Result<()> {
 
 fn is_http(url: &str) -> bool {
     url.starts_with("http://") || url.starts_with("https://")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    #[tokio::test]
+    async fn unknown_subcommand_is_an_error() {
+        let err = super::run(Path::new("/no/such/home"), &["bogus".to_string()])
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Unknown subcommand 'bogus'"));
+    }
 }

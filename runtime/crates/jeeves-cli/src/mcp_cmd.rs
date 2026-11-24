@@ -27,10 +27,9 @@ pub async fn run(home: &Path, args: &[String]) -> Result<()> {
             login(&config_path, home, name).await
         }
         Some("serve") => serve(home).await,
-        Some(other) => {
-            println!("Unknown subcommand '{other}'. Options: list (default), login <name>, serve.");
-            Ok(())
-        }
+        Some(other) => anyhow::bail!(
+            "Unknown subcommand '{other}'. Options: list (default), login <name>, serve."
+        ),
     }
 }
 
@@ -152,4 +151,17 @@ async fn login(config_path: &Path, home: &Path, name: &str) -> Result<()> {
         oauth::TokenStore::new(home, name).path().display()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    #[tokio::test]
+    async fn unknown_subcommand_is_an_error() {
+        let err = super::run(Path::new("/no/such/home"), &["bogus".to_string()])
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Unknown subcommand 'bogus'"));
+    }
 }

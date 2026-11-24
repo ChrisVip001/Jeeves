@@ -20,7 +20,7 @@ use anyhow::Result;
 
 const USAGE: &str = "\nJeeves — your personal assistant\n\nUsage:\n    jeeves                terminal chat\n    jeeves schedule acknowledge <name>   release an interrupted scheduled slot (jobs themselves fire inside the Runtime)
     jeeves home export|import <dir>   move this home (backup, another machine, local ⇄ cloud)
-    jeeves memory         rebuild the plaintext memory library / backfill the ledger\n    jeeves skill [update] list/update skills (index at <home>/skills/index.json by default)\n    jeeves mcp …          list MCP servers; login runs browser OAuth; serve exposes memory as an MCP server\n    jeeves skill …        skills: list / export --to claude,codex / install <url>\n    jeeves eval [path]    deterministic eval (offline 0/1, must be 100% to pass = release gate)\n    jeeves eval --replay  replay eval: recorded conversations + expected event sequences (reads evals/replay/)\n    jeeves judge [path]   one real model turn + a judge scores it (needs a key; the score never blocks a release)\n    jeeves research [path] research-quality: separate citation/review/overall scores on unseen sources (recorded only)\n    jeeves bench [path]   long-task benchmark: success rate and resume rate (recorded only, never blocks)\n    jeeves service …      install / uninstall / status / print a launchd or systemd user unit (nothing starts without --start)\n    jeeves runtime        start the private Runtime HTTP API\n    jeeves app-server     start the JSON-RPC server (stdin/stdout, newline-delimited JSON)\n    jeeves --version      print the version\n\nEnvironment:\n    JEEVES_HOME           state directory, ./.jeeves by default (state.db, SOUL.md, traces/ live here)\n    JEEVES_PORT           private Runtime port, 7777 by default\n";
+    jeeves memory         rebuild the plaintext memory library / backfill the ledger\n    jeeves connector …    list connectors; feishu login/status/send; calendar test\n    jeeves mcp …          list MCP servers; login runs browser OAuth; serve exposes memory as an MCP server\n    jeeves skill …        skills: list / export --to claude,codex / install <url|path> / update [index]\n    jeeves eval [path]    deterministic eval (offline 0/1, must be 100% to pass = release gate)\n    jeeves eval --replay  replay eval: recorded conversations + expected event sequences (reads evals/replay/)\n    jeeves judge [path]   one real model turn + a judge scores it (needs a key; the score never blocks a release)\n    jeeves research [path] research-quality: separate citation/review/overall scores on unseen sources (recorded only)\n    jeeves bench [path]   long-task benchmark: success rate and resume rate (recorded only, never blocks)\n    jeeves service …      install / uninstall / status / print a launchd or systemd user unit (nothing starts without --start)\n    jeeves runtime        start the private Runtime HTTP API\n    jeeves app-server     start the JSON-RPC server (stdin/stdout, newline-delimited JSON)\n    jeeves --version      print the version\n\nEnvironment:\n    JEEVES_HOME           state directory, ./.jeeves by default (state.db, SOUL.md, traces/ live here)\n    JEEVES_PORT           private Runtime port, 7777 by default\n";
 
 /// State directory. Defaults to under the current working directory rather than
 /// ~/.jeeves — "your memory is a file you can open" must hold true: whichever
@@ -191,5 +191,27 @@ mod tests {
     #[test]
     fn the_blocker_matches_the_platform() {
         assert_eq!(super::windows_blocker().is_none(), !cfg!(windows));
+    }
+
+    #[test]
+    fn usage_lists_each_command_once_including_connector() {
+        let commands: Vec<&str> = super::USAGE
+            .lines()
+            .filter(|line| line.starts_with("    jeeves "))
+            .collect();
+        assert_eq!(
+            commands
+                .iter()
+                .filter(|line| line.starts_with("    jeeves skill"))
+                .count(),
+            1,
+            "skill must be listed once: {commands:?}"
+        );
+        assert!(
+            commands
+                .iter()
+                .any(|line| line.starts_with("    jeeves connector")),
+            "connector must be listed: {commands:?}"
+        );
     }
 }

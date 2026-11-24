@@ -11,8 +11,7 @@ pub async fn run(settings: &jeeves_config::Settings, args: &[String]) -> Result<
         Some("backfill") => backfill(settings).await,
         None | Some("rebuild") => rebuild(settings).await,
         Some(other) => {
-            println!("Unknown subcommand '{other}'. Options: rebuild (default), backfill.");
-            Ok(())
+            anyhow::bail!("Unknown subcommand '{other}'. Options: rebuild (default), backfill.")
         }
     }
 }
@@ -70,4 +69,16 @@ async fn rebuild(settings: &jeeves_config::Settings) -> Result<()> {
         bundle.root().join("index.md").display()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn unknown_subcommand_is_an_error() {
+        let settings = jeeves_config::Settings::default();
+        let err = super::run(&settings, &["bogus".to_string()])
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Unknown subcommand 'bogus'"));
+    }
 }

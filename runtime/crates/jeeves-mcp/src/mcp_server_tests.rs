@@ -45,7 +45,77 @@ async fn initialize_hands_back_capabilities_and_identity() {
         result["capabilities"]["resources"].is_object(),
         "it has to declare the resources capability"
     );
+    assert!(
+        result["capabilities"]["prompts"].is_object(),
+        "it has to declare the prompts capability"
+    );
     assert_eq!(result["serverInfo"]["name"], "jeeves-memory");
+}
+
+#[tokio::test]
+async fn prompts_list_and_get_return_client_instructions_not_memory_writes() {
+    let server = server().await;
+    let listed = call(&server, "prompts/list", json!({})).await;
+    let names: Vec<&str> = listed["result"]["prompts"]
+        .as_array()
+        .expect("the prompts array")
+        .iter()
+        .map(|p| p["name"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(names, vec!["recall", "digest"]);
+
+    let recalled = call(
+        &server,
+        "prompts/get",
+        json!({"name": "recall", "arguments": {"topic": "morning meetings"}}),
+    )
+    .await;
+    let message = &recalled["result"]["messages"][0];
+    assert_eq!(message["role"], "user");
+    assert!(
+        message["content"]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("morning meetings"),
+        "{recalled}"
+    );
+
+    let digest = call(&server, "prompts/get", json!({"name": "digest"})).await;
+    assert!(
+        digest["result"]["messages"][0]["content"]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("memory_list")
+    );
+
+    let before = text(
+        &call(
+            &server,
+            "tools/call",
+            json!({"name": "memory_list", "arguments": {}}),
+        )
+        .await,
+    );
+    assert!(
+        before.contains("Memory has no facts yet"),
+        "resolving a prompt must not write memory: {before}"
+    );
+}
+
+#[tokio::test]
+async fn prompts_get_rejects_a_missing_topic_and_an_unknown_name() {
+    let server = server().await;
+    let missing = call(&server, "prompts/get", json!({"name": "recall"})).await;
+    assert_eq!(missing["error"]["code"], -32602, "{missing}");
+    assert!(
+        missing["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("topic")
+    );
+
+    let unknown = call(&server, "prompts/get", json!({"name": "nope"})).await;
+    assert_eq!(unknown["error"]["code"], -32602, "{unknown}");
 }
 
 #[tokio::test]
