@@ -29,6 +29,8 @@ const sections = computed(() => {
     <header class="work-list-head"><h1 id="activity-title">{{ t("我的事项") }}</h1>
       <label v-if="center.state.tasks.length || chatRequests.length" class="work-search"><Search :size="18" /><input v-model="search" type="search" :aria-label="t('搜索事项')" :placeholder="t('搜索事项')" /></label>
     </header>
+    <!-- Recurring-work reviews wait on you, so they sit under the title; the 长期 list goes last. -->
+    <slot />
     <p v-if="query && sections.every(s => !s.rows.length && !s.requests.length)" role="status">{{ t("没有找到匹配的事项。") }}</p>
     <p v-if="center.state.error" role="alert">{{ center.state.error }} <button type="button" class="today-btn" @click="center.retry">{{ t("重试") }}</button></p>
     <p v-else-if="!center.state.loadedOwner || center.state.loadedOwner !== center.state.owner" role="status">{{ t("正在读取任务…") }}</p>
@@ -48,5 +50,6 @@ const sections = computed(() => {
         </button>
       </section>
     </template>
+    <slot name="after" />
   </section>
 </template>

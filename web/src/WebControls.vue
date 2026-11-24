@@ -178,11 +178,15 @@ function settings(value: "notifications" | "connections" = "notifications") {
   tab.value = value;
   open.value = true;
 }
-function manageMcp() {
+/** The skills, MCP and memory panels still live in the workspace drawer; open the one asked for. */
+function manageCapability(which: "skills" | "mcp" | "memory") {
   open.value = false;
-  const trigger = document.querySelector<HTMLButtonElement>("#cap-mcp");
+  const trigger = document.querySelector<HTMLButtonElement>(which === "memory" ? "#nav-memory" : `#cap-${which}`);
   trigger?.click();
   trigger?.focus();
+}
+function manageMcp() {
+  manageCapability("mcp");
 }
 const SETUP_KEY = "jeeves.setup.dismissed";
 const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
@@ -225,6 +229,13 @@ watch(
 );
 </script>
 <template>
+  <Teleport to="#bottom-tabs">
+    <nav class="bottom-tabs" :aria-label="t('主导航')">
+      <button type="button" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="20" /><span>{{ t("对话") }}</span></button>
+      <button type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="20" /><span>{{ t("我的事项") }}</span><span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button type="button" @click="settings()"><Settings :size="20" /><span>{{ t("设置") }}</span></button>
+    </nav>
+  </Teleport>
   <Teleport to="#primary-navigation">
     <nav class="primary-navigation" :aria-label="t('主导航')">
       <button id="mode-assistant" type="button" :aria-label="t('对话')" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
@@ -232,8 +243,10 @@ watch(
     </nav>
   </Teleport>
   <Teleport to="#activity-view">
-    <ResponsibilityCards v-if="state.view === 'activity'" :busy="state.busy" history />
-    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant" />
+    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant">
+      <ResponsibilityCards :busy="state.busy" />
+      <template #after><ResponsibilityCards :busy="state.busy" list /></template>
+    </ActivityPage>
   </Teleport>
   <Teleport to="#chat-decisions">
     <button v-if="lastWork && state.view === 'chat' && state.sessionId === state.mainSessionId && !followingTask" class="return-work" type="button" @click="inspectActivity(lastWork.id)"><CornerUpLeft :size="15" /><span>{{ t("继续上次的事项") }}</span><strong>{{ lastWork.title }}</strong></button>
@@ -243,7 +256,7 @@ watch(
   <Teleport to="#cowork-view">
     <div v-if="state.view === 'cowork' && coworkTask" class="work-columns">
       <WorkRail :center="webTasks" :selected="coworkTask.id" @inspect="inspectActivity" @all="showActivity" />
-      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" />
+      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity" />
       <WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks">
         <DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" />
       </WorkScreen>
@@ -340,6 +353,7 @@ watch(
       :initial-tab="tab"
       @close="open = false"
       @mcp="manageMcp"
+      @capability="manageCapability"
     >
       <template #approval-notifications><ApprovalPushSettings /></template>
     </SettingsPanel>
