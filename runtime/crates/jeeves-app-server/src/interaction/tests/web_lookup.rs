@@ -1,3 +1,5 @@
+//! The IP literal avoids DNS. The injected handler serves both calls, not an HTTP endpoint.
+
 use super::*;
 use jeeves_provider::{ContentBlock, mock::Mock};
 use jeeves_tools::web::{fetch_url_with_primary, search_web_with_primary};
@@ -25,7 +27,6 @@ async fn chinese_web_lookup_reads_the_current_page_and_replies_without_creating_
             }
         })
     });
-    // The IP literal avoids DNS. The injected handler serves both calls, not an HTTP endpoint.
     let mut tools = server.tools.without("search_web").without("fetch_url");
     tools.register(search_web_with_primary(Some(fixture.clone())));
     tools.register(fetch_url_with_primary(Some(fixture)));
@@ -66,23 +67,24 @@ async fn chinese_web_lookup_reads_the_current_page_and_replies_without_creating_
         ]
     );
 
-    let rs = model.received.lock().unwrap();
-    assert_eq!(rs.len(), 3);
-    assert_eq!(asked(&rs[0]), ASK);
-    let saw = |request: &CreateRequest, id: &str, text: &str| {
-        request
-            .messages
-            .iter()
-            .flat_map(|m| &m.content)
-            .any(|block| {
-                matches!(block, ContentBlock::ToolResult { tool_use_id, content }
-                if tool_use_id == id && content.contains(text))
-            })
-    };
-    assert!(saw(&rs[1], "lookup-search", OLD));
-    assert!(!saw(&rs[1], "lookup-search", CURRENT));
-    assert!(saw(&rs[2], "lookup-fetch", CURRENT));
-    drop(rs);
+    {
+        let rs = model.received.lock().unwrap();
+        assert_eq!(rs.len(), 3);
+        assert_eq!(asked(&rs[0]), ASK);
+        let saw = |request: &CreateRequest, id: &str, text: &str| {
+            request
+                .messages
+                .iter()
+                .flat_map(|m| &m.content)
+                .any(|block| {
+                    matches!(block, ContentBlock::ToolResult { tool_use_id, content }
+                    if tool_use_id == id && content.contains(text))
+                })
+        };
+        assert!(saw(&rs[1], "lookup-search", OLD));
+        assert!(!saw(&rs[1], "lookup-search", CURRENT));
+        assert!(saw(&rs[2], "lookup-fetch", CURRENT));
+    }
 
     let replies: Vec<_> = events
         .iter()

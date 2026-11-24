@@ -11,12 +11,14 @@
 //!
 //! What the model gets back is plain text — Jeeves never parses HTML for the model, just readable results.
 
-use std::sync::Arc;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::Result;
 use serde_json::{Value, json};
+use tokio::sync::OnceCell;
 
 use crate::{Tool, ToolCtx, opt_u32, require_str};
 
@@ -38,10 +40,14 @@ pub fn canonical_source_url(text: &str) -> Option<String> {
     Some(url.to_string())
 }
 
+type SearchKey = (String, u32);
+type SearchResult = Arc<OnceCell<String>>;
+
 /// This turn's search budget: `search_max` calls at most, counted in `used`.
 pub struct TurnLimits {
     pub search_max: u32,
     pub used: AtomicU32,
+    successes: Mutex<HashMap<SearchKey, SearchResult>>,
 }
 
 impl Default for TurnLimits {
@@ -55,7 +61,25 @@ impl TurnLimits {
         Self {
             search_max: search_max.clamp(1, 200),
             used: AtomicU32::new(0),
+            successes: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Coalesce identical requests in this turn. A failed or cancelled lookup leaves the cell empty.
+    async fn search_once(
+        &self,
+        query: &str,
+        max_results: u32,
+        fetch: impl Future<Output = Result<String>>,
+    ) -> Result<String> {
+        let result = self
+            .successes
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Search result cache is unavailable"))?
+            .entry((query.to_owned(), max_results))
+            .or_default()
+            .clone();
+        result.get_or_try_init(|| fetch).await.cloned()
     }
 
     /// Read the cap from the environment. Zero/invalid values mean "not configured"
@@ -586,7 +610,7 @@ pub fn search_web() -> Tool {
 pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
     Tool {
         name: "search_web".to_string(),
-        description: "Search the public web through the host's search service, with built-in fallback. Get source URLs and excerpts. Use focused queries and site:domain for primary sources. Excerpts are leads, not verified facts: use fetch_url to read relevant sources before relying on their claims. Refine irrelevant results."
+        description: "Search the public web through the host's search service, with built-in fallback. Get source URLs and excerpts. Use focused queries and site:domain for primary sources. Excerpts are leads, not verified facts: use fetch_url to read relevant sources before relying on their claims. Refine irrelevant results rather than repeating the same search within a turn."
             .to_string(),
         input_schema: json!({
             "type": "object",
@@ -610,44 +634,71 @@ pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
                 let query = query.trim();
                 anyhow::ensure!(!query.is_empty(), "Search query must not be empty");
                 let max_results = opt_u32(&args, "max_results", 5)?.clamp(1, 10);
-                let task_dir = ctx.task_run_id.as_ref().and(ctx.cwd.clone());
-
-                if let Some(text) = primary::call(&primary, ctx, json!({"query": query, "max_results": max_results})).await {
-                    if let Some(dir) = task_dir.as_deref() {
-                        for url in text.lines().filter_map(|line| line.trim().strip_prefix("URL: ")).filter_map(canonical_source_url).take(10) {
-                            keep_search_snapshot(dir, query, &url, &text);
-                        }
-                    }
-                    return Ok(text);
-                }
-
-                let plan = plan_backends(tavily_key(), brave_key(), bing_enabled(), ddg_enabled());
-                if plan.is_empty() {
-                    return Err(anyhow::anyhow!("no search backend available (no key, and both Bing and DDG are switched off). Configure a key (TAVILY_API_KEY / BRAVE_API_KEY), or re-enable JEEVES_SEARCH_BING / JEEVES_SEARCH_DDG."));
-                }
-                let (engine, hits) = match search_backends(&plan, query, max_results).await {
-                    Ok(result) => result,
-                    Err(error) => return Err(anyhow::anyhow!("web search returned no usable results ({error}). Refine the query or use fetch_url with a known source URL. Report that search failed; do not invent search findings.")),
-                };
-                let lines: Vec<String> = hits
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (title, snippet, link))| {
-                        format!("{}. {title}\n   {snippet}\n   {link}", i + 1)
-                    })
-                    .collect();
-                if let Some(dir) = task_dir.as_deref() {
-                    for (title, snippet, link) in &hits {
-                        keep_search_snapshot(dir, query, link, &format!("{title}\n{snippet}\n{link}"));
-                    }
-                }
-                Ok(crate::report::as_search_results(&format!(
-                    "Web results for '{query}' (via {engine}):\n{}",
-                    lines.join("\n")
-                )))
+                let limits = ctx.turn_limits.clone();
+                limits
+                    .search_once(query, max_results, search_uncached(&primary, ctx, query, max_results))
+                    .await
             })
         }),
     }
+}
+
+async fn search_uncached(
+    primary: &Option<crate::Handler>,
+    ctx: ToolCtx,
+    query: &str,
+    max_results: u32,
+) -> Result<String> {
+    let task_dir = ctx.task_run_id.as_ref().and(ctx.cwd.clone());
+
+    if let Some(text) = primary::call(
+        primary,
+        ctx,
+        json!({"query": query, "max_results": max_results}),
+    )
+    .await
+    {
+        if let Some(dir) = task_dir.as_deref() {
+            for url in text
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix("URL: "))
+                .filter_map(canonical_source_url)
+                .take(10)
+            {
+                keep_search_snapshot(dir, query, &url, &text);
+            }
+        }
+        return Ok(text);
+    }
+
+    let plan = plan_backends(tavily_key(), brave_key(), bing_enabled(), ddg_enabled());
+    if plan.is_empty() {
+        return Err(anyhow::anyhow!(
+            "no search backend available (no key, and both Bing and DDG are switched off). Configure a key (TAVILY_API_KEY / BRAVE_API_KEY), or re-enable JEEVES_SEARCH_BING / JEEVES_SEARCH_DDG."
+        ));
+    }
+    let (engine, hits) = match search_backends(&plan, query, max_results).await {
+        Ok(result) => result,
+        Err(error) => {
+            return Err(anyhow::anyhow!(
+                "web search returned no usable results ({error}). Refine the query or use fetch_url with a known source URL. Report that search failed; do not invent search findings."
+            ));
+        }
+    };
+    let lines: Vec<String> = hits
+        .iter()
+        .enumerate()
+        .map(|(i, (title, snippet, link))| format!("{}. {title}\n   {snippet}\n   {link}", i + 1))
+        .collect();
+    if let Some(dir) = task_dir.as_deref() {
+        for (title, snippet, link) in &hits {
+            keep_search_snapshot(dir, query, link, &format!("{title}\n{snippet}\n{link}"));
+        }
+    }
+    Ok(crate::report::as_search_results(&format!(
+        "Web results for '{query}' (via {engine}):\n{}",
+        lines.join("\n")
+    )))
 }
 
 /// Download byte cap.
