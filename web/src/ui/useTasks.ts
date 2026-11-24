@@ -25,6 +25,7 @@ export interface TaskActions {
   pending(sessionId: string): Promise<ApprovalPendingResponse>;
   messages(sessionId: string, cursor?: string | null): Promise<SessionMessagesResponse>;
   artifacts(taskId: string): Promise<TaskArtifactsResponse>;
+  confirmGoal?(taskId: string, accept: boolean): Promise<TaskEnvelope>;
   action(
     action: "suspend" | "resume" | "cancel",
     taskId: string,
@@ -185,6 +186,20 @@ export function useTasks(actions: TaskActions) {
       state.busy = "";
     }
   }
+  const sendConfirmGoal = actions.confirmGoal;
+  const confirmGoal = sendConfirmGoal && (async (taskId: string, accept: boolean) => {
+    if (state.busy) return;
+    state.busy = taskId;
+    state.error = "";
+    try {
+      await sendConfirmGoal(taskId, accept);
+      await refresh();
+    } catch (error) {
+      state.error = String(error);
+    } finally {
+      state.busy = "";
+    }
+  });
   const sendCheckpoint = actions.gitCheckpoint;
   const gitCheckpoint = sendCheckpoint && (async (params: TaskGitCheckpointParams): Promise<TaskGitCheckpointResponse> => {
     if (state.busy) throw new Error("Checkpoint unavailable");
@@ -296,6 +311,7 @@ export function useTasks(actions: TaskActions) {
     openReceipt,
     inspect,
     action,
+    confirmGoal,
     gitCheckpoint,
     gitCheckpointPolicy: actions.gitCheckpointPolicy,
     saveGitCheckpointPolicy,

@@ -19,6 +19,7 @@ Handle casual conversation, general questions, advice and progress inquiries dir
 Summarize the intended outcome from the conversation and keep the human's constraints. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
 create: one item per independent goal that needs persistence (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
 Use acceptance for objectively verifiable deliverables. Use the shared task criteria. Copy file paths, required literal text and test commands from the human instruction. \
+Add goal_draft when the outcome is clear to you but cannot be stated as a mechanical check: one sentence, in the human's language, naming what must be true for this to count as done. It takes effect only if the person confirms it, so draft what you believe they asked for and never invent a goal they did not ask for. Omit it when the acceptance checks already say when the work is done. \
 continue: pass a follow-up to the existing task (task_id from list). Use its words once. When the follow-up names a file, required text or test command for a finished task, add matching acceptance so the revised delivery is measured too; the previous run's checks do not carry over. If the target is unclear, ask which task the human means. \
 draft_email: when the human asks to change a previously requested send to a draft, use this instead of continue or create. The runtime resolves the target from the human message. \
 cancel: stop a task the human asked to stop. \
@@ -31,6 +32,9 @@ struct Item {
     instruction: String,
     #[serde(default)]
     acceptance: Vec<AcceptanceView>,
+    /// A "done when" sentence for the person to confirm. Inert until they do.
+    #[serde(default)]
+    goal_draft: Option<String>,
 }
 
 impl Item {
@@ -116,7 +120,8 @@ pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) 
                         "properties": {
                             "title": {"type": "string", "description": "Short summary of the requested outcome in the human's language"},
                             "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"},
-                            "acceptance": acceptance_schema()
+                            "acceptance": acceptance_schema(),
+                            "goal_draft": {"type": "string", "description": "One sentence naming what must be true for this to count as done; takes effect only after the person confirms it. Omit when acceptance already measures the outcome."}
                         },
                         "required": ["title", "instruction"]
                     }
@@ -326,6 +331,7 @@ async fn start_one(
             session_id: Some(p.session_id.clone()),
             title: item.title.clone(),
             goal_condition: None,
+            goal_draft: item.goal_draft.clone(),
             max_rounds: None,
             tier: None,
             acceptance,

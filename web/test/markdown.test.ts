@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseInline, parseMarkdown, stripToolFold } from "../src/markdown.ts";
+import { StreamMarkdown, parseInline, parseMarkdown, stripToolFold } from "../src/markdown.ts";
 
 test("headings, paragraphs and rules each land where they belong", () => {
   const blocks = parseMarkdown("# Verdict\n\nthe first paragraph\nthe second line\n\n---\n");
@@ -146,4 +146,35 @@ test("stripToolFold: the model-only folded tail is stripped, while what a human 
 
   const noClose = "halfway through [tools used: never closed";
   assert.equal(stripToolFold(noClose), noClose);
+});
+
+test("cancel() drops the queued repaint so the authoritative reply is not painted twice", () => {
+  const originalRaf = globalThis.requestAnimationFrame;
+  const originalCaf = globalThis.cancelAnimationFrame;
+  const pending = new Map<number, FrameRequestCallback>();
+  const cancelled: number[] = [];
+  let next = 0;
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+    next += 1;
+    pending.set(next, callback);
+    return next;
+  }) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = ((id: number) => {
+    cancelled.push(id);
+    pending.delete(id);
+  }) as typeof cancelAnimationFrame;
+  try {
+    const host = { append() {}, replaceChildren() {} } as unknown as HTMLElement;
+    const stream = new StreamMarkdown(host);
+    stream.push("Airline A\n");
+    assert.equal(pending.size, 1, "the first delta queues one repaint");
+    stream.cancel();
+    assert.deepEqual(cancelled, [1], "cancel drops that frame");
+    assert.equal(pending.size, 0, "nothing is left to append into the replaced bubble");
+    stream.push("Airline A\n");
+    assert.equal(pending.size, 0, "a delta after cancel cannot resurrect the stream");
+  } finally {
+    globalThis.requestAnimationFrame = originalRaf;
+    globalThis.cancelAnimationFrame = originalCaf;
+  }
 });

@@ -281,6 +281,7 @@ export type * from "./TaskReviewFile";
 export type * from "./TaskReviewView";
 export type * from "./TaskReviewCaptureParams";
 export type * from "./TaskActionParams";
+export type * from "./TaskGoalConfirmParams";
 export type * from "./TaskUpdatedNotification";
 export type * from "./ErrorNotification";
 export type * from "./ServerNotification";

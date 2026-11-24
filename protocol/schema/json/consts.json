@@ -92,6 +92,7 @@
     "TASK_GIT_CHECKPOINT": "task/gitCheckpoint",
     "TASK_GIT_CHECKPOINT_POLICY": "task/gitCheckpointPolicy",
     "TASK_GIT_CHECKPOINT_POLICY_SET": "task/gitCheckpointPolicy/set",
+    "TASK_GOAL_CONFIRM": "task/goal/confirm",
     "TASK_INTEGRATE": "task/integrate",
     "TASK_LIST": "task/list",
     "TASK_OPERATIONS": "task/operations",

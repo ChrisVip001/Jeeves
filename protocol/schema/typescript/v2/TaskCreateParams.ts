@@ -24,6 +24,11 @@ export type TaskCreateParams = {
    */
   goalCondition: string | null;
   /**
+   * A "done when" line drafted for the person to confirm. It never activates on its own, so
+   * the model may fill it in; `goalCondition` and `goalDraft` are mutually exclusive.
+   */
+  goalDraft?: string;
+  /**
    * Per-task round cap; absent = `JEEVES_GOAL_MAX_ROUNDS`.
    */
   maxRounds: number | null;

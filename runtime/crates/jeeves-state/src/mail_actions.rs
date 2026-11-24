@@ -291,6 +291,7 @@ mod tests {
                 session_id: Some("main"),
                 title: id,
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: "{}",
                 cwd: None,

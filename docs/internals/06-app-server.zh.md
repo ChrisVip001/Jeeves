@@ -98,7 +98,7 @@ std 锁只守一次读改写，绝不跨 await。每会话写段锁覆盖历史�
 - `account_round` 写步骤（幂等键 `<turn_id>:<seq>`）、真实存在的产物、花费，并运行验收（`fileExists`、`fileContains`、`jsonEquals`、`toolsOk`、`receiptConfirmed`、`commandSucceeds`：一次 `stat`、一次读、一次 SQL 计数，或经 exec 门运行一条命令；路径经 `paths.rs` 解析）。
 - 依次处理用户中断、任务预算、工具结果未知、运行中的后台作业、已声明的外部输入、输出或资源限制、验收失败和结果矛盾，最后才调用裁判。
 - 验收失败且还有回合（`max_rounds`：任务自己的，否则 `JEEVES_GOAL_MAX_ROUNDS`，默认 5）时，把度量结果作为下一条消息再跑一次；回合用尽则任务进入需要关注。有事实失败时不调用裁判。
-- 裁判（`goal.rs`）只在任务有目标条件时运行：小模型、无工具、最近 8 轮且截断到 8000 字符、JSON `{ok, impossible, reason}`；自相矛盾的回答按未达成算。`ok` → 完成，`impossible` → 失败，回合用尽 → 失败且状态为 `round-limit`，连续两轮原地踏步（`turn/progress.rs`：理由与上一轮相同，或没有成功的工具调用）→ 需要关注且状态为 `stalled`，裁判坏了 → 需要关注且状态为 `blocked`，否则理由成为同一会话的下一条用户消息。每个结论都发 `goalRound`。只有人能设目标（`set_task_goal`，任务行上的一列），模型没有通往它的路径。
+- 裁判（`goal.rs`）只在任务有目标条件时运行：小模型、无工具、最近 8 轮且截断到 8000 字符、JSON `{ok, impossible, reason}`；自相矛盾的回答按未达成算。`ok` → 完成，`impossible` → 失败，回合用尽 → 失败且状态为 `round-limit`，连续两轮原地踏步（`turn/progress.rs`：理由与上一轮相同，或没有成功的工具调用）→ 需要关注且状态为 `stalled`，裁判坏了 → 需要关注且状态为 `blocked`，否则理由成为同一会话的下一条用户消息。每个结论都发 `goalRound`。只有人能启用目标：`set_task_goal`（REPL 的 `/goal`）和 `task/goal/confirm`（卡片上的回答）是两道门，都只从人的控件进入。`task` 工具的 `goal_draft` 只写入 `agent_tasks.goal_draft` 这一列，裁判从不读它；`Tasks::confirm_goal_draft` 把它提升为 `goal_condition`，若该行已有条件则拒绝，无论采用与否都清掉草稿。
 - `needs_attention` 非终态：人可以继续或取消。
 - 计划（`JEEVES_PLAN`，默认关）：第一次 loop 前一次模型调用产出 3 到 6 步的计划，存为 `task_steps`（`kind = "plan"`）并以文本附到消息上。验收失败可修订一次（`MAX_VERSIONS = 2`）。计划从不执行任何东西，也从不携带验收条件；规划失败只打一行，轮照常运行。
 

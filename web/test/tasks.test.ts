@@ -296,3 +296,35 @@ test("answering echoes the approval version and a late answer names who answered
   assert.deepEqual(center.state.late, { answeredBy: "telegram" });
   assert.equal(center.state.error, "");
 });
+
+test("a drafted completion standard only becomes the goal when the person confirms it", async () => {
+  const drafted = {
+    id: "task", title: "Write the brief", sessionId: "main", status: "running",
+    goalDraft: "The brief covers every source", acceptance: [], checks: [],
+  } as unknown as AgentTaskView;
+  let tasks = [drafted];
+  const answers: { taskId: string; accept: boolean }[] = [];
+  const center = useTasks({
+    list: async () => ({ tasks }),
+    pending: async () => ({ approvals: [] }),
+    messages: async () => ({ data: [], nextCursor: null }),
+    artifacts: async () => ({ artifacts: [] }),
+    action: async () => { throw Error("answering a draft is not a task action"); },
+    approve: async () => { throw Error("a drafted goal is not an approval"); },
+    confirmGoal: async (taskId, accept) => {
+      answers.push({ taskId, accept });
+      const { goalDraft, ...rest } = tasks[0]! as AgentTaskView & { goalDraft?: string };
+      tasks = [accept ? { ...rest, goalCondition: goalDraft } as AgentTaskView : rest as AgentTaskView];
+      return { task: tasks[0]! };
+    },
+  });
+  center.state.owner = "main";
+  await center.refresh();
+  assert.equal(center.state.tasks[0]?.goalDraft, "The brief covers every source");
+  assert.equal(center.state.tasks[0]?.goalCondition, undefined);
+
+  await center.confirmGoal?.(drafted.id, true);
+  assert.deepEqual(answers, [{ taskId: "task", accept: true }]);
+  assert.equal(center.state.tasks[0]?.goalCondition, "The brief covers every source");
+  assert.equal(center.state.tasks[0]?.goalDraft, undefined, "the card never asks twice");
+});

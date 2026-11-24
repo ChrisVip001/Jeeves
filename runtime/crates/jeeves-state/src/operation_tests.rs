@@ -17,6 +17,7 @@ async fn fixture() -> (
             session_id: Some("chat"),
             title: "work",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

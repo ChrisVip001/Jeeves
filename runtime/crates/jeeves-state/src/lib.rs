@@ -100,6 +100,9 @@ mod schedule_completion_tests;
 mod checkpoint_round_tests;
 
 #[cfg(test)]
+mod goal_draft_tests;
+
+#[cfg(test)]
 mod memory_edit_tests;
 
 #[cfg(test)]

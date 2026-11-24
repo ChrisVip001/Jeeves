@@ -17,6 +17,7 @@ async fn add(tasks: &Tasks, id: &str) {
             session_id: Some("chat"),
             title: id,
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

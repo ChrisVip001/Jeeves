@@ -58,6 +58,8 @@ export const webTasks = useTasks({
     }),
   action: (action, taskId) =>
     preferenceRequest<TaskEnvelope>("/api/task", { action, taskId }),
+  confirmGoal: (taskId, accept) =>
+    preferenceRequest<TaskEnvelope>("/api/task", { action: "confirmGoal", taskId, accept }),
   gitCheckpoint: async (params) => {
     const result = await preferenceRequest<TaskGitCheckpointResponse>("/api/task/git-checkpoint", params);
     await catchUpTaskEvents();

@@ -93,6 +93,7 @@ pub(crate) async fn view(server: &Server, row: &TaskRow) -> Result<AgentTaskView
         session_id: row.session_id.clone(),
         title: row.title.clone(),
         goal_condition: row.goal_condition.clone(),
+        goal_draft: row.goal_draft.clone(),
         status: row.status.as_str().to_string(),
         rounds_used: row.rounds_used,
         max_rounds: row.max_rounds,
@@ -228,6 +229,16 @@ pub(crate) async fn create_with_handoff(
         .as_deref()
         .map(str::trim)
         .filter(|text| !text.is_empty());
+    let goal_draft = params
+        .goal_draft
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty());
+    if goal.is_some() && goal_draft.is_some() {
+        return Err(invalid(
+            "a task takes either a confirmed goal or a drafted one, not both",
+        ));
+    }
     let tier = crate::route::clean_tier(params.tier.as_deref())?;
     let (edit_checks, final_checks) = split_checks(&params.code_checks)?;
     let mut acceptance = params.acceptance.clone();
@@ -276,6 +287,7 @@ pub(crate) async fn create_with_handoff(
         session_id: session,
         title,
         goal_condition: goal,
+        goal_draft,
         acceptance_json: &acceptance_json,
         budget_json: &budget_json,
         cwd: cwd_text.as_deref(),
@@ -838,3 +850,46 @@ mod waits_tests;
 
 #[cfg(test)]
 mod recovery_tests;
+
+/// Take the person's answer on the drafted "done when" line. Accepting it turns the draft into
+/// the task's goal condition, so later rounds are judged against it; declining drops the draft.
+///
+/// This is the only path that can activate a drafted goal, and only a human control reaches it:
+/// the model can write a draft but can never answer for the person.
+pub(crate) async fn confirm_goal(
+    server: &Server,
+    sink: &EventSink,
+    params: jeeves_protocol::TaskGoalConfirmParams,
+) -> Result<TaskEnvelope, ErrorObject> {
+    let row = reload(server, &params.task_id).await?;
+    if row.goal_draft.is_none() {
+        return Err(invalid("this task has no drafted goal to answer"));
+    }
+    let answered = server
+        .tasks
+        .confirm_goal_draft(&row.id, params.accept)
+        .await
+        .map_err(|e| invalid(format!("the answer was not recorded: {e}")))?;
+    if !answered {
+        return Err(invalid(
+            "the drafted goal was already answered; reload the task",
+        ));
+    }
+    let row = reload(server, &row.id).await?;
+    let reason = if params.accept {
+        "goal confirmed by the user"
+    } else {
+        "drafted goal declined by the user"
+    };
+    if let Err(e) = server
+        .events
+        .append(&row.id, None, "goal_draft_answered", Some(reason))
+        .await
+    {
+        eprintln!("(jeeves) the goal answer was not recorded on the timeline: {e}");
+    }
+    notify(sink, &row, Some(reason));
+    Ok(TaskEnvelope {
+        task: view(server, &row).await?,
+    })
+}

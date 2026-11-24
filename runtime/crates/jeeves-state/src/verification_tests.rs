@@ -15,6 +15,7 @@ async fn receipts_bind_versions_roll_back_with_checks_and_follow_reverted_conten
             session_id: Some("jeeves-main"),
             title: "report",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: acceptance,
             budget_json: "{}",
             cwd: None,

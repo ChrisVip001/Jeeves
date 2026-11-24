@@ -11,6 +11,7 @@ async fn checkpoint_admission_records_the_round_before_work_can_start() {
             session_id: Some("chat"),
             title: "work",
             goal_condition: Some("finish work"),
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

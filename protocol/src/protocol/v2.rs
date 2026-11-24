@@ -107,6 +107,7 @@ pub mod methods {
     pub const TASK_SUSPEND: &str = "task/suspend";
     pub const TASK_RESUME: &str = "task/resume";
     pub const TASK_CANCEL: &str = "task/cancel";
+    pub const TASK_GOAL_CONFIRM: &str = "task/goal/confirm";
     /// Shells declare what they can do; the engine answers which of those it supports.
     pub const SESSION_CAPABILITIES: &str = "session/capabilities";
     pub const SESSION_PERMISSION_GET: &str = "session/permission/get";
@@ -797,6 +798,11 @@ pub struct AgentTaskView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     pub title: String,
+    /// A "done when" line the model drafted. Inert until the person confirms it, which turns it
+    /// into `goalCondition`; until then a card asks them to confirm or drop it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub goal_draft: Option<String>,
     /// Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub goal_condition: Option<String>,
@@ -862,6 +868,11 @@ pub struct TaskCreateParams {
     /// Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
     #[serde(default)]
     pub goal_condition: Option<String>,
+    /// A "done when" line drafted for the person to confirm. It never activates on its own, so
+    /// the model may fill it in; `goalCondition` and `goalDraft` are mutually exclusive.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub goal_draft: Option<String>,
     /// Per-task round cap; absent = `JEEVES_GOAL_MAX_ROUNDS`.
     #[serde(default)]
     pub max_rounds: Option<i32>,
@@ -1301,6 +1312,17 @@ pub struct TaskActionParams {
     pub task_id: String,
     #[serde(default)]
     pub reason: Option<String>,
+}
+
+/// `task/goal/confirm`: the person's answer on the drafted "done when" line. `accept` turns the
+/// draft into the task's goal condition; otherwise the draft is dropped and nothing is judged.
+/// Only this call, reached from a human control, can activate a goal.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct TaskGoalConfirmParams {
+    pub task_id: String,
+    pub accept: bool,
 }
 
 /// A task changed state. The event bus folds it into a ping; the hub's `/api/tasks` shows the row.

@@ -9,6 +9,7 @@ import { t } from "./i18n";
 import { webTasks } from "./tasks";
 import { workStatus } from "./work-status";
 import { submissionTracker } from "./ui/submission";
+import GoalDraftCard from "./GoalDraftCard.vue";
 import TaskDelivery from "./TaskDelivery.vue";
 import TaskFileReview from "./TaskFileReview.vue";
 import type { TaskReviewFile } from "./protocol";
@@ -95,6 +96,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
         :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
+      <GoalDraftCard :task="task" :center="webTasks" />
       <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
       <TaskDelivery :task="task" :center="webTasks" :selected="reviewFile?.path" @open="openReview" />
       <div v-if="!approval && ['suspended','needs_attention','needsAttention'].includes(task.status)" class="td-actions">

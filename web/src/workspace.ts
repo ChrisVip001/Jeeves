@@ -2019,6 +2019,7 @@ async function send(
     timeline.settle();
 
     if (completed !== null) {
+      stream.cancel();
       paintReply(
         bubble,
         completed.reply === "" ? t("（这一轮没有回复）") : completed.reply,

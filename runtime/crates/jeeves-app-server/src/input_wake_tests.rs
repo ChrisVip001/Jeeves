@@ -101,6 +101,7 @@ pub(super) async fn fixture() -> (tempfile::TempDir, Server, Arc<InputModel>) {
             session_id: Some("chat"),
             title: "prepare meeting report",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

@@ -66,6 +66,7 @@ export const METHODS = {
   TASK_SUSPEND: "task/suspend",
   TASK_RESUME: "task/resume",
   TASK_CANCEL: "task/cancel",
+  TASK_GOAL_CONFIRM: "task/goal/confirm",
   SESSION_LIST: "session/list",
   SESSION_PERMISSION_GET: "session/permission/get",
   SESSION_PERMISSION_SET: "session/permission/set",

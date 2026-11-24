@@ -114,6 +114,9 @@ pub struct TaskRow {
     pub title: String,
     /// The optional judge condition. File and tool acceptance checks can also require more rounds.
     pub goal_condition: Option<String>,
+    /// A "done when" line the model drafted for this task. It is inert: only `confirm_goal_draft`,
+    /// reached by a human, can turn it into `goal_condition`.
+    pub goal_draft: Option<String>,
     /// Acceptance conditions as JSON (`[{"kind":"fileExists","path":"report.md"}]`).
     pub acceptance_json: String,
     /// The latest measured verdict per condition, same order as `acceptance_json`.
@@ -140,7 +143,7 @@ pub struct TaskRow {
     pub finished_at: Option<String>,
 }
 
-const COLS: &str = "parent_task_id, id, session_id, title, goal_condition, acceptance_json, checks_json, \
+const COLS: &str = "parent_task_id, id, session_id, title, goal_condition, goal_draft, acceptance_json, checks_json, \
                     budget_json, spent_wall_ms, spent_tokens, spent_tools, cwd, status, \
                     rounds_used, max_rounds, tier, current_turn_id, suspend_reason, \
                     last_stop_reason, created_at, updated_at, finished_at";
@@ -153,6 +156,8 @@ pub struct NewTask<'a> {
     pub session_id: Option<&'a str>,
     pub title: &'a str,
     pub goal_condition: Option<&'a str>,
+    /// The model's drafted "done when" line; it stays inert until a human confirms it.
+    pub goal_draft: Option<&'a str>,
     pub acceptance_json: &'a str,
     pub budget_json: &'a str,
     pub cwd: Option<&'a str>,
@@ -188,14 +193,15 @@ impl Tasks {
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO agent_tasks
-                 (id, session_id, title, goal_condition, acceptance_json, budget_json,
+                 (id, session_id, title, goal_condition, goal_draft, acceptance_json, budget_json,
                   cwd, max_rounds, tier, parent_task_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(task.id)
         .bind(task.session_id)
         .bind(task.title)
         .bind(task.goal_condition)
+        .bind(task.goal_draft)
         .bind(task.acceptance_json)
         .bind(task.budget_json)
         .bind(task.cwd)
@@ -368,6 +374,25 @@ impl Tasks {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Take the human's answer on the drafted "done when" line. `accept` promotes the draft to
+    /// the live goal condition; either way the draft is cleared, so a card never asks twice.
+    /// Returns false when there was no draft to answer, or the row already has a goal.
+    pub async fn confirm_goal_draft(&self, id: &str, accept: bool) -> Result<bool> {
+        let sql = if accept {
+            "UPDATE agent_tasks SET goal_condition=goal_draft, goal_draft=NULL,
+             updated_at=datetime('now') WHERE id=? AND goal_draft IS NOT NULL AND goal_condition IS NULL"
+        } else {
+            "UPDATE agent_tasks SET goal_draft=NULL, updated_at=datetime('now')
+             WHERE id=? AND goal_draft IS NOT NULL"
+        };
+        let changed = sqlx::query(sql)
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        Ok(changed == 1)
     }
 
     /// Terminal state: `done` / `failed` / `cancelled`. Closes the row and stamps the time.

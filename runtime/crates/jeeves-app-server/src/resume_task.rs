@@ -47,6 +47,7 @@ mod tests {
                 session_id: None,
                 title: "overnight",
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: budget,
                 cwd: None,

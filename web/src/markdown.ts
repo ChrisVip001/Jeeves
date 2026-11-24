@@ -523,6 +523,7 @@ export class StreamMarkdown {
   /** The last block that is still growing; every animation frame gets a new node. */
   private tail: HTMLElement | null = null;
   private frame: number | null = null;
+  private done = false;
   private readonly host: HTMLElement;
 
   constructor(host: HTMLElement) {
@@ -530,6 +531,7 @@ export class StreamMarkdown {
   }
 
   push(delta: string): void {
+    if (this.done) return;
     this.source += delta;
     this.schedule();
   }
@@ -537,11 +539,25 @@ export class StreamMarkdown {
   /** End of stream: cancel the queued frame and draw what is left in one go. After this the
    *  instance takes no more pushes. */
   finish(): void {
+    if (this.done) return;
+    this.done = true;
+    this.stop();
+    this.repaint(true);
+  }
+
+  /** Abandon the stream without painting: the authoritative reply owns the host now. A queued
+   *  frame would otherwise repaint the tail into the replaced bubble and duplicate it. */
+  cancel(): void {
+    if (this.done) return;
+    this.done = true;
+    this.stop();
+  }
+
+  private stop(): void {
     if (this.frame !== null) {
       cancelAnimationFrame(this.frame);
       this.frame = null;
     }
-    this.repaint(true);
   }
 
   private schedule(): void {

@@ -557,6 +557,7 @@ impl Server {
                         session_id: Some(session_id),
                         title: condition,
                         goal_condition: Some(condition),
+                        goal_draft: None,
                         acceptance_json: "[]",
                         budget_json: "{}",
                         cwd: None,

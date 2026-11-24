@@ -129,6 +129,13 @@ that ends with the same failed check or goal verdict as the round before, or tha
 successfully, counts as stalled. Two stalled rounds in a row hand the task back to the person as
 needing attention, with the repeated reason, instead of spending the rest of the round limit.
 
+When an outcome is clear but no mechanical check can measure it, Jeeves may draft one "done when"
+sentence as it opens the task. A draft judges nothing: the task runs as an unjudged one and its
+card asks the person to use the standard or skip it. Confirming it makes it the task's goal
+condition, so later rounds are judged against it; skipping drops it. Either answer removes the
+draft, so the card never asks twice, and a condition the person set themselves is never replaced.
+Goal activation stays the person's: the model can propose the wording, never adopt it.
+
 ### Working on a long task
 
 At kickoff, Jeeves briefly explains how it intends to approach the assignment and when the person
