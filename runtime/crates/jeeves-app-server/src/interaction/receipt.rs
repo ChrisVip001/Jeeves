@@ -159,6 +159,7 @@ pub(super) async fn acknowledge(
         goal_status: None,
         goal_rounds: 0,
         route_reason: None,
+        started_tasks: vec![],
     };
     server
         .chat

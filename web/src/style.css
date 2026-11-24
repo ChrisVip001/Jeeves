@@ -1041,10 +1041,15 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
 .work-screen-empty { display:grid; justify-items:center; gap:10px; margin:auto 0; padding:24px 8px; text-align:center; color:var(--text-3); font-size:12px; line-height:1.6; }
 /* Tasks a chat turn started: one card each, live status, a way into work mode. */
 .chat-task-slot:empty { display:none; }
-.chat-task-cards { display:grid; gap:8px; margin-top:10px; }
-.chat-task-card { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
-.chat-task-card strong { flex:1; min-width:8em; font-weight:500; overflow-wrap:anywhere; }
-.chat-task-status { color:var(--text-3); font-size:12px; }
+.chat-task-cards { display:grid; gap:8px; margin:12px 0 4px; max-width:520px; }
+.chat-task-card { display:flex; align-items:center; gap:12px; width:100%; padding:11px 14px; text-align:start; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--text); font:inherit; line-height:1.4; cursor:pointer; }
+.chat-task-card:hover { background:var(--surface-hover); }
+.chat-task-text { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.chat-task-card strong { font-weight:550; font-size:14px; overflow-wrap:anywhere; }
+.chat-task-status { color:var(--text-2); font-size:12px; }
+.chat-task-go { flex:none; font-size:12px; font-weight:550; color:var(--accent); }
+.chat-task-note:empty { display:none; }
+.chat-task-note { font-size:12px; color:var(--bad); }
 
 /* Phone navigation: a bottom tab bar replaces the header's segmented nav below 640px. */
 .bottom-tabs { display:none; }

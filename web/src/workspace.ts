@@ -2137,13 +2137,22 @@ async function openWorkFromReceipt(id: string): Promise<boolean> {
   return true;
 }
 
+/** A history row, with the live cards of any tasks that turn started placed under its reply. */
+function historyRow(message: import("./protocol").Message): HTMLElement {
+  const row = messageRow(message, openWorkFromReceipt);
+  const started = message.meta?.startedTasks ?? [];
+  const cards = taskCards(started.map(id => ({ id, title: "" })), webTasks, openWorkFromReceipt);
+  if (cards) row.querySelector(".message-meta")?.before(cards);
+  return row;
+}
+
 async function loadHistory(
   sessionId: string,
   cursor: string | null,
 ): Promise<void> {
   const page = await fetchMessages(sessionId, cursor);
   if (sessionId !== current) return;
-  const nodes = [...page.data].reverse().map(row => messageRow(row, openWorkFromReceipt));
+  const nodes = [...page.data].reverse().map(historyRow);
   if (cursor === null) {
     historySession = sessionId;
     newestHistoryId = page.data[0]?.id ?? 0;

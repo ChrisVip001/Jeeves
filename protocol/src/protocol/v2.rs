@@ -1441,6 +1441,10 @@ pub struct TurnMeta {
     /// the footer stays quiet and only speaks when a choice/fallback actually happened.
     #[serde(default)]
     pub route_reason: Option<String>,
+    /// Tasks this turn queued through the `task` tool, in order. History redraws their live
+    /// cards from it. Older rows parse as empty.
+    #[serde(default)]
+    pub started_tasks: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]

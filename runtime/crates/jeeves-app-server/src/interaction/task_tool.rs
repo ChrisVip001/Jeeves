@@ -326,6 +326,14 @@ async fn start_one(
     Ok(format!("• {} ({}): queued", item.title, task.id))
 }
 
+/// The ids of the tasks a `task` call queued, read back from its own `• title (id): queued` lines.
+pub(crate) fn queued_ids(output: &str) -> impl Iterator<Item = &str> {
+    output.lines().filter_map(|line| {
+        let head = line.strip_prefix("• ")?.strip_suffix("): queued")?;
+        head.rfind(" (").map(|at| &head[at + 2..])
+    })
+}
+
 pub(super) async fn owned_task(
     server: &Server,
     p: &InteractionStartParams,
@@ -499,6 +507,12 @@ fn with_references(message: &str, instruction: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn queued_lines_name_the_started_tasks() {
+        let output = "• 调研 (净化器) (task17-3): queued\n• Weekly (task17-4): queued\nCancelled \"x\".\n• x (task1-2): failed";
+        assert_eq!(queued_ids(output).collect::<Vec<_>>(), ["task17-3", "task17-4"]);
+    }
 
     #[test]
     fn task_spans_keep_uploaded_documents_without_other_task_instructions() {

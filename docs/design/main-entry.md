@@ -55,7 +55,7 @@ from the service's response or confirmed record.
 
 | Intent | Interaction |
 |---|---|
-| Delegate | Tell Jeeves what you need in Chat and attach files if needed. The task title summarizes the outcome and the task keeps the original request. A bound project folder is visible above the message. A new assignment in a clean Git repository uses its own checkout. Select it to switch back to automatic workspaces. |
+| Delegate | Tell Jeeves what you need in Chat and attach files if needed. The task title summarizes the outcome and the task keeps the original request. A bound project folder is visible above the message. Each task Jeeves starts appears under its reply as a card with a live status; select it to open the task in Work. The card returns after a reload. A new assignment in a clean Git repository uses its own checkout. Select it to switch back to automatic workspaces. |
 | Decide | One pending decision opens with its action and exact preview. Allow once or deny the current request. |
 | Recover | A stopped work page offers [operation review](../operations.md#reviewing-unknown-operations) and an explicit resume on the same assignment. |
 | Find work | Search titles in Work or follow a receipt. On a wide screen the list stays on the left and the open item fills the right; on a phone the list opens the item as its own page. Reload, back and forward retain the destination. |

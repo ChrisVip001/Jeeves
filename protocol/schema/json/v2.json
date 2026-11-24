@@ -8032,6 +8032,14 @@
             "null"
           ]
         },
+        "startedTasks": {
+          "default": [],
+          "description": "Tasks this turn queued through the `task` tool, in order. History redraws their live cards from it. Older rows parse as empty.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "tools": {
           "items": {
             "$ref": "#/definitions/ToolCallRecord"
