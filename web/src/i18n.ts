@@ -8,6 +8,10 @@ const STORAGE_KEY = "jeeves.lang";
 const DICT: Record<string, string> = {
   ...UI_EN,
   "在主聊天跟进": "Follow up in main chat",
+  "代码": "Code",
+  "复制": "Copy",
+  "已复制": "Copied",
+  "复制失败": "Copy failed",
   "提醒": "Reminder",
   "每日简报": "Daily brief",
   "调研": "Research",
