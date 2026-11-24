@@ -77,6 +77,20 @@ fn search_url_key(mut url: reqwest::Url) -> String {
 type SearchKey = (String, u32);
 type SearchResult = Arc<OnceCell<String>>;
 
+// Ignore duplicated ASCII separators only in plain searches. Leave a possibly
+// literal phrase or escaped term untouched, and forward the original query.
+fn search_query_key(query: &str) -> String {
+    if query.contains("  ") && !query.contains(['"', '\'', '\\', '“', '”', '‘', '’']) {
+        query
+            .split(' ')
+            .filter(|term| !term.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    } else {
+        query.to_owned()
+    }
+}
+
 /// This turn's search budget: `search_max` calls at most, counted in `used`.
 pub struct TurnLimits {
     pub search_max: u32,
@@ -99,7 +113,7 @@ impl TurnLimits {
         }
     }
 
-    /// Coalesce identical requests in this turn. A failed or cancelled lookup leaves the cell empty.
+    /// Coalesce equivalent plain requests in this turn. A failed or cancelled lookup leaves the cell empty.
     async fn search_once(
         &self,
         query: &str,
@@ -110,7 +124,7 @@ impl TurnLimits {
             .successes
             .lock()
             .map_err(|_| anyhow::anyhow!("Search result cache is unavailable"))?
-            .entry((query.to_owned(), max_results))
+            .entry((search_query_key(query), max_results))
             .or_default()
             .clone();
         result.get_or_try_init(|| fetch).await.cloned()
