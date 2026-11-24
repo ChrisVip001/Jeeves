@@ -1688,3 +1688,88 @@ async fn a_correction_that_repeats_the_same_failure_goes_back_to_the_person_earl
         "two repeats of the first failure stop it"
     );
 }
+
+/// The card that asks about a drafted goal appears while the task is already running, so the
+/// round loop must re-read the condition instead of trusting the one it started with.
+#[tokio::test]
+async fn a_goal_confirmed_while_the_task_runs_judges_that_delivery() {
+    let write = |id: &str| {
+        Mock::tool_use(
+            id,
+            "write_file",
+            json!({ "path": "notes.md", "content": "Agenda\n" }),
+        )
+    };
+    let mock = Arc::new(Mock::new(vec![
+        write("call_1"),
+        Mock::text("written."),
+        write("call_2"),
+        Mock::text("checked."),
+        Mock::text("{\"ok\":true,\"impossible\":false,\"reason\":\"the agenda is there\"}"),
+    ]));
+    let (server, _home) = boot(Some(mock.clone())).await;
+    let dir = tempfile::tempdir().expect("temporary directory");
+    let created = call(
+        &server,
+        jeeves_protocol::methods::TASK_CREATE,
+        json!({
+            "sessionId": "default", "title": "write notes", "maxRounds": 4,
+            "cwd": dir.path().display().to_string(),
+        }),
+    )
+    .await
+    .expect("create the task");
+    let id = created["task"]["id"].as_str().expect("id").to_string();
+    sqlx::query("UPDATE agent_tasks SET goal_draft=? WHERE id=?")
+        .bind("the notes carry the agenda")
+        .bind(&id)
+        .execute(&server.pool)
+        .await
+        .expect("store the draft");
+
+    let confirmer = {
+        let server = server.clone();
+        let id = id.clone();
+        tokio::spawn(async move {
+            for _ in 0..2000 {
+                let row = server.tasks.get(&id).await.expect("query").expect("row");
+                if row.rounds_used >= 1 {
+                    let (sink, _) = crate::EventSink::channel();
+                    return crate::task::confirm_goal(
+                        &server,
+                        &sink,
+                        jeeves_protocol::TaskGoalConfirmParams {
+                            task_id: id.clone(),
+                            accept: true,
+                        },
+                    )
+                    .await
+                    .map(|_| ());
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+            }
+            panic!("the task never reached its first round");
+        })
+    };
+    drive(&server, "default", "write the agenda into notes.md", None).await;
+    confirmer
+        .await
+        .expect("the confirming task should not crash")
+        .expect("the person's answer should be accepted");
+
+    let row = server.tasks.get(&id).await.expect("query").expect("row");
+    assert_eq!(
+        row.goal_condition.as_deref(),
+        Some("the notes carry the agenda")
+    );
+    let judged = mock.received.lock().expect("lock").iter().any(|request| {
+        request
+            .messages
+            .iter()
+            .any(|m| m.text().contains("the notes carry the agenda"))
+    });
+    assert!(
+        judged,
+        "the round loop must re-read the goal the person confirmed mid-run"
+    );
+}

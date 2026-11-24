@@ -89,7 +89,7 @@ pub(crate) async fn drive_task(
         "evaluation",
     );
     let task_id = task.as_ref().map(|task| task.id.clone());
-    let goal_condition = task.as_ref().and_then(|task| task.goal_condition.clone());
+    let mut goal_condition = task.as_ref().and_then(|task| task.goal_condition.clone());
     let acceptance = match task
         .as_ref()
         .map(|task| jeeves_agent::verify::parse_checked(&task.acceptance_json))
@@ -123,6 +123,13 @@ pub(crate) async fn drive_task(
                     );
                 }
             };
+        if let Some(id) = &task_id {
+            match server.tasks.get(id).await {
+                Ok(Some(row)) => goal_condition = row.goal_condition,
+                Ok(None) => {}
+                Err(e) => eprintln!("(jeeves) task {id}: could not re-read its goal: {e}"),
+            }
+        }
         let goal_rounds = round_no;
         if let Some(id) = &task_id
             && let Err(e) = server.tasks.record_round(id, round_no).await
