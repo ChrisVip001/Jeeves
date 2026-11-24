@@ -703,24 +703,72 @@ export function turnFooter(turn: TurnCompletedNotification): string {
  * Rendered only when a session has no history; the first message replaces it.
  */
 /** Starter requests on the empty chat; each one shows what Jeeves can take on. */
-function starters(): string[] {
+/** One empty-chat suggestion: a category eyebrow, the prompt it fills, and an icon glyph. */
+interface Starter {
+  category: string;
+  prompt: string;
+  /** A single SVG path (24×24 viewBox, Lucide-style) drawn in the card corner. */
+  icon: string;
+}
+
+function starters(): Starter[] {
   return [
-    t("明天上午 9 点提醒我给房东打电话"),
-    t("每个工作日早上 8 点给我一份今日简报"),
-    t("帮我调研一下适合家用的空气净化器，列出优缺点"),
-    t("整理我的下载文件夹，先告诉我打算怎么分类"),
+    {
+      category: t("提醒"),
+      prompt: t("明天上午 9 点提醒我给房东打电话"),
+      icon: "M12 6v6l4 2 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z",
+    },
+    {
+      category: t("每日简报"),
+      prompt: t("每个工作日早上 8 点给我一份今日简报"),
+      icon: "M4 4h16v16H4z M8 9h8 M8 13h8 M8 17h5",
+    },
+    {
+      category: t("调研"),
+      prompt: t("帮我调研一下适合家用的空气净化器，列出优缺点"),
+      icon: "M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z M21 21l-4.3-4.3",
+    },
+    {
+      category: t("整理"),
+      prompt: t("整理我的下载文件夹，先告诉我打算怎么分类"),
+      icon: "M3 7h6l2 2h10v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z",
+    },
   ];
 }
 
+/** A 24×24 SVG built from one or more `M…` path strings. */
+function starterIcon(paths: string): SVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.7");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of paths.split(" M").map((part, i) => (i === 0 ? part : "M" + part))) {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d.trim());
+    svg.append(path);
+  }
+  return svg;
+}
+
 /**
- * The empty-chat screen. Picking a starter fills the composer for editing; it never sends.
+ * The empty-chat screen. Picking a suggestion fills the composer for editing; it never sends.
  */
 export function welcome(pick: (text: string) => void): HTMLElement {
   const list = el("div", { class: "welcome-starters", role: "list" });
-  for (const text of starters()) {
-    const chip = el("button", { type: "button", class: "welcome-starter", role: "listitem", text });
-    chip.addEventListener("click", () => pick(text));
-    list.append(chip);
+  for (const { category, prompt, icon } of starters()) {
+    const card = el(
+      "button",
+      { type: "button", class: "welcome-starter", role: "listitem" },
+      el("span", { class: "welcome-starter-icon" }, starterIcon(icon)),
+      el("span", { class: "welcome-starter-eyebrow", text: category }),
+      el("span", { class: "welcome-starter-text", text: prompt }),
+    );
+    card.addEventListener("click", () => pick(prompt));
+    list.append(card);
   }
   return el(
     "div",
@@ -732,6 +780,7 @@ export function welcome(pick: (text: string) => void): HTMLElement {
       "aria-hidden": "true",
     }),
     el("h1", { class: "welcome-title", text: t("交给 Jeeves 什么事？") }),
+    el("p", { class: "welcome-sub", text: t("挑一个开始，或者直接说你想做什么") }),
     list,
   );
 }

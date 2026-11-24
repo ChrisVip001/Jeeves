@@ -8,6 +8,11 @@ const STORAGE_KEY = "jeeves.lang";
 const DICT: Record<string, string> = {
   ...UI_EN,
   "在主聊天跟进": "Follow up in main chat",
+  "提醒": "Reminder",
+  "每日简报": "Daily brief",
+  "调研": "Research",
+  "整理": "Tidy up",
+  "挑一个开始，或者直接说你想做什么": "Pick one to start, or just tell me what you need",
   "当前 Jeeves 服务不支持权限管理，请重启更新后的服务，再重新读取。": "This Jeeves server does not support permissions. Restart the updated server, then reload permissions.",
   "权限读取失败：{error}": "Could not load permissions: {error}",
   "重新连接": "Reconnect",
