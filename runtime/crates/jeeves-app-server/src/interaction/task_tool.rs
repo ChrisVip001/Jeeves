@@ -511,7 +511,10 @@ mod tests {
     #[test]
     fn queued_lines_name_the_started_tasks() {
         let output = "• 调研 (净化器) (task17-3): queued\n• Weekly (task17-4): queued\nCancelled \"x\".\n• x (task1-2): failed";
-        assert_eq!(queued_ids(output).collect::<Vec<_>>(), ["task17-3", "task17-4"]);
+        assert_eq!(
+            queued_ids(output).collect::<Vec<_>>(),
+            ["task17-3", "task17-4"]
+        );
     }
 
     #[test]
