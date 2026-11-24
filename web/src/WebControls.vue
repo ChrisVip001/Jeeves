@@ -107,8 +107,17 @@ function restoreRoute() {
   const id = params.get("work");
   setRoute(id ? "cowork" : params.has("list") ? "activity" : "chat", id ?? "", false);
 }
-onMounted(() => { workspaceActions.openWork = inspectActivity; restoreRoute(); window.addEventListener("popstate", restoreRoute); });
-onUnmounted(() => window.removeEventListener("popstate", restoreRoute));
+// ⌘1 对话 · ⌘2 工作 · ⌘L the message box (Ctrl on other systems).
+function shortcut(event: KeyboardEvent) {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || document.querySelector("dialog[open]")) return;
+  if (event.key === "1") setRoute("chat");
+  else if (event.key === "2") setRoute("activity");
+  else if (event.key.toLowerCase() === "l") { setRoute("chat"); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>("#input")?.focus()); }
+  else return;
+  event.preventDefault();
+}
+onMounted(() => { workspaceActions.openWork = inspectActivity; restoreRoute(); window.addEventListener("popstate", restoreRoute); window.addEventListener("keydown", shortcut); });
+onUnmounted(() => { window.removeEventListener("popstate", restoreRoute); window.removeEventListener("keydown", shortcut); });
 function inspectActivity(id: string) {
   sessionStorage.setItem(accountKey("jeeves.last-work"), id);
   lastWorkId.value = id;
@@ -226,8 +235,8 @@ watch(
   </Teleport>
   <Teleport to="#primary-navigation">
     <nav class="primary-navigation" :aria-label="t('主导航')">
-      <button id="mode-assistant" type="button" :aria-label="t('对话')" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
-      <button id="mode-cowork" type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="17" />{{ t("工作") }}<span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button id="mode-assistant" type="button" :aria-label="t('对话')" :title="`${t('对话')} (⌘1)`" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
+      <button id="mode-cowork" type="button" :title="`${t('工作')} (⌘2)`" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="17" />{{ t("工作") }}<span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
     </nav>
   </Teleport>
   <Teleport to="#chat-decisions">
