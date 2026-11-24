@@ -508,26 +508,37 @@ pub(crate) fn clean_hits(hits: Vec<Hit>, max_results: u32) -> Vec<Hit> {
         .collect()
 }
 
-pub fn matches_site(query: &str, link: &str) -> bool {
-    let sites: Vec<_> = query
-        .split_whitespace()
-        .filter_map(|term| term.strip_prefix("site:"))
-        .collect();
-    if sites.len() != 1 {
-        return true;
+fn single_site_scope(query: &str) -> Option<reqwest::Url> {
+    let mut sites = query.split_whitespace().filter_map(|term| {
+        let prefix = term.get(..5)?;
+        prefix.eq_ignore_ascii_case("site:").then(|| &term[5..])
+    });
+    let site = sites.next()?;
+    if sites.next().is_some() {
+        return None;
     }
-    let Ok(scope) = reqwest::Url::parse(&format!("https://{}", sites[0])) else {
-        return true;
-    };
+    reqwest::Url::parse(&format!("https://{site}")).ok()
+}
+
+pub fn matches_site(query: &str, link: &str) -> bool {
+    single_site_scope(query).is_none_or(|scope| matches_scope(&scope, link))
+}
+
+fn matches_scope(scope: &reqwest::Url, link: &str) -> bool {
     let Some(domain) = scope.host_str() else {
         return true;
     };
     let Ok(url) = reqwest::Url::parse(link) else {
         return false;
     };
+    let path = scope.path().trim_end_matches('/');
     url.host_str()
         .is_some_and(|host| host == domain || host.ends_with(&format!(".{domain}")))
-        && url.path().starts_with(scope.path())
+        && (url.path() == path
+            || url
+                .path()
+                .strip_prefix(path)
+                .is_some_and(|suffix| suffix.starts_with('/')))
 }
 
 pub(crate) async fn search_backends(
@@ -536,13 +547,19 @@ pub(crate) async fn search_backends(
     max_results: u32,
 ) -> Result<(&'static str, Vec<Hit>)> {
     let mut failures: Vec<String> = Vec::new();
+    let scope = single_site_scope(query);
+    let candidate_limit = if scope.is_some() {
+        max_results.saturating_mul(3).clamp(10, 20)
+    } else {
+        max_results
+    };
     for backend in plan {
-        match backend.search(query, max_results).await {
-            Ok(hits) => {
-                let hits: Vec<_> = clean_hits(hits, max_results)
-                    .into_iter()
-                    .filter(|(_, _, link)| matches_site(query, link))
-                    .collect();
+        match backend.search(query, candidate_limit).await {
+            Ok(mut hits) => {
+                if let Some(scope) = &scope {
+                    hits.retain(|(_, _, link)| matches_scope(scope, link));
+                }
+                let hits = clean_hits(hits, max_results);
                 if hits.is_empty() {
                     eprintln!(
                         "(jeeves) {} returned no usable search results",

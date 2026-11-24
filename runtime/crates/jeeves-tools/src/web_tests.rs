@@ -528,3 +528,33 @@ async fn site_search_rejects_unrelated_and_deceptive_domains_before_fallback() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn scoped_search_filters_before_spending_the_result_limit() {
+    let entry = |title: &str, url: &str| (title.into(), "开放时间".into(), url.into());
+    let plan = [Backend::Fixture(Some(vec![
+        entry("过时的转载", "https://example.net/visit"),
+        entry("官方公告", "https://city.example/visit"),
+    ]))];
+    let (_, hits) = super::web::search_backends(&plan, "site:city.example 景区 开放时间", 1)
+        .await
+        .unwrap();
+    assert_eq!(hits, [entry("官方公告", "https://city.example/visit")]);
+}
+
+#[test]
+fn site_path_scope_requires_a_segment_boundary() {
+    let query = "site:docs.example/pricing 现行价格";
+    for link in [
+        "https://docs.example/pricing",
+        "https://www.docs.example/pricing/current",
+    ] {
+        assert!(super::web::matches_site(query, link), "{link}");
+    }
+    for link in [
+        "https://docs.example/pricing-old",
+        "https://docs.example/pricingevil/current",
+    ] {
+        assert!(!super::web::matches_site(query, link), "{link}");
+    }
+}
