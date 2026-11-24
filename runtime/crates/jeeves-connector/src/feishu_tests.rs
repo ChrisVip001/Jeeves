@@ -405,6 +405,7 @@ async fn run_ctx(fixture: &Fixture, broker: Arc<dyn ApprovalBroker>) -> ToolCtx 
             session_id: Some("test"),
             title: "t",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

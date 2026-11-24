@@ -5,6 +5,8 @@ import type { UiTranslator } from "./ui/translate";
 export function taskEventText(event: TaskEventView, t: UiTranslator) {
   const labels: Record<string, string> = {
     verify: t("验收"),
+    self_check: t("交付前自查"),
+    goal_draft_answered: t("完成标准已回复"),
     budget: t("预算用完"),
     contradiction: t("发现矛盾"),
     job_finished: t("后台作业结束"),

@@ -6,7 +6,52 @@ const REQUEST: &str =
     "明天要和同事对一下这次事故。能帮我把复盘写进 review.md 吗？报告里得写「12 次事件」。";
 const TITLE: &str = "交付事故复盘";
 
+/// A main-chat follow-up that names its own deliverable: `<FOLLOW_UP> #<task id>`.
+const FOLLOW_UP: &str = "在 review.md 末尾补一句「已复核」";
+
+/// A request whose outcome no file check can measure, so the model drafts a "done when" line.
+const DRAFTED: &str = "帮我把这次事故的责任边界理清楚，我自己判断够不够清楚。";
+/// The sentence the model drafts for that request; it stays inert until the person confirms it.
+pub(super) const DRAFT: &str = "每一条责任都写明了归属的团队";
+
 pub(super) fn reply(is_main: bool, message: &str) -> Option<CreateResponse> {
+    if is_main && message == DRAFTED {
+        return Some(Mock::tool_use(
+            "drafted-goal",
+            "task",
+            json!({
+                "action":"create",
+                "items":[{"title":"责任边界","instruction":DRAFTED,"goal_draft":DRAFT}]
+            }),
+        ));
+    }
+    if !is_main && message.contains(DRAFTED) {
+        return Some(Mock::text("已理清。"));
+    }
+    if is_main
+        && let Some(task_id) = message
+            .strip_prefix(FOLLOW_UP)
+            .and_then(|rest| rest.strip_prefix(" #"))
+    {
+        return Some(Mock::tool_use(
+            "follow-up-checks",
+            "task",
+            json!({
+                "action":"continue", "task_id":task_id, "instruction":FOLLOW_UP,
+                "acceptance":[{"kind":"fileContains","path":"review.md","pattern":"已复核"}]
+            }),
+        ));
+    }
+    if !is_main && message.contains(FOLLOW_UP) {
+        if message.contains("Acceptance did not pass") {
+            return Some(Mock::tool_use(
+                "amend",
+                "write_file",
+                json!({"path":"review.md", "content":"本期共有 12 次事件。已复核。"}),
+            ));
+        }
+        return Some(Mock::text("已补上。"));
+    }
     if is_main && message == REQUEST {
         let handoff = |id, path| {
             Mock::tool_use(
@@ -186,4 +231,177 @@ async fn a_chat_follow_up_cannot_clear_an_explicit_task_api_contract() {
     assert_eq!(row.status, jeeves_state::TaskStatus::Done);
     assert_eq!(server.runs.count_by_task(&task.id).await.unwrap(), 1);
     assert!(row.acceptance_json.contains("report.txt"));
+}
+
+#[tokio::test]
+async fn a_main_chat_follow_up_with_its_own_checks_is_verified_in_the_same_task() {
+    let (home, server, _) = setup().await;
+    let workspace = home.path().join("work");
+    std::fs::create_dir(&workspace).unwrap();
+    std::fs::write(workspace.join("review.md"), "本期共有 12 次事件。").unwrap();
+    let task = crate::task::create(
+        &server,
+        serde_json::from_value(json!({"sessionId": MAIN_SESSION, "title":"复盘", "cwd":workspace}))
+            .unwrap(),
+    )
+    .await
+    .unwrap()
+    .task;
+    let (sink, mut frames) = EventSink::channel();
+    crate::task::start(
+        &server,
+        &sink,
+        jeeves_protocol::TaskStartParams {
+            task_id: task.id.clone(),
+            message: "检查复盘。".into(),
+            attachments: None,
+        },
+    )
+    .await
+    .unwrap();
+    wait(&server, &task.id).await;
+
+    start(
+        &server,
+        InteractionStartParams {
+            session_id: MAIN_SESSION.into(),
+            message_id: "follow-up".into(),
+            message: format!("{FOLLOW_UP} #{}", task.id),
+            task_id: None,
+            cwd: None,
+            attachments: None,
+            source: None,
+        },
+        RequestId::Number(2),
+        &sink,
+    )
+    .await
+    .unwrap();
+    let approval = tokio::time::timeout(Duration::from_secs(5), async {
+        while let Some(frame) = frames.recv().await {
+            if let Frame::Notification(ServerNotification::ApprovalRequested(ask)) = frame {
+                return ask;
+            }
+        }
+        panic!("the correction never asked to write");
+    })
+    .await
+    .unwrap();
+    assert!(server.answer_approval(
+        &approval.turn_id,
+        &approval.request_id,
+        true,
+        RememberScope::Once
+    ));
+    wait(&server, &task.id).await;
+
+    let row = server.tasks.get(&task.id).await.unwrap().unwrap();
+    assert_eq!(row.status, jeeves_state::TaskStatus::Done);
+    assert!(
+        row.acceptance_json.contains("已复核"),
+        "{}",
+        row.acceptance_json
+    );
+    assert_eq!(
+        row.rounds_used, 2,
+        "the first follow-up round fails its check and is corrected"
+    );
+    let latest: (String, Option<String>) = sqlx::query_as(
+        "SELECT status,verification_id FROM task_completions WHERE task_id=? ORDER BY id DESC LIMIT 1",
+    )
+    .bind(&task.id)
+    .fetch_one(&server.pool)
+    .await
+    .unwrap();
+    assert_eq!(latest.0, "done");
+    assert!(
+        latest.1.is_some(),
+        "the follow-up delivery carries a verification receipt"
+    );
+}
+
+#[tokio::test]
+async fn a_drafted_goal_judges_nothing_until_the_person_confirms_it() {
+    let (_home, server, _) = setup().await;
+    send(&server, DRAFTED, "boundaries", None).await.unwrap();
+    let task = server
+        .tasks
+        .list(20)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.title == "责任边界")
+        .expect("the draft opened a task");
+    assert_eq!(task.goal_draft.as_deref(), Some(DRAFT));
+    assert_eq!(
+        task.goal_condition, None,
+        "a model's draft never activates on its own"
+    );
+    wait(&server, &task.id).await;
+    let row = server.tasks.get(&task.id).await.unwrap().unwrap();
+    assert_eq!(
+        row.status,
+        jeeves_state::TaskStatus::Done,
+        "nothing was judged against the draft: {:?}",
+        row.last_stop_reason
+    );
+    assert_eq!(row.goal_condition, None);
+
+    let (sink, _) = EventSink::channel();
+    let confirmed = crate::task::confirm_goal(
+        &server,
+        &sink,
+        jeeves_protocol::TaskGoalConfirmParams {
+            task_id: task.id.clone(),
+            accept: true,
+        },
+    )
+    .await
+    .unwrap()
+    .task;
+    assert_eq!(confirmed.goal_condition.as_deref(), Some(DRAFT));
+    assert_eq!(confirmed.goal_draft, None, "the card never asks twice");
+    let again = crate::task::confirm_goal(
+        &server,
+        &sink,
+        jeeves_protocol::TaskGoalConfirmParams {
+            task_id: task.id.clone(),
+            accept: true,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        again.message.contains("no drafted goal"),
+        "{}",
+        again.message
+    );
+}
+
+#[tokio::test]
+async fn a_declined_draft_leaves_the_task_unjudged() {
+    let (_home, server, _) = setup().await;
+    send(&server, DRAFTED, "boundaries", None).await.unwrap();
+    let task = server
+        .tasks
+        .list(20)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|row| row.title == "责任边界")
+        .expect("the draft opened a task");
+    let (sink, _) = EventSink::channel();
+    let answered = crate::task::confirm_goal(
+        &server,
+        &sink,
+        jeeves_protocol::TaskGoalConfirmParams {
+            task_id: task.id.clone(),
+            accept: false,
+        },
+    )
+    .await
+    .unwrap()
+    .task;
+    assert_eq!(answered.goal_draft, None);
+    assert_eq!(answered.goal_condition, None);
 }

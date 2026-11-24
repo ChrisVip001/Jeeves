@@ -3,6 +3,7 @@ import { refreshExecutor } from "./executor-control.ts";
 import { reactive } from "vue";
 import { TaskEventFollower } from "../../protocol/typescript/task-events.mts";
 import { useTasks } from "./ui/useTasks.ts";
+import { usePermission } from "./ui/usePermission.ts";
 import {
   preferenceRequest,
   fetchMessages,
@@ -18,6 +19,8 @@ import type {
   TaskEventsResponse,
   TaskGitCheckpointResponse,
   TaskGitCheckpointPolicyResponse,
+  ApprovalRequestedNotification,
+  SessionPermissionResponse,
 } from "./protocol";
 export const webTasks = useTasks({
   browser: {
@@ -58,6 +61,8 @@ export const webTasks = useTasks({
     }),
   action: (action, taskId) =>
     preferenceRequest<TaskEnvelope>("/api/task", { action, taskId }),
+  confirmGoal: (taskId, accept) =>
+    preferenceRequest<TaskEnvelope>("/api/task", { action: "confirmGoal", taskId, accept }),
   gitCheckpoint: async (params) => {
     const result = await preferenceRequest<TaskGitCheckpointResponse>("/api/task/git-checkpoint", params);
     await catchUpTaskEvents();
@@ -67,6 +72,34 @@ export const webTasks = useTasks({
   saveGitCheckpointPolicy: params => preferenceRequest<TaskGitCheckpointPolicyResponse>("/api/task/git-checkpoint-policy", params),
   approve: respondApproval,
 });
+/** The owner session's permission preset, for the switch on approval cards. */
+export const webPermission = usePermission({
+  read: (sessionId) =>
+    preferenceRequest<SessionPermissionResponse>(
+      `/api/session/permission?sessionId=${encodeURIComponent(sessionId)}`,
+    ),
+  write: (sessionId, mode, expectedRevision) =>
+    preferenceRequest<SessionPermissionResponse>("/api/session/permission", {
+      sessionId,
+      mode,
+      expectedRevision,
+      confirmFullAccess: mode === "fullAccess",
+    }),
+});
+/**
+ * Allow this card, then stop asking for the rest of the owner session. The order matters: a mode
+ * change voids the approvals still waiting, so switching first would throw this answer away.
+ */
+export async function trustAndAllow(reviewed: ApprovalRequestedNotification): Promise<void> {
+  await webTasks.approve(reviewed, true);
+  if (webTasks.state.error) return;
+  if (await webPermission.trust(webTasks.state.owner)) await webTasks.refresh();
+}
+function syncPermission(): void {
+  const owner = webTasks.state.owner;
+  if (owner && (owner !== webPermission.state.sessionId || !webPermission.state.loaded))
+    void webPermission.load(owner);
+}
 /** Per-task timelines, built only from cursor catch-ups (kept in memory per tab). */
 export const taskTimelines = reactive<Record<string, TaskEventView[]>>({});
 const follower = new TaskEventFollower((params) => {
@@ -115,8 +148,10 @@ export function connectTasks(): () => void {
   async function follow() {
     while (!abort.signal.aborted) {
       try {
-        for await (const event of followNotifications(abort.signal))
+        for await (const event of followNotifications(abort.signal)) {
           webTasks.onNotification(event);
+          if (event.type === "permissionChanged") webPermission.changed(event);
+        }
       } catch (error) {
         if (!abort.signal.aborted) webTasks.state.error = String(error);
       }
@@ -130,7 +165,9 @@ export function connectTasks(): () => void {
   void follow();
   void refreshExecutor();
   void catchUpTaskEvents();
+  syncPermission();
   const poll = setInterval(() => {
+    syncPermission();
     void refreshExecutor();
     void webTasks.refresh();
     void catchUpTaskEvents();

@@ -19,6 +19,7 @@ async fn another_open_runtime_cannot_reconcile_a_live_owners_state() {
             session_id: Some("chat"),
             title: "live work",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

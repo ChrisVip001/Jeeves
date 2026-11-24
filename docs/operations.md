@@ -33,7 +33,7 @@ Explicit memory and session reads report storage errors. If one memory index is 
 
 ## Web dashboard
 
-Sign in or register at the deployment's HTTPS address. The home page takes an existing session straight to its workbench. Use the main chat, follow assignments in **My work** and review delivered files under the same account. You can draft a message while the workspace starts.
+Sign in or register at the deployment's HTTPS address. The home page takes an existing session straight to its workbench. Use the main chat, follow assignments in **Work** and review delivered files under the same account. You can draft a message while the workspace starts.
 
 ### Putting it on a server (self-hosting)
 
@@ -47,7 +47,7 @@ Write `<home>/mcp.json` (stdio or HTTP servers); their tools merge into the
 tool registry. For `"oauth": true` remote servers run `jeeves mcp login <name>`
 first; expired tokens auto-refresh, and without a refresh_token rerun login.
 
-The dashboard's capability center is the graphical door to the same file:
+The dashboard's **Settings → MCP connectors** tab is the graphical door to the same file:
 add / replace / delete a connector, with the transport and credential rules
 enforced the same way (`url` **xor** `command`; `auth_env` is a variable
 name, never a key). Changes take effect on the next start. Set
@@ -80,7 +80,7 @@ by other agents are labelled `source: mcp` so the origin stays visible.
 
 ## Recurring work upgrades
 
-A saved briefing enabled through the prior launch environment appears in My Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/main-entry.md#6-recurring-work)
+A saved briefing enabled through the prior launch environment appears in Work with its run history. Review the desired sources, time and destination in chat. [Recurring work](design/main-entry.md#6-recurring-work)
 
 ## Driving it from a script
 
@@ -141,7 +141,7 @@ The Mac development app opens the Go gateway. The default for `just local-up` is
 
 For everyday use and joint testing, run `just desktop-open` or double-click the checkout’s `desktop/src-tauri/target/release/bundle/macos/Jeeves.app` in Finder. Both open the same application bundle. If it is already running, macOS brings its window forward with the current Runtime, login and conversation. The command builds the bundle if it is missing. Use `just desktop-build` when you need to rebuild it after a code change.
 
-Closing the development app's window hides it. The Runtime keeps running scheduled work, and clicking the Dock icon brings the window back. Quit with ⌘Q. The app reopens at the last window size and position, saved in `window-frame` under the app's config directory. It is centered instead when that frame no longer fits on a connected display.
+Closing the development app's window hides it. The Runtime keeps running scheduled work, and clicking the Dock icon brings the window back. Press ⌥Space in any app to bring Jeeves forward with the cursor in the message box; press it again to hide Jeeves and return to the previous app. If another app already owns ⌥Space, Jeeves starts without the shortcut. The Dock icon shows how many items wait for your decision, and the browser tab title does the same as `(N) Jeeves`. When that count rises while Jeeves is not the focused window, the app posts a Mac notification in the system language; macOS asks once whether to allow it. Inside the app, ⌘1 opens Chat, ⌘2 opens Work, ⌘L jumps to the message box and ⌘, opens Settings (browsers keep ⌘1, ⌘2 and ⌘L for their own tabs and address bar). Quit with ⌘Q. The app reopens at the last window size and position, saved in `window-frame` under the app's config directory. It is centered instead when that frame no longer fits on a connected display.
 
 Before a joint test, run `just desktop-status` to record the existing app and Runtime PIDs, listener, and state and trace paths. The checkout revision describes the source tree. The running app may come from an earlier build. Use the same window and account, then leave the tested task or error open for handoff. For a reproduction, record the steps, local time and, when available, task ID or turn ID. Look up that turn under the reported trace directory. The app records Runtime diagnostics in `<home>/jeeves.log`. Automated smoke runs use fixtures and report their results separately.
 
@@ -149,7 +149,7 @@ For a shared Mac and Web development workspace, put the Go gateway's loopback or
 
 Run `just dashboard-build` and reload the gateway page to see frontend changes. Runtime changes take effect after replacing the binary and restarting it.
 
-The app opens in Chat. Open a receipt or My work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
+The app opens in Chat. Open a receipt or Work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
 
 To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `target/acceptance/mac-cockpit/<run>/`.
 
@@ -168,7 +168,7 @@ cron (`*`, `*/step`, `a-b`, `a,b`); there is no separate scheduler process. Two 
   ---
   ```
 
-* a stored job, made from the capability center or by asking Jeeves (`schedule_job`). Jobs live in
+* a stored job, made from **Work → Long-term** or by asking Jeeves (`schedule_job`). Jobs live in
   `state.db`. An old `<home>/schedules.json` is imported once at startup and renamed to
   `schedules.json.migrated`.
 
@@ -179,8 +179,8 @@ firing per minute at most, jobs run one at a time, skill edits are picked up
 without a restart. Keep the Runtime up with [`jeeves service`](#keeping-it-running); a job missed while it was down is
 caught up once on the next start (only the latest missed minute, looking back at most seven days; `catch_up` off drops it).
 
-Both sources show up in the dashboard's capability center (**Schedules**), next to
-Skills and MCP connectors: one row per job with its cron, its prompt, the next fire, the
+Both sources show up in the dashboard under **Work → Long-term**, below the
+standing responsibilities: one row per job with its cron, its prompt, the next fire, the
 last fire, and where the result goes. Rows that come from a skill are greyed and read-only
 — that job *is* the skill, so the way to remove it is to edit `SKILL.md` or delete the
 skill. Adding or deleting a stored job changes exactly that row in `state.db` and nothing else:

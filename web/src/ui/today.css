@@ -605,7 +605,7 @@ body:not(.view-today) .new-chat.is-current {
 .phone-task-group small, .phone-task-group span { font-size: 12px; color: var(--text-2); }
 #phone-tasks:empty { display: none; }
 @media (max-width: 640px), (pointer: coarse) and (max-height: 500px) {
-  #today-entry, #new-session, .sidebar .conversations, #nav-progress, #progress, .sidebar .workspace-nav { display: none; }
+  #today-entry, #new-session, #progress { display: none; }
   #phone-tasks button { min-height: 44px; }
 }
 .task-notice { padding-inline-start: 12px; border-inline-start: 2px solid var(--line); }
@@ -620,7 +620,6 @@ body:not(.view-today) .new-chat.is-current {
 }
 .mode-switch button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; }
 .mode-switch button:hover, .mode-task-list button:hover { background: var(--surface-hover); }
-body:is(.view-assistant,.view-cowork) .sidebar .conversations { display: none; }
 #mode-task-rail:has(section) { flex: 1; min-height: 55px; overflow-y: auto; }
 .mode-task-list > .rail-label { font-size: 12px; font-weight: 500; }
 .mode-task-list > .cw-meta { margin: 0 10px; }
@@ -628,11 +627,11 @@ body:is(.view-assistant,.view-cowork) .sidebar .conversations { display: none; }
 .mode-task-list button[aria-current="page"] { background: var(--surface); }
 .mode-task-list button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .mode-task-list small,.cw-meta,.cw-feedback,.cw-empty p { font-size: 12px; color: var(--text-2); }
-.view-cowork main.chat > :is(#activity-view,#messages,#status,.composer-wrap) { display: none; }
-.view-cowork .bar :is(.chat-heading,.bar-actions) { display: none; }
-.view-cowork #executor-entry { margin-inline-start: auto; }
+body:is(.view-cowork,.view-activity) main.chat > :is(#messages,#status,#chat-decisions,#jump-latest,.composer-wrap) { display: none; }
+body:is(.view-cowork,.view-activity) .bar :is(.chat-heading,.bar-actions) { display: none; }
+body:is(.view-cowork,.view-activity) #executor-entry { margin-inline-start: auto; }
 #cowork-view { display: none; }
-.view-cowork #cowork-view { display: flex; flex: 1; min-height: 0; }
+body:is(.view-cowork,.view-activity) #cowork-view { display: flex; flex: 1; min-height: 0; }
 .cw-empty { margin: auto; max-width: 32rem; padding: 24px; text-align: center; color: var(--text-2); }
 .cw-empty h2 { margin: 8px 0 0; color: var(--text); }
 .cowork-detail { width: 100%; display: flex; flex-direction: column; min-height: 0; }
@@ -648,3 +647,16 @@ body:is(.view-assistant,.view-cowork) .sidebar .conversations { display: none; }
 .cowork-compose textarea { display: block; width: 100%; padding: 6px 78px 0 0; border: 0; outline: none; background: transparent; color: var(--text); resize: vertical; font: inherit; }
 .cowork-compose button { position: absolute; bottom: 12px; right: 12px; display: inline-flex; align-items: center; gap: 4px; }
 .cw-feedback { width: min(760px,calc(100% - 48px)); margin: -12px auto 12px; }
+
+/* The drafted completion standard, waiting for the person's yes or no. */
+.goal-draft {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2, transparent);
+}
+.goal-draft h3 { font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+.goal-draft-text { margin: 0; overflow-wrap: anywhere; }
+.goal-draft-note { margin: 6px 0 0; font-size: 12px; color: var(--text-2); }
+.goal-draft .td-actions { margin-top: 12px; padding-top: 12px; display: flex; gap: 8px; }

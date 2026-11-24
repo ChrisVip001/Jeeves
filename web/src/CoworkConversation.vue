@@ -6,9 +6,10 @@ import { ArrowLeft, ArrowUp, Ellipsis } from "lucide-vue-next";
 import { errorText, interact } from "./api";
 import { workspaceActions } from "./controls";
 import { t } from "./i18n";
-import { webTasks } from "./tasks";
+import { webTasks, webPermission, trustAndAllow } from "./tasks";
 import { workStatus } from "./work-status";
 import { submissionTracker } from "./ui/submission";
+import GoalDraftCard from "./GoalDraftCard.vue";
 import TaskDelivery from "./TaskDelivery.vue";
 import TaskFileReview from "./TaskFileReview.vue";
 import type { TaskReviewFile } from "./protocol";
@@ -85,6 +86,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
       <button id="cowork-details" type="button" class="icon-action" :aria-label="t('任务详情')" :title="t('任务详情')" @click="emit('details')"><Ellipsis :size="21" /></button>
     </header>
     <div class="cowork-thread">
+      <slot name="screen" />
       <ol v-if="steps.length" class="work-steps" :aria-label="t('步骤')">
         <li v-for="(step, index) in steps" :key="index" :class="step.state" :title="step.detail">
           <span class="work-step-mark" aria-hidden="true">{{ step.state === "done" ? "✓" : step.state === "failed" ? "✕" : step.state === "doing" ? "◐" : "○" }}</span>
@@ -93,13 +95,16 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
       </ol>
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
-        :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
+        :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)"
+        :permission="webPermission" @trust="trustAndAllow" />
+      <GoalDraftCard :task="task" :center="webTasks" />
       <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
       <TaskDelivery :task="task" :center="webTasks" :selected="reviewFile?.path" @open="openReview" />
       <div v-if="!approval && ['suspended','needs_attention','needsAttention'].includes(task.status)" class="td-actions">
         <button v-if="task.runCount" type="button" class="today-btn" @click="workspaceActions.reviewOperations(task)">{{ t("核对操作") }}</button>
         <button type="button" class="today-btn primary" :disabled="!!webTasks.state.busy" @click="webTasks.action('resume', task.id)">{{ t("继续任务") }}</button>
       </div>
+      <slot name="tools" />
       <details class="work-history" @toggle="historyOpen = ($event.currentTarget as HTMLDetailsElement).open">
         <summary id="work-history-toggle">{{ t("查看往来记录") }}</summary>
         <TaskTranscript v-if="historyOpen" :task="task" :center="webTasks" :revision="revision" history-only />

@@ -60,8 +60,10 @@
   color: var(--text-2);
   font-weight: 600;
 }
+.preferences-links { margin-top: auto; display: grid; gap: 2px; padding-top: 12px; border-top: 1px solid var(--jeeves-line); }
+.preferences-links > a, .preferences-links > button { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--text-2); font: inherit; font-size: 13px; text-decoration: none; text-align: start; cursor: pointer; }
+.preferences-links > a:hover, .preferences-links > button:hover { background: var(--surface-hover); color: var(--text); }
 .preferences-brand {
-  margin-top: auto;
   padding: 14px 12px 0;
   color: var(--text-3);
   display: flex;
@@ -366,6 +368,8 @@
   .preferences-brand {
     display: none;
   }
+  .preferences-links { margin-top: 0; padding-top: 0; border-top: 0; display: flex; }
+  .preferences-links > a, .preferences-links > button { white-space: nowrap; }
   .preferences-nav > button {
     white-space: nowrap;
     padding: 10px;

@@ -19,7 +19,8 @@ Handle casual conversation, general questions, advice and progress inquiries dir
 Summarize the intended outcome from the conversation and keep the human's constraints. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
 create: one item per independent goal that needs persistence (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
 Use acceptance for objectively verifiable deliverables. Use the shared task criteria. Copy file paths, required literal text and test commands from the human instruction. \
-continue: pass a follow-up to the existing task (task_id from list). Use its words once. If the target is unclear, ask which task the human means. \
+Add goal_draft when the outcome is clear to you but cannot be stated as a mechanical check: one sentence, in the human's language, naming what must be true for this to count as done. It takes effect only if the person confirms it, so draft what you believe they asked for and never invent a goal they did not ask for. Omit it when the acceptance checks already say when the work is done. \
+continue: pass a follow-up to the existing task (task_id from list). Use its words once. When the follow-up names a file, required text or test command for a finished task, add matching acceptance so the revised delivery is measured too; the previous run's checks do not carry over. If the target is unclear, ask which task the human means. \
 draft_email: when the human asks to change a previously requested send to a draft, use this instead of continue or create. The runtime resolves the target from the human message. \
 cancel: stop a task the human asked to stop. \
 list: show the 20 newest tasks in this conversation.";
@@ -31,31 +32,42 @@ struct Item {
     instruction: String,
     #[serde(default)]
     acceptance: Vec<AcceptanceView>,
+    /// A "done when" sentence for the person to confirm. Inert until they do.
+    #[serde(default)]
+    goal_draft: Option<String>,
 }
 
 impl Item {
     fn acceptance(&self) -> Result<Vec<AcceptanceView>, String> {
-        for check in &self.acceptance {
-            jeeves_agent::verify::Acceptance::from_view(check)?;
-            for literal in [&check.path, &check.pattern, &check.cwd]
-                .into_iter()
-                .flatten()
-            {
-                if !self.instruction.contains(literal) {
-                    return Err(
-                        "Acceptance paths and literal text must come from the human instruction"
-                            .into(),
-                    );
-                }
-            }
-            if let Some(argv) = &check.argv
-                && !self.instruction.contains(&argv.join(" "))
-            {
-                return Err("An acceptance command must be named in the human instruction".into());
+        quoted_checks(&self.instruction, &self.acceptance)
+    }
+}
+
+/// Checks are only as good as their source: every path, literal and command must appear in the
+/// human's own instruction, so the model cannot invent a target that happens to pass.
+fn quoted_checks(
+    instruction: &str,
+    checks: &[AcceptanceView],
+) -> Result<Vec<AcceptanceView>, String> {
+    for check in checks {
+        jeeves_agent::verify::Acceptance::from_view(check)?;
+        for literal in [&check.path, &check.pattern, &check.cwd]
+            .into_iter()
+            .flatten()
+        {
+            if !instruction.contains(literal) {
+                return Err(
+                    "Acceptance paths and literal text must come from the human instruction".into(),
+                );
             }
         }
-        Ok(self.acceptance.clone())
+        if let Some(argv) = &check.argv
+            && !instruction.contains(&argv.join(" "))
+        {
+            return Err("An acceptance command must be named in the human instruction".into());
+        }
     }
+    Ok(checks.to_vec())
 }
 
 #[derive(Deserialize)]
@@ -67,12 +79,28 @@ enum Call {
     Continue {
         task_id: String,
         instruction: Option<String>,
+        #[serde(default)]
+        acceptance: Vec<AcceptanceView>,
     },
     Cancel {
         task_id: String,
     },
     DraftEmail,
     List,
+}
+
+/// The shared shape of `items[].acceptance` and a follow-up's `acceptance`.
+fn acceptance_schema() -> Value {
+    json!({
+        "type":"array", "items":{"type":"object","required":["kind"],"additionalProperties":false,
+            "properties":{
+                "kind":{"type":"string","enum":["fileExists","fileContains","jsonEquals","sourceSupports","commandSucceeds","toolsOk","receiptConfirmed"]},
+                "path":{"type":"string"},"pattern":{"type":"string"},"min":{"type":"integer"},
+                "pointer":{"type":"string"},"expectedJson":{"type":"string"},
+                "argv":{"type":"array","items":{"type":"string"}},"cwd":{"type":"string"},
+                "tool":{"type":"string"},"receiptKind":{"type":"string"},"refPrefix":{"type":"string"},"label":{"type":"string"}
+            }}
+    })
 }
 
 /// Build the tool for one interaction. It captures the message it may quote from.
@@ -92,21 +120,14 @@ pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) 
                         "properties": {
                             "title": {"type": "string", "description": "Short summary of the requested outcome in the human's language"},
                             "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"},
-                            "acceptance": {
-                                "type":"array", "items":{"type":"object","required":["kind"],"additionalProperties":false,
-                                    "properties":{
-                                        "kind":{"type":"string","enum":["fileExists","fileContains","jsonEquals","sourceSupports","commandSucceeds","toolsOk","receiptConfirmed"]},
-                                        "path":{"type":"string"},"pattern":{"type":"string"},"min":{"type":"integer"},
-                                        "pointer":{"type":"string"},"expectedJson":{"type":"string"},
-                                        "argv":{"type":"array","items":{"type":"string"}},"cwd":{"type":"string"},
-                                        "tool":{"type":"string"},"receiptKind":{"type":"string"},"refPrefix":{"type":"string"},"label":{"type":"string"}
-                                    }}
-                            }
+                            "acceptance": acceptance_schema(),
+                            "goal_draft": {"type": "string", "description": "One sentence naming what must be true for this to count as done; takes effect only after the person confirms it. Omit when acceptance already measures the outcome."}
                         },
                         "required": ["title", "instruction"]
                     }
                 },
                 "task_id": {"type": "string"},
+                "acceptance": acceptance_schema(),
                 "instruction": {"type": "string", "description": "continue only: exact substring of the human's message; omit to pass the whole message"}
             },
             "required": ["action"]
@@ -232,10 +253,12 @@ async fn run(
         Call::Continue {
             task_id,
             instruction,
+            acceptance,
         } => {
             let text = instruction.as_deref().unwrap_or(&p.message);
             let fresh = available_spans(&p.message, [text], spans)?;
-            let task = continue_task(server, p, &task_id, text, sink, || {
+            let acceptance = quoted_checks(text, &acceptance)?;
+            let task = continue_task(server, p, &task_id, text, &acceptance, sink, || {
                 spans.lock().expect("span lock").extend(fresh);
             })
             .await?;
@@ -308,6 +331,7 @@ async fn start_one(
             session_id: Some(p.session_id.clone()),
             title: item.title.clone(),
             goal_condition: None,
+            goal_draft: item.goal_draft.clone(),
             max_rounds: None,
             tier: None,
             acceptance,
@@ -324,6 +348,14 @@ async fn start_one(
     .task;
     crate::task::dispatch::kick(server.clone(), sink.clone());
     Ok(format!("• {} ({}): queued", item.title, task.id))
+}
+
+/// The ids of the tasks a `task` call queued, read back from its own `• title (id): queued` lines.
+pub(crate) fn queued_ids(output: &str) -> impl Iterator<Item = &str> {
+    output.lines().filter_map(|line| {
+        let head = line.strip_prefix("• ")?.strip_suffix("): queued")?;
+        head.rfind(" (").map(|at| &head[at + 2..])
+    })
 }
 
 pub(super) async fn owned_task(
@@ -360,6 +392,7 @@ pub(super) async fn continue_task(
     p: &InteractionStartParams,
     task_id: &str,
     text: &str,
+    acceptance: &[AcceptanceView],
     sink: &EventSink,
     on_accepted: impl FnOnce(),
 ) -> Result<jeeves_state::TaskRow, String> {
@@ -368,6 +401,9 @@ pub(super) async fn continue_task(
     let task = owned_task(server, p, task_id).await?;
     let has_attachments = p.attachments.as_ref().is_some_and(|a| !a.is_empty());
     let queue = jeeves_state::dispatch::TaskDispatch::new(server.pool.clone());
+    if !acceptance.is_empty() && task.status != jeeves_state::TaskStatus::Done {
+        return Err("new acceptance checks apply only to a finished task; wait for this run to end, then pass the follow-up with its checks".into());
+    }
     match task.status {
         jeeves_state::TaskStatus::Running => {
             if has_attachments {
@@ -413,8 +449,9 @@ pub(super) async fn continue_task(
         jeeves_state::TaskStatus::Done => {
             let attachments = serde_json::to_string(&p.attachments.clone().unwrap_or_default())
                 .map_err(|e| e.to_string())?;
+            let checks = crate::task::normalise_acceptance(acceptance).map_err(|e| e.message)?;
             queue
-                .continue_finished(task_id, text, &attachments, &p.message_id)
+                .continue_finished(task_id, text, &attachments, &p.message_id, &checks)
                 .await
                 .map_err(|e| e.to_string())?;
             crate::task::dispatch::kick(server.clone(), sink.clone());
@@ -501,6 +538,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn queued_lines_name_the_started_tasks() {
+        let output = "• 调研 (净化器) (task17-3): queued\n• Weekly (task17-4): queued\nCancelled \"x\".\n• x (task1-2): failed";
+        assert_eq!(
+            queued_ids(output).collect::<Vec<_>>(),
+            ["task17-3", "task17-4"]
+        );
+    }
+
+    #[test]
     fn task_spans_keep_uploaded_documents_without_other_task_instructions() {
         let message = "（附件：/home/uploads/report.pdf）\n总结附件；修改网站";
         assert_eq!(
@@ -508,6 +554,18 @@ mod tests {
             "（附件：/home/uploads/report.pdf）\n总结附件"
         );
         assert_eq!(with_references(message, message), message);
+    }
+
+    #[test]
+    fn follow_up_checks_must_quote_the_follow_up() {
+        let check = |path: &str| -> AcceptanceView {
+            serde_json::from_value(json!({"kind":"fileContains","path":path,"pattern":"已复核"}))
+                .unwrap()
+        };
+        let follow_up = "在 review.md 末尾补一句「已复核」";
+        assert!(quoted_checks(follow_up, &[check("review.md")]).is_ok());
+        assert!(quoted_checks(follow_up, &[check("other.md")]).is_err());
+        assert!(quoted_checks("再用一句话总结。", &[check("review.md")]).is_err());
     }
 
     #[test]

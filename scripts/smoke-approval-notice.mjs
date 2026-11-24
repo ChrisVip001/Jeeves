@@ -250,10 +250,11 @@ async function captureViews(browser, { origin, workspace, cookie }) {
       const composer = page.locator("#composer");
       await composer.locator(".workspace-picker button").first().waitFor({state:"visible"});
       assert.equal(await composer.locator(".model-picker, .permissions").count(), 0);
-      if (!await page.locator("#settings-entry button").isVisible()) await page.locator(".mobile-menu").click();
-      assert.ok(await page.locator('a[href="/account/"]').isVisible());
-      assert.ok(await page.locator('a[href="/account/#devices"]').isVisible());
-      await page.locator("#settings-entry button").click();
+      const settingsEntry = page.locator("#settings-entry button");
+      if (await settingsEntry.isVisible()) await settingsEntry.click();
+      else await page.locator(".bottom-tabs button").last().click();
+      assert.ok(await page.locator('dialog.preferences a[href="/account/"]').isVisible());
+      assert.ok(await page.locator('dialog.preferences a[href="/account/#devices"]').isVisible());
       const push = page.getByRole("region", {name:label("审批通知", "Approval notifications")});
       await push.getByRole("button", {name:label("显示本机配对公钥", "Show device pairing key")}).scrollIntoViewIfNeeded();
       await push.getByRole("button", {name:label("显示本机配对公钥", "Show device pairing key")}).click();

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { Globe, Monitor } from "lucide-vue-next";
+import { Globe } from "lucide-vue-next";
 import { t } from "./i18n";
 import type { AgentTaskView } from "./protocol";
 import type { TaskCenter } from "./ui/useTasks";
@@ -57,9 +57,8 @@ function label(status: string) {
 }
 </script>
 <template>
-  <aside class="work-screen" :aria-label="t('Jeeves 的电脑')">
-    <header><h3>{{ t("Jeeves 的电脑") }}</h3><span v-if="live && row" class="work-screen-state">{{ label(row.status) }}</span></header>
-    <template v-if="live && row">
+  <aside v-if="live && row" class="work-screen" :aria-label="t('Jeeves 的电脑')">
+    <header><h3>{{ t("Jeeves 的电脑") }}</h3><span class="work-screen-state">{{ label(row.status) }}</span></header>
       <p class="work-screen-url" :title="row.url"><Globe :size="14" aria-hidden="true" />{{ row.title || row.url }}</p>
       <figure v-if="frame" class="work-screen-frame">
         <img :src="frame.dataUrl" :alt="t('浏览器当前画面')" />
@@ -80,11 +79,5 @@ function label(status: string) {
         <RemoteBrowser v-if="browser && remote && row.status === 'human'" :center="browser" :row="row"
           @close="remote = false" />
       </Teleport>
-    </template>
-    <div v-else class="work-screen-empty">
-      <Monitor :size="28" aria-hidden="true" />
-      <p>{{ t("这件事还没用到浏览器或你的 Mac。Jeeves 开始操作时，画面会显示在这里。") }}</p>
-    </div>
-    <div class="work-screen-tools"><slot /></div>
   </aside>
 </template>

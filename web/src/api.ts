@@ -297,7 +297,8 @@ export type TaskActionBody =
       action: "suspend" | "resume" | "cancel";
       taskId: string;
       reason?: string | null;
-    };
+    }
+  | { action: "confirmGoal"; taskId: string; accept: boolean };
 
 export async function taskAction(body: TaskActionBody): Promise<TaskEnvelope> {
   const response = await apiFetch("/api/task", {

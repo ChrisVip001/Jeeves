@@ -22,9 +22,10 @@ const t = useUiText();
       class="executor-stop ghost"
       :disabled="busy"
       :title="t('立即停止此 Runtime 的所有浏览器和桌面操作')"
+      :aria-label="t('全局急停')"
       @click="$emit('stop')"
     >
-      <OctagonPause :size="16" aria-hidden="true" />{{ t("全局急停") }}
+      <OctagonPause :size="16" aria-hidden="true" /><span class="executor-stop-label">{{ t("全局急停") }}</span>
     </button>
   </Teleport>
   <Teleport to="#executor-notice" :disabled="inline">

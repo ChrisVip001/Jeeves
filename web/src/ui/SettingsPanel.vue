@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { useUiText } from "./translate";
 const t = useUiText();
-import { onMounted, reactive, ref } from "vue";
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import JeevesLogo from "./JeevesLogo.vue";
 import ConnectionsPanel from "./ConnectionsPanel.vue";
-import { Bell, Blocks, Inbox, Plug, X } from "lucide-vue-next";
+import { Bell, Brain, Cable, Inbox, Languages, Plug, Smartphone, Sparkles, UserRound, X } from "lucide-vue-next";
+import { getLang, setLang } from "../i18n";
+import { workspaceActions } from "../controls";
 import type { SettingsActions } from "./types";
+type PanelTab = "skills" | "mcp" | "memory";
 const props = defineProps<{
   busy: boolean;
   actions: SettingsActions;
-  initialTab?: "notifications" | "connections" | "inbox" | "capabilities";
+  initialTab?: "notifications" | "connections" | "inbox" | PanelTab;
 }>();
-/** `capability` asks the host to open that panel once this dialog has closed. */
-const emit = defineEmits<{ close: []; mcp: []; capability: [which: "skills" | "mcp" | "memory"] }>();
+const emit = defineEmits<{ close: [] }>();
 const dialog = ref<HTMLDialogElement>();
 const tab = ref(props.initialTab ?? "notifications");
 const saving = ref(false);
@@ -22,17 +24,30 @@ const tabs = [
   { id: "notifications", name: t("审批通知"), icon: Bell },
   { id: "connections", name: t("连接管理"), icon: Plug },
   { id: "inbox", name: t("收件箱"), icon: Inbox },
-  { id: "capabilities", name: t("能力"), icon: Blocks },
+  { id: "skills", name: t("技能"), icon: Sparkles },
+  { id: "mcp", name: t("MCP 连接器"), icon: Cable },
+  { id: "memory", name: t("记忆"), icon: Brain },
 ] as const;
-const capabilities = [
-  { id: "skills", name: t("技能") },
-  { id: "mcp", name: t("MCP 连接器") },
-  { id: "memory", name: t("记忆") },
-] as const;
-function openCapability(which: "skills" | "mcp" | "memory") {
-  dialog.value?.close();
-  emit("capability", which);
+/** Every tab here is one of the workspace panels, borrowed while it shows. */
+const PANEL_TABS = ["skills", "mcp", "memory"] as const;
+const panelHost = ref<HTMLElement>();
+let handBack: (() => void) | null = null;
+function isPanel(id: string): id is PanelTab {
+  return (PANEL_TABS as readonly string[]).includes(id);
 }
+watch(
+  [tab, panelHost],
+  () => {
+    handBack?.();
+    handBack = null;
+    if (isPanel(tab.value) && panelHost.value) handBack = workspaceActions.mountPanel(tab.value, panelHost.value);
+  },
+  { flush: "post" },
+);
+onBeforeUnmount(() => {
+  handBack?.();
+  handBack = null;
+});
 const lark = reactive({
   enabled: false,
   appId: "",
@@ -141,10 +156,7 @@ const larkSection = ref<HTMLElement>();
 const pageHeading = ref<HTMLElement>();
 function manageConnection(target: "lark" | "mcp") {
   if (target === "lark") larkSection.value?.focus();
-  else {
-    dialog.value?.close();
-    emit("mcp");
-  }
+  else tab.value = "mcp";
 }
 onMounted(() => {
   dialog.value?.showModal();
@@ -179,6 +191,11 @@ onMounted(() => {
       >
         <component :is="item.icon" :size="17" />{{ item.name }}
       </button>
+      <div class="preferences-links">
+        <a href="/account/"><UserRound :size="17" aria-hidden="true" />{{ t("个人中心") }}</a>
+        <a href="/account/#devices"><Smartphone :size="17" aria-hidden="true" />{{ t("设备管理") }}</a>
+        <button type="button" :aria-label="t('语言')" @click="setLang(getLang() === 'zh' ? 'en' : 'zh')"><Languages :size="17" aria-hidden="true" />{{ getLang() === "zh" ? "English" : "中文" }}</button>
+      </div>
       <div class="preferences-brand">
         <JeevesLogo :size="22" /> <span>Jeeves</span>
       </div>
@@ -197,13 +214,7 @@ onMounted(() => {
       <div v-if="tab === 'notifications'" class="preferences-content">
         <slot name="approval-notifications" />
       </div>
-      <div v-if="tab === 'capabilities'" class="preferences-content">
-        <p>{{ t("Jeeves 会用的技能、连接的外部工具，以及它记住的事。") }}</p>
-        <div v-for="item in capabilities" :key="item.id" class="setting-row">
-          <strong>{{ item.name }}</strong>
-          <button type="button" class="quiet-button" @click="openCapability(item.id)">{{ t("管理") }}</button>
-        </div>
-      </div>
+      <div v-if="isPanel(tab)" ref="panelHost" class="preferences-content preferences-panel"></div>
       <div v-if="tab === 'inbox'" class="preferences-content">
         <h3>{{ t("等你处理") }}</h3>
         <p v-if="inboxError" class="notice error" role="alert">{{ inboxError }}</p>

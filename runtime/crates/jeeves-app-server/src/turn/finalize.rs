@@ -107,6 +107,13 @@ pub(crate) async fn finalize_turn(
         goal_status: goal_status.clone(),
         goal_rounds,
         route_reason: route_reason.clone(),
+        started_tasks: result
+            .tool_calls
+            .iter()
+            .filter(|c| c.name == "task" && c.ok())
+            .flat_map(|c| crate::interaction::task_tool::queued_ids(&c.output))
+            .map(str::to_owned)
+            .collect(),
     };
 
     let meta_json = serde_json::to_string(&meta).ok();

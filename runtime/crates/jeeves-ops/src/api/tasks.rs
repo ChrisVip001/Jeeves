@@ -208,6 +208,20 @@ pub async fn task(
                 message: format!("bad task-create parameters: {e}"),
                 data: None,
             }),
+        "confirmGoal" => {
+            serde_json::from_value::<jeeves_protocol::TaskGoalConfirmParams>(body.clone())
+                .map(|params| {
+                    (
+                        methods::TASK_GOAL_CONFIRM,
+                        serde_json::to_value(params).expect("serialisable"),
+                    )
+                })
+                .map_err(|e| ErrorObject {
+                    code: codes::INVALID_PARAMS,
+                    message: format!("bad goal-confirmation parameters: {e}"),
+                    data: None,
+                })
+        }
         "suspend" | "resume" | "cancel" => serde_json::from_value::<TaskActionParams>(body.clone())
             .map(|params| {
                 let method = match action.as_str() {
@@ -225,7 +239,7 @@ pub async fn task(
         other => Err(ErrorObject {
             code: codes::INVALID_PARAMS,
             message: format!(
-                "unknown task action: {other} (create/start/wait/signal/operations/reconcile/suspend/resume/cancel)"
+                "unknown task action: {other} (create/start/wait/signal/operations/reconcile/confirmGoal/suspend/resume/cancel)"
             ),
             data: None,
         }),

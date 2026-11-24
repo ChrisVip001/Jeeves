@@ -30,6 +30,7 @@ async fn main_task_list_finds_older_owned_work_among_newer_unrelated_tasks() {
                 session_id: Some("another-conversation"),
                 title: "Unrelated fixture",
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: "{}",
                 cwd: None,

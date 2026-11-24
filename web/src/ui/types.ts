@@ -58,4 +58,6 @@ export type {
   TaskGitCheckpointPolicyParams,
   TaskGitCheckpointPolicyResponse,
   CheckView,
+  PermissionMode,
+  SessionPermissionResponse,
 } from "../../../protocol/schema/typescript/v2/index";

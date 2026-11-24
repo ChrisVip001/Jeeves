@@ -35,7 +35,7 @@ Declare image support when you add a profile (`--vision` / `--no-vision`), other
 
 ## 4. Permissions
 
-Review the action, working directory and preview on the approval card in the conversation, then allow it once or deny it. The operator manages the Runtime switches for commands, file writes and delegation. See the [protocol](protocol.md) for session modes and [security](../SECURITY.md) for sandbox boundaries.
+Review the action, working directory and preview on the approval card in the conversation, then allow it once or deny it. When answering one card after another gets tiresome, the card also offers **Stop asking — I trust this session**: it confirms once, then allows the card in front of you and puts the session into full access, so reading and writing files and running commands no longer ask. Sending something out, which cannot be taken back, still asks every time, and a card for a send never offers the switch. The switch is a human control — Jeeves can neither press it nor raise its own permissions. The operator manages the Runtime switches for commands, file writes and delegation. See the [protocol](protocol.md) for session modes and [security](../SECURITY.md) for sandbox boundaries.
 
 ## 5. Channels: Lark and Telegram
 
@@ -45,7 +45,7 @@ Both gateways talk to a Jeeves Runtime and derive session ids from the platform 
 
 Browse the catalog for provider documentation or add a custom MCP connection. Remote connections take a URL and support anonymous access, a bearer environment variable or browser OAuth. Local stdio connections take a command and arguments. Entries requiring provider setup link to the provider’s instructions. Open tool permissions on an MCP card to inspect effects or disable and restore tools on your own connection. Changes take effect on the next turn. Re-enabled tools retain their approval requirements.
 
-Open **Connections** in the capability center (also in Settings) to see the configured capabilities together, with those needing attention first. Cards show local status, credential location (never a value), last check time and next steps. Checks may use the 60-second cache and do not verify remote service acceptance. Under **Local connectors**, add or edit Calendar and Email; save secrets separately in the credential vault and reference `vault:NAME` or `env:VAR`. For configured OAuth-capable MCP or Feishu user connections, choose **Start authorization** and open the returned link on the device running Jeeves, where the loopback callback listens. Complete the provider's consent screen and recheck; a CLI fallback is provided if preparation fails. No QR flow is fabricated. See [Capability cards](protocol.md#capability-cards) for the wire states.
+Open **Connections** in Settings to see the configured capabilities together, with those needing attention first. Cards show local status, credential location (never a value), last check time and next steps. Checks may use the 60-second cache and do not verify remote service acceptance. Under **Local connectors**, add or edit Calendar and Email; save secrets separately in the credential vault and reference `vault:NAME` or `env:VAR`. For configured OAuth-capable MCP or Feishu user connections, choose **Start authorization** and open the returned link on the device running Jeeves, where the loopback callback listens. Complete the provider's consent screen and recheck; a CLI fallback is provided if preparation fails. No QR flow is fabricated. See [Capability cards](protocol.md#capability-cards) for the wire states.
 
 ### Lark / Feishu
 
@@ -95,7 +95,7 @@ The token is read only from the environment. `TELEGRAM_ALLOW` lists numeric user
 
 ## 6. Memory
 
-Jeeves keeps semantic facts, dated episodes and skills, and uses local keyword search to retrieve matching memory during a full turn. You can inspect all of it: the drawer's **Memory** tab shows the **Ledger** (one row per turn; open it for that turn's entry stream), the **Library** (a catalog and one page at a time, with `ledger:…` chips back to the source turns) and the **Context** meter (what grows with the session, with a notice at `JEEVES_CONTEXT_WARN_RATIO`). **Compact now** folds older turns into the rolling summary on demand.
+Jeeves keeps semantic facts, dated episodes and skills, and uses local keyword search to retrieve matching memory during a full turn. You can inspect all of it: the **Memory** tab in Settings shows the **Ledger** (one row per turn; open it for that turn's entry stream), the **Library** (a catalog and one page at a time, with `ledger:…` chips back to the source turns) and the **Context** meter (what grows with the session, with a notice at `JEEVES_CONTEXT_WARN_RATIO`). **Compact now** folds older turns into the rolling summary on demand.
 
 The library is plain text under `<home>/memory`: edit a page by hand and `jeeves memory rebuild` takes your edit back into the facts and regenerates the rest; `jeeves memory backfill` rebuilds ledger rows from old chat history. Other agents on this machine can share the same memory through `jeeves mcp serve` ([operations](operations.md#serving-jeevess-memory-to-other-agents)).
 

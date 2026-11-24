@@ -23,7 +23,7 @@ try {
       const nav = page.getByRole("navigation", { name: "主导航" });
       const composer = page.locator("#input");
       await composer.fill("unsent fixture draft");
-      await nav.getByRole("button", { name: "我的事项" }).click();
+      await nav.getByRole("button", { name: "工作" }).click();
       const row = page.locator(`[data-cowork-task="${taskId}"]`);
       await row.waitFor();
       assert.equal(await page.locator("#input").isVisible(), false);
@@ -53,7 +53,7 @@ try {
         assert.equal(await readFile(await download.path(), "utf8"), "task-alpha-fixture");
         await review.getByRole("button", {name:"关闭文件审阅"}).click();
       }
-      await nav.getByRole("button", {name:"我的事项"}).click();
+      await nav.getByRole("button", {name:"工作"}).click();
       const search = page.getByRole("searchbox", {name:"搜索事项"});
       await search.fill("no-match-001");
       await page.getByText("没有找到匹配的事项。").waitFor();

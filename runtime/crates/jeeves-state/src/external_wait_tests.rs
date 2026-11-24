@@ -15,6 +15,7 @@ async fn fixture() -> (
             session_id: Some("owner"),
             title: "report",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

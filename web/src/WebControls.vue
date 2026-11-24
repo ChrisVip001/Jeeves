@@ -2,11 +2,11 @@
 import { accountKey } from "./hosted.ts";
 import ApprovalPushSettings from "./ApprovalPushSettings.vue";
 import CoworkConversation from "./CoworkConversation.vue";
-import WorkRail from "./WorkRail.vue";
 import WorkScreen from "./WorkScreen.vue";
 import { waitingCount } from "./work-status";
 import ActivityPage from "./ActivityPage.vue";
 import ResponsibilityCards from "./ResponsibilityCards.vue";
+import LongTerm from "./LongTerm.vue";
 import ChatDecisions from "./ChatDecisions.vue";
 import ApprovalNotice from "./ApprovalNotice.vue";
 import DesktopPanel from "./ui/DesktopPanel.vue";
@@ -27,7 +27,6 @@ import type { AgentTaskView } from "./ui/types.ts";
 import { t } from "./i18n";
 import { SETUP_EVENT } from "./render.ts";
 import { phoneLayout } from "./phone";
-import { closeMobileNavigation } from "./navigation";
 import {
   webState as state,
   workspaceActions,
@@ -102,15 +101,23 @@ function setRoute(view: "chat" | "activity" | "cowork", id = "", push = true) {
   coworkId.value = id;
   state.view = view;
   webTasks.state.open = false;
-  closeMobileNavigation();
 }
 function restoreRoute() {
   const params = new URLSearchParams(location.search);
   const id = params.get("work");
   setRoute(id ? "cowork" : params.has("list") ? "activity" : "chat", id ?? "", false);
 }
-onMounted(() => { workspaceActions.openWork = inspectActivity; restoreRoute(); window.addEventListener("popstate", restoreRoute); });
-onUnmounted(() => window.removeEventListener("popstate", restoreRoute));
+// ⌘1 对话 · ⌘2 工作 · ⌘L the message box (Ctrl on other systems).
+function shortcut(event: KeyboardEvent) {
+  if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || document.querySelector("dialog[open]")) return;
+  if (event.key === "1") setRoute("chat");
+  else if (event.key === "2") setRoute("activity");
+  else if (event.key.toLowerCase() === "l") { setRoute("chat"); requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>("#input")?.focus()); }
+  else return;
+  event.preventDefault();
+}
+onMounted(() => { workspaceActions.openWork = inspectActivity; restoreRoute(); window.addEventListener("popstate", restoreRoute); window.addEventListener("keydown", shortcut); });
+onUnmounted(() => { window.removeEventListener("popstate", restoreRoute); window.removeEventListener("keydown", shortcut); });
 function inspectActivity(id: string) {
   sessionStorage.setItem(accountKey("jeeves.last-work"), id);
   lastWorkId.value = id;
@@ -141,6 +148,8 @@ function showActivity() {
   setRoute("activity");
 }
 const needsYou = computed(() => waitingCount(webTasks));
+// The tab title (and, in the Mac app, the Dock badge read from it) shows what waits for you.
+watch(needsYou, count => { document.title = count ? `(${count}) Jeeves` : "Jeeves"; }, { immediate: true });
 watch(() => state.view, view => {
   if (view === "chat" && (new URLSearchParams(location.search).has("work") || new URLSearchParams(location.search).has("list"))) {
     const url = new URL(location.href);
@@ -174,19 +183,8 @@ function closeNotice() {
 const open = ref(false);
 const tab = ref<"notifications" | "connections">("notifications");
 function settings(value: "notifications" | "connections" = "notifications") {
-  closeMobileNavigation();
   tab.value = value;
   open.value = true;
-}
-/** The skills, MCP and memory panels still live in the workspace drawer; open the one asked for. */
-function manageCapability(which: "skills" | "mcp" | "memory") {
-  open.value = false;
-  const trigger = document.querySelector<HTMLButtonElement>(which === "memory" ? "#nav-memory" : `#cap-${which}`);
-  trigger?.click();
-  trigger?.focus();
-}
-function manageMcp() {
-  manageCapability("mcp");
 }
 const SETUP_KEY = "jeeves.setup.dismissed";
 const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
@@ -199,7 +197,6 @@ function endSetup() {
   void workspaceActions.refresh();
 }
 function reopenSetup() {
-  closeMobileNavigation();
   void refreshConnections()
     .then(() => {
       setupDismissed.value = false;
@@ -232,21 +229,15 @@ watch(
   <Teleport to="#bottom-tabs">
     <nav class="bottom-tabs" :aria-label="t('主导航')">
       <button type="button" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="20" /><span>{{ t("对话") }}</span></button>
-      <button type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="20" /><span>{{ t("我的事项") }}</span><span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="20" /><span>{{ t("工作") }}</span><span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
       <button type="button" @click="settings()"><Settings :size="20" /><span>{{ t("设置") }}</span></button>
     </nav>
   </Teleport>
   <Teleport to="#primary-navigation">
     <nav class="primary-navigation" :aria-label="t('主导航')">
-      <button id="mode-assistant" type="button" :aria-label="t('对话')" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
-      <button id="mode-cowork" type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="17" />{{ t("我的事项") }}<span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button id="mode-assistant" type="button" :aria-label="t('对话')" :title="`${t('对话')} (⌘1)`" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
+      <button id="mode-cowork" type="button" :title="`${t('工作')} (⌘2)`" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="17" />{{ t("工作") }}<span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
     </nav>
-  </Teleport>
-  <Teleport to="#activity-view">
-    <ActivityPage v-if="state.view === 'activity'" :center="webTasks" @inspect="inspectActivity" @chat="showAssistant">
-      <ResponsibilityCards :busy="state.busy" />
-      <template #after><ResponsibilityCards :busy="state.busy" list /></template>
-    </ActivityPage>
   </Teleport>
   <Teleport to="#chat-decisions">
     <button v-if="lastWork && state.view === 'chat' && state.sessionId === state.mainSessionId && !followingTask" class="return-work" type="button" @click="inspectActivity(lastWork.id)"><CornerUpLeft :size="15" /><span>{{ t("继续上次的事项") }}</span><strong>{{ lastWork.title }}</strong></button>
@@ -254,44 +245,32 @@ watch(
     <ChatDecisions v-if="state.view === 'chat' && state.sessionId === state.mainSessionId" :center="webTasks" :main-busy="state.busy" />
   </Teleport>
   <Teleport to="#cowork-view">
-    <div v-if="state.view === 'cowork' && coworkTask" class="work-columns">
-      <WorkRail :center="webTasks" :selected="coworkTask.id" @inspect="inspectActivity" @all="showActivity" />
-      <CoworkConversation :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity" />
-      <WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks">
-        <DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" />
-      </WorkScreen>
-    </div>
-    <div v-else-if="state.view === 'cowork'" class="missing-work" role="status">
-      <p>{{ webTasks.state.error || (webTasks.state.loadedOwner ? t("暂时无法打开原任务，请重试。") : t("正在读取任务…")) }}</p>
-      <button type="button" class="today-btn" @click="showActivity">{{ t("我的事项") }}</button>
+    <div v-if="state.view !== 'chat'" class="work-split" :class="{ 'has-detail': state.view === 'cowork' }">
+      <div class="work-list-pane">
+        <ActivityPage :center="webTasks" :selected="state.view === 'cowork' ? coworkId : ''" @inspect="inspectActivity" @chat="showAssistant">
+          <ResponsibilityCards :busy="state.busy" />
+          <template #after><LongTerm :busy="state.busy" /></template>
+        </ActivityPage>
+      </div>
+      <div class="work-detail-pane">
+        <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity">
+          <template #screen><WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks" /></template>
+          <template #tools><DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" /></template>
+        </CoworkConversation>
+        <div v-else-if="state.view === 'cowork'" class="missing-work" role="status">
+          <p>{{ webTasks.state.error || (webTasks.state.loadedOwner ? t("暂时无法打开原任务，请重试。") : t("正在读取任务…")) }}</p>
+          <button type="button" class="today-btn" @click="showActivity">{{ t("工作") }}</button>
+        </div>
+        <div v-else class="work-placeholder"><ListTodo :size="26" aria-hidden="true" /><p>{{ t("选一件事，在这里查看进展和交付。") }}</p></div>
+      </div>
     </div>
   </Teleport>
-  <Teleport to="#task-progress-entry"
-    ><button
-      type="button"
-      class="settings-entry"
-      @click="closeMobileNavigation(); webTasks.state.open = !webTasks.state.open"
-    >
-      {{ t("任务进展")
-      }}<span style="margin-left: auto">{{
-        webTasks.state.tasks.filter(
-          (task) => !["done", "failed", "cancelled"].includes(task.status),
-        ).length
-      }}</span>
-    </button></Teleport
-  >
   <Teleport to="#composer-attachments">
     <AttachmentPicker @files="workspaceActions.upload()" />
   </Teleport>
-  <Teleport to="#connections-entry">
-    <a href="/account/" class="cap-entry">{{ t("个人中心") }}</a>
-    <a href="/account/#devices" class="cap-entry">{{ t("设备管理") }}</a>
-    <button class="cap-entry" type="button" @click="settings('connections')"><span class="cap-entry-name">{{ t('连接管理') }}</span></button>
-  </Teleport>
   <Teleport to="#settings-entry"
-    ><button class="settings-entry" type="button" @click="settings()">
-      <Settings :size="16" />{{ t("设置")
-      }}<span style="margin-left: auto; font-size: 10px">⌘ ,</span>
+    ><button class="settings-entry ghost" type="button" :aria-label="t('设置')" :title="t('设置') + ' (⌘,)'" @click="settings()">
+      <Settings :size="17" aria-hidden="true" />
     </button></Teleport
   >
   <Teleport :to="state.cwd && !followingTask ? '#composer-target' : '#composer-context'"
@@ -352,8 +331,6 @@ watch(
       :actions="settingsActions"
       :initial-tab="tab"
       @close="open = false"
-      @mcp="manageMcp"
-      @capability="manageCapability"
     >
       <template #approval-notifications><ApprovalPushSettings /></template>
     </SettingsPanel>

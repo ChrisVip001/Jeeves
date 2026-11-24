@@ -226,6 +226,7 @@ mod tests {
                 session_id: Some("cal-chat"),
                 title: "calendar fixture",
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: "{}",
                 cwd: None,

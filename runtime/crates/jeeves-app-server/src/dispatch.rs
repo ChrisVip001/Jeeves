@@ -944,6 +944,11 @@ async fn dispatch(
             respond(crate::task::resume(server, sink, p).await?)
         }
 
+        methods::TASK_GOAL_CONFIRM => {
+            let p: jeeves_protocol::TaskGoalConfirmParams = parse(params, method)?;
+            respond(crate::task::confirm_goal(server, sink, p).await?)
+        }
+
         methods::TASK_CANCEL => {
             let p: TaskActionParams = parse(params, method)?;
             respond(crate::task::cancel(server, sink, p).await?)

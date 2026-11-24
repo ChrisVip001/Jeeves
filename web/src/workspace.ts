@@ -1,9 +1,5 @@
 import { accountKey, accountStorage, hostedBase, loginPage } from "./hosted.ts";
-import {
-  closeMobileNavigation,
-  setupNavigation,
-  setupSidebarResize,
-} from "./navigation";
+import { setupNavigation } from "./navigation";
 import {
   webState,
   workspaceActions,
@@ -39,7 +35,7 @@ import type {
   SkillRow,
   SkillsView,
 } from "./api";
-import { applyStatic, getLang, initLang, setLang, t } from "./i18n";
+import { applyStatic, getLang, initLang, t } from "./i18n";
 import { createTimeline } from "./timeline";
 import { taskCards } from "./task-card";
 import { queuedTasks } from "./task-queued";
@@ -89,7 +85,6 @@ import {
   failure,
   failureOf,
   formatMs,
-  formatStamp,
   messageRow,
   taskNotice,
   muted,
@@ -171,16 +166,13 @@ const POLL_MS = 15_000;
 
 const dom = {
   messages: must("messages"),
+  jumpLatest: must<HTMLButtonElement>("jump-latest"),
   composer: must<HTMLFormElement>("composer"),
   input: must<HTMLTextAreaElement>("input"),
   send: must<HTMLButtonElement>("send"),
-  /** Prefills a "save this as a skill" instruction; sending stays a human action. */
-  saveSkill: must<HTMLButtonElement>("save-skill"),
   /** Only shown while a turn can be followed: pressing it means this lands as the next turn,
    *  not as an addition to the current one. */
   queueToggle: must<HTMLButtonElement>("queue-toggle"),
-  refresh: must<HTMLButtonElement>("refresh"),
-  lang: must<HTMLButtonElement>("lang"),
   older: must<HTMLButtonElement>("older"),
   overview: must("overview"),
   status: must("status"),
@@ -191,15 +183,9 @@ const dom = {
   file: must<HTMLInputElement>("file"),
   staged: must<HTMLElement>("staged"),
   session: must("session"),
-  stamp: must("stamp"),
   drawer: must("drawer"),
   drawerClose: must<HTMLButtonElement>("drawer-close"),
-  tabOverview: must<HTMLButtonElement>("tab-overview"),
-  tabSkills: must<HTMLButtonElement>("tab-skills"),
-  tabMcp: must<HTMLButtonElement>("tab-mcp"),
-  tabMemory: must<HTMLButtonElement>("tab-memory"),
-  tabSchedule: must<HTMLButtonElement>("tab-schedule"),
-  panelOverview: must("panel-overview"),
+  panelStash: must("panel-stash"),
   panelSkills: must("panel-skills"),
   panelMcp: must("panel-mcp"),
   panelMemory: must("panel-memory"),
@@ -213,12 +199,6 @@ const dom = {
   memLedger: must("mem-ledger"),
   memWiki: must("mem-wiki"),
   memContext: must("mem-context"),
-  capSkills: must<HTMLButtonElement>("cap-skills"),
-  capMcp: must<HTMLButtonElement>("cap-mcp"),
-  capSchedules: must<HTMLButtonElement>("cap-schedules"),
-  capSkillsCount: must<HTMLElement>("cap-skills-count"),
-  capMcpCount: must<HTMLElement>("cap-mcp-count"),
-  capSchedulesCount: must<HTMLElement>("cap-schedules-count"),
 };
 
 /**
@@ -329,68 +309,46 @@ function renderStaged(): void {
 }
 
 /**
- * The drawer's three panels: the overview (what is being worked on, what is remembered)
- * and the capability center's two halves. Skills and MCP connectors are here rather than
- * in a settings page because they are things a human adds and removes, not config to
- * stare at — same reason they get a sidebar entry.
+ * The drawer holds only the conversation overview. Skills, MCP, memory and schedules are
+ * things a person manages now and then, so they live in Settings: its tab borrows the panel
+ * from the stash while it shows, and hands it back when it closes.
  */
-const TAB_IDS = ["overview", "skills", "mcp", "memory", "schedule"] as const;
-type TabId = (typeof TAB_IDS)[number];
-
-/** Which panel is showing. Kept so the "Progress" button can toggle instead of only opening. */
-let currentTab: TabId = "overview";
+type PanelId = "skills" | "mcp" | "memory" | "schedule";
 
 /** Latest capability data, refreshed with the rest of the screen. */
 let skillsView: SkillsView = { skills: [], error: null };
 let mcpView: McpView = { servers: [], error: null };
 let schedulesView: SchedulesView = { jobs: [], error: null };
 
-function switchTab(tab: TabId): void {
-  closeMobileNavigation();
-  currentTab = tab;
-  if (location.hash !== `#${tab}`) {
-    history.replaceState(null, "", `#${tab}`);
-  }
-  for (const [id, button] of [
-    ["overview", dom.tabOverview],
-    ["skills", dom.tabSkills],
-    ["mcp", dom.tabMcp],
-    ["memory", dom.tabMemory],
-    ["schedule", dom.tabSchedule],
-  ] as const) {
-    const active = id === tab;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
-  }
-  dom.panelOverview.hidden = tab !== "overview";
-  dom.panelSkills.hidden = tab !== "skills";
-  dom.panelMcp.hidden = tab !== "mcp";
-  dom.panelMemory.hidden = tab !== "memory";
-  dom.panelSchedule.hidden = tab !== "schedule";
-  if (tab === "skills") {
+function panelOf(id: PanelId): HTMLElement {
+  return { skills: dom.panelSkills, mcp: dom.panelMcp, memory: dom.panelMemory, schedule: dom.panelSchedule }[id];
+}
+
+/** Move one panel into `host`, paint it, and return the call that puts it back. */
+function mountPanel(id: PanelId, host: HTMLElement): () => void {
+  const panel = panelOf(id);
+  host.append(panel);
+  panel.hidden = false;
+  if (id === "skills") {
     paintSkills();
     void loadSkillStats();
   }
-  if (tab === "mcp") paintMcp();
-  if (tab === "schedule") paintSchedules();
-  if (tab === "memory") void loadMemory();
-  openDrawer();
+  if (id === "mcp") paintMcp();
+  if (id === "schedule") paintSchedules();
+  if (id === "memory") void loadMemory();
+  return () => {
+    panel.hidden = true;
+    dom.panelStash.append(panel);
+  };
 }
 
-/** The panel drawer slides in from the right; the chat column never squeezes. */
+/** The overview drawer slides in from the right; the chat column never squeezes. */
 function openDrawer(): void {
   dom.drawer.hidden = false;
 }
 
-/** Open the panel named in the URL hash, if it is one we know. */
-function openHashPanel(): void {
-  const tab = location.hash.slice(1);
-  if ((TAB_IDS as readonly string[]).includes(tab)) switchTab(tab as TabId);
-}
-
 function closeDrawer(): void {
   dom.drawer.hidden = true;
-  history.replaceState(null, "", location.pathname + location.search);
 }
 
 /**
@@ -843,13 +801,12 @@ async function boot(): Promise<void> {
     dom.input.style.height = `${Math.min(dom.input.scrollHeight, 180)}px`;
   });
   if (!(await waitForHostedWorkspace())) return;
-  dom.lang.textContent = getLang() === "zh" ? "EN" : "中文";
-  dom.lang.addEventListener("click", () =>
-    setLang(getLang() === "zh" ? "en" : "zh"),
-  );
-
-  dom.refresh.addEventListener("click", () => void workspaceActions.refresh());
   dom.older.addEventListener("click", () => void older());
+  dom.messages.addEventListener("scroll", updateJumpLatest, { passive: true });
+  dom.jumpLatest.addEventListener("click", () => {
+    pinToEnd();
+    updateJumpLatest();
+  });
   dom.chatOperations.addEventListener("click", () => {
     const session = current;
     const panel = chatOperationForm(
@@ -862,15 +819,6 @@ async function boot(): Promise<void> {
     panel.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   });
   dom.drawerClose.addEventListener("click", closeDrawer);
-  setupSidebarResize();
-  document.getElementById("nav-memory")?.addEventListener("click", () => {
-    switchTab("memory");
-    closeMobileNavigation();
-  });
-  document.getElementById("nav-progress")?.addEventListener("click", () => {
-    switchTab("overview");
-    closeMobileNavigation();
-  });
   setupNavigation(closeDrawer);
 
   for (const area of [dom.messages, dom.staged]) {
@@ -883,26 +831,21 @@ async function boot(): Promise<void> {
     });
   }
 
+  const barMore = must<HTMLDetailsElement>("bar-more");
+  barMore.addEventListener("click", (event) => {
+    if ((event.target as Element).closest("[role=menuitem]")) barMore.open = false;
+  });
+  document.addEventListener("click", (event) => {
+    if (barMore.open && !barMore.contains(event.target as Node)) barMore.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && barMore.open) barMore.open = false;
+  });
+
   dom.progress.addEventListener("click", () => {
-    if (dom.drawer.hidden || currentTab !== "overview") switchTab("overview");
+    if (dom.drawer.hidden) openDrawer();
     else closeDrawer();
   });
-  for (const [button, tab] of [
-    [dom.capSkills, "skills"],
-    [dom.capMcp, "mcp"],
-    [dom.capSchedules, "schedule"],
-  ] as const) {
-    button.addEventListener("click", () => switchTab(tab));
-  }
-  for (const [button, tab] of [
-    [dom.tabOverview, "overview"],
-    [dom.tabSkills, "skills"],
-    [dom.tabMcp, "mcp"],
-    [dom.tabMemory, "memory"],
-    [dom.tabSchedule, "schedule"],
-  ] as const) {
-    button.addEventListener("click", () => switchTab(tab));
-  }
 
   for (const [button, seg] of [
     [dom.memSegLedger, "ledger"],
@@ -934,11 +877,6 @@ async function boot(): Promise<void> {
     dom.input.focus();
   });
 
-  dom.saveSkill.addEventListener("click", () => {
-    dom.input.value = t("把刚才这套流程存成技能：先给我看草稿，我确认后再写入。");
-    dom.input.dispatchEvent(new Event("input"));
-    dom.input.focus();
-  });
 
   refreshOnReturn();
   setInterval(() => {
@@ -974,7 +912,6 @@ async function boot(): Promise<void> {
   await refresh();
   await openMain();
   workspaceActions.main = openMain;
-  openHashPanel();
   setWorkspace(workspace);
 
   dom.input.focus();
@@ -1072,7 +1009,6 @@ async function refresh(): Promise<void> {
         (task, action) => void switchTask(task, action),
       ),
     );
-    dom.stamp.textContent = formatStamp(data.generatedAt);
     if (lostMessage !== null && webState.message === lostMessage) webState.message = "";
     lostMessage = null;
   } catch (error) {
@@ -1122,17 +1058,14 @@ async function refreshCapabilities(): Promise<void> {
   ]);
   if (skills !== null) {
     skillsView = skills;
-    dom.capSkillsCount.textContent = String(skills.skills.length);
     if (!dom.panelSkills.hidden) paintSkills();
   }
   if (mcp !== null) {
     mcpView = mcp;
-    dom.capMcpCount.textContent = String(mcp.servers.length);
     if (!dom.panelMcp.hidden) paintMcp();
   }
   if (schedules !== null) {
     schedulesView = schedules;
-    dom.capSchedulesCount.textContent = String(schedules.jobs.length);
     if (!dom.panelSchedule.hidden) paintSchedules();
   }
 }
@@ -1370,7 +1303,7 @@ function openOverlay(panel: HTMLElement): () => void {
   const previous = document.activeElement;
   const overlay = el("div", { class: "fsoverlay" });
   overlay.append(panel);
-  document.body.append(overlay);
+  (document.querySelector("dialog[open]") ?? document.body).append(overlay);
   let closed = false;
   const close = (): void => {
     if (closed) return;
@@ -2086,6 +2019,7 @@ async function send(
     timeline.settle();
 
     if (completed !== null) {
+      stream.cancel();
       paintReply(
         bubble,
         completed.reply === "" ? t("（这一轮没有回复）") : completed.reply,
@@ -2133,8 +2067,7 @@ async function openMain(): Promise<void> {
     await refresh();
     await open(sessionId);
     await webTasks.refresh();
-    closeMobileNavigation();
-    dom.input.focus();
+      dom.input.focus();
   } catch (error) {
     webState.message = String(error);
   }
@@ -2148,7 +2081,6 @@ async function open(sessionId: string): Promise<void> {
   rememberSession(sessionId);
   if (sessionId !== webState.mainSessionId) webTasks.state.selected = "";
   webState.sessionId = sessionId;
-  closeMobileNavigation();
   queuedMode = false;
   dom.session.textContent = sessionId === webState.mainSessionId ? "Jeeves" : sessionId;
   dom.older.hidden = true;
@@ -2187,13 +2119,22 @@ async function openWorkFromReceipt(id: string): Promise<boolean> {
   return true;
 }
 
+/** A history row, with the live cards of any tasks that turn started placed under its reply. */
+function historyRow(message: import("./protocol").Message): HTMLElement {
+  const row = messageRow(message, openWorkFromReceipt);
+  const started = message.meta?.startedTasks ?? [];
+  const cards = taskCards(started.map(id => ({ id, title: "" })), webTasks, openWorkFromReceipt);
+  if (cards) row.querySelector(".message-meta")?.before(cards);
+  return row;
+}
+
 async function loadHistory(
   sessionId: string,
   cursor: string | null,
 ): Promise<void> {
   const page = await fetchMessages(sessionId, cursor);
   if (sessionId !== current) return;
-  const nodes = [...page.data].reverse().map(row => messageRow(row, openWorkFromReceipt));
+  const nodes = [...page.data].reverse().map(historyRow);
   if (cursor === null) {
     historySession = sessionId;
     newestHistoryId = page.data[0]?.id ?? 0;
@@ -2357,6 +2298,15 @@ function nearBottom(): boolean {
   );
 }
 
+/**
+ * Show the "jump to latest" button whenever the newest message is out of view — someone
+ * scrolled up to read history while the chat kept moving. Hidden the moment they are back
+ * near the bottom, so it never covers the composer during normal reading.
+ */
+function updateJumpLatest(): void {
+  dom.jumpLatest.hidden = nearBottom();
+}
+
 /** Remember the current session's distance from the bottom, before leaving it. */
 function captureReading(): void {
   const m = dom.messages;
@@ -2384,6 +2334,7 @@ function restoreReading(): void {
 
 function scrollToEnd(interactive = false): void {
   if (interactive || nearBottom()) pinToEnd();
+  updateJumpLatest();
 }
 
 /**
@@ -2516,6 +2467,7 @@ function stalePage(id: string): void {
 
 workspaceActions.refresh = refresh;
 workspaceActions.browse = () => void cwdPicker();
+workspaceActions.mountPanel = mountPanel;
 workspaceActions.reviewOperations = (task) => void switchTask(task, "operations");
 workspaceActions.upload = () => dom.file.click();
 workspaceActions.cwdChanged = setWorkspace;

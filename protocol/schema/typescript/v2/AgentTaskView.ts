@@ -34,6 +34,11 @@ export type AgentTaskView = {
   sessionId: string | null;
   title: string;
   /**
+   * A "done when" line the model drafted. Inert until the person confirms it, which turns it
+   * into `goalCondition`; until then a card asks them to confirm or drop it.
+   */
+  goalDraft?: string;
+  /**
    * Optional condition evaluated by the goal judge. Acceptance checks can also trigger additional rounds.
    */
   goalCondition: string | null;

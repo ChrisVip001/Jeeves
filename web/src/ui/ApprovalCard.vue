@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref, useId } from "vue";
 import { useUiText } from "./translate";
 import { minutesLeft } from "./today";
 import type { AgentTaskView, ApprovalRequestedNotification } from "./types";
+import TrustSwitch from "./TrustSwitch.vue";
+import type { SessionPermission } from "./usePermission";
 const t = useUiText();
 const heading = useId();
 const props = defineProps<{
@@ -11,8 +13,13 @@ const props = defineProps<{
   restored?: boolean;
   busy?: boolean;
   allowId?: string;
+  /** When given, the card also offers to stop asking for the rest of this session. */
+  permission?: SessionPermission;
 }>();
-const emit = defineEmits<{ answer: [approved: boolean, reviewed: ApprovalRequestedNotification] }>();
+const emit = defineEmits<{
+  answer: [approved: boolean, reviewed: ApprovalRequestedNotification];
+  trust: [reviewed: ApprovalRequestedNotification];
+}>();
 
 // The wire carries "how long from now"; pin it to a deadline when the card first sees it.
 const deadline = Date.now() + props.approval.expiresInMs;
@@ -41,6 +48,8 @@ const action = computed(() => {
       return t("调用工具 {tool}", { tool: tool.value });
   }
 });
+/** Full access still asks before a send that cannot be taken back, so a send card never offers it. */
+const outward = computed(() => ["feishu_send", "email_send"].includes(tool.value));
 const workspace = computed(() => props.task?.worktreePath ?? props.task?.cwd);
 const title = computed(() => props.task?.title ?? t("主会话里的一步"));
 </script>
@@ -82,5 +91,7 @@ const title = computed(() => props.task?.title ?? t("主会话里的一步"));
         {{ t("允许一次") }}
       </button>
     </div>
+    <TrustSwitch v-if="permission && !outward && left !== null" :permission="permission"
+      :busy="busy || permission.state.busy" @trust="emit('trust', approval)" />
   </article>
 </template>

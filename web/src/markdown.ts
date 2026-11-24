@@ -1,3 +1,4 @@
+import { t } from "./i18n.ts";
 
 export type Inline =
   | { kind: "text"; text: string }
@@ -338,6 +339,40 @@ function node(tag: string, className?: string): HTMLElement {
   return element;
 }
 
+/**
+ * Wrap a `<pre>` in a figure with a header: a language label and a copy button.
+ * The button writes `text` to the clipboard and flips its label to confirm.
+ */
+function codeBlock(pre: HTMLElement, lang: string, text: string): HTMLElement {
+  const figure = node("figure", "code-block");
+  const head = node("div", "code-block-head");
+  head.append(node("span", "code-block-lang"));
+  (head.lastChild as HTMLElement).textContent = lang !== "" ? lang : t("代码");
+
+  const copy = node("button", "code-block-copy") as HTMLButtonElement;
+  copy.type = "button";
+  copy.textContent = t("复制");
+  copy.addEventListener("click", () => {
+    void navigator.clipboard?.writeText(text).then(
+      () => {
+        copy.textContent = t("已复制");
+        copy.classList.add("copied");
+        window.setTimeout(() => {
+          copy.textContent = t("复制");
+          copy.classList.remove("copied");
+        }, 1500);
+      },
+      () => {
+        copy.textContent = t("复制失败");
+        window.setTimeout(() => (copy.textContent = t("复制")), 1500);
+      },
+    );
+  });
+  head.append(copy);
+  figure.append(head, pre);
+  return figure;
+}
+
 function renderBlock(block: Block): HTMLElement {
   switch (block.kind) {
     case "rule":
@@ -362,7 +397,7 @@ function renderBlock(block: Block): HTMLElement {
       if (block.lang !== "") code.classList.add(`lang-${block.lang}`);
       code.textContent = block.text;
       pre.append(code);
-      return pre;
+      return codeBlock(pre, block.lang, block.text);
     }
 
     case "quote": {
@@ -488,6 +523,7 @@ export class StreamMarkdown {
   /** The last block that is still growing; every animation frame gets a new node. */
   private tail: HTMLElement | null = null;
   private frame: number | null = null;
+  private done = false;
   private readonly host: HTMLElement;
 
   constructor(host: HTMLElement) {
@@ -495,6 +531,7 @@ export class StreamMarkdown {
   }
 
   push(delta: string): void {
+    if (this.done) return;
     this.source += delta;
     this.schedule();
   }
@@ -502,11 +539,25 @@ export class StreamMarkdown {
   /** End of stream: cancel the queued frame and draw what is left in one go. After this the
    *  instance takes no more pushes. */
   finish(): void {
+    if (this.done) return;
+    this.done = true;
+    this.stop();
+    this.repaint(true);
+  }
+
+  /** Abandon the stream without painting: the authoritative reply owns the host now. A queued
+   *  frame would otherwise repaint the tail into the replaced bubble and duplicate it. */
+  cancel(): void {
+    if (this.done) return;
+    this.done = true;
+    this.stop();
+  }
+
+  private stop(): void {
     if (this.frame !== null) {
       cancelAnimationFrame(this.frame);
       this.frame = null;
     }
-    this.repaint(true);
   }
 
   private schedule(): void {

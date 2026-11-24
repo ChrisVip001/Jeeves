@@ -14,96 +14,24 @@
       type="image/svg+xml"
     />
   </head>
-  <body class="sidebar-closed">
+  <body>
     <div id="web-controls"></div>
     <div class="app">
-      <aside class="sidebar" id="sidebar">
-        <div class="brand">
-          <img
-            class="jeeves-logo"
-            src="./ui/assets/jeeves-icon.svg"
-            width="34"
-            height="34"
-            alt=""
-          />
-          <h1>Jeeves</h1>
-          <button
-            class="ghost rail-toggle"
-            type="button"
-            data-sidebar-toggle
-            data-i18n-aria="收起侧栏"
-          >
-            <span class="menu-glyph" aria-hidden="true"></span>
-          </button>
-        </div>
-        <div id="connections-entry"></div>
-        <details class="rail-tools">
-          <summary data-i18n="更多工具">更多工具</summary>
-        <div id="task-progress-entry"></div>
-        <nav class="workspace-nav" aria-label="Workspace">
-          <button class="nav-entry" id="nav-memory" type="button">
-            <span aria-hidden="true">▤</span><span data-i18n="记忆">记忆</span>
-          </button>
-          <button class="nav-entry" id="progress" type="button" data-i18n="概览">概览</button>
-          <button class="nav-entry" id="chat-operations" type="button" data-i18n="核对聊天操作">核对聊天操作</button>
-          <button type="button" id="save-skill" class="nav-entry" data-i18n="存为技能" data-i18n-title="把刚才这套流程写成可复用的技能；Jeeves 会先给你看草稿">存为技能</button>
-        </nav>
-          <div class="capabilities">
-          <button class="cap-entry" id="cap-skills" type="button">
-            <span class="cap-entry-name" data-i18n="技能">技能</span
-            ><span class="cap-count" id="cap-skills-count">0</span>
-          </button>
-          <button class="cap-entry" id="cap-mcp" type="button">
-            <span class="cap-entry-name" data-i18n="MCP 连接器">MCP 连接器</span
-            ><span class="cap-count" id="cap-mcp-count">0</span>
-          </button>
-          <button class="cap-entry" id="cap-schedules" type="button">
-            <span class="cap-entry-name" data-i18n="定时任务">定时任务</span
-            ><span class="cap-count" id="cap-schedules-count">0</span>
-          </button>
-        </div>
-        </details>
-        <div class="sidebar-foot">
-          <div id="settings-entry"></div>
-          <div class="foot-row">
-            <span class="connection-dot" aria-hidden="true"></span
-            ><span class="stamp" id="stamp"></span
-            ><button class="ghost" id="refresh" type="button" data-i18n="刷新">
-              刷新</button
-            ><button class="ghost lang" id="lang" type="button">EN</button>
-          </div>
-        </div>
-        <div
-          class="sidebar-resizer"
-          id="sidebar-resizer"
-          role="separator"
-          aria-orientation="vertical"
-          tabindex="0"
-          data-i18n-aria="拖动调整侧栏宽度（双击复位，方向键微调）"
-        ></div>
-      </aside>
-      <button
-        class="sidebar-scrim"
-        type="button"
-        data-sidebar-toggle
-        data-i18n-aria="收起侧栏"
-      ></button>
       <main class="chat">
         <header class="bar">
-          <button
-            class="ghost mobile-menu"
-            type="button"
-            data-sidebar-toggle
-            data-i18n-aria="展开侧栏"
-          >
-            <span class="menu-glyph" aria-hidden="true"></span>
-          </button>
           <div class="chat-heading">
             <img src="./icon.svg" width="27" height="27" alt="" /><h2 id="session">Jeeves</h2>
 
           </div>
           <div id="primary-navigation"></div>
           <div class="bar-actions">
+            <details class="bar-more" id="bar-more">
+              <summary class="ghost" data-i18n-aria="更多" data-i18n-title="更多"><span class="more-glyph" aria-hidden="true"></span></summary>
+              <div class="bar-more-menu" role="menu">
+                <button class="ghost" id="progress" type="button" role="menuitem" data-i18n="概览">概览</button>
+                <button class="ghost" id="chat-operations" type="button" role="menuitem" data-i18n="核对操作" data-i18n-title="核对这段对话里 Jeeves 做过的外部操作">核对操作</button>
+              </div>
+            </details>
             <button
               class="ghost"
               id="older"
@@ -115,9 +43,9 @@
             </button>
           </div>
           <div id="executor-entry"></div>
+          <div id="settings-entry"></div>
         </header>
         <div id="executor-notice"></div>
-        <div id="activity-view"></div>
         <div id="cowork-view"></div>
         <div
           class="messages"
@@ -127,6 +55,16 @@
         ></div>
         <div class="statusline" id="status" hidden aria-live="polite"></div>
         <div id="chat-decisions"></div>
+        <button
+          class="jump-latest"
+          id="jump-latest"
+          type="button"
+          hidden
+          data-i18n-aria="回到最新"
+          data-i18n-title="回到最新"
+        >
+          <span aria-hidden="true">↓</span>
+        </button>
         <div class="composer-wrap">
           <div class="staged" id="staged" hidden></div>
           <form class="composer" id="composer" autocomplete="off">
@@ -160,53 +98,7 @@
       </main>
       <aside class="panels" id="drawer" hidden>
         <div class="drawer-head">
-          <div class="drawer-tabs" role="tablist" data-i18n-aria="面板">
-            <button
-              class="drawer-tab active"
-              id="tab-overview"
-              type="button"
-              role="tab"
-              aria-selected="true"
-            >
-              <span data-i18n="概览">概览</span>
-            </button>
-            <button
-              class="drawer-tab"
-              id="tab-skills"
-              type="button"
-              role="tab"
-              aria-selected="false"
-            >
-              <span data-i18n="技能">技能</span>
-            </button>
-            <button
-              class="drawer-tab"
-              id="tab-mcp"
-              type="button"
-              role="tab"
-              aria-selected="false"
-            >
-              MCP
-            </button>
-            <button
-              class="drawer-tab"
-              id="tab-memory"
-              type="button"
-              role="tab"
-              aria-selected="false"
-            >
-              <span data-i18n="记忆">记忆</span>
-            </button>
-            <button
-              class="drawer-tab"
-              id="tab-schedule"
-              type="button"
-              role="tab"
-              aria-selected="false"
-            >
-              <span data-i18n="定时">定时</span>
-            </button>
-          </div>
+          <h2 class="drawer-title" data-i18n="概览">概览</h2>
           <button
             class="ghost"
             id="drawer-close"
@@ -219,6 +111,9 @@
         <section class="panel" id="panel-overview" role="tabpanel">
           <div class="body" id="overview"></div>
         </section>
+      </aside>
+      <!-- Settings borrows these panels while one of its tabs shows them, then hands them back. -->
+      <div id="panel-stash" hidden>
         <section class="panel" id="panel-skills" role="tabpanel" hidden>
           <div class="body" id="skills-body"></div>
         </section>
@@ -266,7 +161,7 @@
         <section class="panel" id="panel-schedule" role="tabpanel" hidden>
           <div class="body" id="schedules-body"></div>
         </section>
-      </aside>
+      </div>
     </div>
     <script type="module" src="./main.ts"></script>
   </body>

@@ -117,6 +117,7 @@ async fn a_task_delivers_past_chat_step_limits_without_a_follow_up() {
         ));
     }
     responses.push(Mock::text("All sources were reviewed."));
+    responses.push(Mock::text("Rechecked: every source was read."));
     let model = Arc::new(Mock::new(responses));
     server.install_provider(Resolved {
         client: model.clone(),
@@ -154,10 +155,13 @@ async fn a_task_delivers_past_chat_step_limits_without_a_follow_up() {
     .unwrap();
     assert_eq!(task.status, TaskStatus::Done, "{:?}", task.suspend_reason);
     assert_eq!(server.runs.count_by_task(id).await.unwrap(), 1);
-    assert_eq!(task.rounds_used, 1);
+    assert_eq!(
+        task.rounds_used, 2,
+        "the work round plus one self-check round before delivery"
+    );
     assert_eq!(task.spent_tools, SOURCES as i64);
     let received = model.received.lock().unwrap();
-    assert_eq!(received.len(), SOURCES + 1);
+    assert_eq!(received.len(), SOURCES + 2);
     let results: Vec<_> = received[SOURCES]
         .messages
         .iter()
@@ -304,6 +308,7 @@ async fn recovery_waits_for_a_live_channel_and_never_resubmits_claimed_work() {
                 session_id: Some("chat"),
                 title: id,
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: "{}",
                 cwd: None,
@@ -519,6 +524,7 @@ async fn human_control_wins_while_recovery_waits_for_the_worker() {
                 session_id: Some("chat"),
                 title: "recover",
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: "{}",
                 cwd: None,
@@ -692,6 +698,7 @@ async fn an_expired_lease_without_a_checkpoint_goes_to_review_once() {
             session_id: Some("chat"),
             title: "stuck",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,
@@ -733,6 +740,7 @@ async fn a_held_task_is_not_resumed_by_crash_recovery() {
             session_id: Some("chat"),
             title: "held",
             goal_condition: None,
+            goal_draft: None,
             acceptance_json: "[]",
             budget_json: "{}",
             cwd: None,

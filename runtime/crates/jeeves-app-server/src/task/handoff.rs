@@ -225,6 +225,7 @@ mod tests {
                 session_id: Some("owner"),
                 title: "contract",
                 goal_condition: None,
+                goal_draft: None,
                 acceptance_json: "[]",
                 budget_json: "{}",
                 cwd: None,

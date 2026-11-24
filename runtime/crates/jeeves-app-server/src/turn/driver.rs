@@ -10,6 +10,11 @@ use jeeves_protocol::ErrorObject;
 use jeeves_provider::Resolved;
 use jeeves_state::TaskRow;
 
+/// A run that did real work but has no mechanical checks gets one round to compare its result
+/// with the original request before it is delivered. A self-report is still not a measurement:
+/// the output stays unverified, but obvious gaps are caught while the work is still open.
+const SELF_CHECK: &str = "Self-check before delivery: re-read the original assignment above and check every requirement against what you actually produced. Open the files you wrote and rerun what can be rerun. Fix anything missing or wrong now. Then give the person the final result, and say plainly what you could not verify. Do not claim checks you did not run.";
+
 pub(crate) struct DriveTask<'a> {
     pub server: &'a Server,
     pub resolved: &'a Resolved,
@@ -84,7 +89,7 @@ pub(crate) async fn drive_task(
         "evaluation",
     );
     let task_id = task.as_ref().map(|task| task.id.clone());
-    let goal_condition = task.as_ref().and_then(|task| task.goal_condition.clone());
+    let mut goal_condition = task.as_ref().and_then(|task| task.goal_condition.clone());
     let acceptance = match task
         .as_ref()
         .map(|task| jeeves_agent::verify::parse_checked(&task.acceptance_json))
@@ -104,6 +109,8 @@ pub(crate) async fn drive_task(
         eprintln!("(jeeves) goal loop starts: {condition} (max {max_rounds} rounds)");
     }
     let mut round_started = started;
+    let mut self_checked = false;
+    let mut progress = super::progress::Progress::default();
     let (decision, goal_status) = loop {
         let observation =
             match observe_round(server, &turn_id, &full.result.round_id, turn_cwd.as_deref()).await
@@ -116,6 +123,13 @@ pub(crate) async fn drive_task(
                     );
                 }
             };
+        if let Some(id) = &task_id {
+            match server.tasks.get(id).await {
+                Ok(Some(row)) => goal_condition = row.goal_condition,
+                Ok(None) => {}
+                Err(e) => eprintln!("(jeeves) task {id}: could not re-read its goal: {e}"),
+            }
+        }
         let goal_rounds = round_no;
         if let Some(id) = &task_id
             && let Err(e) = server.tasks.record_round(id, round_no).await
@@ -305,8 +319,14 @@ pub(crate) async fn drive_task(
             );
         }
 
+        let worked = full.result.tool_calls.iter().any(|call| call.ok());
         if let Some(reason) = jeeves_agent::verify::failure_summary(&checks) {
             let who = task_id.as_deref().unwrap_or("(no task)");
+            if progress.stalled(&reason, worked) {
+                let reason = format!("No progress after {round_no} rounds: {reason}");
+                eprintln!("(jeeves) task {who} stalled at acceptance: {reason}");
+                break (TaskDecision::NeedsAttention(reason), Some("stalled".into()));
+            }
             if round_no >= max_rounds {
                 let reason = format!("{reason} (after {round_no} rounds it still has not passed)");
                 eprintln!("(jeeves) task {who} stopped at acceptance: {reason}");
@@ -366,6 +386,52 @@ pub(crate) async fn drive_task(
             );
         }
 
+        if goal_condition.is_none()
+            && acceptance.is_empty()
+            && worked
+            && !self_checked
+            && round_no < max_rounds
+            && let Some(id) = &task_id
+        {
+            self_checked = true;
+            eprintln!("(jeeves) task {id}: one self-check round before delivery");
+            if let Err(e) = server
+                .events
+                .append(
+                    id,
+                    run_id.as_deref(),
+                    "self_check",
+                    Some("review against the request before delivery"),
+                )
+                .await
+            {
+                eprintln!("(jeeves) self-check event not recorded: {e}");
+            }
+            round_no += 1;
+            frame.checkpoint = checkpoint_for_round(round_no);
+            round_started = std::time::Instant::now();
+            wall_offset_ms = 0;
+            let review = next_round_message(assignment, SELF_CHECK, plan.as_ref());
+            match full_turn(server, resolved, &review, Vec::new(), frame.clone(), None).await {
+                Ok(next) => {
+                    full = next;
+                    continue;
+                }
+                Err(e) => {
+                    fail_turn(
+                        server,
+                        sink,
+                        &turn_id,
+                        run_id.as_deref(),
+                        Some(id),
+                        &e.message,
+                    )
+                    .await;
+                    return Err(e);
+                }
+            }
+        }
+
         let Some(condition) = &goal_condition else {
             break (
                 TaskDecision::Done,
@@ -414,6 +480,12 @@ pub(crate) async fn drive_task(
                 TaskDecision::Failed(judgement.reason),
                 Some("impossible".to_string()),
             );
+        }
+        if progress.stalled(&judgement.reason, worked) {
+            let reason = format!("No progress after {round_no} rounds: {}", judgement.reason);
+            notify_goal(sink, &turn_id, goal_rounds, max_rounds, "stalled", &reason);
+            eprintln!("(jeeves) goal loop stalled: {reason}");
+            break (TaskDecision::NeedsAttention(reason), Some("stalled".into()));
         }
         if round_no >= max_rounds {
             let reason = format!(

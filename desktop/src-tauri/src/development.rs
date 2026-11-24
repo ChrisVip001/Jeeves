@@ -209,12 +209,27 @@ fn window_target(target: Result<String, String>) -> WebviewUrl {
     }
 }
 
+/// The cockpit titles itself `(N) Jeeves` while N items wait for the user; the Dock badge
+/// mirrors that count. Any other title clears the badge.
+fn waiting_count(title: &str) -> Option<i64> {
+    let rest = title.strip_prefix('(')?;
+    let (count, _) = rest.split_once(')')?;
+    count.parse::<i64>().ok().filter(|n| *n > 0)
+}
+
 fn open_window(app: &tauri::AppHandle, target: Result<String, String>) -> tauri::Result<()> {
     let url = window_target(target);
     let builder = WebviewWindowBuilder::new(app, "main", url)
         .title("Jeeves")
         .inner_size(1180.0, 800.0)
-        .min_inner_size(MIN_SIZE.0, MIN_SIZE.1);
+        .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
+        .on_document_title_changed(|window, title| {
+            let count = waiting_count(&title);
+            if let Err(error) = window.set_badge_count(count) {
+                eprintln!("(jeeves) could not set the Dock badge: {error}");
+            }
+            crate::notice::waiting(&window, count.unwrap_or(0));
+        });
     window_state::place(app, builder).build()?;
     Ok(())
 }
@@ -222,8 +237,11 @@ fn open_window(app: &tauri::AppHandle, target: Result<String, String>) -> tauri:
 pub(super) fn main() {
     tauri::Builder::default()
         .manage(Runtime::default())
+        .manage(crate::notice::Seen::default())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             open_window(app.handle(), desktop_target(app.handle()))?;
+            crate::summon::install(app.handle());
             Ok(())
         })
         .on_window_event(window_state::on_close)
@@ -256,6 +274,14 @@ pub(super) fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_dock_badge_follows_the_waiting_count_in_the_title() {
+        assert_eq!(waiting_count("(2) Jeeves"), Some(2));
+        assert_eq!(waiting_count("Jeeves"), None);
+        assert_eq!(waiting_count("(0) Jeeves"), None);
+        assert_eq!(waiting_count("(x) Jeeves"), None);
+    }
 
     #[test]
     fn the_window_only_needs_the_stable_gateway_origin() {
