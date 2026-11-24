@@ -229,6 +229,13 @@ watch(
 );
 </script>
 <template>
+  <Teleport to="#bottom-tabs">
+    <nav class="bottom-tabs" :aria-label="t('主导航')">
+      <button type="button" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="20" /><span>{{ t("对话") }}</span></button>
+      <button type="button" :aria-current="state.view !== 'chat' ? 'page' : undefined" @click="showActivity"><ListTodo :size="20" /><span>{{ t("我的事项") }}</span><span v-if="needsYou" class="decision-count">{{ needsYou }}</span></button>
+      <button type="button" @click="settings()"><Settings :size="20" /><span>{{ t("设置") }}</span></button>
+    </nav>
+  </Teleport>
   <Teleport to="#primary-navigation">
     <nav class="primary-navigation" :aria-label="t('主导航')">
       <button id="mode-assistant" type="button" :aria-label="t('对话')" :aria-current="state.view === 'chat' ? 'page' : undefined" @click="showAssistant"><MessageCircle :size="17" />{{ t("对话") }}</button>
