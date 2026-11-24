@@ -178,14 +178,6 @@ function settings(value: "notifications" | "connections" = "notifications") {
   tab.value = value;
   open.value = true;
 }
-/** Skills, MCP, memory and schedules open in the workspace drawer once settings has closed. */
-function manageCapability(which: "skills" | "mcp" | "memory" | "schedule") {
-  open.value = false;
-  workspaceActions.openPanel(which);
-}
-function manageMcp() {
-  manageCapability("mcp");
-}
 const SETUP_KEY = "jeeves.setup.dismissed";
 const setupDismissed = ref(localStorage.getItem(accountKey(SETUP_KEY)) === "1");
 const needsSetup = computed(
@@ -336,8 +328,6 @@ watch(
       :actions="settingsActions"
       :initial-tab="tab"
       @close="open = false"
-      @mcp="manageMcp"
-      @capability="manageCapability"
     >
       <template #approval-notifications><ApprovalPushSettings /></template>
     </SettingsPanel>

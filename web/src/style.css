@@ -578,12 +578,24 @@ body.sidebar-closed .mobile-menu {
   z-index: 20;
 }
 .drawer-head {
-  padding: 12px 14px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px 22px;
   background: var(--bg-panel);
   border-radius: 16px 16px 0 0;
+  border-bottom: 1px solid var(--line-soft);
 }
-.drawer-tab {
-  font-size: 12px;
+.drawer-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.preferences-panel .panel {
+  min-height: 0;
+}
+.preferences-panel .body {
+  padding: 0;
 }
 .panels .panel {
   min-height: 0;

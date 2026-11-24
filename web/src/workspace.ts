@@ -193,12 +193,7 @@ const dom = {
   stamp: must("stamp"),
   drawer: must("drawer"),
   drawerClose: must<HTMLButtonElement>("drawer-close"),
-  tabOverview: must<HTMLButtonElement>("tab-overview"),
-  tabSkills: must<HTMLButtonElement>("tab-skills"),
-  tabMcp: must<HTMLButtonElement>("tab-mcp"),
-  tabMemory: must<HTMLButtonElement>("tab-memory"),
-  tabSchedule: must<HTMLButtonElement>("tab-schedule"),
-  panelOverview: must("panel-overview"),
+  panelStash: must("panel-stash"),
   panelSkills: must("panel-skills"),
   panelMcp: must("panel-mcp"),
   panelMemory: must("panel-memory"),
@@ -322,68 +317,47 @@ function renderStaged(): void {
 }
 
 /**
- * The drawer's three panels: the overview (what is being worked on, what is remembered)
- * and the capability center's two halves. Skills and MCP connectors are here rather than
- * in a settings page because they are things a human adds and removes, not config to
- * stare at — same reason they get a sidebar entry.
+ * The drawer holds only the conversation overview. Skills, MCP, memory and schedules are
+ * things a person manages now and then, so they live in Settings: its tab borrows the panel
+ * from the stash while it shows, and hands it back when it closes.
  */
-const TAB_IDS = ["overview", "skills", "mcp", "memory", "schedule"] as const;
-type TabId = (typeof TAB_IDS)[number];
-
-/** Which panel is showing. Kept so the "Progress" button can toggle instead of only opening. */
-let currentTab: TabId = "overview";
+type PanelId = "skills" | "mcp" | "memory" | "schedule";
 
 /** Latest capability data, refreshed with the rest of the screen. */
 let skillsView: SkillsView = { skills: [], error: null };
 let mcpView: McpView = { servers: [], error: null };
 let schedulesView: SchedulesView = { jobs: [], error: null };
 
-function switchTab(tab: TabId): void {
-  closeMobileNavigation();
-  currentTab = tab;
-  if (location.hash !== `#${tab}`) {
-    history.replaceState(null, "", `#${tab}`);
-  }
-  for (const [id, button] of [
-    ["overview", dom.tabOverview],
-    ["skills", dom.tabSkills],
-    ["mcp", dom.tabMcp],
-    ["memory", dom.tabMemory],
-    ["schedule", dom.tabSchedule],
-  ] as const) {
-    const active = id === tab;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
-  }
-  dom.panelOverview.hidden = tab !== "overview";
-  dom.panelSkills.hidden = tab !== "skills";
-  dom.panelMcp.hidden = tab !== "mcp";
-  dom.panelMemory.hidden = tab !== "memory";
-  dom.panelSchedule.hidden = tab !== "schedule";
-  if (tab === "skills") {
+function panelOf(id: PanelId): HTMLElement {
+  return { skills: dom.panelSkills, mcp: dom.panelMcp, memory: dom.panelMemory, schedule: dom.panelSchedule }[id];
+}
+
+/** Move one panel into `host`, paint it, and return the call that puts it back. */
+function mountPanel(id: PanelId, host: HTMLElement): () => void {
+  const panel = panelOf(id);
+  host.append(panel);
+  panel.hidden = false;
+  if (id === "skills") {
     paintSkills();
     void loadSkillStats();
   }
-  if (tab === "mcp") paintMcp();
-  if (tab === "schedule") paintSchedules();
-  if (tab === "memory") void loadMemory();
-  openDrawer();
+  if (id === "mcp") paintMcp();
+  if (id === "schedule") paintSchedules();
+  if (id === "memory") void loadMemory();
+  return () => {
+    panel.hidden = true;
+    dom.panelStash.append(panel);
+  };
 }
 
-/** The panel drawer slides in from the right; the chat column never squeezes. */
+/** The overview drawer slides in from the right; the chat column never squeezes. */
 function openDrawer(): void {
+  closeMobileNavigation();
   dom.drawer.hidden = false;
-}
-
-/** Open the panel named in the URL hash, if it is one we know. */
-function openHashPanel(): void {
-  const tab = location.hash.slice(1);
-  if ((TAB_IDS as readonly string[]).includes(tab)) switchTab(tab as TabId);
 }
 
 function closeDrawer(): void {
   dom.drawer.hidden = true;
-  history.replaceState(null, "", location.pathname + location.search);
 }
 
 /**
@@ -874,18 +848,9 @@ async function boot(): Promise<void> {
   }
 
   dom.progress.addEventListener("click", () => {
-    if (dom.drawer.hidden || currentTab !== "overview") switchTab("overview");
+    if (dom.drawer.hidden) openDrawer();
     else closeDrawer();
   });
-  for (const [button, tab] of [
-    [dom.tabOverview, "overview"],
-    [dom.tabSkills, "skills"],
-    [dom.tabMcp, "mcp"],
-    [dom.tabMemory, "memory"],
-    [dom.tabSchedule, "schedule"],
-  ] as const) {
-    button.addEventListener("click", () => switchTab(tab));
-  }
 
   for (const [button, seg] of [
     [dom.memSegLedger, "ledger"],
@@ -952,7 +917,6 @@ async function boot(): Promise<void> {
   await refresh();
   await openMain();
   workspaceActions.main = openMain;
-  openHashPanel();
   setWorkspace(workspace);
 
   dom.input.focus();
@@ -1345,7 +1309,7 @@ function openOverlay(panel: HTMLElement): () => void {
   const previous = document.activeElement;
   const overlay = el("div", { class: "fsoverlay" });
   overlay.append(panel);
-  document.body.append(overlay);
+  (document.querySelector("dialog[open]") ?? document.body).append(overlay);
   let closed = false;
   const close = (): void => {
     if (closed) return;
@@ -2501,7 +2465,7 @@ function stalePage(id: string): void {
 
 workspaceActions.refresh = refresh;
 workspaceActions.browse = () => void cwdPicker();
-workspaceActions.openPanel = (tab) => switchTab(tab);
+workspaceActions.mountPanel = mountPanel;
 workspaceActions.reviewOperations = (task) => void switchTask(task, "operations");
 workspaceActions.upload = () => dom.file.click();
 workspaceActions.cwdChanged = setWorkspace;
