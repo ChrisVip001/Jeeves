@@ -706,6 +706,10 @@ MCP HTTP 响应（包括流式响应）读取上限为 2 MiB。工具仅返回
 变空。设置里这些行带「内置」标签并置灰——所有写操作一律拒绝：从一台
 机器的界面上删掉它，会让每一台共享它的机器一起失效。
 
+### 发现顺序
+
+一条规则覆盖技能、MCP 服务器和能力中心：`user > pack > builtin`。用户文件或目录先读、同名时胜出，随包配置永远不会盖掉人的选择。写操作正好相反：只有用户自己的 `<home>/skills` 与 `<home>/mcp.json` 可改；名字已被 pack 占用时直接拒绝，绝不静默覆盖。`config_paths_for` 与 `skill_rows_in` 是可单测的纯函数核心，由 `config_paths_put_the_users_file_first` 和 `skill_rows_in_*` 测试钉住。各面的归属见[能力地图](internals/09-capability-map.zh.md#改动该落哪里)。
+
 ## `settings.json`（config/write 的持久化）
 
 dashboard 或协议的 `config/write` 把补丁累计写入 `<home>/settings.json`，

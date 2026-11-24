@@ -104,7 +104,8 @@ hook 通过 `sh` 运行，Windows 凭据库无法读回密钥。
 `signature`、`limit`、`callback`。未知或已禁用的名字返回 404，密钥错误返回 401，文件损坏会禁用全部 hook 并输出一行 stderr。
 `signature: true` 时调用方发送 `X-Jeeves-Timestamp` 和 `X-Jeeves-Signature`（对 `<timestamp>.<body>` 的 HMAC-SHA256，窗口 300 秒），
 每个签名只被接受一次；`limit` 限制每滚动分钟接受的请求数（429 加 `Retry-After`）；`callback` 先回 202，之后把结果 POST 过去。
-回合就是普通回合：工具保留各自的审批，而且没有人在场授予。
+`Hook::dispatch` 只选一条路径：有 `event_type` 就走带游标去重的签名责任事件，不跑模型回合；否则跑一次普通 headless 回合，
+工具保留各自的审批，而且没有人在场授予。`callback` 只作用于回合路径。
 
 `POST /api/gateway/rpc` 只转发 `interaction/start`、`session/main`、`task/get`、`task/wake`、`approval/pending` 和
 `approval/respond`；其余方法一律回答 method-not-found。

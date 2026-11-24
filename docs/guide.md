@@ -131,7 +131,7 @@ jeeves skill update [index.json or url]              # newer versions only; defa
 jeeves skill export --to claude,codex                # copy to other agents (--project, --force, --names a,b)
 ```
 
-Update validates first, swaps atomically, keeps the old copy in `.backup/` and never downgrades. The layout is `<home>/skills/<name>/SKILL.md` with a lowercase slug name; on a name clash `<home>/skills` wins over `JEEVES_SKILL_DIRS`. After teaching Jeeves a flow in conversation, say "save this as a skill" and it calls `create_skill` (only after you agree, never overwriting).
+Update validates first, swaps atomically, keeps the old copy in `.backup/` and never downgrades. The layout is `<home>/skills/<name>/SKILL.md` with a lowercase slug name; on a name clash `<home>/skills` wins over `JEEVES_SKILL_DIRS`. After teaching Jeeves a flow in conversation, say "save this as a skill" and it calls `create_skill`. The approval card shows the full SKILL.md draft; a denial, a timeout or a turn with nobody to answer leaves the disk untouched. An existing skill is never overwritten.
 
 The dashboard's **Capabilities** center lists every loaded skill with version, policy and missing dependencies, and lets you add or delete the ones in `<home>/skills/`. Skills from `JEEVES_SKILL_DIRS` are built in and read-only. Installs take effect on the next turn.
 

@@ -4,7 +4,11 @@ use std::sync::Arc;
 
 use serde_json::json;
 
-use crate::{Tool, ToolCtx, ToolEffect, ToolRegistry, handlers};
+use crate::{
+    Tool, ToolCtx, ToolEffect, ToolRegistry,
+    approval::{ApprovalBroker, ApprovalFut, ApprovalOutcome, ApprovalRequest},
+    handlers, permissions,
+};
 
 async fn ctx() -> ToolCtx {
     let dir = tempfile::tempdir().expect("temp dir");
@@ -347,7 +351,8 @@ async fn manage_memory_updates_and_deletes_by_id() {
 #[tokio::test]
 async fn create_skill_writes_a_valid_skill_md_and_refuses_collisions() {
     let registry = handlers::build_default();
-    let ctx = ctx().await;
+    let mut ctx = ctx().await;
+    ctx.approval = Some(Arc::new(permissions::ApprovedInvocation));
 
     let out = registry
         .execute(
@@ -927,4 +932,67 @@ async fn a_tool_name_matching_two_tools_is_not_repaired() {
     let registry = named_tools(&["read_file", "read-file-tool"]);
     let out = registry.execute(ctx().await, "ReadFile", json!({})).await;
     assert!(out.starts_with("Error: no tool named 'ReadFile'"), "{out}");
+}
+
+struct SkillBroker {
+    answer: ApprovalOutcome,
+    seen: std::sync::Mutex<Vec<ApprovalRequest>>,
+}
+
+impl ApprovalBroker for SkillBroker {
+    fn request(&self, request: ApprovalRequest) -> ApprovalFut {
+        self.seen.lock().expect("lock").push(request);
+        let answer = self.answer;
+        Box::pin(async move { answer })
+    }
+}
+
+#[tokio::test]
+async fn a_denied_skill_write_shows_the_full_draft_and_touches_no_disk() {
+    let registry = handlers::build_default();
+    let broker = Arc::new(SkillBroker {
+        answer: ApprovalOutcome::Denied,
+        seen: std::sync::Mutex::new(Vec::new()),
+    });
+    let mut ctx = ctx().await;
+    ctx.approval = Some(broker.clone());
+
+    let out = registry
+        .execute(
+            ctx.clone(),
+            "memory",
+            json!({
+                "action": "create_skill", "name": "draft-skill",
+                "description": "a draft for the person to review",
+                "body": "step one\nstep two"
+            }),
+        )
+        .await;
+    assert!(out.contains("denied"), "{out}");
+    assert!(!ctx.home.join("skills/draft-skill").exists());
+
+    let seen = broker.seen.lock().expect("lock");
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].tool, "memory/create_skill");
+    assert!(seen[0].args_preview.contains("---\nname: draft-skill\n"));
+    assert!(seen[0].args_preview.contains("step one\nstep two"));
+    assert!(seen[0].remember.is_none());
+}
+
+#[tokio::test]
+async fn a_skill_write_with_nobody_to_ask_is_refused() {
+    let registry = handlers::build_default();
+    let ctx = ctx().await;
+    let out = registry
+        .execute(
+            ctx.clone(),
+            "memory",
+            json!({
+                "action": "create_skill", "name": "no-approver",
+                "description": "nobody can answer", "body": "steps"
+            }),
+        )
+        .await;
+    assert!(out.contains("nobody can answer"), "{out}");
+    assert!(!ctx.home.join("skills/no-approver").exists());
 }

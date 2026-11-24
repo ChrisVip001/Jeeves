@@ -131,7 +131,7 @@ jeeves skill update [index.json 或 url]              # 只更新到更新的版
 jeeves skill export --to claude,codex                # 复制到其他 agent（--project、--force、--names a,b）
 ```
 
-更新先校验、原子替换、旧版本留在 `.backup/`，也从不降级。目录约定是 `<home>/skills/<name>/SKILL.md`，名字为小写 slug；重名时 `<home>/skills` 胜过 `JEEVES_SKILL_DIRS`。在对话里教会 Jeeves 一套流程后，说“把这个存成技能”，它会调用 `create_skill`（只在你同意之后，且从不覆盖）。
+更新先校验、原子替换、旧版本留在 `.backup/`，也从不降级。目录约定是 `<home>/skills/<name>/SKILL.md`，名字为小写 slug；重名时 `<home>/skills` 胜过 `JEEVES_SKILL_DIRS`。在对话里教会 Jeeves 一套流程后，说“把这个存成技能”，它会调用 `create_skill`。审批卡会展示完整的 SKILL.md 草稿；拒绝、超时或没有人可答时都不会落盘，已有技能也从不覆盖。
 
 设置的**技能**页列出每个已加载的技能及其版本、策略与缺失依赖，并允许添加或删除 `<home>/skills/` 里的技能。来自 `JEEVES_SKILL_DIRS` 的技能是内置的、只读。安装在下一轮生效。
 

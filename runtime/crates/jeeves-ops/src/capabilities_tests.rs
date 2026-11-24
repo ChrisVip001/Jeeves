@@ -10,7 +10,8 @@ use jeeves_mcp::config::ServerSpec;
 use serde_json::json;
 
 use crate::capabilities::{
-    mcp_rows_in, remove_server, remove_skill, save_server_among, skill_rows_in, validate_server,
+    inventory, mcp_rows_in, remove_server, remove_skill, save_server_among, skill_rows_in,
+    validate_server,
 };
 
 fn put_skill(dir: &Path, name: &str, description: &str) {
@@ -334,4 +335,40 @@ fn removing_from_a_missing_file_says_so() {
     let home = tempfile::tempdir().expect("temp dir");
     let refusal = remove_server(home.path(), "fs").expect_err("there is no file");
     assert!(refusal.contains("there is no"), "{refusal}");
+}
+
+#[test]
+fn the_inventory_reports_the_same_rows_and_switch_sources_as_the_runtime() {
+    let home = tempfile::tempdir().expect("temp dir");
+    let user = home.path().join("skills");
+    std::fs::create_dir_all(&user).expect("create the user directory");
+    put_skill(&user, "mine", "written by me");
+    std::fs::write(
+        home.path().join("mcp.json"),
+        json!({"servers": [{"name": "fs", "command": "npx"}]}).to_string(),
+    )
+    .expect("write mcp.json");
+    std::fs::write(
+        home.path().join("settings.json"),
+        json!({"writeEnabled": true}).to_string(),
+    )
+    .expect("write the settings patch");
+
+    let view = inventory(home.path());
+    assert!(view.error.is_none(), "{:?}", view.error);
+    assert_eq!(view.skills.len(), 1);
+    assert_eq!(view.skills[0].name, "mine");
+    assert_eq!(view.connectors.len(), 1);
+    assert_eq!(view.connectors[0].name, "fs");
+
+    let by_id: std::collections::BTreeMap<_, _> =
+        view.switches.iter().map(|row| (row.id, row)).collect();
+    assert_eq!(by_id.len(), 3);
+    assert!(by_id["write"].enabled);
+    assert_eq!(by_id["write"].source, "settings");
+    assert_eq!(
+        by_id["exec"].source, "env",
+        "an untouched switch inherits the environment"
+    );
+    assert!(by_id.contains_key("delegate"));
 }

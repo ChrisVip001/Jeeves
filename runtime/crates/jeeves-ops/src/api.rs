@@ -45,6 +45,7 @@ pub use files::fs_recents_record;
 
 pub use files::upload;
 mod models;
+pub use models::capability_inventory;
 pub use models::mcp;
 pub use models::mcp_remove;
 pub use models::mcp_save;

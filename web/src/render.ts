@@ -4,6 +4,7 @@ import { approvalOutcome } from "./task-event-text.ts";
 import { t } from "./i18n.ts";
 import { readableMinute } from "./when.ts";
 import type {
+  CapabilityView,
   McpRow,
   McpView,
   ScheduleJob,
@@ -917,7 +918,9 @@ export function messageRow(message: Message, openTask: (id: string) => Promise<b
   const trace = el(
     "div",
     { class: "trace" },
-    ...(meta === null || meta === undefined ? [] : metaChips(meta)),
+    ...(meta === null || meta === undefined
+      ? []
+      : [metaTrace(meta), ...metaChips(meta)]),
   );
 
   return el(
@@ -927,6 +930,41 @@ export function messageRow(message: Message, openTask: (id: string) => Promise<b
     el("details", { class: "message-meta" },
       el("summary", { text: formatWhen(message.at), title: t("执行记录") }),
       trace, el("div", { class: "foot", text: historyFooter(message) })),
+  );
+}
+
+/** The persisted tool calls, folded inside the timestamp details. */
+function metaTrace(meta: TurnMeta): HTMLElement {
+  const latest = meta.tools.at(-1);
+  return el(
+    "details",
+    { class: "trace-detail" },
+    el("summary", {
+      text:
+        meta.tools.length === 0
+          ? t("没有工具调用")
+          : t("{n} 步执行 · {tool}", {
+              n: meta.tools.length,
+              tool: latest?.tool ?? "",
+            }),
+    }),
+    ...meta.tools.map((tool) =>
+      el(
+        "div",
+        {
+          class: `trace-row ${tool.status === "ok" ? "done-ok" : "done-bad"}`,
+        },
+        el("span", { class: "trace-name", text: tool.tool }),
+        el("span", {
+          class: "trace-status",
+          text: tool.status === "ok" ? t("成功") : t("失败"),
+        }),
+        el("span", {
+          class: "trace-ms",
+          text: tool.durationMs === null || tool.durationMs === undefined ? "" : formatMs(tool.durationMs),
+        }),
+      ),
+    ),
   );
 }
 
@@ -1083,6 +1121,60 @@ export function elapsedSince(start: number): string {
   return formatMs(Date.now() - start);
 }
 
+
+/** The read-only inventory: what this machine has, and which human switches are on. */
+export function renderCapabilities(view: CapabilityView): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  fragment.append(
+    el("p", {
+      class: "hint",
+      text: t("这台机器上的能力总览；这里只查看，不在这里修改。"),
+    }),
+    el("p", {
+      class: "cap-note",
+      text: t("技能 {n} 个 · 连接器 {m} 个 · 开关 {k} 个", {
+        n: view.skills.length,
+        m: view.connectors.length,
+        k: view.switches.length,
+      }),
+    }),
+  );
+  if (view.error !== null) {
+    fragment.append(el("div", { class: "failure", text: view.error }));
+  }
+  const labels: Record<string, string> = {
+    exec: t("命令执行"),
+    write: t("文件写入"),
+    delegate: t("子代理"),
+  };
+  for (const row of view.switches) {
+    fragment.append(
+      el(
+        "div",
+        { class: "cap-row" },
+        el(
+          "div",
+          { class: "cap-row-head" },
+          el("span", { class: "cap-name", text: labels[row.id] ?? row.id }),
+          el("span", {
+            class: "tag",
+            text: row.enabled ? t("已开启") : t("已关闭"),
+          }),
+        ),
+        capMeta([
+          row.source === "settings" ? t("取自设置") : t("取自环境变量"),
+        ]),
+      ),
+    );
+  }
+  fragment.append(
+    el("p", {
+      class: "cap-note",
+      text: t("技能与连接器在各自页签里管理；能力开关由 CLI 与配置设置。"),
+    }),
+  );
+  return fragment;
+}
 
 /** The skill list: what Jeeves knows how to do, and which rows belong to the human. */
 export function renderSkills(

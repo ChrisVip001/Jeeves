@@ -58,7 +58,7 @@ export const workspaceActions: {
   cwdChanged: (cwd: string | null) => void;
   main: () => Promise<void>;
   /** Borrow a workspace panel into `host`; the returned call hands it back. */
-  mountPanel: (id: "skills" | "mcp" | "memory" | "schedule", host: HTMLElement) => () => void;
+  mountPanel: (id: "capabilities" | "skills" | "mcp" | "memory" | "schedule", host: HTMLElement) => () => void;
 } = {
   reviewOperations: () => {},
   openWork: () => {},

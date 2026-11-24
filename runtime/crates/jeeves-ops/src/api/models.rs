@@ -87,6 +87,11 @@ pub async fn skills(Extension(app): Extension<Arc<AppServer>>) -> Response {
     Json(capabilities::SkillsView { skills, error }).into_response()
 }
 
+/// `GET /api/capabilities` — the read-only view of skills, connectors and human switches.
+pub async fn capability_inventory(Extension(app): Extension<Arc<AppServer>>) -> Response {
+    Json(capabilities::inventory(app.home())).into_response()
+}
+
 /// `POST /api/skills/install` — paste a SKILL.md or give a URL.
 ///
 /// Validation lives in `jeeves-memory` (the same gate `jeeves skill install` passes), so

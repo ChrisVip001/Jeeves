@@ -73,6 +73,62 @@ pub struct McpView {
     pub error: Option<String>,
 }
 
+/// One human-controlled switch in the read-only capability inventory.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwitchRow {
+    pub id: &'static str,
+    pub enabled: bool,
+    /// `settings` when `<home>/settings.json` supplied the value, otherwise `env`.
+    pub source: &'static str,
+}
+
+/// `GET /api/capabilities` — every capability a person can see on this machine.
+///
+/// Read-only: the existing `/api/skills` and `/api/mcp` write routes stay the only way to
+/// change anything. Tools, hooks and schedules keep their own panels; this view answers
+/// "what do I have, and which rows are mine" in one read.
+#[derive(Debug, serde::Serialize)]
+pub struct CapabilityView {
+    pub skills: Vec<SkillRow>,
+    pub connectors: Vec<McpRow>,
+    pub switches: Vec<SwitchRow>,
+    pub error: Option<String>,
+}
+
+/// Merge what ops already reads into one view. The same file precedence as the runtime:
+/// settings overrides the environment, and the user's files win on a same name.
+pub fn inventory(home: &Path) -> CapabilityView {
+    let (skills, skill_error) = skill_rows(home);
+    let (connectors, mcp_error) = mcp_rows(home);
+    let patch = jeeves_config::load_patch(home);
+    let mut settings = jeeves_config::Settings::from_env();
+    jeeves_config::apply_patch(&patch, &mut settings);
+    let switch = |id, enabled, patch_has_value| SwitchRow {
+        id,
+        enabled,
+        source: if patch_has_value { "settings" } else { "env" },
+    };
+    CapabilityView {
+        skills,
+        connectors,
+        switches: vec![
+            switch("exec", settings.exec_enabled, patch.exec_enabled.is_some()),
+            switch(
+                "write",
+                settings.write_enabled,
+                patch.write_enabled.is_some(),
+            ),
+            switch(
+                "delegate",
+                settings.delegate_enabled,
+                patch.delegate_enabled.is_some(),
+            ),
+        ],
+        error: skill_error.or(mcp_error),
+    }
+}
+
 /// What every write answers: one line a person can read.
 #[derive(Debug, serde::Serialize)]
 pub struct Outcome {

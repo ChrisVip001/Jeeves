@@ -1,4 +1,5 @@
 import { el } from "./render";
+import { reversalHint } from "./reversal.ts";
 import { t } from "./i18n";
 import { errorText, reconcileTaskOperation, taskOperations, reconcileTurnOperation, turnOperations } from "./api";
 import type { AgentTaskView, OperationResolution, OperationStatus, TaskOperationsResponse, ToolOperationView } from "./protocol";
@@ -93,7 +94,16 @@ function operationForm(
     status.textContent = unknown.length ? t("尚有 {count} 个操作需要核对", { count: unknown.length }) : t("没有待核对操作；继续仍需明确授权。");
     receipts.replaceChildren(...next.operations.filter(operation => operation.status !== "intent").map(operation =>
       el("details", {}, el("summary", { text: `${operation.tool} · ${outcomeLabel(operation.status)}` }),
-        el("pre", { class: "task-input-data", translate: "no", text: operation.evidence ?? operation.outputPreview ?? (operation.status === "historical_unverified" ? t("历史记录缺少执行结果凭据") : "") }))));
+        el("p", {
+          class: "receipt-lines",
+          text: t("{start} → {end} · 摘要 {digest}", {
+            start: operation.startedAt,
+            end: operation.settledAt ?? t("未记录"),
+            digest: operation.inputDigest,
+          }),
+        }),
+        el("pre", { class: "task-input-data", translate: "no", text: operation.evidence ?? operation.outputPreview ?? (operation.status === "historical_unverified" ? t("历史记录缺少执行结果凭据") : "") }),
+        el("p", { class: "receipt-hint", text: reversalHint(operation) }))));
     selection.dispatchEvent(new Event("change"));
   }
   selection.addEventListener("change", () => {

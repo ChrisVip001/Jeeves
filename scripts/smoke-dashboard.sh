@@ -265,6 +265,17 @@ assert rows[0]["kind"] == "url", rows
 assert rows[0]["auth"] == "none", rows
 PY
 
+# The read-only inventory merges the same rows and names the three human switches.
+curl -sS "$BASE/api/capabilities" >"$WORK/capabilities.json"
+python3 - "$WORK/capabilities.json" <<'PY' || fail "the capability inventory is wrong: $(cat "$WORK/capabilities.json")"
+import json, sys
+view = json.load(open(sys.argv[1]))
+assert {"my-skill", "builtin-skill"} <= {row["name"] for row in view["skills"]}, view
+assert {row["name"] for row in view["connectors"]} == {"pack-server"}, view
+assert {row["id"] for row in view["switches"]} == {"exec", "write", "delegate"}, view
+assert all(row["source"] in {"env", "settings"} for row in view["switches"]), view
+PY
+
 # Add: lands in <home>/mcp.json; filling in both transports is refused (the same gate the
 curl -sS -X POST "$BASE/api/mcp/save" -H 'content-type: application/json' \
   -d '{"name":"notes","url":"https://notes.example/mcp","authEnv":"NOTES_API_KEY"}' \

@@ -13,6 +13,8 @@ use serde_json::{Value, json};
 use crate::{Tool, ToolCtx, require_str};
 use jeeves_memory::skills::is_slug;
 
+const SKILL_APPROVAL_TIMEOUT_SECS: i64 = 120;
+
 fn opt_i64(args: &Value, key: &str) -> Result<Option<i64>> {
     match args.get(key) {
         None | Some(Value::Null) => Ok(None),
@@ -86,8 +88,9 @@ pub fn manage_memory() -> Tool {
 
 /// create_skill — turns a user-taught workflow into a SKILL.md (procedural memory's write entry).
 ///
-/// Only call **after the user agrees** (this rule lives in SOUL.md): an agent approving
-/// its own code of conduct is the same accident as an unguarded update_soul.
+/// The handler asks the human through `ApprovalBroker` before it writes: a model approving
+/// its own code of conduct would be the same accident as an unguarded update_soul. Denial,
+/// timeout and a turn with nobody to answer all leave the disk untouched.
 /// Never overwrite an existing skill — built-in or user-written alike.
 pub fn create_skill() -> Tool {
     Tool {
@@ -124,6 +127,33 @@ pub fn create_skill() -> Tool {
                     format!("---\nname: {name}\ndescription: {description}\n---\n\n{body}\n");
                 if jeeves_memory::skills::parse_skill_text(&text).is_none() {
                     return Ok("This content failed validation — both name and description are required.".to_string());
+                }
+                let Some(broker) = ctx.approval.clone() else {
+                    return Ok("Writing a skill needs a person's approval, but nobody can answer here — the skill was not created.".to_string());
+                };
+                let outcome = broker
+                    .request(crate::approval::ApprovalRequest {
+                        tool: "memory/create_skill".to_string(),
+                        args_preview: format!(
+                            "Create '{name}' at {}:\n\n{text}",
+                            dest.display()
+                        ),
+                        reason: format!(
+                            "Teach Jeeves a reusable workflow at {} — only you can agree to it",
+                            dest.display()
+                        ),
+                        timeout_secs: SKILL_APPROVAL_TIMEOUT_SECS,
+                        remember: None,
+                        action: None,
+                    })
+                    .await;
+                if !outcome.approved() {
+                    return Ok(outcome.refusal("skill write"));
+                }
+                if dest.exists() {
+                    return Ok(format!(
+                        "A skill named '{name}' was created while you were deciding — nothing was overwritten."
+                    ));
                 }
                 std::fs::create_dir_all(&dir)?;
                 std::fs::write(&dest, text)?;

@@ -277,6 +277,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 pub fn router(gate: Gate) -> Router {
     Router::new()
         .route("/api/data", get(api::data))
+        .route("/api/capabilities", get(api::capability_inventory))
         .route("/api/capability", get(api::connections::capability_list))
         .route(
             "/api/connector/settings",

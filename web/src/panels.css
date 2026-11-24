@@ -1232,6 +1232,8 @@
   overflow-wrap: anywhere;
   overflow: auto;
 }
+.receipt-lines, .receipt-hint { margin:4px 0; font-size:12px; color:var(--text-2); overflow-wrap:anywhere; }
+.receipt-hint { border-inline-start:2px solid var(--line); padding-inline-start:8px; }
 .task-actions {
   flex-wrap: wrap;
 }

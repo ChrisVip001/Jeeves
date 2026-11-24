@@ -127,7 +127,8 @@ MCP and unknown tools are never proven reads.
 
 An unknown `action` returns a text listing the options. `create_skill` lowercases the name and turns spaces into `-`,
 requires a slug (`is_slug`, shared with `jeeves skill install`), refuses when `SKILL.md` already exists, and validates the
-text with `parse_skill_text` before writing. Its description tells the model to call it only after the user agrees.
+text with `parse_skill_text` before writing. Before the write it asks the human through `ApprovalBroker`, showing the whole draft;
+a denial, timeout or absent broker returns a refusal and leaves no file.
 
 `read_page(kind, name)`: `kind=memory` returns a memory-library page with its `sources` (a page that is obsolete or time-bounded
 is reported as excluded); `kind=skill` returns the skill body. Details of the bundle and skills are in [05](05-memory.md).

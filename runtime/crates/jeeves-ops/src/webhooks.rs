@@ -87,7 +87,33 @@ pub struct Hook {
     pub callback: Option<String>,
 }
 
+/// What an admitted hook actually runs. One place decides the two paths so the HTTP handler
+/// cannot disagree with the config about which one applies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HookDispatch {
+    /// A signed responsibility event: no model turn, the cursor owns deduplication.
+    Responsibility { event_type: String },
+    /// One headless turn; `callback` means the caller gets 202 and the answer is posted back.
+    Turn { callback: Option<String> },
+}
+
 impl Hook {
+    pub fn dispatch(&self) -> HookDispatch {
+        match self
+            .event_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            Some(event_type) => HookDispatch::Responsibility {
+                event_type: event_type.to_string(),
+            },
+            None => HookDispatch::Turn {
+                callback: self.callback_url().map(str::to_string),
+            },
+        }
+    }
+
     pub fn enabled(&self) -> bool {
         self.enabled.unwrap_or(true)
     }
@@ -681,5 +707,40 @@ mod webhooks_tests {
         assert!(hook.wants_signature());
         assert_eq!(hook.limit, Some(6));
         assert_eq!(hook.callback_url(), Some("https://example.com/x"));
+    }
+
+    #[test]
+    fn dispatch_chooses_the_one_path_the_hook_configured() {
+        assert_eq!(sample().dispatch(), HookDispatch::Turn { callback: None });
+
+        let callback = Hook {
+            callback: Some(" https://example.com/hook ".to_string()),
+            ..sample()
+        };
+        assert_eq!(
+            callback.dispatch(),
+            HookDispatch::Turn {
+                callback: Some("https://example.com/hook".to_string())
+            }
+        );
+
+        let event = Hook {
+            event_type: Some(" calendar.updated ".to_string()),
+            callback: Some("https://example.com/hook".to_string()),
+            ..sample()
+        };
+        assert_eq!(
+            event.dispatch(),
+            HookDispatch::Responsibility {
+                event_type: "calendar.updated".to_string()
+            },
+            "an event hook never also runs a turn, whatever else is configured"
+        );
+
+        let blank = Hook {
+            event_type: Some("   ".to_string()),
+            ..sample()
+        };
+        assert_eq!(blank.dispatch(), HookDispatch::Turn { callback: None });
     }
 }

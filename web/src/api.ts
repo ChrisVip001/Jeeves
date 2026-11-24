@@ -568,6 +568,29 @@ export interface McpView {
   error: string | null;
 }
 
+/** One human-controlled capability switch in the read-only inventory. */
+export interface SwitchRow {
+  id: "exec" | "write" | "delegate";
+  enabled: boolean;
+  source: "env" | "settings";
+}
+
+/** `GET /api/capabilities` — what this machine has, in one read. */
+export interface CapabilityView {
+  skills: SkillRow[];
+  connectors: McpRow[];
+  switches: SwitchRow[];
+  error: string | null;
+}
+
+export async function fetchCapabilities(): Promise<CapabilityView> {
+  const response = await apiFetch("/api/capabilities", {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) throw new ApiError(await errorOf(response));
+  return (await response.json()) as CapabilityView;
+}
+
 /** What every capability write answers: one line a person can read. */
 export interface Outcome {
   ok: boolean;

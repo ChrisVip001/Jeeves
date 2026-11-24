@@ -112,8 +112,10 @@ replaced by the request body, else the body is appended), and optional `session`
 `enabled`, `signature`, `limit`, `callback`. An unknown or disabled name is 404, a wrong secret 401, a broken
 file disables all hooks with a stderr line. With `signature: true` the caller sends `X-Jeeves-Timestamp` and
 `X-Jeeves-Signature` (HMAC-SHA256 over `<timestamp>.<body>`, 300 s window) and each signature is accepted once; `limit` caps accepted
-requests per rolling minute (429 with `Retry-After`); `callback` answers 202 and POSTs the result later. The turn is an
-ordinary turn: tools keep their approvals and nobody is present to grant them.
+requests per rolling minute (429 with `Retry-After`); `callback` answers 202 and POSTs the result later.
+`Hook::dispatch` picks exactly one path: an `event_type` becomes a signed responsibility event with cursor
+deduplication and no model turn; otherwise it is one ordinary headless turn, with tools keeping their approvals
+and nobody present to grant them. A callback applies only to the turn path.
 
 `POST /api/gateway/rpc` forwards only `interaction/start`, `session/main`, `task/get`, `task/wake`, `approval/pending` and
 `approval/respond`; every other method answers method-not-found.

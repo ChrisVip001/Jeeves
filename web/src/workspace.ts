@@ -25,6 +25,7 @@ import type {
   TurnView,
 } from "./protocol";
 import type {
+  CapabilityView,
   McpRow,
   McpServerSpec,
   McpView,
@@ -48,6 +49,7 @@ import {
   createFolder,
   fetchContextUsage,
   fetchDashboard,
+  fetchCapabilities,
   fetchFs,
   fetchLedger,
   fetchLedgerTurn,
@@ -88,6 +90,7 @@ import {
   messageRow,
   taskNotice,
   muted,
+  renderCapabilities,
   renderContext,
   renderLedger,
   renderMcp,
@@ -186,10 +189,12 @@ const dom = {
   drawer: must("drawer"),
   drawerClose: must<HTMLButtonElement>("drawer-close"),
   panelStash: must("panel-stash"),
+  panelCapabilities: must("panel-capabilities"),
   panelSkills: must("panel-skills"),
   panelMcp: must("panel-mcp"),
   panelMemory: must("panel-memory"),
   panelSchedule: must("panel-schedule"),
+  capabilitiesBody: must("capabilities-body"),
   skillsBody: must("skills-body"),
   mcpBody: must("mcp-body"),
   schedulesBody: must("schedules-body"),
@@ -313,15 +318,22 @@ function renderStaged(): void {
  * things a person manages now and then, so they live in Settings: its tab borrows the panel
  * from the stash while it shows, and hands it back when it closes.
  */
-type PanelId = "skills" | "mcp" | "memory" | "schedule";
+type PanelId = "capabilities" | "skills" | "mcp" | "memory" | "schedule";
 
 /** Latest capability data, refreshed with the rest of the screen. */
+let capabilitiesView: CapabilityView | null = null;
 let skillsView: SkillsView = { skills: [], error: null };
 let mcpView: McpView = { servers: [], error: null };
 let schedulesView: SchedulesView = { jobs: [], error: null };
 
 function panelOf(id: PanelId): HTMLElement {
-  return { skills: dom.panelSkills, mcp: dom.panelMcp, memory: dom.panelMemory, schedule: dom.panelSchedule }[id];
+  return { capabilities: dom.panelCapabilities, skills: dom.panelSkills, mcp: dom.panelMcp, memory: dom.panelMemory, schedule: dom.panelSchedule }[id];
+}
+
+/** Paint the read-only overview from the latest inventory. */
+function paintCapabilities(): void {
+  if (capabilitiesView === null) return;
+  dom.capabilitiesBody.replaceChildren(renderCapabilities(capabilitiesView));
 }
 
 /** Move one panel into `host`, paint it, and return the call that puts it back. */
@@ -329,6 +341,7 @@ function mountPanel(id: PanelId, host: HTMLElement): () => void {
   const panel = panelOf(id);
   host.append(panel);
   panel.hidden = false;
+  if (id === "capabilities") paintCapabilities();
   if (id === "skills") {
     paintSkills();
     void loadSkillStats();
@@ -1051,11 +1064,16 @@ function refreshOnReturn(): void {
  * keep their last value, and an open panel shows the error in place.
  */
 async function refreshCapabilities(): Promise<void> {
-  const [skills, mcp, schedules] = await Promise.all([
+  const [inventory, skills, mcp, schedules] = await Promise.all([
+    fetchCapabilities().catch(() => null),
     fetchSkills().catch(() => null),
     fetchMcp().catch(() => null),
     fetchSchedules().catch(() => null),
   ]);
+  if (inventory !== null) {
+    capabilitiesView = inventory;
+    if (!dom.panelCapabilities.hidden) paintCapabilities();
+  }
   if (skills !== null) {
     skillsView = skills;
     if (!dom.panelSkills.hidden) paintSkills();

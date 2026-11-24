@@ -56,43 +56,47 @@ pub async fn hook(
         return refusal_response(refusal);
     }
 
-    if let Some(event_type) = &hook.event_type {
-        return event(&app, &hook.name, event_type, &body).await;
-    }
-
-    let hook_name = hook.name.clone();
-    let params = TurnStartParams {
-        request_id: None,
-        session_id: None,
-        message: hook.render(&body),
-        stream: Some(false),
-        cwd: None,
-        attachments: None,
-        tier: hook.tier.clone(),
-    };
-
-    if let Some(callback) = hook.callback_url().map(str::to_string) {
-        tokio::spawn(async move {
-            let payload = match run_headless(&app, params).await {
-                Ok(run) => json!({
-                    "hook": hook_name,
-                    "ok": true,
-                    "result": run,
-                }),
-                Err(error) => json!({
-                    "hook": hook_name,
-                    "ok": false,
-                    "error": error,
-                }),
+    match hook.dispatch() {
+        webhooks::HookDispatch::Responsibility { event_type } => {
+            event(&app, &hook.name, &event_type, &body).await
+        }
+        webhooks::HookDispatch::Turn { callback } => {
+            let hook_name = hook.name.clone();
+            let params = TurnStartParams {
+                request_id: None,
+                session_id: None,
+                message: hook.render(&body),
+                stream: Some(false),
+                cwd: None,
+                attachments: None,
+                tier: hook.tier.clone(),
             };
-            webhooks::deliver(&callback, payload).await;
-        });
-        return (StatusCode::ACCEPTED, Json(webhooks::accepted(&hook.name))).into_response();
-    }
 
-    match run_headless(&app, params).await {
-        Ok(response) => Json(response).into_response(),
-        Err(error) => failed(StatusCode::OK, error),
+            if let Some(callback) = callback {
+                tokio::spawn(async move {
+                    let payload = match run_headless(&app, params).await {
+                        Ok(run) => json!({
+                            "hook": hook_name,
+                            "ok": true,
+                            "result": run,
+                        }),
+                        Err(error) => json!({
+                            "hook": hook_name,
+                            "ok": false,
+                            "error": error,
+                        }),
+                    };
+                    webhooks::deliver(&callback, payload).await;
+                });
+                return (StatusCode::ACCEPTED, Json(webhooks::accepted(&hook.name)))
+                    .into_response();
+            }
+
+            match run_headless(&app, params).await {
+                Ok(response) => Json(response).into_response(),
+                Err(error) => failed(StatusCode::OK, error),
+            }
+        }
     }
 }
 

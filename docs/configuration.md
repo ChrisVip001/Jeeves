@@ -784,6 +784,16 @@ blank tool list. In Settings these rows carry a 「内置」 tag and
 are greyed out — every write refuses them, because deleting one from a single
 machine's UI would silently unconfigure every machine that shares it.
 
+### Discovery order
+
+One rule covers skills, MCP servers and the capability center: `user > pack > builtin`. The user's
+file or folder is read first and wins on a same name, so a bundled pack can never shadow a
+person's own choice. Writes are the mirror image: only the user's `<home>/skills` and
+`<home>/mcp.json` are editable; a name already owned by a pack is refused rather than silently
+overwritten. `config_paths_for` and `skill_rows_in` are the pure cores, pinned by
+`config_paths_put_the_users_file_first` and `skill_rows_in_*` tests. See the
+[capability map](internals/09-capability-map.md#where-to-change-what) for where each surface lives.
+
 ## `settings.json` (config/write persistence)
 
 `config/write` accumulates patches into `<home>/settings.json`, layered over

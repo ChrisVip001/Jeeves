@@ -119,7 +119,7 @@ MCP 工具和未知工具永远不算已证明只读。
 | `create_skill` | `name`、`description`、`body` | 写入 `<home>/skills/<name>/SKILL.md` |
 
 未知 `action` 会返回列出可选项的文本。`create_skill` 把名字转小写并把空格换成 `-`，要求是 slug（`is_slug`，与 `jeeves skill install` 共用），
-`SKILL.md` 已存在则拒绝，写入前用 `parse_skill_text` 校验文本。它的描述要求模型只在用户同意后调用。
+`SKILL.md` 已存在则拒绝，写入前用 `parse_skill_text` 校验文本。写入前通过 `ApprovalBroker` 请人确认并展示完整草稿；拒绝、超时或无人可答都会返回拒绝文本且不落盘。
 
 `read_page(kind, name)`：`kind=memory` 返回记忆库页面及其 `sources`（已过期或有时效的页面会被报告为已排除）；`kind=skill` 返回技能正文。
 记忆包和技能的细节见 [05](05-memory.zh.md)。

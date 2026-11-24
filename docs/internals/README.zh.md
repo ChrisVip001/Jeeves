@@ -20,6 +20,7 @@
 | 6 | [应用服务端](06-app-server.zh.md) | 回合流水线、任务与交互、权限、后台作业、容量上限、排空 |
 | 7 | [外壳](07-shells.zh.md) | CLI、驾驶舱后端、Web 客户端、网关、桌面外壳、浏览器 worker |
 | 8 | [质量](08-quality.zh.md) | 评测场景与断言、回放、judge、冒烟、CI 闸门与文档检查 |
+| 9 | [能力地图](09-capability-map.zh.md) | harness 的九个面及各自归属的 crate |
 
 ## 跳读表
 

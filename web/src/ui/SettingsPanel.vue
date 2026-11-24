@@ -4,11 +4,11 @@ const t = useUiText();
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import JeevesLogo from "./JeevesLogo.vue";
 import ConnectionsPanel from "./ConnectionsPanel.vue";
-import { Bell, Brain, Cable, Inbox, Languages, Plug, Smartphone, Sparkles, UserRound, X } from "lucide-vue-next";
+import { Bell, Brain, Cable, Inbox, Languages, LayoutGrid, Plug, Smartphone, Sparkles, UserRound, X } from "lucide-vue-next";
 import { getLang, setLang } from "../i18n";
 import { workspaceActions } from "../controls";
 import type { SettingsActions } from "./types";
-type PanelTab = "skills" | "mcp" | "memory";
+type PanelTab = "capabilities" | "skills" | "mcp" | "memory";
 const props = defineProps<{
   busy: boolean;
   actions: SettingsActions;
@@ -24,12 +24,13 @@ const tabs = [
   { id: "notifications", name: t("审批通知"), icon: Bell },
   { id: "connections", name: t("连接管理"), icon: Plug },
   { id: "inbox", name: t("收件箱"), icon: Inbox },
+  { id: "capabilities", name: t("能力总览"), icon: LayoutGrid },
   { id: "skills", name: t("技能"), icon: Sparkles },
   { id: "mcp", name: t("MCP 连接器"), icon: Cable },
   { id: "memory", name: t("记忆"), icon: Brain },
 ] as const;
 /** Every tab here is one of the workspace panels, borrowed while it shows. */
-const PANEL_TABS = ["skills", "mcp", "memory"] as const;
+const PANEL_TABS = ["capabilities", "skills", "mcp", "memory"] as const;
 const panelHost = ref<HTMLElement>();
 let handBack: (() => void) | null = null;
 function isPanel(id: string): id is PanelTab {

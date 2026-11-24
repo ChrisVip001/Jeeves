@@ -22,6 +22,7 @@ Chapter order is dependency order: a chapter builds on the ones before it.
 | 6 | [App server](06-app-server.md) | the turn pipeline, tasks and interactions, permissions, background jobs, capacity caps, drain |
 | 7 | [Shells](07-shells.md) | CLI, the dashboard backend, the web client, gateways, the desktop shell, the browser worker |
 | 8 | [Quality](08-quality.md) | eval scenarios and assertions, replay, the judge, smokes, the CI gate and the doc checks |
+| 9 | [Capability map](09-capability-map.md) | the nine harness surfaces and which crate owns each one |
 
 ## Jump table
 
