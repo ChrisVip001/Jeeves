@@ -224,9 +224,11 @@ fn open_window(app: &tauri::AppHandle, target: Result<String, String>) -> tauri:
         .inner_size(1180.0, 800.0)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
         .on_document_title_changed(|window, title| {
-            if let Err(error) = window.set_badge_count(waiting_count(&title)) {
+            let count = waiting_count(&title);
+            if let Err(error) = window.set_badge_count(count) {
                 eprintln!("(jeeves) could not set the Dock badge: {error}");
             }
+            crate::notice::waiting(&window, count.unwrap_or(0));
         });
     window_state::place(app, builder).build()?;
     Ok(())
@@ -235,6 +237,8 @@ fn open_window(app: &tauri::AppHandle, target: Result<String, String>) -> tauri:
 pub(super) fn main() {
     tauri::Builder::default()
         .manage(Runtime::default())
+        .manage(crate::notice::Seen::default())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             open_window(app.handle(), desktop_target(app.handle()))?;
             crate::summon::install(app.handle());

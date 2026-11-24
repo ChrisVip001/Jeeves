@@ -137,7 +137,7 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 日常使用和共同测试时，运行 `just desktop-open`，或在 Finder 双击本仓库的 `desktop/src-tauri/target/release/bundle/macos/Jeeves.app`。两个入口打开同一份应用。应用已运行时，macOS 会把原窗口带到前台，沿用当前 Runtime、登录状态和会话。首次缺少应用包时命令会构建它。修改代码后需要重新打包时，运行 `just desktop-build`。
 
-关闭开发版 App 的窗口只会隐藏它，Runtime 继续执行定时任务，点 Dock 图标即可恢复窗口。在任何应用里按 ⌥Space 会把 Jeeves 调到最前，光标落在输入框；再按一次隐藏 Jeeves，回到原来的应用。如果 ⌥Space 已被别的应用占用，Jeeves 照常启动，只是没有这个快捷键。Dock 图标上的数字是等你决定的事项数，浏览器标签页标题也会显示为 `(N) Jeeves`。用 ⌘Q 退出。App 会在上次的窗口大小和位置打开，位置保存在应用配置目录下的 `window-frame`。如果这个位置已经不在任何已连接的显示器内，窗口改为居中。
+关闭开发版 App 的窗口只会隐藏它，Runtime 继续执行定时任务，点 Dock 图标即可恢复窗口。在任何应用里按 ⌥Space 会把 Jeeves 调到最前，光标落在输入框；再按一次隐藏 Jeeves，回到原来的应用。如果 ⌥Space 已被别的应用占用，Jeeves 照常启动，只是没有这个快捷键。Dock 图标上的数字是等你决定的事项数，浏览器标签页标题也会显示为 `(N) Jeeves`。Jeeves 不在最前时这个数字一旦增加，App 会按系统语言发一条 Mac 通知；第一次会由 macOS 询问是否允许。用 ⌘Q 退出。App 会在上次的窗口大小和位置打开，位置保存在应用配置目录下的 `window-frame`。如果这个位置已经不在任何已连接的显示器内，窗口改为居中。
 
 共同测试前运行 `just desktop-status`，核对已有 App 与 Runtime 的 PID、监听地址、数据和追踪路径。命令显示的提交号是源码版本，正在运行的应用可能来自较早的构建。共同验收沿用同一窗口和账号，完成后把窗口留在对应的事项或报错处。复现问题时记下操作步骤和本机时间，有任务 ID 或回合 ID 就一并记下。可到命令显示的追踪目录查找对应回合。App 将 Runtime 诊断日志写到 `<home>/jeeves.log`。自动冒烟使用测试数据，结果单独记录。
 
