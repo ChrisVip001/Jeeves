@@ -1,10 +1,15 @@
-import { t } from "./i18n";
+import { t } from "./i18n.ts";
 import type { AgentTaskView } from "./protocol";
 import type { TaskCenter } from "./ui/useTasks";
+
+function awaitsGoalDecision(task: AgentTaskView): boolean {
+  return Boolean(task.goalDraft) && task.status !== "failed" && task.status !== "cancelled";
+}
 
 /** One line on where a task stands, in the words the work list and its rail share. */
 export function workStatus(center: TaskCenter, task: AgentTaskView): string {
   if (center.approvalFor(task)) return t("需要你确认");
+  if (awaitsGoalDecision(task)) return t("完成标准待你确认");
   if (task.inputCondition?.state === "pending") return t("等{what}", { what: task.inputCondition.description });
   switch (task.status) {
     case "running": return t("正在执行");
@@ -24,7 +29,8 @@ export function workSections(center: TaskCenter, query = "") {
   const waiting: AgentTaskView[] = [], working: AgentTaskView[] = [], past: AgentTaskView[] = [];
   for (const task of center.state.tasks) {
     if (query && !task.title.toLocaleLowerCase().includes(query)) continue;
-    if (["done", "failed", "cancelled"].includes(task.status)) past.push(task);
+    if (awaitsGoalDecision(task)) waiting.push(task);
+    else if (["done", "failed", "cancelled"].includes(task.status)) past.push(task);
     else if (center.approvalFor(task) || ["needs_attention", "needsAttention"].includes(task.status)
       || (task.inputCondition?.state === "pending" && task.inputCondition.source === "manual")) waiting.push(task);
     else working.push(task);
