@@ -159,9 +159,9 @@ pub(crate) fn on_close(window: &tauri::Window, event: &tauri::WindowEvent) {
     }
 }
 
-/// Brings the hidden main window back (Dock icon click or the summon shortcut).
+/// Brings the hidden main window back (Dock icon click or the summon shortcut). An app-level
+/// hide (⌘H or the shortcut) is undone first, or the window would stay invisible.
 pub(crate) fn reveal(app: &tauri::AppHandle) {
-    // Undo an app-level hide (⌘H or the summon shortcut) before showing the window.
     #[cfg(target_os = "macos")]
     if let Err(error) = app.show() {
         eprintln!("(jeeves) could not unhide the app: {error}");

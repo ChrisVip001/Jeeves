@@ -28,6 +28,8 @@ pub(crate) fn install(app: &AppHandle) {
     }
 }
 
+/// Shows Jeeves, or hides it when it is already in front. On macOS the hide is app-level
+/// (like ⌘H), so focus returns to the app the user came from.
 fn toggle(app: &AppHandle) {
     let Some(main) = app.get_webview_window("main") else {
         return;
@@ -37,7 +39,6 @@ fn toggle(app: &AppHandle) {
         && !main.is_minimized().unwrap_or(false);
     if in_front {
         crate::window_state::remember(&main);
-        // Like ⌘H: macOS hands focus back to the app the user came from.
         #[cfg(target_os = "macos")]
         let hidden = app.hide();
         #[cfg(not(target_os = "macos"))]
