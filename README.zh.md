@@ -52,7 +52,7 @@ just desktop-open      # 已运行时回到原窗口
 - **接上日历和邮件**：CalDAV/ICS 只读；IMAP 用 `BODY.PEEK` 读信；SMTP 默认只写草稿，每个真实收件人与内容组合都要单独作用域授权并写回执，手机可查看 Mac Cowork 同一任务会话，并在主聊天答复带版本的发送审批。飞书入站事件先落盘再确认。主聊天可将排队中的任务邮件改为可恢复的草稿，普通聊天和任务发件的最终 SMTP 回执丢失均须核对（[docs/configuration.zh.md](docs/configuration.zh.md#日历与邮件)）
 - **早上先看一份提议**：可开启 [08:00 晨报](docs/operations.zh.md#晨报cron-友好)，查看当日日程、未读邮件和回复草稿，以及未完成的任务。
 - **花得少一点**：系统提示是「稳定前缀 + 每轮尾巴」，供应商能缓存；`JEEVES_TOOL_POLICY=deferred` 时请求里只放常驻工具的 schema（[docs/configuration.zh.md](docs/configuration.zh.md)）
-- **长本事，但你说了算**：能力中心把技能、MCP 连接器和定时任务并排摆着，[连接管理](docs/guide.zh.md#连接状态)显示需要你处理的连接，可配置本地邮件/日历及发起支持的 OAuth 授权。可浏览精选目录、接入自定义 MCP 并逐工具启停。常驻运行时自动续期已绑定的 MCP OAuth 登录。MCP 工具的权限可以在[连接器清单](docs/configuration.zh.md#连接器清单)中配置。自己的可以加可以删，内置项只读。
+- **长本事，但你说了算**：技能、MCP 连接器和记忆在设置里，定时任务在**工作 → 长期**，[连接管理](docs/guide.zh.md#连接状态)显示需要你处理的连接，可配置本地邮件/日历及发起支持的 OAuth 授权。可浏览精选目录、接入自定义 MCP 并逐工具启停。常驻运行时自动续期已绑定的 MCP OAuth 登录。MCP 工具的权限可以在[连接器清单](docs/configuration.zh.md#连接器清单)中配置。自己的可以加可以删，内置项只读。
 - **按项目规矩干活**：从工作目录往上找 `AGENTS.md` / `AGENTS.override.md` / `CLAUDE.md`，拼进每轮尾巴（[docs/internals/06-app-server.zh.md](docs/internals/06-app-server.zh.md)）
 - **在原事项里接着做**：Jeeves 在原事项里持续执行，按目标与验收条件交付。[长任务如何协作](docs/design/main-entry.zh.md#长任务如何协作)
 - **被检验**：确定性 eval 与回放 eval 把守每次发布；judge 给回答质量打分（[docs/internals/08-quality.zh.md](docs/internals/08-quality.zh.md)）

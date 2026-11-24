@@ -77,7 +77,7 @@ async function inspect(id:string) {
       <pre v-if="samples[r.id]">{{ samples[r.id] }}</pre>
     </article>
     <template v-if="(history || list) && duties.length">
-      <h2 class="duty-head">{{ phrase("长期","Long-term") }} <span>{{ duties.length }}</span></h2>
+      <h2 v-if="!list" class="duty-head">{{ phrase("长期","Long-term") }} <span>{{ duties.length }}</span></h2>
       <article v-for="d in duties" :key="d.contract.id">
         <strong>{{ d.contract.purpose }}</strong>
         <p>{{ d.presentation ? [d.presentation.trigger, d.presentation.action, d.presentation.delivery, d.presentation.blocked].filter(Boolean).join(" · ") : describe(d.contract) }} · {{ d.status==='active'?phrase("已启用","Active"):d.status==='paused'?phrase("已暂停","Paused"):phrase("已到期","Expired") }}</p>

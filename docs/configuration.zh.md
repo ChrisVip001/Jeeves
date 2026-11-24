@@ -258,8 +258,8 @@ curl -sS -X POST "${RUNTIME_ORIGIN}/api/run" \
 | `JEEVES_RESUME_MAX_AGE` | `60` | 分钟；比这更旧的 `open` checkpoint 在启动时标 `abandoned`，不自动续跑（`0` = 一律续跑） |
 | `JEEVES_CONSOLIDATE_EVERY` | `6` | 每 N 轮新对话触发一次 consolidation |
 | `JEEVES_RETRIEVAL_TOP_K` | `4` | 每轮最多取回的匹配事实数 |
-| `JEEVES_SKILL_DIRS` | — | 冒号分隔的额外技能目录（`<home>/skills` 之外）；里面的技能在能力中心里是内置项（置灰只读） |
-| `JEEVES_MCP_CONFIG` | — | 冒号分隔的额外 mcp.json 文件（`<home>/mcp.json` 之外）；里面的服务器在能力中心里是内置项（置灰只读），同名时用户的文件赢 |
+| `JEEVES_SKILL_DIRS` | — | 冒号分隔的额外技能目录（`<home>/skills` 之外）；里面的技能在设置里是内置项（置灰只读） |
+| `JEEVES_MCP_CONFIG` | — | 冒号分隔的额外 mcp.json 文件（`<home>/mcp.json` 之外）；里面的服务器在设置里是内置项（置灰只读），同名时用户的文件赢 |
 
 ## 提示形状与上下文计量
 
@@ -677,7 +677,7 @@ MCP HTTP 响应（包括流式响应）读取上限为 2 MiB。工具仅返回
 `structuredContent` 时保留该 JSON，不再丢成空结果；超过上限会明确报错，
 避免响应无界占用内存。
 
-连接中断且工具结果未知时，Jeeves 为下一次调用重连。先核对远端记录，避免重复执行。能力中心把 MCP 配置保存在 `<home>/mcp.json`，下一回合重新加载。每个回合保留启动时的工具表。
+连接中断且工具结果未知时，Jeeves 为下一次调用重连。先核对远端记录，避免重复执行。设置里的 MCP 页把配置保存在 `<home>/mcp.json`，下一回合重新加载。每个回合保留启动时的工具表。
 
 ### 连接器清单
 
@@ -703,7 +703,7 @@ MCP HTTP 响应（包括流式响应）读取上限为 2 MiB。工具仅返回
 冒号分隔的额外配置文件，和 `JEEVES_SKILL_DIRS` 同一个分法：
 `<home>/mcp.json` 是用户的，额外的是运营方的（整机或随包分发）。用户的
 文件先读，**同名服务器用户赢**；坏掉的额外文件只是一行警告，不会让工具表
-变空。能力中心里这些行带「内置」标签并置灰——所有写操作一律拒绝：从一台
+变空。设置里这些行带「内置」标签并置灰——所有写操作一律拒绝：从一台
 机器的界面上删掉它，会让每一台共享它的机器一起失效。
 
 ## `settings.json`（config/write 的持久化）

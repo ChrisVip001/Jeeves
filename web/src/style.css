@@ -93,82 +93,8 @@ code {
 .app {
   height: 100dvh;
   display: grid;
-  grid-template-columns: var(--sidebar-w, 244px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   overflow: hidden;
-}
-.sidebar {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--line);
-  padding: 22px 14px 13px;
-  min-height: 0;
-  gap: 19px;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 5px;
-}
-.brand h1 {
-  font-size: 20px;
-  font-weight: 650;
-  margin: 0;
-  letter-spacing: -0.03em;
-}
-.jeeves-logo {
-  display: block;
-  flex: none;
-}
-.rail-toggle {
-  margin-left: auto;
-  font-size: 17px;
-}
-.new-chat {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  background: var(--surface-hover);
-  color: var(--text-2);
-  text-align: left;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 550;
-}
-.new-chat:hover {
-  background: var(--surface-hover);
-}
-.new-chat kbd {
-  margin-left: auto;
-  font: 11px var(--font);
-  color: var(--text-3);
-}
-.nav-entry,
-.cap-entry,
-.settings-entry {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  text-align: left;
-  gap: 10px;
-  border-radius: 7px;
-  padding: 8px 10px;
-  color: var(--text-2);
-  font-size: 13px;
-}
-.nav-entry:hover,
-.cap-entry:hover,
-.settings-entry:hover {
-  background: var(--surface-hover);
-  color: var(--text);
-}
-.nav-entry > span:first-child {
-  width: 17px;
-  font-size: 18px;
 }
 .rail-block {
   min-width: 0;
@@ -247,45 +173,6 @@ code {
 .capabilities {
   border-top: 1px solid var(--line);
   padding-top: 17px;
-}
-.sidebar-foot {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
-}
-.foot-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 6px 0;
-  font-size: 10px;
-}
-.stamp {
-  flex: 1;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  color: var(--text-3);
-}
-.connection-dot {
-  width: 5px;
-  height: 5px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.foot-row .ghost {
-  font-size: 11px;
-  padding: 2px 4px;
-}
-.sidebar-resizer {
-  position: absolute;
-  inset: 0 -3px 0 auto;
-  width: 6px;
-  cursor: col-resize;
-  z-index: 2;
-}
-.sidebar-resizer:hover {
-  background: var(--line);
 }
 .chat {
   position: relative;
@@ -551,20 +438,6 @@ code {
   gap: 6px;
   margin-bottom: 8px;
 }
-.mobile-menu,
-.sidebar-scrim {
-  display: none;
-}
-body.sidebar-closed .app {
-  grid-template-columns: 0 minmax(0, 1fr);
-}
-body.sidebar-closed .sidebar {
-  visibility: hidden;
-  overflow: hidden;
-}
-body.sidebar-closed .mobile-menu {
-  display: block;
-}
 .panels {
   position: fixed;
   width: min(600px, 100vw - 30px);
@@ -640,32 +513,6 @@ body.sidebar-closed .mobile-menu {
   .app {
     grid-template-columns: 1fr;
   }
-  .sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    width: min(290px, 85vw);
-    z-index: 40;
-    transform: translateX(-100%);
-    transition: transform var(--speed) ease;
-    visibility: hidden;
-  }
-  body.mobile-sidebar .sidebar {
-    transform: none;
-    visibility: visible;
-  }
-  body.mobile-sidebar .sidebar-scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: var(--scrim);
-    z-index: 35;
-  }
-  .sidebar-resizer {
-    display: none;
-  }
-  .mobile-menu {
-    display: block;
-  }
   .bar {
     min-height: 76px;
     padding: 15px 16px;
@@ -730,9 +577,6 @@ body.sidebar-closed .mobile-menu {
   }
   .composer-note {
     margin-top: 7px;
-  }
-  body.sidebar-closed .app {
-    grid-template-columns: 1fr;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -916,9 +760,6 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
 .execution-details { margin: 24px 0; }
 .execution-details > summary { cursor: pointer; color: var(--text-2); padding: 8px 0; }
 .cowork-thread > .confirm { max-width: 760px; margin: 0 auto 16px; }
-@media (max-width: 640px) {
-  #sidebar #progress { display: flex; }
-}
 
 .chat-heading { display:flex; align-items:center; gap:9px; }
 .chat .bar { border:0; background:var(--bg); }
@@ -1186,3 +1027,13 @@ body.view-today .bar:has(.executor-stop) { padding: 8px clamp(16px, 3vw, 38px) 0
 }
 .work-detail-pane .cowork-head h2 { font-size:clamp(20px,2.2vw,28px); letter-spacing:-.02em; }
 .cowork-thread > details.desktop-panel { margin-inline:auto; max-width:772px; }
+
+/* WP62 no sidebar: settings is the header's last icon; Settings holds account, devices and language. */
+.chat .bar #settings-entry .settings-entry { width:36px; height:36px; padding:0; display:flex; align-items:center; justify-content:center; border:0; border-radius:10px; background:transparent; color:var(--text-2); }
+.chat .bar #settings-entry .settings-entry:hover { background:var(--surface-hover); color:var(--text); }
+@media (max-width: 640px) { .chat .bar #settings-entry { display:none; } }
+.long-term .duty-cards { margin-top:0; }
+.long-term-schedules .panel { min-height:0; }
+.long-term-schedules .body { padding:0; }
+.long-term-schedules .cap-head { font-size:12px; color:var(--text-3); }
+.long-term-schedules .cap-row { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:8px 0; }

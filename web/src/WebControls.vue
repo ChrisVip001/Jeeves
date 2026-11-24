@@ -6,6 +6,7 @@ import WorkScreen from "./WorkScreen.vue";
 import { waitingCount } from "./work-status";
 import ActivityPage from "./ActivityPage.vue";
 import ResponsibilityCards from "./ResponsibilityCards.vue";
+import LongTerm from "./LongTerm.vue";
 import ChatDecisions from "./ChatDecisions.vue";
 import ApprovalNotice from "./ApprovalNotice.vue";
 import DesktopPanel from "./ui/DesktopPanel.vue";
@@ -26,7 +27,6 @@ import type { AgentTaskView } from "./ui/types.ts";
 import { t } from "./i18n";
 import { SETUP_EVENT } from "./render.ts";
 import { phoneLayout } from "./phone";
-import { closeMobileNavigation } from "./navigation";
 import {
   webState as state,
   workspaceActions,
@@ -101,7 +101,6 @@ function setRoute(view: "chat" | "activity" | "cowork", id = "", push = true) {
   coworkId.value = id;
   state.view = view;
   webTasks.state.open = false;
-  closeMobileNavigation();
 }
 function restoreRoute() {
   const params = new URLSearchParams(location.search);
@@ -173,7 +172,6 @@ function closeNotice() {
 const open = ref(false);
 const tab = ref<"notifications" | "connections">("notifications");
 function settings(value: "notifications" | "connections" = "notifications") {
-  closeMobileNavigation();
   tab.value = value;
   open.value = true;
 }
@@ -188,7 +186,6 @@ function endSetup() {
   void workspaceActions.refresh();
 }
 function reopenSetup() {
-  closeMobileNavigation();
   void refreshConnections()
     .then(() => {
       setupDismissed.value = false;
@@ -241,7 +238,7 @@ watch(
       <div class="work-list-pane">
         <ActivityPage :center="webTasks" :selected="state.view === 'cowork' ? coworkId : ''" @inspect="inspectActivity" @chat="showAssistant">
           <ResponsibilityCards :busy="state.busy" />
-          <template #after><ResponsibilityCards :busy="state.busy" list /></template>
+          <template #after><LongTerm :busy="state.busy" /></template>
         </ActivityPage>
       </div>
       <div class="work-detail-pane">
@@ -260,15 +257,9 @@ watch(
   <Teleport to="#composer-attachments">
     <AttachmentPicker @files="workspaceActions.upload()" />
   </Teleport>
-  <Teleport to="#connections-entry">
-    <a href="/account/" class="cap-entry">{{ t("个人中心") }}</a>
-    <a href="/account/#devices" class="cap-entry">{{ t("设备管理") }}</a>
-    <button class="cap-entry" type="button" @click="settings('connections')"><span class="cap-entry-name">{{ t('连接管理') }}</span></button>
-  </Teleport>
   <Teleport to="#settings-entry"
-    ><button class="settings-entry" type="button" @click="settings()">
-      <Settings :size="16" />{{ t("设置")
-      }}<span style="margin-left: auto; font-size: 10px">⌘ ,</span>
+    ><button class="settings-entry ghost" type="button" :aria-label="t('设置')" :title="t('设置') + ' (⌘,)'" @click="settings()">
+      <Settings :size="17" aria-hidden="true" />
     </button></Teleport
   >
   <Teleport :to="state.cwd && !followingTask ? '#composer-target' : '#composer-context'"

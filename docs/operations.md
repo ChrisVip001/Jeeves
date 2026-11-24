@@ -47,7 +47,7 @@ Write `<home>/mcp.json` (stdio or HTTP servers); their tools merge into the
 tool registry. For `"oauth": true` remote servers run `jeeves mcp login <name>`
 first; expired tokens auto-refresh, and without a refresh_token rerun login.
 
-The dashboard's capability center is the graphical door to the same file:
+The dashboard's **Settings → MCP connectors** tab is the graphical door to the same file:
 add / replace / delete a connector, with the transport and credential rules
 enforced the same way (`url` **xor** `command`; `auth_env` is a variable
 name, never a key). Changes take effect on the next start. Set
@@ -168,7 +168,7 @@ cron (`*`, `*/step`, `a-b`, `a,b`); there is no separate scheduler process. Two 
   ---
   ```
 
-* a stored job, made from the capability center or by asking Jeeves (`schedule_job`). Jobs live in
+* a stored job, made from **Work → Long-term** or by asking Jeeves (`schedule_job`). Jobs live in
   `state.db`. An old `<home>/schedules.json` is imported once at startup and renamed to
   `schedules.json.migrated`.
 
@@ -179,8 +179,8 @@ firing per minute at most, jobs run one at a time, skill edits are picked up
 without a restart. Keep the Runtime up with [`jeeves service`](#keeping-it-running); a job missed while it was down is
 caught up once on the next start (only the latest missed minute, looking back at most seven days; `catch_up` off drops it).
 
-Both sources show up in the dashboard's capability center (**Schedules**), next to
-Skills and MCP connectors: one row per job with its cron, its prompt, the next fire, the
+Both sources show up in the dashboard under **Work → Long-term**, below the
+standing responsibilities: one row per job with its cron, its prompt, the next fire, the
 last fire, and where the result goes. Rows that come from a skill are greyed and read-only
 — that job *is* the skill, so the way to remove it is to edit `SKILL.md` or delete the
 skill. Adding or deleting a stored job changes exactly that row in `state.db` and nothing else:

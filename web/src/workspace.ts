@@ -1,9 +1,5 @@
 import { accountKey, accountStorage, hostedBase, loginPage } from "./hosted.ts";
-import {
-  closeMobileNavigation,
-  setupNavigation,
-  setupSidebarResize,
-} from "./navigation";
+import { setupNavigation } from "./navigation";
 import {
   webState,
   workspaceActions,
@@ -39,7 +35,7 @@ import type {
   SkillRow,
   SkillsView,
 } from "./api";
-import { applyStatic, getLang, initLang, setLang, t } from "./i18n";
+import { applyStatic, getLang, initLang, t } from "./i18n";
 import { createTimeline } from "./timeline";
 import { taskCards } from "./task-card";
 import { queuedTasks } from "./task-queued";
@@ -89,7 +85,6 @@ import {
   failure,
   failureOf,
   formatMs,
-  formatStamp,
   messageRow,
   taskNotice,
   muted,
@@ -178,8 +173,6 @@ const dom = {
   /** Only shown while a turn can be followed: pressing it means this lands as the next turn,
    *  not as an addition to the current one. */
   queueToggle: must<HTMLButtonElement>("queue-toggle"),
-  refresh: must<HTMLButtonElement>("refresh"),
-  lang: must<HTMLButtonElement>("lang"),
   older: must<HTMLButtonElement>("older"),
   overview: must("overview"),
   status: must("status"),
@@ -190,7 +183,6 @@ const dom = {
   file: must<HTMLInputElement>("file"),
   staged: must<HTMLElement>("staged"),
   session: must("session"),
-  stamp: must("stamp"),
   drawer: must("drawer"),
   drawerClose: must<HTMLButtonElement>("drawer-close"),
   panelStash: must("panel-stash"),
@@ -352,7 +344,6 @@ function mountPanel(id: PanelId, host: HTMLElement): () => void {
 
 /** The overview drawer slides in from the right; the chat column never squeezes. */
 function openDrawer(): void {
-  closeMobileNavigation();
   dom.drawer.hidden = false;
 }
 
@@ -810,12 +801,6 @@ async function boot(): Promise<void> {
     dom.input.style.height = `${Math.min(dom.input.scrollHeight, 180)}px`;
   });
   if (!(await waitForHostedWorkspace())) return;
-  dom.lang.textContent = getLang() === "zh" ? "EN" : "中文";
-  dom.lang.addEventListener("click", () =>
-    setLang(getLang() === "zh" ? "en" : "zh"),
-  );
-
-  dom.refresh.addEventListener("click", () => void workspaceActions.refresh());
   dom.older.addEventListener("click", () => void older());
   dom.messages.addEventListener("scroll", updateJumpLatest, { passive: true });
   dom.jumpLatest.addEventListener("click", () => {
@@ -834,7 +819,6 @@ async function boot(): Promise<void> {
     panel.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
   });
   dom.drawerClose.addEventListener("click", closeDrawer);
-  setupSidebarResize();
   setupNavigation(closeDrawer);
 
   for (const area of [dom.messages, dom.staged]) {
@@ -1025,7 +1009,6 @@ async function refresh(): Promise<void> {
         (task, action) => void switchTask(task, action),
       ),
     );
-    dom.stamp.textContent = formatStamp(data.generatedAt);
     if (lostMessage !== null && webState.message === lostMessage) webState.message = "";
     lostMessage = null;
   } catch (error) {
@@ -2083,8 +2066,7 @@ async function openMain(): Promise<void> {
     await refresh();
     await open(sessionId);
     await webTasks.refresh();
-    closeMobileNavigation();
-    dom.input.focus();
+      dom.input.focus();
   } catch (error) {
     webState.message = String(error);
   }
@@ -2098,7 +2080,6 @@ async function open(sessionId: string): Promise<void> {
   rememberSession(sessionId);
   if (sessionId !== webState.mainSessionId) webTasks.state.selected = "";
   webState.sessionId = sessionId;
-  closeMobileNavigation();
   queuedMode = false;
   dom.session.textContent = sessionId === webState.mainSessionId ? "Jeeves" : sessionId;
   dom.older.hidden = true;

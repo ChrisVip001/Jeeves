@@ -291,8 +291,8 @@ nothing", which is the default.
 | `JEEVES_RESUME_MAX_AGE` | `60` | minutes; an `open` turn checkpoint older than this is marked `abandoned` at startup instead of resumed (`0` = always resume) |
 | `JEEVES_CONSOLIDATE_EVERY` | `6` | run consolidation every N new turns |
 | `JEEVES_RETRIEVAL_TOP_K` | `4` | maximum matching facts per turn |
-| `JEEVES_SKILL_DIRS` | — | colon-separated extra skill directories (besides `<home>/skills`); their skills are built-in in the dashboard's capability center (greyed out, read-only) |
-| `JEEVES_MCP_CONFIG` | — | colon-separated extra mcp.json files (besides `<home>/mcp.json`); their servers are built-in in the capability center (greyed out, read-only) — the user's file wins on a same-named server |
+| `JEEVES_SKILL_DIRS` | — | colon-separated extra skill directories (besides `<home>/skills`); their skills are built-in in the dashboard's Settings (greyed out, read-only) |
+| `JEEVES_MCP_CONFIG` | — | colon-separated extra mcp.json files (besides `<home>/mcp.json`); their servers are built-in in Settings (greyed out, read-only) — the user's file wins on a same-named server |
 
 ## Prompt shape and the context meter
 
@@ -753,7 +753,7 @@ MCP HTTP replies are read with a 2 MiB cap, including streamed replies. A tool
 that returns only `structuredContent` retains that JSON instead of becoming an
 empty result. Larger responses fail explicitly rather than growing memory without bound.
 
-When a connection drops with an unknown tool outcome, Jeeves reconnects for the next call. Reconcile the remote record before trying again. The capability center saves MCP configuration in `<home>/mcp.json`. The next turn loads changes and each running turn keeps its starting tool table.
+When a connection drops with an unknown tool outcome, Jeeves reconnects for the next call. Reconcile the remote record before trying again. Settings saves MCP configuration in `<home>/mcp.json`. The next turn loads changes and each running turn keeps its starting tool table.
 
 ### Connector manifests
 
@@ -780,7 +780,7 @@ A colon-separated list of extra config files, the same split as
 `JEEVES_SKILL_DIRS`: `<home>/mcp.json` is the user's, the extras are the
 operator's (machine-wide or bundled packs). The user's file is read first and
 **wins on a same-named server**; a broken extra file is a warning, never a
-blank tool list. In the capability center these rows carry a 「内置」 tag and
+blank tool list. In Settings these rows carry a 「内置」 tag and
 are greyed out — every write refuses them, because deleting one from a single
 machine's UI would silently unconfigure every machine that shares it.
 

@@ -14,64 +14,11 @@
       type="image/svg+xml"
     />
   </head>
-  <body class="sidebar-closed">
+  <body>
     <div id="web-controls"></div>
     <div class="app">
-      <aside class="sidebar" id="sidebar">
-        <div class="brand">
-          <img
-            class="jeeves-logo"
-            src="./ui/assets/jeeves-icon.svg"
-            width="34"
-            height="34"
-            alt=""
-          />
-          <h1>Jeeves</h1>
-          <button
-            class="ghost rail-toggle"
-            type="button"
-            data-sidebar-toggle
-            data-i18n-aria="收起侧栏"
-          >
-            <span class="menu-glyph" aria-hidden="true"></span>
-          </button>
-        </div>
-        <div id="connections-entry"></div>
-        <div class="sidebar-foot">
-          <div id="settings-entry"></div>
-          <div class="foot-row">
-            <span class="connection-dot" aria-hidden="true"></span
-            ><span class="stamp" id="stamp"></span
-            ><button class="ghost" id="refresh" type="button" data-i18n="刷新">
-              刷新</button
-            ><button class="ghost lang" id="lang" type="button">EN</button>
-          </div>
-        </div>
-        <div
-          class="sidebar-resizer"
-          id="sidebar-resizer"
-          role="separator"
-          aria-orientation="vertical"
-          tabindex="0"
-          data-i18n-aria="拖动调整侧栏宽度（双击复位，方向键微调）"
-        ></div>
-      </aside>
-      <button
-        class="sidebar-scrim"
-        type="button"
-        data-sidebar-toggle
-        data-i18n-aria="收起侧栏"
-      ></button>
       <main class="chat">
         <header class="bar">
-          <button
-            class="ghost mobile-menu"
-            type="button"
-            data-sidebar-toggle
-            data-i18n-aria="展开侧栏"
-          >
-            <span class="menu-glyph" aria-hidden="true"></span>
-          </button>
           <div class="chat-heading">
             <img src="./icon.svg" width="27" height="27" alt="" /><h2 id="session">Jeeves</h2>
 
@@ -96,6 +43,7 @@
             </button>
           </div>
           <div id="executor-entry"></div>
+          <div id="settings-entry"></div>
         </header>
         <div id="executor-notice"></div>
         <div id="cowork-view"></div>

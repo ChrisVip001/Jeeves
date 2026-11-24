@@ -605,7 +605,7 @@ body:not(.view-today) .new-chat.is-current {
 .phone-task-group small, .phone-task-group span { font-size: 12px; color: var(--text-2); }
 #phone-tasks:empty { display: none; }
 @media (max-width: 640px), (pointer: coarse) and (max-height: 500px) {
-  #today-entry, #new-session, .sidebar .conversations, #progress { display: none; }
+  #today-entry, #new-session, #progress { display: none; }
   #phone-tasks button { min-height: 44px; }
 }
 .task-notice { padding-inline-start: 12px; border-inline-start: 2px solid var(--line); }
@@ -620,7 +620,6 @@ body:not(.view-today) .new-chat.is-current {
 }
 .mode-switch button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; }
 .mode-switch button:hover, .mode-task-list button:hover { background: var(--surface-hover); }
-body:is(.view-assistant,.view-cowork,.view-activity) .sidebar .conversations { display: none; }
 #mode-task-rail:has(section) { flex: 1; min-height: 55px; overflow-y: auto; }
 .mode-task-list > .rail-label { font-size: 12px; font-weight: 500; }
 .mode-task-list > .cw-meta { margin: 0 10px; }
