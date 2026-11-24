@@ -59,6 +59,27 @@ class SearchTrialTest(unittest.TestCase):
                 self.assertEqual(report["search_tool_calls"], 1)
                 self.assertEqual(report["fetch_tool_calls"], 1)
 
+    def test_numeric_suffix_is_not_the_requested_fact(self):
+        for key, value in [
+            ("pep8-indent", "14 个空格"),
+            ("pep8-indent", "4.4 个空格"),
+            ("matthew-warning-clock", "11500 UTC"),
+            ("matthew-warning-clock", "11:15:00 UTC"),
+        ]:
+            with self.subTest(key=key, value=value):
+                source = CASES[key]["source"]
+                edit = lambda e: e[-1].update(reply=f"{value}，[来源]({source})。")
+                code, report = self.run_score(key, stream(key, edit))
+                self.assertEqual(code, 1)
+                self.assertFalse(report["cited_fact"])
+
+    def test_numeric_suffix_in_fetch_does_not_verify_the_claim(self):
+        key = "matthew-warning-clock"
+        edit = lambda e: e[4].update(output=e[4]["output"].replace("1500 UTC", "11500 UTC"))
+        code, report = self.run_score(key, stream(key, edit))
+        self.assertEqual(code, 1)
+        self.assertFalse(report["official_fetch_support"])
+
     def test_fail_closed_cases(self):
         key = "pep8-indent"
         source = CASES[key]["source"]
