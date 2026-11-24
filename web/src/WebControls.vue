@@ -139,6 +139,8 @@ function showActivity() {
   setRoute("activity");
 }
 const needsYou = computed(() => waitingCount(webTasks));
+// The tab title (and, in the Mac app, the Dock badge read from it) shows what waits for you.
+watch(needsYou, count => { document.title = count ? `(${count}) Jeeves` : "Jeeves"; }, { immediate: true });
 watch(() => state.view, view => {
   if (view === "chat" && (new URLSearchParams(location.search).has("work") || new URLSearchParams(location.search).has("list"))) {
     const url = new URL(location.href);
