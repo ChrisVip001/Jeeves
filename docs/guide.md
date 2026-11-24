@@ -35,7 +35,7 @@ Declare image support when you add a profile (`--vision` / `--no-vision`), other
 
 ## 4. Permissions
 
-Review the action, working directory and preview on the approval card in the conversation, then allow it once or deny it. The operator manages the Runtime switches for commands, file writes and delegation. See the [protocol](protocol.md) for session modes and [security](../SECURITY.md) for sandbox boundaries.
+Review the action, working directory and preview on the approval card in the conversation, then allow it once or deny it. When answering one card after another gets tiresome, the card also offers **Stop asking — I trust this session**: it confirms once, then allows the card in front of you and puts the session into full access, so reading and writing files and running commands no longer ask. Sending something out, which cannot be taken back, still asks every time, and a card for a send never offers the switch. The switch is a human control — Jeeves can neither press it nor raise its own permissions. The operator manages the Runtime switches for commands, file writes and delegation. See the [protocol](protocol.md) for session modes and [security](../SECURITY.md) for sandbox boundaries.
 
 ## 5. Channels: Lark and Telegram
 

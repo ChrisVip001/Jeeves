@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowUp, Ellipsis } from "lucide-vue-next";
 import { errorText, interact } from "./api";
 import { workspaceActions } from "./controls";
 import { t } from "./i18n";
-import { webTasks } from "./tasks";
+import { webTasks, webPermission, trustAndAllow } from "./tasks";
 import { workStatus } from "./work-status";
 import { submissionTracker } from "./ui/submission";
 import GoalDraftCard from "./GoalDraftCard.vue";
@@ -95,7 +95,8 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
       </ol>
       <ApprovalCard v-if="approval" :key="approval.requestId + ':' + approval.version"
         :approval="approval" :task="task" :restored="webTasks.state.restored[approval.turnId]"
-        :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)" />
+        :busy="!!webTasks.state.busy" @answer="(ok, reviewed) => webTasks.approve(reviewed, ok)"
+        :permission="webPermission" @trust="trustAndAllow" />
       <GoalDraftCard :task="task" :center="webTasks" />
       <p v-if="webTasks.state.error" role="alert">{{ webTasks.state.error }}</p>
       <TaskDelivery :task="task" :center="webTasks" :selected="reviewFile?.path" @open="openReview" />

@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { t } from "./i18n";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import type { TaskCenter } from "./ui/useTasks";
+import { webPermission, trustAndAllow } from "./tasks";
 const props = defineProps<{ center: TaskCenter; mainBusy: boolean }>();
 const requests = computed(() => Object.values(props.center.state.approvals)
   .filter(request => !props.mainBusy || props.center.taskOf(request))
@@ -18,6 +19,7 @@ const requests = computed(() => Object.values(props.center.state.approvals)
     <ApprovalCard v-for="request in requests" :key="request.requestId + ':' + request.version"
       :allow-id="'allow-' + request.requestId + '-' + request.version"
       :approval="request" :task="center.taskOf(request)" :restored="center.state.restored[request.turnId]"
-      :busy="!!center.state.busy" @answer="(ok, reviewed) => center.approve(reviewed, ok)" />
+      :busy="!!center.state.busy" @answer="(ok, reviewed) => center.approve(reviewed, ok)"
+      :permission="webPermission" @trust="trustAndAllow" />
   </details>
 </template>

@@ -4,6 +4,7 @@ import { ChevronRight, Search } from "lucide-vue-next";
 import { t } from "./i18n";
 import ApprovalCard from "./ui/ApprovalCard.vue";
 import type { TaskCenter } from "./ui/useTasks";
+import { webPermission, trustAndAllow } from "./tasks";
 import type { AgentTaskView } from "./protocol";
 import { formatWhen } from "./render";
 import { workSections, workStatus } from "./work-status";
@@ -69,7 +70,8 @@ const nothingFound = computed(() => query.value && !waitingCount.value && !secti
         <h2>{{ t("等你决定") }}</h2>
         <ApprovalCard v-for="request in requests" :key="request.requestId + ':' + request.version"
           :approval="request" :restored="center.state.restored[request.turnId]" :busy="!!center.state.busy"
-          @answer="(ok, reviewed) => center.approve(reviewed, ok)" />
+          @answer="(ok, reviewed) => center.approve(reviewed, ok)"
+          :permission="webPermission" @trust="trustAndAllow" />
         <button v-for="task in sections.waiting" :key="task.id" :id="'cowork-task-'+task.id" :data-cowork-task="task.id"
           class="activity-task waiting-card" type="button" :aria-current="task.id === selected ? 'page' : undefined" @click="$emit('inspect', task.id)">
           <span class="waiting-text"><strong>{{ task.title }}</strong><small>{{ reason(task) }}</small></span>
