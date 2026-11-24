@@ -171,6 +171,7 @@ const POLL_MS = 15_000;
 
 const dom = {
   messages: must("messages"),
+  jumpLatest: must<HTMLButtonElement>("jump-latest"),
   composer: must<HTMLFormElement>("composer"),
   input: must<HTMLTextAreaElement>("input"),
   send: must<HTMLButtonElement>("send"),
@@ -850,6 +851,11 @@ async function boot(): Promise<void> {
 
   dom.refresh.addEventListener("click", () => void workspaceActions.refresh());
   dom.older.addEventListener("click", () => void older());
+  dom.messages.addEventListener("scroll", updateJumpLatest, { passive: true });
+  dom.jumpLatest.addEventListener("click", () => {
+    pinToEnd();
+    updateJumpLatest();
+  });
   dom.chatOperations.addEventListener("click", () => {
     const session = current;
     const panel = chatOperationForm(
@@ -2357,6 +2363,15 @@ function nearBottom(): boolean {
   );
 }
 
+/**
+ * Show the "jump to latest" button whenever the newest message is out of view — someone
+ * scrolled up to read history while the chat kept moving. Hidden the moment they are back
+ * near the bottom, so it never covers the composer during normal reading.
+ */
+function updateJumpLatest(): void {
+  dom.jumpLatest.hidden = nearBottom();
+}
+
 /** Remember the current session's distance from the bottom, before leaving it. */
 function captureReading(): void {
   const m = dom.messages;
@@ -2384,6 +2399,7 @@ function restoreReading(): void {
 
 function scrollToEnd(interactive = false): void {
   if (interactive || nearBottom()) pinToEnd();
+  updateJumpLatest();
 }
 
 /**

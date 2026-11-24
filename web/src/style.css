@@ -297,6 +297,7 @@ code {
   background: var(--line);
 }
 .chat {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -453,6 +454,33 @@ code {
   margin: 0 auto;
   padding-bottom: max(10px, env(safe-area-inset-bottom));
   flex: none;
+}
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 118px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: var(--shadow-overlay);
+  cursor: pointer;
+}
+.jump-latest:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.jump-latest[hidden] {
+  display: none;
 }
 .composer {
   background: var(--surface);
