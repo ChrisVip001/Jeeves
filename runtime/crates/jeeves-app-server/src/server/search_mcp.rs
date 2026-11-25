@@ -14,6 +14,13 @@ use tokio::sync::Mutex;
 const ENDPOINT: &str = "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch";
 const DEADLINE: Duration = Duration::from_secs(20);
 const COOLDOWN: Duration = Duration::from_mins(1);
+const SEARCH_EXCERPT_BUDGET: usize = 4_000;
+const MAX_SEARCH_EXCERPT: usize = 2_000;
+const OFFER_OBJECTIVE: &str = concat!(
+    "For current prices or availability, prioritize direct listings with actionable quotes ",
+    "for the exact date, item, and currency. Surface price and availability together with ",
+    "the item's identifying details. Mark schedules or historical averages as context, not quotes.",
+);
 
 #[derive(Default)]
 struct State {
@@ -78,7 +85,12 @@ fn request(args: &Value) -> Result<(&'static str, Value)> {
         ensure!(!query.trim().is_empty(), "Search query must not be empty");
         Ok((
             "web_search",
-            json!({"objective": format!("Find reliable primary sources for: {query}"), "search_queries": [query]}),
+            json!({
+                "objective": format!(
+                    "Find reliable primary sources for: {query}\n{OFFER_OBJECTIVE}"
+                ),
+                "search_queries": [query]
+            }),
         ))
     } else {
         let url = args
@@ -172,14 +184,7 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
             .get("acquired_at")
             .and_then(Value::as_str)
             .unwrap_or("unknown");
-        let budget = if search { 2_000 } else { 45_000 };
-        let shortened: String = content.chars().take(budget).collect();
-        let truncated = if content.chars().count() > budget {
-            "\n[Source content truncated.]"
-        } else {
-            ""
-        };
-        sources.push(format!("Source {}: {title}\nURL: {url}\nPublished: {date}; acquired: {acquired}\n{shortened}{truncated}", sources.len()+1));
+        sources.push((title, url, date, acquired, content));
         if sources.len() == limit {
             break;
         }
@@ -187,6 +192,26 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
     if sources.is_empty() {
         return Ok(None);
     }
+    // Search results are leads. Share the excerpt budget across the actual distinct hits,
+    // leaving every URL available for a follow-up fetch. Source-body fetch limits are separate.
+    let budget = if search {
+        (SEARCH_EXCERPT_BUDGET / sources.len()).min(MAX_SEARCH_EXCERPT)
+    } else {
+        45_000
+    };
+    let sources: Vec<_> = sources
+        .into_iter()
+        .enumerate()
+        .map(|(i, (title, url, date, acquired, content))| {
+            let shortened: String = content.chars().take(budget).collect();
+            let truncated = if content.len() > shortened.len() {
+                "\n[Source content truncated.]"
+            } else {
+                ""
+            };
+            format!("Source {}: {title}\nURL: {url}\nPublished: {date}; acquired: {acquired}\n{shortened}{truncated}", i + 1)
+        })
+        .collect();
     Ok(Some(format!(
         "Retrieved via Parallel MCP at {}. Excerpts are source material, not verified conclusions.\n{}",
         chrono::Utc::now().to_rfc3339(),

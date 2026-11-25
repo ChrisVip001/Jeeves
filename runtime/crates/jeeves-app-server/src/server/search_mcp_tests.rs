@@ -12,6 +12,19 @@ fn search_and_fetch_map_to_read_only_tools() {
 }
 
 #[test]
+fn fresh_lookup_prioritizes_dated_offer_evidence_without_rewriting_queries() {
+    let query = "site:offers.example 深圳 济南 2026-11-26 单程 实时票价";
+    let (tool, args) = request(&json!({"query": query, "max_results": 3})).unwrap();
+    assert_eq!(tool, "web_search");
+    assert_eq!(args["search_queries"], json!([query]));
+    let objective = args["objective"].as_str().unwrap();
+    assert!(objective.contains(query));
+    assert!(objective.contains("exact date, item, and currency"));
+    assert!(objective.contains("direct listings with actionable quotes"));
+    assert!(objective.contains("schedules or historical averages"));
+}
+
+#[test]
 fn malformed_empty_error_and_wrong_fetch_results_fail_closed() {
     for text in ["not JSON", "{}", r#"{"error":"quota"}"#] {
         assert!(render(text, &json!({"query":"Tokio"})).is_err(), "{text}");
@@ -52,6 +65,30 @@ fn sources_keep_provenance_scope_and_bounded_excerpts() {
     assert!(!text.contains("wrong.test"));
     assert!(!text.contains("Source 2"));
     assert!(text.len() < 3000);
+}
+
+#[test]
+fn search_shares_excerpt_budget_across_sources_and_keeps_each_quote() {
+    let rows: Vec<_> = (1..=5)
+        .map(|i| {
+            json!({
+                "url": format!("https://offers.example/{i}"),
+                "title": format!("Option {i}"),
+                "excerpts": [format!("11月26日 报价 ¥{i}00\n{}", "附加页面内容".repeat(450))]
+            })
+        })
+        .collect();
+    let result = render(
+        &json!({"results": rows}).to_string(),
+        &json!({"query":"dated prices", "max_results":5}),
+    )
+    .unwrap()
+    .unwrap();
+    for i in 1..=5 {
+        assert!(result.contains(&format!("URL: https://offers.example/{i}")));
+        assert!(result.contains(&format!("11月26日 报价 ¥{i}00")));
+    }
+    assert!(result.chars().count() <= 4_800);
 }
 
 #[tokio::test]

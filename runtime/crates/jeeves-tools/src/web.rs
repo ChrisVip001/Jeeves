@@ -661,7 +661,7 @@ pub fn search_web() -> Tool {
 pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
     Tool {
         name: "search_web".to_string(),
-        description: "Search the public web through the host's search service, with built-in fallback. Get source URLs and excerpts. Use focused queries and site:domain for primary sources. Excerpts are leads, not verified facts: use fetch_url to read relevant sources before relying on their claims. Refine irrelevant results rather than repeating the same search within a turn."
+        description: "Search the public web through the host's search service, with built-in fallback. Get source URLs and excerpts. Use focused queries and site:domain for primary sources. For current prices or availability, search the exact local date and item together with price or availability; target a dated listing, not a timetable or historical average. Start with 3 results for a narrow lookup and read the most relevant listing before broadening. Excerpts are leads, not verified facts: use fetch_url to read relevant sources before relying on their claims. Refine irrelevant results rather than repeating the same search within a turn."
             .to_string(),
         input_schema: json!({
             "type": "object",
