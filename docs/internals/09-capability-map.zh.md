@@ -2,11 +2,11 @@
 
 [English](09-capability-map.md) | 简体中文
 
-外部 agent harness 常把运行时描述成九个可替换的面：模型、工具、技能、会话、沙箱、存储、循环、调度和界面。Jeeves 没有插件加载器，也不需要：每个面在 Rust 工作区里都有明确归属。本章是这套词汇到代码的地图，让改动落到正确的 crate，而不是发明一套新的扩展机制。
+Jeeves 的运行时由九个面组成：模型、工具、技能、会话、沙箱、存储、循环、调度和界面。每个面在 Rust 工作区里都有明确归属；本章把它们与代码逐一对应，让改动落到正确的 crate。
 
 ## 为什么需要这张地图
 
-「一切皆插件」是别人描述运行时的说法。借它的**词汇**有用，借它的插件运行时不行。Jeeves 坚持本地优先、能力由人类开关、所有外壳共用一个引擎。这里的能力要么是声明式文件（SKILL.md、mcp.json、webhooks.json、schedule），要么是从 `jeeves-tools` 注入、在 `jeeves-app-server` 实现的 Rust trait。聊天消息里的任意代码永远不会被加载执行。
+Jeeves 坚持本地优先、能力由人类开关、所有外壳共用一个引擎。这里的每一项能力要么是声明式文件（SKILL.md、mcp.json、webhooks.json、schedule），要么是从 `jeeves-tools` 注入、在 `jeeves-app-server` 实现的 Rust trait。聊天消息里的任意代码永远不会被加载执行。
 
 ## 九个面
 

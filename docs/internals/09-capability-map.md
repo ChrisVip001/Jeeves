@@ -2,20 +2,16 @@
 
 English | [简体中文](09-capability-map.zh.md)
 
-An agent harness is often described as nine swappable surfaces: model, tools, skills, sessions,
-sandbox, storage, loop, scheduling and UI. Jeeves does not have a plugin loader, and it does not
-need one: every surface has a concrete owner in the Rust workspace. This chapter is the map from
-that vocabulary to the code, so a change lands in the right crate instead of inventing a new
-extension mechanism.
+Jeeves's runtime is made of nine surfaces: model, tools, skills, sessions, sandbox, storage, loop,
+scheduling and UI. Each has a concrete owner in the Rust workspace. This chapter maps them to code
+so a change lands in the right crate.
 
 ## Why this map exists
 
-External harnesses use "everything is a plugin" to describe their runtime. Borrowing the
-**vocabulary** is useful; borrowing their plugin runtime is not. Jeeves keeps local-first state,
-human-controlled switches and one engine behind every shell. A capability here is either a
-declarative file (SKILL.md, mcp.json, webhooks.json, a schedule) or a Rust trait injected from
-`jeeves-tools` and implemented in `jeeves-app-server`. Nothing is loaded from a chat message as
-arbitrary code.
+Jeeves keeps local-first state, human-controlled switches and one engine behind every shell. A
+capability here is either a declarative file (SKILL.md, mcp.json, webhooks.json, a schedule) or a
+Rust trait injected from `jeeves-tools` and implemented in `jeeves-app-server`. Nothing is loaded
+from a chat message as arbitrary code.
 
 ## The nine surfaces
 
