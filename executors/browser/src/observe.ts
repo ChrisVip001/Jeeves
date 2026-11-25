@@ -33,8 +33,11 @@ export async function capture(
   const handles: ElementHandle[] = [];
   const references = new Map<string, ElementHandle>();
   const elements: BrowserObservation["elements"] = [];
+  let truncated = false;
   try {
-    const count = Math.min(await candidates.count(), 120);
+    const total = await candidates.count();
+    truncated = total > 120;
+    const count = Math.min(total, 120);
     for (let index = 0; index < count; index++) {
       const handle = await candidates
         .nth(index)
@@ -71,7 +74,35 @@ export async function capture(
               : ["INPUT", "TEXTAREA"].includes(node.tagName)
                 ? "textbox"
                 : node.tagName.toLowerCase());
-        return { name: name.slice(0, 160), role };
+        const input = node as HTMLInputElement;
+        const disabled =
+          "disabled" in node ? Boolean((node as HTMLButtonElement).disabled) : undefined;
+        const checked =
+          node.tagName === "INPUT" && ["checkbox", "radio"].includes(input.type)
+            ? input.checked
+            : undefined;
+        const rawValue =
+          node instanceof HTMLInputElement ||
+          node instanceof HTMLTextAreaElement ||
+          node instanceof HTMLSelectElement
+            ? node.value
+            : undefined;
+        const value = rawValue && !/password|one-time-code/.test(autocomplete)
+          ? rawValue.slice(0, 200)
+          : undefined;
+        return {
+          name: name.slice(0, 160),
+          role,
+          disabled,
+          checked,
+          value,
+          bounds: {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          },
+        };
       });
       if (info) {
         const reference = `e${elements.length + 1}`;
@@ -95,6 +126,7 @@ export async function capture(
         documentVersion: before.version,
         elements,
         text,
+        truncated: truncated || text.length >= 10000,
         collectedAt: new Date().toISOString(),
       },
       references,

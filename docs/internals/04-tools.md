@@ -8,7 +8,7 @@ every implementation lives in `jeeves-app-server` ([06](06-app-server.md)). Wire
 [01](01-protocol-and-config.md), the loop that calls tools is in [03](03-model-and-loop.md), the memory behind
 `memory` / `read_page` is in [05](05-memory.md).
 
-## Inventory: 15 always on + 10 gated
+## Inventory: 15 always on + 11 gated
 
 "Always on" means no capability switch controls the tool. `handlers::build_default_with_web()` installs 14 of them and
 `app-server` adds `todo_write`. The list is pinned by the test `default_registry_has_the_expected_tools`, and
@@ -32,7 +32,7 @@ Gated tools:
 | `job` | `JEEVES_EXEC` | Background jobs cannot be inspected (`action` = output / list / kill) |
 | `write_file`, `edit`, `apply_patch` | `JEEVES_WRITE` | No file can be changed |
 | `delegate_task` | `JEEVES_DELEGATE` | No subagents |
-| `browser_observe`, `browser_act` | Browser runtime installed (`JEEVES_BROWSER_RUNTIME`) and available | No task browser |
+| `browser_observe`, `browser_act`, `browser_batch` | Browser runtime installed (`JEEVES_BROWSER_RUNTIME`) and available | No task browser |
 | `computer_observe`, `computer_act` | macOS window helper installed (`JEEVES_DESKTOP_HELPER`) and a human selected a window | No desktop window; the person selects one from the task card |
 
 Not counted: connector tools (`feishu_send`; `calendar_list`; `email_read`; `email_send` when the email

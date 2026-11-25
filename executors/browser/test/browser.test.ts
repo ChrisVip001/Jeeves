@@ -73,6 +73,8 @@ test(
         origins: [origin],
         allowLocalhost: true,
         headless: true,
+        storageState: null,
+        cdpEndpoint: null,
       });
       await observe();
       assert.equal(
@@ -200,6 +202,8 @@ test(
         origins: [origin],
         allowLocalhost: true,
         headless: true,
+        storageState: null,
+        cdpEndpoint: null,
       });
       await (
         session as unknown as { browser: import("playwright").Browser }

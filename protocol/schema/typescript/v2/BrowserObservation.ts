@@ -8,5 +8,6 @@ export type BrowserObservation = {
   documentVersion: number;
   elements: Array<BrowserElement>;
   text: string;
+  truncated?: boolean | null;
   collectedAt: string;
 };

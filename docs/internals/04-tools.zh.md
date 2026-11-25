@@ -8,7 +8,7 @@
 [01](01-protocol-and-config.zh.md)，调用工具的循环见 [03](03-model-and-loop.zh.md)，`memory` / `read_page`
 背后的记忆见 [05](05-memory.zh.md)。
 
-## 清单：15 个常驻 + 10 个门控
+## 清单：15 个常驻 + 11 个门控
 
 “常驻”指没有任何能力开关控制该工具。`handlers::build_default_with_web()` 安装其中 14 个，
 `app-server` 再加 `todo_write`。清单由测试 `default_registry_has_the_expected_tools` 固定，
@@ -32,7 +32,7 @@
 | `job` | `JEEVES_EXEC` | 无法查看后台任务（`action` = output / list / kill） |
 | `write_file`、`edit`、`apply_patch` | `JEEVES_WRITE` | 不能修改任何文件 |
 | `delegate_task` | `JEEVES_DELEGATE` | 没有子代理 |
-| `browser_observe`、`browser_act` | 已安装浏览器运行时（`JEEVES_BROWSER_RUNTIME`）且可用 | 没有任务浏览器 |
+| `browser_observe`、`browser_act`、`browser_batch` | 已安装浏览器运行时（`JEEVES_BROWSER_RUNTIME`）且可用 | 没有任务浏览器 |
 | `computer_observe`、`computer_act` | 已安装 macOS 窗口助手（`JEEVES_DESKTOP_HELPER`）且人已选定窗口 | 没有桌面窗口；人需在任务卡里选一个 |
 
 不计入：连接器工具（`feishu_send`；`calendar_list`；`email_read`；邮件白名单非空时的 `email_send`）、

@@ -11,6 +11,54 @@ fn origin(value: &str) -> Result<String> {
     );
     Ok(url.origin().ascii_serialization())
 }
+fn cdp_endpoint(value: Option<String>) -> Result<Option<String>> {
+    let Some(endpoint) = value else {
+        return Ok(None);
+    };
+    let url = reqwest::Url::parse(&endpoint)?;
+    ensure!(
+        matches!(url.scheme(), "http" | "ws"),
+        "CDP endpoint must use http or ws on a loopback address"
+    );
+    ensure!(
+        matches!(url.host_str(), Some("127.0.0.1" | "::1" | "[::1]")),
+        "Only a literal loopback CDP endpoint is allowed"
+    );
+    ensure!(
+        url.username().is_empty() && url.password().is_none(),
+        "CDP endpoint must not carry credentials"
+    );
+    Ok(Some(endpoint))
+}
+fn profile_id(value: Option<String>) -> Result<Option<String>> {
+    let Some(id) = value else { return Ok(None) };
+    ensure!(
+        !id.is_empty()
+            && id.len() <= 64
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'),
+        "A browser profile id must be 1-64 letters, digits, '-' or '_'"
+    );
+    Ok(Some(id))
+}
+fn profile_account(owner: &str, id: &str) -> String {
+    format!("browser-profile:{owner}:{id}")
+}
+fn profile_get(host: &std::path::Path, owner: &str, id: &str) -> Option<String> {
+    jeeves_config::models::SecretStore::auto().get(host, &profile_account(owner, id))
+}
+fn profile_put(host: &std::path::Path, owner: &str, id: &str, state: &str) -> Result<()> {
+    jeeves_config::models::SecretStore::auto()
+        .put(host, &profile_account(owner, id), state)
+        .map_err(|error| anyhow!("Could not save browser profile: {error}"))?;
+    Ok(())
+}
+fn profile_forget(host: &std::path::Path, owner: &str, id: &str) -> Result<()> {
+    jeeves_config::models::SecretStore::auto()
+        .remove(host, &profile_account(owner, id))
+        .map_err(|error| anyhow!("Could not forget browser profile: {error}"))
+}
 fn scope_origin(value: &str) -> Result<String> {
     let url = reqwest::Url::parse(value)?;
     ensure!(
@@ -58,6 +106,26 @@ impl BrowserHost {
             self.available(),
             "Browser components are not installed; install the optional browser-enabled Jeeves package"
         );
+        let (kind, cdp_endpoint) = match params.provider.clone() {
+            Some(provider) => (provider.kind, cdp_endpoint(provider.endpoint)?),
+            None => (BrowserProviderKind::Local, None),
+        };
+        if kind == BrowserProviderKind::CdpAttach {
+            ensure!(
+                self.config.as_ref().is_some_and(|c| c.cdp_attach),
+                "Loopback CDP attach is disabled; set JEEVES_BROWSER_CDP_ATTACH=1"
+            );
+            ensure!(cdp_endpoint.is_some(), "CDP attach requires an endpoint");
+            ensure!(
+                params.profile_id.is_none(),
+                "An attached browser owns its login state; do not pass a profile id"
+            );
+        } else {
+            ensure!(
+                cdp_endpoint.is_none(),
+                "Only a CDP attach provider accepts an endpoint"
+            );
+        }
         let task = server
             .tasks
             .get(&params.task_id)
@@ -93,7 +161,19 @@ impl BrowserHost {
                 "At most two task browsers may be open; close an existing browser first"
             );
         }
-        let mut row = store::create(&self.pool, &task.id, owner, &origins, &params.url).await?;
+        let profile_id = profile_id(params.profile_id.clone())?;
+        let storage_state = profile_id
+            .as_deref()
+            .and_then(|id| profile_get(&self.home, owner, id));
+        let mut row = store::create(
+            &self.pool,
+            &task.id,
+            owner,
+            &origins,
+            &params.url,
+            profile_id.as_deref(),
+        )
+        .await?;
         drop(admission);
         let config = self
             .config
@@ -129,6 +209,8 @@ impl BrowserHost {
                     allow_localhost: params.allow_localhost,
                     headless: config.headless,
                     generation: row.generation,
+                    storage_state,
+                    cdp_endpoint,
                 },
             )
             .await?;
@@ -184,6 +266,32 @@ impl BrowserHost {
                 || !self.config.as_ref().is_some_and(|config| config.headless),
             "A headless test browser has no human window"
         );
+        if matches!(
+            params.action,
+            BrowserControlAction::SaveProfile | BrowserControlAction::ForgetProfile
+        ) {
+            ensure!(
+                row.status == "human",
+                "Take control before changing the login profile"
+            );
+            ensure!(
+                row.profile_id.is_some(),
+                "Open a browser with a profile id before saving or forgetting it"
+            );
+        }
+        if params.action == BrowserControlAction::ForgetProfile {
+            let owner: String =
+                sqlx::query_scalar("SELECT owner_session_id FROM browser_sessions WHERE id=?")
+                    .bind(&row.id)
+                    .fetch_one(&self.pool)
+                    .await?;
+            let id = row
+                .profile_id
+                .as_deref()
+                .ok_or_else(|| anyhow!("This browser has no profile to forget"))?;
+            profile_forget(&self.home, &owner, id)?;
+            return row.view();
+        }
         let new_origin = if params.action == BrowserControlAction::AllowOrigin {
             ensure!(
                 row.status == "human",
@@ -224,6 +332,21 @@ impl BrowserHost {
         if let Some(error) = reply.error {
             self.failed(&session, &error).await;
             return Err(anyhow!(error));
+        }
+        if params.action == BrowserControlAction::SaveProfile {
+            let state = reply
+                .profile
+                .ok_or_else(|| anyhow!("The browser did not return a login profile"))?;
+            let owner: String =
+                sqlx::query_scalar("SELECT owner_session_id FROM browser_sessions WHERE id=?")
+                    .bind(&row.id)
+                    .fetch_one(&self.pool)
+                    .await?;
+            let id = row
+                .profile_id
+                .as_deref()
+                .ok_or_else(|| anyhow!("This browser has no profile id"))?;
+            profile_put(&self.home, &owner, id, &state)?;
         }
         if let Some(new_origin) = new_origin {
             let mut origins: Vec<String> = serde_json::from_str(&row.origins_json)?;
@@ -278,6 +401,39 @@ impl BrowserHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cdp_endpoint_accepts_only_literal_loopback() {
+        for value in [
+            "http://127.0.0.1:9222",
+            "ws://127.0.0.1:9222/devtools/browser/x",
+            "http://[::1]:9222",
+            "ws://[::1]:9222",
+        ] {
+            assert!(
+                cdp_endpoint(Some(value.to_string())).is_ok(),
+                "expected loopback endpoint: {value}"
+            );
+        }
+        for value in [
+            "http://localhost:9222",
+            "https://127.0.0.1:9222",
+            "http://user@127.0.0.1:9222",
+            "http://192.168.1.2:9222",
+        ] {
+            assert!(
+                cdp_endpoint(Some(value.to_string())).is_err(),
+                "unexpected endpoint accepted: {value}"
+            );
+        }
+    }
+    #[test]
+    fn profile_account_is_owner_scoped() {
+        assert_ne!(
+            profile_account("owner-a", "work"),
+            profile_account("owner-b", "work")
+        );
+        assert!(profile_account("owner-a", "work").contains("owner-a"));
+    }
     #[test]
     fn scope_rejects_credentials_protocols_and_paths() {
         assert_eq!(

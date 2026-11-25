@@ -17,6 +17,7 @@ pub(crate) struct Window {
     task: String,
     owner: Option<String>,
     worker: Worker,
+    lease: ControlLeaseRef,
     selected: std::sync::OnceLock<()>,
     state: tokio::sync::Mutex<WindowState>,
 }
@@ -41,6 +42,16 @@ impl DesktopHost {
         );
         Ok(())
     }
+    pub(crate) fn held_tasks(&self) -> Vec<String> {
+        self.0
+            .lock()
+            .expect("window lock")
+            .as_ref()
+            .map(|window| window.task.clone())
+            .into_iter()
+            .collect()
+    }
+
     pub(crate) fn stop_matching(
         &self,
         predicate: impl FnOnce(&Window) -> bool,
@@ -91,6 +102,15 @@ impl DesktopHost {
         }
     }
 }
+fn check_lease(w: &Window, expected: Option<&ControlLeaseRef>) -> Result<()> {
+    match expected {
+        Some(lease) if lease.lease_id != w.lease.lease_id || lease.epoch != w.lease.epoch => {
+            bail!("Desktop control changed; observe the window again")
+        }
+        _ => Ok(()),
+    }
+}
+
 fn observed(reply: Reply, state: &mut WindowState) -> Result<DesktopObservation> {
     state.frame = None;
     match reply {
@@ -117,7 +137,9 @@ pub(crate) async fn observe_window(
 ) -> Result<DesktopObservation> {
     let mut state = w.state.lock().await;
     *state = WindowState::default();
-    observed(desktop.exchange(w, Cmd::Observe).await?, &mut state)
+    let mut observation = observed(desktop.exchange(w, Cmd::Observe).await?, &mut state)?;
+    observation.lease = Some(w.lease.clone());
+    Ok(observation)
 }
 
 /// One action path for the RPC and the model tool: validate against the fresh observation,
@@ -130,6 +152,7 @@ pub(crate) async fn act_window(
     w: &Arc<Window>,
     p: DesktopActParams,
 ) -> Result<DesktopObservation> {
+    check_lease(w, p.lease.as_ref())?;
     let mut state = w.state.lock().await;
     let observation = state
         .observation
@@ -171,7 +194,10 @@ pub(crate) async fn act_window(
         )
         .await?;
     let rejected = matches!(reply, Reply::Denied { .. });
-    let result = observed(reply, &mut state);
+    let mut result = observed(reply, &mut state);
+    if let Ok(observation) = &mut result {
+        observation.lease = Some(w.lease.clone());
+    }
     if result.is_err() && !rejected {
         return result;
     }
@@ -208,6 +234,12 @@ impl Server {
         let rows:Vec<(String,String,String)> = sqlx::query_as(
             "SELECT id,status,action FROM desktop_receipts WHERE task_id=? ORDER BY rowid DESC LIMIT 20"
         ).bind(&p.task_id).fetch_all(&self.pool).await?;
+        let lease = self
+            .browser
+            .desktop
+            .window(&p.task_id)
+            .ok()
+            .map(|w| w.lease.clone());
         let receipts = rows
             .into_iter()
             .map(|(id, status, a)| {
@@ -215,6 +247,7 @@ impl Server {
                     id,
                     status,
                     action: serde_json::from_str(&a)?,
+                    lease: lease.clone(),
                 })
             })
             .collect::<Result<_>>()?;
@@ -223,9 +256,10 @@ impl Server {
                 .settings()
                 .desktop_helper
                 .is_some_and(|p| p.is_absolute() && p.is_file()),
-            selected: self.browser.desktop.window(&p.task_id).is_ok(),
+            selected: lease.is_some(),
             screen_profile: self.screen_profile().await?,
             receipts,
+            lease,
         })
     }
     pub(crate) async fn desktop_select(&self, p: TaskGetParams) -> Result<DesktopObservation> {
@@ -250,10 +284,15 @@ impl Server {
                 live.is_none(),
                 "Take over the selected window before selecting another"
             );
+            let lease_id = crate::control_lease::desktop_lease_id(&p.task_id);
             let window = Arc::new(Window {
-                task: p.task_id,
-                owner,
+                task: p.task_id.clone(),
+                owner: owner.clone(),
                 worker: Worker::start(&helper)?,
+                lease: ControlLeaseRef {
+                    lease_id: lease_id.clone(),
+                    epoch: 1,
+                },
                 selected: Default::default(),
                 state: Default::default(),
             });
@@ -267,12 +306,30 @@ impl Server {
             .exchange(&window, Cmd::Select)
             .await
             .and_then(|r| observed(r, &mut state));
-        if result.is_ok() {
-            window.selected.get_or_init(|| ());
-        } else {
-            self.browser.desktop.retire(&window).await?;
+        match result {
+            Ok(mut observation) => {
+                window.selected.get_or_init(|| ());
+                crate::control_lease::upsert(
+                    &self.pool,
+                    &window.lease.lease_id,
+                    &window.task,
+                    window.owner.as_deref(),
+                    "desktop",
+                    window.lease.epoch,
+                    "agent",
+                    None,
+                )
+                .await?;
+                observation.lease = Some(window.lease.clone());
+                Ok(observation)
+            }
+            Err(error) => {
+                crate::control_lease::revoke_task(&self.pool, &window.task, "selection failed")
+                    .await?;
+                self.browser.desktop.retire(&window).await?;
+                Err(error)
+            }
         }
-        result
     }
     pub(crate) async fn desktop_observe(&self, p: TaskGetParams) -> Result<DesktopObservation> {
         self.active_desktop_task(&p.task_id).await?;
@@ -293,6 +350,7 @@ impl Server {
     }
     pub(crate) async fn desktop_takeover(&self, p: TaskGetParams) -> Result<DesktopStatus> {
         let _gate = self.browser.executor_gate.lock().await;
+        crate::control_lease::revoke_task(&self.pool, &p.task_id, "human takeover").await?;
         self.browser.desktop.revoke(Some(&p.task_id), None).await?;
         self.desktop_status(p).await
     }

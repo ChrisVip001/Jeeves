@@ -153,14 +153,20 @@ pub(crate) async fn builtin_tools(
     notifier: Option<Arc<dyn jeeves_tools::notify::Notifier>>,
     execution_owner: Option<Arc<lock::DaemonLock>>,
 ) -> BuiltinTools {
-    let browser = crate::browser::BrowserHost::new(pool.clone(), settings.browser.clone()).await;
+    let browser = crate::browser::BrowserHost::new(
+        pool.clone(),
+        settings.home.clone(),
+        settings.browser.clone(),
+    )
+    .await;
     let primary = super::search_mcp::handler(&settings.home);
     let search_enabled = primary.is_some();
     let mut tools = jeeves_tools::handlers::build_default_with_web(primary);
     if browser.available() {
         let host: Arc<dyn jeeves_tools::browser::BrowserHost> = browser.clone();
         tools.register_exclusive(jeeves_tools::browser::browser_observe(host.clone()));
-        tools.register_exclusive(jeeves_tools::browser::browser_act(host));
+        tools.register_exclusive(jeeves_tools::browser::browser_act(host.clone()));
+        tools.register_exclusive(jeeves_tools::browser::browser_batch(host));
         if settings.browser_view_only {
             tools.set_browser_view_only();
             eprintln!("(jeeves) browser is view-only; write actions are refused before approval");

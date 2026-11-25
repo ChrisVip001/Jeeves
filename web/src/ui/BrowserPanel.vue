@@ -14,6 +14,9 @@ const t = useUiText();
 const url = ref("");
 const origins = ref("");
 const local = ref(false);
+const profile = ref("");
+const attach = ref<"local" | "cdp">("local");
+const endpoint = ref("http://127.0.0.1:9222");
 const extra = ref("");
 const remote = ref(false);
 const row = computed(() =>
@@ -52,6 +55,11 @@ async function start() {
       .map((value) => value.trim())
       .filter(Boolean),
     allowLocalhost: local.value,
+    profileId: attach.value === "local" ? profile.value.trim() || undefined : undefined,
+    provider:
+      attach.value === "cdp"
+        ? { kind: "cdpAttach", endpoint: endpoint.value.trim() }
+        : { kind: "local" },
   });
 }
 </script>
@@ -71,6 +79,10 @@ async function start() {
       <p class="browser-url" :title="row.url">
         {{ row.title || row.url }}<small v-if="row.title">{{ row.url }}</small>
       </p>
+      <p v-if="row.profileId" class="meta">
+        {{ t("登录档案") }}: <code>{{ row.profileId }}</code>
+      </p>
+      <p v-if="row.handoffReason" class="meta">{{ row.handoffReason }}</p>
       <div class="browser-buttons">
         <button
           v-if="row.status !== 'human'"
@@ -89,6 +101,24 @@ async function start() {
           @click="center.control(row, 'return')"
         >
           {{ t("交还给 Jeeves") }}
+        </button>
+        <button
+          v-if="row.status === 'human' && row.profileId"
+          type="button"
+          class="quiet-button"
+          :disabled="busy"
+          @click="center.control(row, 'saveProfile')"
+        >
+          {{ t("保存登录态") }}
+        </button>
+        <button
+          v-if="row.status === 'human' && row.profileId"
+          type="button"
+          class="text-button"
+          :disabled="busy"
+          @click="center.control(row, 'forgetProfile')"
+        >
+          {{ t("清除登录态") }}
         </button>
         <button
           v-if="row.status === 'agent'"
@@ -164,7 +194,7 @@ async function start() {
         <p class="task-empty">
           {{
             t(
-              "为此任务打开独立浏览器，仅允许访问你选择的网站。登录信息不会沿用日常浏览器。",
+              "为此任务打开独立浏览器，仅允许访问你选择的网站。登录信息不会沿用日常浏览器；如需保留登录态，请填写登录档案名称。",
             )
           }}
         </p>
@@ -176,6 +206,34 @@ async function start() {
             placeholder="https://example.com"
             maxlength="2048"
             required
+            :disabled="busy"
+        /></label>
+        <label
+          >{{ t("浏览器来源")
+          }}<select v-model="attach" :disabled="busy">
+            <option value="local">{{ t("为此任务新开浏览器") }}</option>
+            <option value="cdp">{{ t("接管本机已打开的浏览器") }}</option>
+          </select>
+        </label>
+        <label v-if="attach === 'cdp'"
+          >{{ t("回环 CDP 地址")
+          }}<input
+            v-model="endpoint"
+            type="text"
+            autocomplete="off"
+            placeholder="http://127.0.0.1:9222"
+            maxlength="512"
+            :disabled="busy"
+        /></label>
+        <label v-if="attach === 'local'"
+          >{{ t("登录档案名称（可选）")
+          }}<input
+            v-model="profile"
+            type="text"
+            autocomplete="off"
+            placeholder="work-shop"
+            maxlength="64"
+            pattern="[A-Za-z0-9_-]{1,64}"
             :disabled="busy"
         /></label>
         <details>

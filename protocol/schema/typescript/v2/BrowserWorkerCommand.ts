@@ -7,12 +7,20 @@ import type { BrowserHumanInput } from "./BrowserHumanInput";
 export type BrowserWorkerCommand =
   | { kind: "hello" }
   | {
+      kind: "batch";
+      generation: number;
+      expiresAt: string;
+      steps: Array<BrowserActInput>;
+    }
+  | {
       kind: "launch";
       url: string;
       origins: Array<string>;
       allowLocalhost: boolean;
       headless: boolean;
       generation: number;
+      storageState: string | null;
+      cdpEndpoint: string | null;
     }
   | { kind: "observe" }
   | {

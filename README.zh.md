@@ -48,7 +48,7 @@ just desktop-open      # 已运行时回到原窗口
 - **使用飞书业务能力**：官方 CLI 配合 `feishu-cli` 技能（`just install-feishu-cli`），复用现有命令执行权限和审批
 - **记忆**：语义事实（FTS5、支持中文）、带日期的情景、过程 Skills，完整回合按用户消息在本地检索（[docs/architecture.zh.md](docs/architecture.zh.md)）
 - **把记忆摊开给你看**：驾驶舱的记忆中心能翻账本、记忆库和上下文占用；`/compact [重点]` 可随时压缩（[docs/operations.zh.md](docs/operations.zh.md)）
-- **行动**：25 个内置工具（15 个默认常驻，10 个在开关后面）外加 MCP 服务器（[docs/configuration.zh.md](docs/configuration.zh.md)）
+- **行动**：26 个内置工具（15 个默认常驻，11 个在开关后面）外加 MCP 服务器（[docs/configuration.zh.md](docs/configuration.zh.md)）
 - **接上日历和邮件**：CalDAV/ICS 只读；IMAP 用 `BODY.PEEK` 读信；SMTP 默认只写草稿，每个真实收件人与内容组合都要单独作用域授权并写回执，手机可查看 Mac Cowork 同一任务会话，并在主聊天答复带版本的发送审批。飞书入站事件先落盘再确认。主聊天可将排队中的任务邮件改为可恢复的草稿，普通聊天和任务发件的最终 SMTP 回执丢失均须核对（[docs/configuration.zh.md](docs/configuration.zh.md#日历与邮件)）
 - **早上先看一份提议**：可开启 [08:00 晨报](docs/operations.zh.md#晨报cron-友好)，查看当日日程、未读邮件和回复草稿，以及未完成的任务。
 - **花得少一点**：系统提示是「稳定前缀 + 每轮尾巴」，供应商能缓存；`JEEVES_TOOL_POLICY=deferred` 时请求里只放常驻工具的 schema（[docs/configuration.zh.md](docs/configuration.zh.md)）
@@ -76,7 +76,7 @@ just desktop-open      # 已运行时回到原窗口
 | `apply_patch` | 按补丁跨文件修改，全中才落盘；与 `write_file` 同一范围与审批 |
 | `run_command` | 沙箱 + 放行表的 shell 命令；`JEEVES_EXEC=1` 才开（见 [SECURITY.zh.md](SECURITY.zh.md)） |
 | `delegate_task` | 把自成一体的活交给子代理；`JEEVES_DELEGATE=1` 才开 |
-| `browser_observe` / `browser_act` | 可选任务浏览器，单次确认、人工接管；需要安装浏览器组件 |
+| `browser_observe` / `browser_act` / `browser_batch` | 可选任务浏览器，单次确认、人工接管与有界多步动作；需要安装浏览器组件 |
 | `computer_observe` / `computer_act` | 在人为此任务选定的桌面窗口里观察与操作；需要 macOS 助手 |
 | `find_tools` | 在延迟加载的工具里搜索，并在本会话里打开命中的工具；默认开 |
 | `schedule_job` | 新建或覆盖一个定时任务：名字、五段 cron、一句话；默认开 |

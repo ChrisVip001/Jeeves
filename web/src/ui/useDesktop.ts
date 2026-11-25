@@ -20,7 +20,7 @@ export function useDesktop(taskId: string, request: Request) {
     status: null as DesktopStatus | null,
     observation: null as DesktopObservation | null,
     frame: null as DesktopFrame | null,
-    advice: "",
+    advice: null as DesktopAdvice | null,
     busy: false,
     error: "",
   });
@@ -31,7 +31,7 @@ export function useDesktop(taskId: string, request: Request) {
     );
   function clearPreview() {
     state.frame = null;
-    state.advice = "";
+    state.advice = null;
   }
   function invalidate() {
     ++revision;
@@ -113,6 +113,7 @@ export function useDesktop(taskId: string, request: Request) {
         elementId,
         action,
         text,
+        lease: observation.lease ?? state.status?.lease,
       });
     },
     takeover() {
@@ -147,6 +148,7 @@ export function useDesktop(taskId: string, request: Request) {
           request<DesktopFrame>("/api/desktop/frame", {
             taskId,
             observationId,
+            lease: state.observation?.lease ?? state.status?.lease,
           } satisfies DesktopFrameParams),
         (frame) => {
           state.frame = frame;
@@ -156,6 +158,7 @@ export function useDesktop(taskId: string, request: Request) {
     share() {
       const frame = state.frame;
       if (!frame) return;
+      const lease = state.observation?.lease ?? state.status?.lease;
       clearPreview();
       state.observation = null;
       return run(
@@ -164,9 +167,10 @@ export function useDesktop(taskId: string, request: Request) {
             taskId,
             frameId: frame.frameId,
             confirmed: true,
+            lease,
           } satisfies DesktopShareParams),
         (advice) => {
-          state.advice = advice.text;
+          state.advice = advice;
         },
       );
     },

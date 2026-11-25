@@ -140,7 +140,15 @@ impl Worker {
                     || info.max_origins != 12
                     || info.max_frame_bytes != 800_000
                     || [
-                        "observe", "navigate", "click", "fill", "scroll", "frame", "control",
+                        "observe",
+                        "navigate",
+                        "click",
+                        "fill",
+                        "scroll",
+                        "batch",
+                        "cdpAttach",
+                        "frame",
+                        "control",
                     ]
                     .iter()
                     .any(|name| {

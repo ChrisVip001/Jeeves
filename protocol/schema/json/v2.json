@@ -764,13 +764,46 @@
       "title": "BrowserActInput",
       "type": "object"
     },
+    "BrowserBatchReceipt": {
+      "properties": {
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "index": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "uncertain": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "index",
+        "kind",
+        "status",
+        "uncertain"
+      ],
+      "title": "BrowserBatchReceipt",
+      "type": "object"
+    },
     "BrowserControlAction": {
       "enum": [
         "takeover",
         "return",
         "pause",
         "close",
-        "allowOrigin"
+        "allowOrigin",
+        "saveProfile",
+        "forgetProfile"
       ],
       "type": "string"
     },
@@ -888,6 +921,28 @@
     },
     "BrowserElement": {
       "properties": {
+        "bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BrowserRect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checked": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "name": {
           "type": "string"
         },
@@ -896,6 +951,12 @@
         },
         "role": {
           "type": "string"
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1115,6 +1176,12 @@
         "title": {
           "type": "string"
         },
+        "truncated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "url": {
           "type": "string"
         }
@@ -1129,6 +1196,59 @@
         "url"
       ],
       "title": "BrowserObservation",
+      "type": "object"
+    },
+    "BrowserProviderKind": {
+      "enum": [
+        "local",
+        "cdpAttach"
+      ],
+      "title": "BrowserProviderKind",
+      "type": "string"
+    },
+    "BrowserProviderSpec": {
+      "properties": {
+        "endpoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/BrowserProviderKind"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "BrowserProviderSpec",
+      "type": "object"
+    },
+    "BrowserRect": {
+      "properties": {
+        "height": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "width": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "x": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "y": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "height",
+        "width",
+        "x",
+        "y"
+      ],
       "type": "object"
     },
     "BrowserScrollDirection": {
@@ -1151,8 +1271,24 @@
           "format": "int32",
           "type": "integer"
         },
+        "handoffReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "id": {
           "type": "string"
+        },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "observedAt": {
           "type": [
@@ -1165,6 +1301,12 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "profileId": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "status": {
           "type": "string"
@@ -1203,6 +1345,22 @@
           },
           "type": "array"
         },
+        "profileId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BrowserProviderSpec"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "taskId": {
           "type": "string"
         },
@@ -1235,8 +1393,44 @@
         },
         {
           "properties": {
+            "expires_at": {
+              "type": "string"
+            },
+            "generation": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "kind": {
+              "enum": [
+                "batch"
+              ],
+              "type": "string"
+            },
+            "steps": {
+              "items": {
+                "$ref": "#/definitions/BrowserActInput"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "expires_at",
+            "generation",
+            "kind",
+            "steps"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
             "allow_localhost": {
               "type": "boolean"
+            },
+            "cdp_endpoint": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "generation": {
               "format": "int32",
@@ -1256,6 +1450,12 @@
                 "type": "string"
               },
               "type": "array"
+            },
+            "storage_state": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "url": {
               "type": "string"
@@ -1493,6 +1693,15 @@
     },
     "BrowserWorkerResponse": {
       "properties": {
+        "batch": {
+          "items": {
+            "$ref": "#/definitions/BrowserBatchReceipt"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "downloadData": {
           "type": [
             "string",
@@ -1530,6 +1739,12 @@
         },
         "info": {
           "$ref": "#/definitions/BrowserWorkerInfo"
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "state": {
           "anyOf": [
@@ -2295,6 +2510,23 @@
       "title": "ContextUsageResponse",
       "type": "object"
     },
+    "ControlLeaseRef": {
+      "properties": {
+        "epoch": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "leaseId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "epoch",
+        "leaseId"
+      ],
+      "title": "ControlLeaseRef",
+      "type": "object"
+    },
     "DashboardData": {
       "description": "Everything the dashboard's first screen needs, fetched in one shot.\n\nIt is not the response to any RPC but the payload of the private Runtime HTTP endpoint (`GET /api/data`). **Why it lives in the protocol crate**: the only criterion is that it crosses languages. The browser side type-checks against it, and hand-copying it would drift again — exactly what this whole effort exists to eliminate.\n\nFields reuse protocol types directly: the dashboard does no second modeling — it is just a view over these data.",
       "properties": {
@@ -2391,6 +2623,16 @@
           "format": "int32",
           "type": "integer"
         },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "observationId": {
           "type": "string"
         },
@@ -2425,14 +2667,54 @@
     },
     "DesktopAdvice": {
       "properties": {
+        "frameId": {
+          "type": "string"
+        },
+        "references": {
+          "default": [],
+          "items": {
+            "$ref": "#/definitions/DesktopAdviceReference"
+          },
+          "type": "array"
+        },
+        "risk": {
+          "default": "",
+          "type": "string"
+        },
         "text": {
           "type": "string"
         }
       },
       "required": [
+        "frameId",
         "text"
       ],
       "title": "DesktopAdvice",
+      "type": "object"
+    },
+    "DesktopAdviceReference": {
+      "properties": {
+        "confidence": {
+          "format": "double",
+          "type": "number"
+        },
+        "elementId": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "confidence",
+        "elementId",
+        "label",
+        "reason"
+      ],
       "type": "object"
     },
     "DesktopElement": {
@@ -2443,12 +2725,52 @@
           },
           "type": "array"
         },
+        "bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BrowserRect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "focused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "id": {
           "format": "int32",
           "type": "integer"
         },
         "label": {
           "type": "string"
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "subrole": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -2481,6 +2803,16 @@
     },
     "DesktopFrameParams": {
       "properties": {
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "observationId": {
           "type": "string"
         },
@@ -2521,8 +2853,24 @@
           },
           "type": "array"
         },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "observationId": {
           "type": "string"
+        },
+        "truncated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "window": {
           "type": "string"
@@ -2544,6 +2892,16 @@
         "id": {
           "type": "string"
         },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "status": {
           "type": "string"
         }
@@ -2564,6 +2922,16 @@
         "frameId": {
           "type": "string"
         },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "taskId": {
           "type": "string"
         }
@@ -2580,6 +2948,16 @@
       "properties": {
         "available": {
           "type": "boolean"
+        },
+        "lease": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ControlLeaseRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "receipts": {
           "items": {
