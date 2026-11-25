@@ -542,6 +542,8 @@ which variable to set.
 | `JEEVES_SEARCH_DDG` | `0` disables the keyless DuckDuckGo Lite backend (default on; tried first without keys) |
 | `JEEVES_JUDGE_MODEL` | referee model for `jeeves judge` (default: the small model; the referee is not a contestant) |
 
+HTTPS connections use Rustls with bundled and operating-system trust roots. In managed environments, install your organization's trusted proxy CA through the operating system, or configure the platform-supported certificate bundle (for example `SSL_CERT_FILE` pointing to a trusted PEM bundle on Linux). Certificate and hostname verification remain enabled. This does not override network policy or public-URL checks.
+
 The production runtime keeps `search_web` and `fetch_url` as its two web entry points.
 Both prefer the official Parallel MCP at `https://mcp.parallel.ai/mcp`, exposing only
 its search and fetch operations internally. This managed service is separate from

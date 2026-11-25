@@ -75,11 +75,13 @@ jeeves-app-server = { path = "runtime/crates/jeeves-app-server" }
 jeeves-ops = { path = "runtime/crates/jeeves-ops" }
 
 # HTTP client: it only ever talks to LLM APIs. rustls rather than native-tls, which drops the
-# system OpenSSL build dependency. stream: SSE streaming (what the dashboard's typewriter rests
-# on).
+# system OpenSSL build dependency. Keep bundled and platform trust roots so the runtime can use
+# an operator-managed HTTPS proxy without disabling certificate or hostname validation.
+# stream: SSE streaming (what the dashboard's typewriter rests on).
 reqwest = { version = "0.12", default-features = false, features = [
     "json",
     "rustls-tls",
+    "rustls-tls-native-roots",
     "stream",
 ] }
 # Stream iteration (Stream / StreamExt / unfold) and Bytes. futures-util on purpose rather than
