@@ -59,6 +59,20 @@ class SearchTrialTest(unittest.TestCase):
                 self.assertEqual(report["search_tool_calls"], 1)
                 self.assertEqual(report["fetch_tool_calls"], 1)
 
+    def test_negated_expected_fact_is_not_correct(self):
+        for key, value in [
+            ("pep8-indent", "PEP 8 普通代码块不推荐每级 4 个空格"),
+            ("matthew-warning-clock", "签发时间并非 15:00 UTC"),
+            ("florida-groceries", "当天没有增加 47.6%"),
+        ]:
+            with self.subTest(key=key):
+                source = CASES[key]["source"]
+                edit = lambda e: e[-1].update(reply=f"{value}，[来源]({source})。")
+                code, report = self.run_score(key, stream(key, edit))
+                self.assertEqual(code, 1)
+                self.assertFalse(report["cited_fact"])
+                self.assertTrue(report["official_fetch_support"])
+
     def test_numeric_suffix_is_not_the_requested_fact(self):
         for key, value in [
             ("pep8-indent", "14 个空格"),
