@@ -1,9 +1,9 @@
 //! Human RPCs declare a duty. The resident clock records due wakes without acquiring tool grants.
-use crate::{Server, dispatch::internal};
+use crate::{Server, dispatch::internal, rpc_error::invalid};
 use chrono::{DateTime, Local, Utc};
 use jeeves_protocol::{
     BudgetView, ErrorObject, ResponsibilityContract, ResponsibilityListResponse,
-    ResponsibilitySetPausedParams, ResponsibilityStatus, ResponsibilityView, codes,
+    ResponsibilitySetPausedParams, ResponsibilityStatus, ResponsibilityView,
 };
 use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 
@@ -28,14 +28,6 @@ fn sha256_hex(body: &str) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
-}
-
-fn invalid(message: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: message.to_string(),
-        data: None,
-    }
 }
 
 fn timestamp(ms: i64) -> Result<String, ErrorObject> {

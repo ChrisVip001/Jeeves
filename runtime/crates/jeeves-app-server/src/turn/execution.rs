@@ -365,7 +365,7 @@ pub(crate) async fn full_turn(
         }));
     });
 
-    let mut ctx = server.tool_ctx(
+    let mut ctx = server.turn_tool_ctx(
         session_id,
         turn_cwd.clone(),
         server.session_approval(session_id, turn_id, sink),

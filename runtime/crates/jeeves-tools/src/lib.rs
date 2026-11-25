@@ -22,6 +22,7 @@ pub mod approval;
 mod arg_coerce;
 pub mod browser;
 mod code_map;
+pub mod computer_use;
 pub mod edit_checks;
 pub mod edit_match;
 pub mod exec;
@@ -143,6 +144,8 @@ pub struct ToolCtx {
     pub approval: Option<Arc<dyn crate::approval::ApprovalBroker>>,
     /// Background job host. `None` = off (it toggles with `JEEVES_EXEC`).
     pub jobs: Option<Arc<dyn crate::jobs::JobRegistry>>,
+    /// Host-controlled desktop window. `None` = no helper installed.
+    pub computer_use: Option<Arc<dyn crate::computer_use::ComputerUseHost>>,
     /// This turn's web-search budget (`web.rs::TurnLimits`). Created once per turn
     /// and shared by every clone of the ctx, so the counter survives across the
     /// turn's tool calls; a fresh turn gets a fresh budget.
@@ -253,11 +256,22 @@ pub struct ToolRegistry {
     exclusive: std::collections::BTreeSet<String>,
     /// Declared external effects. Absent means `Write` (the conservative default).
     effects: BTreeMap<String, ToolEffect>,
+    /// Browser write actions are refused before the approval gate. Copied with the registry,
+    /// so a subagent inherits the restriction and cannot widen it.
+    browser_view_only: bool,
 }
 
 impl ToolRegistry {
     pub fn set_execution_policy(&mut self, policy: Arc<dyn permissions::ExecutionPolicy>) {
         self.policy = Some(policy);
+    }
+    /// Make browser write actions read-only for this registry and every copy of it.
+    pub fn set_browser_view_only(&mut self) {
+        self.browser_view_only = true;
+    }
+    /// A view-only registry refuses `browser_act` write kinds before authorization.
+    pub fn browser_view_only(&self) -> bool {
+        self.browser_view_only
     }
     /// Share one mutation coordinator across session copies of this registry.
     pub fn set_resources(&mut self, coordinator: Arc<dyn resources::ResourceCoordinator>) {
@@ -463,6 +477,15 @@ impl ToolRegistry {
         name: &str,
         args: &Value,
     ) -> Result<(), String> {
+        if self.browser_view_only
+            && name == "browser_act"
+            && !matches!(args["kind"].as_str(), Some("navigate" | "scroll"))
+        {
+            return Err(
+                "browser_act is view-only for this session; navigate and scroll are allowed, clicks, fills and other writes are refused before approval"
+                    .into(),
+            );
+        }
         let ticket = if let Some(policy) = &self.policy {
             Some(
                 policy

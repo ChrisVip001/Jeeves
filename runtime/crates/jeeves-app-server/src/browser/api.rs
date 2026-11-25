@@ -1,13 +1,6 @@
 use super::*;
-use crate::Server;
+use crate::{Server, rpc_error::invalid};
 use jeeves_protocol::*;
-fn invalid(error: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: error.to_string(),
-        data: None,
-    }
-}
 fn origin(value: &str) -> Result<String> {
     let url = reqwest::Url::parse(value)?;
     ensure!(

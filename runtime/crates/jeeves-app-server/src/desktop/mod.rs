@@ -1,10 +1,12 @@
 //! A human-selected native window belongs to one task and one live helper.
 mod screen;
+mod tools;
 mod worker;
 use crate::Server;
 use anyhow::{Result, anyhow, bail, ensure};
 use jeeves_protocol::*;
 use std::sync::{Arc, Mutex};
+pub(crate) use tools::DesktopTools;
 use worker::Worker;
 type Cmd = DesktopWorkerCommand;
 type Reply = DesktopWorkerReply;
@@ -126,6 +128,92 @@ fn observed(reply: Reply, state: &mut WindowState) -> Result<DesktopObservation>
         _ => bail!("Desktop helper omitted its observation"),
     }
 }
+
+/// One observation path for the RPC and the model tool. The caller owns task admission and
+/// picks the window; this function owns the window's observation state.
+pub(crate) async fn observe_window(
+    desktop: &DesktopHost,
+    w: &Arc<Window>,
+) -> Result<DesktopObservation> {
+    let mut state = w.state.lock().await;
+    *state = WindowState::default();
+    let mut observation = observed(desktop.exchange(w, Cmd::Observe).await?, &mut state)?;
+    observation.lease = Some(w.lease.clone());
+    Ok(observation)
+}
+
+/// One action path for the RPC and the model tool: validate against the fresh observation,
+/// write the receipt before dispatch, resolve it after, and never replay an uncertain result.
+/// The caller owns task admission and picks the window; this function owns the shared invariants.
+pub(crate) async fn act_window(
+    pool: &sqlx::SqlitePool,
+    desktop: &DesktopHost,
+    gate: &tokio::sync::Mutex<bool>,
+    w: &Arc<Window>,
+    p: DesktopActParams,
+) -> Result<DesktopObservation> {
+    check_lease(w, p.lease.as_ref())?;
+    let mut state = w.state.lock().await;
+    let observation = state
+        .observation
+        .as_ref()
+        .filter(|o| o.observation_id == p.observation_id)
+        .ok_or_else(|| anyhow!("Observe the window again"))?;
+    ensure!(
+        observation
+            .elements
+            .iter()
+            .any(|e| e.id == p.element_id && e.actions.contains(&p.action)),
+        "Action is outside the observed controls"
+    );
+    ensure!(
+        match (p.action, &p.text) {
+            (DesktopAction::SetText, Some(s)) =>
+                s.len() <= 2048 && !s.chars().any(char::is_control),
+            (DesktopAction::SetText, None) => false,
+            (_, s) => s.is_none(),
+        },
+        "Expected plain text only for a text field"
+    );
+    *state = WindowState::default();
+    sqlx::query("INSERT INTO desktop_receipts(id,task_id,status,action) VALUES(?,?,'unknown',?)")
+        .bind(&p.observation_id)
+        .bind(&p.task_id)
+        .bind(serde_json::to_string(&p.action)?)
+        .execute(pool)
+        .await?;
+    let reply = desktop
+        .exchange(
+            w,
+            Cmd::Act {
+                observation_id: p.observation_id.clone(),
+                element_id: p.element_id,
+                action: p.action,
+                text: p.text,
+            },
+        )
+        .await?;
+    let rejected = matches!(reply, Reply::Denied { .. });
+    let mut result = observed(reply, &mut state);
+    if let Ok(observation) = &mut result {
+        observation.lease = Some(w.lease.clone());
+    }
+    if result.is_err() && !rejected {
+        return result;
+    }
+    let status = if rejected { "rejected" } else { "confirmed" };
+    let _gate = gate.lock().await;
+    if !rejected {
+        desktop.check(w)?;
+    }
+    sqlx::query("UPDATE desktop_receipts SET status=? WHERE id=?")
+        .bind(status)
+        .bind(&p.observation_id)
+        .execute(pool)
+        .await?;
+    result
+}
+
 impl Server {
     async fn desktop_task(&self, task: &str) -> Result<jeeves_state::TaskRow> {
         self.tasks
@@ -246,82 +334,19 @@ impl Server {
     pub(crate) async fn desktop_observe(&self, p: TaskGetParams) -> Result<DesktopObservation> {
         self.active_desktop_task(&p.task_id).await?;
         let w = self.browser.desktop.window(&p.task_id)?;
-        let mut state = w.state.lock().await;
-        *state = WindowState::default();
-        let mut observation = observed(
-            self.browser.desktop.exchange(&w, Cmd::Observe).await?,
-            &mut state,
-        )?;
-        observation.lease = Some(w.lease.clone());
-        Ok(observation)
+        observe_window(&self.browser.desktop, &w).await
     }
     pub(crate) async fn desktop_act(&self, p: DesktopActParams) -> Result<DesktopObservation> {
         let w = self.browser.desktop.window(&p.task_id)?;
-        check_lease(&w, p.lease.as_ref())?;
-        let mut state = w.state.lock().await;
         self.active_desktop_task(&p.task_id).await?;
-        let observation = state
-            .observation
-            .as_ref()
-            .filter(|o| o.observation_id == p.observation_id)
-            .ok_or_else(|| anyhow!("Observe the window again"))?;
-        ensure!(
-            observation
-                .elements
-                .iter()
-                .any(|e| e.id == p.element_id && e.actions.contains(&p.action)),
-            "Action is outside the observed controls"
-        );
-        ensure!(
-            match (p.action, &p.text) {
-                (DesktopAction::SetText, Some(s)) =>
-                    s.len() <= 2048 && !s.chars().any(char::is_control),
-                (DesktopAction::SetText, None) => false,
-                (_, s) => s.is_none(),
-            },
-            "Expected plain text only for a text field"
-        );
-        *state = WindowState::default();
-        sqlx::query(
-            "INSERT INTO desktop_receipts(id,task_id,status,action) VALUES(?,?,'unknown',?)",
+        act_window(
+            &self.pool,
+            &self.browser.desktop,
+            &self.browser.executor_gate,
+            &w,
+            p,
         )
-        .bind(&p.observation_id)
-        .bind(&p.task_id)
-        .bind(serde_json::to_string(&p.action)?)
-        .execute(&self.pool)
-        .await?;
-        let reply = self
-            .browser
-            .desktop
-            .exchange(
-                &w,
-                Cmd::Act {
-                    observation_id: p.observation_id.clone(),
-                    element_id: p.element_id,
-                    action: p.action,
-                    text: p.text,
-                },
-            )
-            .await?;
-        let rejected = matches!(reply, Reply::Denied { .. });
-        let mut result = observed(reply, &mut state);
-        if let Ok(observation) = &mut result {
-            observation.lease = Some(w.lease.clone());
-        }
-        if result.is_err() && !rejected {
-            return result;
-        }
-        let status = if rejected { "rejected" } else { "confirmed" };
-        let _gate = self.browser.executor_gate.lock().await;
-        if !rejected {
-            self.browser.desktop.check(&w)?;
-        }
-        sqlx::query("UPDATE desktop_receipts SET status=? WHERE id=?")
-            .bind(status)
-            .bind(p.observation_id)
-            .execute(&self.pool)
-            .await?;
-        result
+        .await
     }
     pub(crate) async fn desktop_takeover(&self, p: TaskGetParams) -> Result<DesktopStatus> {
         let _gate = self.browser.executor_gate.lock().await;

@@ -26,11 +26,10 @@ use jeeves_protocol::{
     AcceptanceView, AgentTaskView, ArtifactView, BudgetView, ErrorObject, RunView,
     ServerNotification, SpentView, TaskActionParams, TaskArtifactsResponse, TaskCreateParams,
     TaskEnvelope, TaskListResponse, TaskRunsResponse, TaskUpdatedNotification, TaskViewResponse,
-    codes,
 };
 use jeeves_state::{TaskRow, TaskStatus};
 
-use crate::{EventSink, Server, dispatch::internal, narrow};
+use crate::{EventSink, Server, dispatch::internal, narrow, rpc_error::invalid};
 use jeeves_agent::verify::Acceptance;
 
 fn stored<T: serde::de::DeserializeOwned>(field: &str, json: &str) -> Result<T, ErrorObject> {
@@ -118,14 +117,6 @@ pub(crate) async fn view(server: &Server, row: &TaskRow) -> Result<AgentTaskView
         created_at: row.created_at.clone(),
         finished_at: row.finished_at.clone(),
     })
-}
-
-fn invalid(message: impl Into<String>) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: message.into(),
-        data: None,
-    }
 }
 
 pub(crate) fn notify(sink: &EventSink, row: &TaskRow, reason: Option<&str>) {

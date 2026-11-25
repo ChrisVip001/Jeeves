@@ -48,7 +48,7 @@ Tell Jeeves what you need in your own words — even if the request is still vag
 - **Use Feishu business capabilities** through the official CLI and the `feishu-cli` skill (`just install-feishu-cli`); existing exec permissions and approvals apply
 - **Remember**: semantic facts (FTS5, CJK-capable), dated episodes and procedural Skills, with local keyword retrieval on each full turn ([docs/architecture.md](docs/architecture.md))
 - **Show its memory**: the dashboard's memory center opens the ledger, the memory library and the context meter; `/compact [focus]` compacts on demand ([docs/operations.md](docs/operations.md))
-- **Act**: 24 built-in tools (15 always on, 9 behind switches) plus MCP servers ([docs/configuration.md](docs/configuration.md))
+- **Act**: 26 built-in tools (15 always on, 11 behind switches) plus MCP servers ([docs/configuration.md](docs/configuration.md))
 - **Reach your calendar and mail**: CalDAV/ICS is read-only; IMAP reads with `BODY.PEEK`; SMTP drafts by default and every live recipient/content pair needs its own scoped approval and receipt. The phone shows the same task conversation as Mac Cowork and takes versioned send decisions in main chat. Feishu persists incoming events before ACK. Main chat can convert a queued task email into a recoverable draft. For both chat and task mail, a lost final SMTP reply requires reconciliation ([docs/configuration.md](docs/configuration.md#calendar-and-email))
 - **Start the day with a proposal**: opt into the [08:00 morning briefing](docs/operations.md#morning-brief-cron-friendly) for today’s calendar, unread mail with draft replies, and unfinished tasks.
 - **Stay cheap**: the system prompt is a stable prefix plus a per-turn tail so the provider can cache it, and `JEEVES_TOOL_POLICY=deferred` keeps only the always-on tool schemas in the request ([docs/configuration.md](docs/configuration.md))
@@ -77,6 +77,7 @@ Tell Jeeves what you need in your own words — even if the request is still vag
 | `run_command` | sandboxed, allowlisted shell commands; off unless `JEEVES_EXEC=1` ([SECURITY.md](SECURITY.md)) |
 | `delegate_task` | hand self-contained jobs to subagents; off unless `JEEVES_DELEGATE=1` |
 | `browser_observe` / `browser_act` / `browser_batch` | optional task browser with once-only approval, human takeover and bounded multi-step actions; needs the browser components installed |
+| `computer_observe` / `computer_act` | observe and act in the desktop window a person selected for this task; needs the macOS helper |
 | `find_tools` | search the deferred tool shelf and open what it finds for this session; on by default |
 | `schedule_job` | create or replace a scheduled job: name, five-field cron, one prompt; on by default |
 | `list_schedules` | list declared jobs with cron and prompt; on by default |

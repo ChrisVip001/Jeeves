@@ -35,6 +35,7 @@ impl Fixture {
             cwd: None,
             approval,
             jobs: None,
+            computer_use: None,
             turn_limits: Arc::new(jeeves_tools::web::TurnLimits::default()),
             session_id: "test".to_string(),
             facts: jeeves_state::Facts::new(pool.clone()),

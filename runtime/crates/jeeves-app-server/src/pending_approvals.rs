@@ -1,6 +1,6 @@
 //! A live snapshot, never reconstructed from approval audit history.
-use crate::{Server, narrow};
-use jeeves_protocol::{ApprovalPendingResponse, ErrorObject, PendingApprovalView, codes};
+use crate::{Server, narrow, rpc_error::invalid};
+use jeeves_protocol::{ApprovalPendingResponse, ErrorObject, PendingApprovalView};
 
 pub(crate) async fn list(
     server: &Server,
@@ -101,11 +101,4 @@ pub(crate) async fn list(
             .then(a.request.request_id.cmp(&b.request.request_id))
     });
     Ok(ApprovalPendingResponse { approvals })
-}
-fn invalid(error: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: error.to_string(),
-        data: None,
-    }
 }

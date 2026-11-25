@@ -305,12 +305,7 @@ impl BrowserHost {
         }
     }
     async fn bound_task(&self, ctx: &jeeves_tools::ToolCtx) -> Result<String> {
-        let run = ctx
-            .task_run_id
-            .as_deref()
-            .ok_or_else(|| anyhow!("Browser tools require an independent task execution"))?;
-        let task:Option<String>=sqlx::query_scalar("SELECT r.task_id FROM task_runs r JOIN agent_tasks t ON t.id=r.task_id WHERE r.id=? AND r.session_id=? AND t.status='running'").bind(run).bind(&ctx.session_id).fetch_optional(&self.pool).await?;
-        task.ok_or_else(|| anyhow!("Browser execution no longer belongs to an active task"))
+        crate::task_binding::bound_active_task(&self.pool, ctx, "Browser").await
     }
     async fn request_tool(
         &self,

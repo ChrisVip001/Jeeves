@@ -1035,13 +1035,7 @@ fn parse<T: DeserializeOwned>(params: Option<&Value>, method: &str) -> Result<T,
     })
 }
 
-pub(crate) fn internal(e: impl std::fmt::Display) -> ErrorObject {
-    ErrorObject {
-        code: codes::INTERNAL_ERROR,
-        message: e.to_string(),
-        data: None,
-    }
-}
+pub(crate) use crate::rpc_error::internal;
 
 /// A session id that names nothing: a typo, or a row that was never created. The id goes into
 /// the message because "which one" is the only thing the caller can act on.
