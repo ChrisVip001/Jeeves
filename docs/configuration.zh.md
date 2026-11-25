@@ -706,6 +706,26 @@ MCP HTTP 响应（包括流式响应）读取上限为 2 MiB。工具仅返回
 变空。设置里这些行带「内置」标签并置灰——所有写操作一律拒绝：从一台
 机器的界面上删掉它，会让每一台共享它的机器一起失效。
 
+要让 Jeeves 使用真人已登录的真实浏览器，先安装 OpenCode Browse，再把它作为
+stdio 连接器写进 `<home>/mcp.json`：
+
+```json
+{"servers":[{"name":"browse","command":"/绝对路径/browse","args":["mcp"],
+"manifest":{"category":"other","tools":{
+  "status":{"effect":"read"},
+  "tabs":{"effect":"read"},
+  "execute":{"effect":"write"}
+}}}]}
+```
+
+`execute` 会在用户自己的浏览器标签页里跑 JavaScript，是唯一的写工具；保持它的
+effect 为 `write`，让标准会话每次调用前都征询人。登录、2FA 与付款确认由 Browse
+通过 `handoff()` 交回人处理，Jeeves 不破解验证、也不保存站点凭据。这个连接器只
+是传输通道：它不会给任务浏览器加上代际栅栏或基于画面的接管，需要这些保证的
+任务请继续使用内置浏览器工具。
+
+配对必须人工完成：从 Chrome 网上应用店给一个你掌控的 Chromium 浏览器装 Browse 扩展并打开它，运行 `browse pair` 取得一次性配对码，在扩展里输入。`browse status --json` 会报告 `connected`、已配对的浏览器以及未连接时的下一步。**不要运行 `browse install -y` 或 `-a '*'`**：那会改写本机其他多个 agent 的配置。请用专用浏览器 profile，只登录任务需要的站点；relay 保持默认的 `127.0.0.1` 绑定，`--remote` 会把它暴露到网络。
+
 ### 发现顺序
 
 一条规则覆盖技能、MCP 服务器和能力中心：`user > pack > builtin`。用户文件或目录先读、同名时胜出，随包配置永远不会盖掉人的选择。写操作正好相反：只有用户自己的 `<home>/skills` 与 `<home>/mcp.json` 可改；名字已被 pack 占用时直接拒绝，绝不静默覆盖。`config_paths_for` 与 `skill_rows_in` 是可单测的纯函数核心，由 `config_paths_put_the_users_file_first` 和 `skill_rows_in_*` 测试钉住。各面的归属见[能力地图](internals/09-capability-map.zh.md#改动该落哪里)。
@@ -769,5 +789,6 @@ profile。其它错误（5xx、401/402/403、流中断、上下文溢出，或�
 | `JEEVES_BROWSER_RUNTIME` | 未设置 | `just browser-runtime` 生成的独立组件目录；未安装时不注册浏览器工具。含浏览器的桌面包自动定位内置组件 |
 | `JEEVES_DESKTOP_HELPER` | 未设置 | 指向可信的 macOS 单窗口助手的绝对路径。打包的 Mac 桌面端启动本地服务时自动定位助手，开发环境见[单窗口操作](protocol.zh.md#macos-单窗口操作)。 |
 | `JEEVES_BROWSER_HEADLESS` | `0` | 仅测试使用；无可接管窗口，人工接管会明确拒绝 |
+| `JEEVES_BROWSER_VIEW_ONLY` | `0` | 保留观察、导航与滚动，但点击、填写等浏览器写动作在审批前即被拒绝；子代理继承该限制 |
 
 Web 控制的是运行服务所在机器上的任务浏览器。本阶段不支持远程窗口交互。

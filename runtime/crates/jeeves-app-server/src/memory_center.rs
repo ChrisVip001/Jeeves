@@ -6,6 +6,7 @@
 //! pages; the meter is whatever the last turn measured. The one action — `session/compact` —
 //! is human-only by construction: no tool reaches it, and the model has no route to it.
 
+use crate::rpc_error::internal;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -336,14 +337,6 @@ fn parse<T: DeserializeOwned>(params: Option<&Value>, method: &str) -> Result<T,
 
 fn encode<T: serde::Serialize>(value: T) -> Result<Value, ErrorObject> {
     serde_json::to_value(value).map_err(internal)
-}
-
-fn internal(e: impl std::fmt::Display) -> ErrorObject {
-    ErrorObject {
-        code: codes::INTERNAL_ERROR,
-        message: e.to_string(),
-        data: None,
-    }
 }
 
 /// A read that failed for a reason the user can act on (path, permission, config).

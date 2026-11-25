@@ -229,6 +229,7 @@ impl SubagentRunner for Delegated {
                     cwd,
                     jobs: None,
                     approval: None,
+                    computer_use: None,
                 },
             );
 

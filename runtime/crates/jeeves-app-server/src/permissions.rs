@@ -1,7 +1,7 @@
 //! Session policy is human-controlled, durable, and checked at each tool boundary.
-use crate::{EventSink, Server};
+use crate::{EventSink, Server, rpc_error::invalid};
 use jeeves_protocol::{
-    ErrorObject, PermissionMode, SessionPermissionResponse, SessionPermissionSetParams, codes,
+    ErrorObject, PermissionMode, SessionPermissionResponse, SessionPermissionSetParams,
 };
 use jeeves_tools::{
     ToolCtx,
@@ -209,13 +209,6 @@ impl ExecutionPolicy for Policies {
     }
 }
 
-fn invalid(message: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: message.to_string(),
-        data: None,
-    }
-}
 impl Server {
     pub(crate) fn permission_note(&self, session: &str) -> &'static str {
         match self.permissions.snapshot(session) {

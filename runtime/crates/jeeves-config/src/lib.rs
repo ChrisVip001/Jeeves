@@ -356,6 +356,9 @@ pub struct Settings {
     /// `JEEVES_EXEC`: only when enabled is run_command registered in the tool table. Off
     /// by default — an assistant that can execute commands must be switched on by hand.
     pub browser: Option<browser::BrowserRuntime>,
+    /// `JEEVES_BROWSER_VIEW_ONLY`: the task browser accepts observation, navigation and
+    /// scrolling, but refuses clicks, fills and other writes before the approval gate.
+    pub browser_view_only: bool,
     /// Explicitly installed native window adapter.
     pub desktop_helper: Option<std::path::PathBuf>,
     pub exec_enabled: bool,
@@ -437,6 +440,7 @@ impl Default for Settings {
             turn_token_budget: 0,
             tool_result_keep_recent: 3,
             browser: None,
+            browser_view_only: false,
             desktop_helper: None,
             exec_enabled: false,
             write_enabled: false,
@@ -521,6 +525,7 @@ impl Settings {
             turn_token_budget: env_int("JEEVES_TURN_TOKEN_BUDGET", d.turn_token_budget as i32)
                 as i64,
             browser: browser::from_env(),
+            browser_view_only: env_bool("JEEVES_BROWSER_VIEW_ONLY"),
             desktop_helper: env("JEEVES_DESKTOP_HELPER").map(Into::into),
             exec_enabled: env_bool("JEEVES_EXEC"),
             write_enabled: env_bool("JEEVES_WRITE"),

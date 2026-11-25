@@ -149,7 +149,17 @@ Settings → **Inbox** is one read-only list of everything waiting on you: tasks
 
 An outbox that has not been created yet is empty. If Jeeves cannot read an existing outbox, the panel shows the error and offers a refresh.
 
-## 11. Moving a home between local and cloud
+## 11. Browser boundaries
+
+The task browser starts clean and has no saved site credentials. Jeeves does not solve CAPTCHAs,
+bypass bot checks, or store passwords in the browser. When a site needs a sign-in, 2FA, passkey or
+payment confirmation, hand control back with the task card's takeover; the person finishes that step
+and returns the browser. Sensitive fields, popups, uploads and downloads always need that help.
+An optional [Browse connector](configuration.md#built-in-mcp-servers-jeeves_mcp_config) can reuse an
+already-signed-in browser; it is a transport, not a way around a challenge, and it does not add the
+task browser's generation fencing or frame-based takeover.
+
+## 12. Moving a home between local and cloud
 
 Everything Jeeves knows is under one folder, its *home* (`./.jeeves` by default, or `JEEVES_HOME`): database, memory, skills, settings. Move it with:
 

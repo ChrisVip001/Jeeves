@@ -33,6 +33,7 @@ async fn ctx() -> ToolCtx {
         cwd: None,
         approval: None,
         jobs: None,
+        computer_use: None,
         turn_limits: Arc::new(jeeves_tools::web::TurnLimits::default()),
         session_id: "test".into(),
         facts: jeeves_state::Facts::new(pool.clone()),

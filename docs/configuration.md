@@ -784,6 +784,34 @@ blank tool list. In Settings these rows carry a 「内置」 tag and
 are greyed out — every write refuses them, because deleting one from a single
 machine's UI would silently unconfigure every machine that shares it.
 
+To give Jeeves access to a real, already-signed-in browser, install OpenCode
+Browse and add it as a stdio connector in `<home>/mcp.json`:
+
+```json
+{"servers":[{"name":"browse","command":"/absolute/path/to/browse","args":["mcp"],
+"manifest":{"category":"other","tools":{
+  "status":{"effect":"read"},
+  "tabs":{"effect":"read"},
+  "execute":{"effect":"write"}
+}}}]}
+```
+
+`execute` runs JavaScript against the person's own browser tabs and is the only
+write tool; keep its effect `write` so Standard sessions ask before every call.
+Browse hands login, 2FA and payment steps back to the person through `handoff()`;
+Jeeves does not solve challenges or store site credentials. The connector is a
+transport: it does not add generation fencing or frame-based takeover to the
+task browser, so continue using the built-in browser tools for tasks that need
+those guarantees.
+
+Setup is a human step: add the Browse extension from the Chrome Web Store to a
+Chromium browser you control, open it, and run `browse pair` to print a one-time
+code, then enter that code in the extension. `browse status --json` reports
+`connected`, the paired browsers and the next step when nothing is connected.
+Never run `browse install -y` or `-a '*'`: it rewrites many other agents' configs.
+Use a dedicated browser profile with only the sites the task needs, and keep the
+relay bound to `127.0.0.1` (the default); `--remote` exposes it to the network.
+
 ### Discovery order
 
 One rule covers skills, MCP servers and the capability center: `user > pack > builtin`. The user's
@@ -861,5 +889,6 @@ Hosted tools, native compaction and asynchronous API tools are still unsupported
 | `JEEVES_BROWSER_RUNTIME` | unset | Self-contained components prepared by `just browser-runtime`; without installation browser tools are absent. Browser-enabled desktop bundles locate their own resources |
 | `JEEVES_DESKTOP_HELPER` | unset | Absolute path to the trusted macOS window helper. The packaged Mac shell locates its bundled helper for its local Runtime. See [single-window operation](protocol.md#macos-single-window-operation) for development. |
 | `JEEVES_BROWSER_HEADLESS` | `0` | Tests only; no visible window exists and human takeover is explicitly refused |
+| `JEEVES_BROWSER_VIEW_ONLY` | `0` | Observation, navigation and scrolling stay available, but clicks, fills and other browser writes are refused before the approval gate. Subagents inherit the restriction |
 
 The Web UI controls a browser on the Runtime machine. Remote interactive viewing is not included.

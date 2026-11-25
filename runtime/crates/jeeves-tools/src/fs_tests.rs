@@ -22,6 +22,7 @@ async fn ctx() -> ToolCtx {
         cwd: None,
         approval: None,
         jobs: None,
+        computer_use: None,
         turn_limits: std::sync::Arc::new(crate::web::TurnLimits::default()),
         session_id: "test".to_string(),
         facts: jeeves_state::Facts::new(pool.clone()),

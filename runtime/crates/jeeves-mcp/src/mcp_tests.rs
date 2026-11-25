@@ -686,6 +686,7 @@ async fn tool_ctx() -> jeeves_tools::ToolCtx {
         cwd: None,
         approval: None,
         jobs: None,
+        computer_use: None,
         turn_limits: std::sync::Arc::new(jeeves_tools::web::TurnLimits::default()),
         session_id: "test".to_string(),
         facts: jeeves_state::Facts::new(pool.clone()),
@@ -1104,4 +1105,66 @@ async fn a_refresh_reply_can_retain_the_existing_refresh_token() {
     let rotated = store.tokens().unwrap();
     assert_eq!(rotated.access_token, "new");
     assert_eq!(rotated.refresh_token.as_deref(), Some("keep"));
+}
+
+/// Opt-in proof that a real OpenCode Browse stdio server can be connected through Jeeves' own
+/// client. Ignored because it needs `browse` installed on the machine (and it starts a relay);
+/// run with: cargo test -p jeeves-mcp browse_bridge -- --ignored --nocapture
+#[tokio::test]
+#[ignore = "needs a locally installed OpenCode Browse"]
+async fn browse_bridge_discovers_tools_and_calls_status() {
+    let candidates = [
+        std::env::var_os("JEEVES_BROWSE_BIN").map(std::path::PathBuf::from),
+        Some(std::path::PathBuf::from("/usr/local/bin/browse")),
+        Some(dirs_home().join(".local/bin/browse")),
+    ];
+    let Some(binary) = candidates.into_iter().flatten().find(|p| p.is_file()) else {
+        panic!("browse not found; set JEEVES_BROWSE_BIN to its absolute path");
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join("mcp.json");
+    std::fs::write(
+        &config,
+        json!({"servers": [{
+            "name": "browse",
+            "command": binary.to_string_lossy(),
+            "args": ["mcp"],
+            "manifest": {
+                "category": "other",
+                "tools": {
+                    "status": {"effect": "read"},
+                    "tabs": {"effect": "read"},
+                    "execute": {"effect": "write"}
+                }
+            }
+        }]})
+        .to_string(),
+    )
+    .unwrap();
+    let client = crate::McpClient::connect(&config).await;
+    assert!(client.warnings().is_empty(), "{:?}", client.warnings());
+    assert_eq!(client.servers(), vec!["browse"]);
+    let tools = client.tools();
+    let names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
+    assert!(names.contains(&"browse_execute"), "{names:?}");
+    assert!(names.contains(&"browse_status"), "{names:?}");
+    assert!(names.contains(&"browse_tabs"), "{names:?}");
+
+    let mut registry = jeeves_tools::ToolRegistry::new();
+    client.register_tools(&mut registry);
+    assert!(registry.get("browse_execute").is_some());
+    assert!(registry.get("browse_status").is_some());
+
+    let status = client.call("browse", "status", json!({})).await;
+    assert!(!status.starts_with("Error:"), "status failed: {status}");
+    assert!(
+        status.contains("relay") || status.contains("browsers"),
+        "unexpected status payload: {status}"
+    );
+}
+
+fn dirs_home() -> std::path::PathBuf {
+    std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_default()
 }

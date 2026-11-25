@@ -29,8 +29,27 @@ impl Server {
                 cwd,
                 approval,
                 jobs: self.jobs.clone(),
+                computer_use: None,
             },
         )
+    }
+
+    /// Turn context with the desktop host injected. Only the two turn paths call this; a
+    /// connector or a test that has no Arc<Server> uses `tool_ctx` and gets no desktop tools.
+    pub(crate) fn turn_tool_ctx(
+        &self,
+        session_id: &str,
+        cwd: Option<std::path::PathBuf>,
+        approval: Option<Arc<dyn jeeves_tools::approval::ApprovalBroker>>,
+    ) -> ToolCtx {
+        let mut ctx = self.tool_ctx(session_id, cwd, approval);
+        if self.settings().desktop_helper.is_some() {
+            let host: Arc<dyn jeeves_tools::computer_use::ComputerUseHost> = Arc::new(
+                crate::desktop::DesktopTools::new(self.pool.clone(), self.browser.clone()),
+            );
+            ctx.computer_use = Some(host);
+        }
+        ctx
     }
 }
 
@@ -142,9 +161,22 @@ pub(crate) async fn builtin_tools(
         let host: Arc<dyn jeeves_tools::browser::BrowserHost> = browser.clone();
         tools.register_exclusive(jeeves_tools::browser::browser_observe(host.clone()));
         tools.register_exclusive(jeeves_tools::browser::browser_act(host));
+        if settings.browser_view_only {
+            tools.set_browser_view_only();
+            eprintln!("(jeeves) browser is view-only; write actions are refused before approval");
+        }
         eprintln!(
             "(jeeves) browser components ready; a human must open each task browser and select its website scope"
         );
+    }
+    if settings
+        .desktop_helper
+        .as_deref()
+        .is_some_and(|p| p.is_absolute() && p.is_file())
+    {
+        tools.register_exclusive(jeeves_tools::computer_use::computer_observe());
+        tools.register_exclusive(jeeves_tools::computer_use::computer_act());
+        eprintln!("(jeeves) desktop helper found; computer tools use the host injected per turn");
     }
     let exec_session_allow: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let exec_allow: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(settings.exec_allow.clone()));
@@ -357,6 +389,7 @@ pub(crate) struct Injections {
     pub cwd: Option<std::path::PathBuf>,
     pub approval: Option<Arc<dyn jeeves_tools::approval::ApprovalBroker>>,
     pub jobs: Option<Arc<dyn jeeves_tools::jobs::JobRegistry>>,
+    pub computer_use: Option<Arc<dyn jeeves_tools::computer_use::ComputerUseHost>>,
 }
 
 pub(crate) fn tool_ctx(
@@ -383,6 +416,7 @@ pub(crate) fn tool_ctx(
         approval: injected.approval,
         turn_limits: std::sync::Arc::new(jeeves_tools::web::TurnLimits::from_env()),
         jobs: injected.jobs,
+        computer_use: injected.computer_use,
         on_delta: None,
     }
 }

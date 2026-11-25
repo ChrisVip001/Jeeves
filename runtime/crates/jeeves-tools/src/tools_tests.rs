@@ -28,6 +28,7 @@ async fn ctx() -> ToolCtx {
         cwd: None,
         approval: None,
         jobs: None,
+        computer_use: None,
         turn_limits: std::sync::Arc::new(crate::web::TurnLimits::default()),
         session_id: "test".to_string(),
         facts: jeeves_state::Facts::new(pool.clone()),
@@ -995,4 +996,72 @@ async fn a_skill_write_with_nobody_to_ask_is_refused() {
         .await;
     assert!(out.contains("nobody can answer"), "{out}");
     assert!(!ctx.home.join("skills/no-approver").exists());
+}
+
+#[tokio::test]
+async fn view_only_registry_refuses_browser_writes_before_approval() {
+    let mut registry = ToolRegistry::new();
+    registry.set_browser_view_only();
+    let mut ctx = ctx().await;
+    for kind in ["click", "fill"] {
+        let args = json!({"kind": kind, "observationId": "e1"});
+        let result = registry.admit_call(&mut ctx, "browser_act", &args).await;
+        assert!(result.is_err(), "{kind} should be refused");
+        assert!(
+            result.expect_err("refused").contains("view-only"),
+            "the refusal must explain why"
+        );
+    }
+}
+
+#[tokio::test]
+async fn view_only_registry_allows_browser_navigation_and_scroll() {
+    let mut registry = ToolRegistry::new();
+    registry.set_browser_view_only();
+    let mut ctx = ctx().await;
+    for kind in ["navigate", "scroll"] {
+        let args = json!({"kind": kind, "observationId": "e1"});
+        assert!(
+            registry
+                .admit_call(&mut ctx, "browser_act", &args)
+                .await
+                .is_ok(),
+            "{kind} should pass the view-only gate"
+        );
+    }
+}
+
+#[tokio::test]
+async fn view_only_is_inherited_by_registry_copies() {
+    let mut parent = ToolRegistry::new();
+    parent.set_browser_view_only();
+    let child = parent.without("delegate_task");
+    let mut ctx = ctx().await;
+    let args = json!({"kind": "click", "observationId": "e1"});
+    assert!(
+        child
+            .admit_call(&mut ctx, "browser_act", &args)
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn computer_tools_without_a_host_say_so_instead_of_panicking() {
+    let mut registry = ToolRegistry::new();
+    registry.register_exclusive(crate::computer_use::computer_observe());
+    registry.register_exclusive(crate::computer_use::computer_act());
+    let ctx = ctx().await;
+    let observed = registry
+        .execute(ctx.clone(), "computer_observe", json!({}))
+        .await;
+    assert!(observed.contains("No desktop window"), "{observed}");
+    let acted = registry
+        .execute(
+            ctx,
+            "computer_act",
+            json!({"observationId":"o1","elementId":1,"action":"click"}),
+        )
+        .await;
+    assert!(acted.contains("No desktop window"), "{acted}");
 }

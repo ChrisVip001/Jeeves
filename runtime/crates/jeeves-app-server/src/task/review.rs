@@ -1,8 +1,6 @@
 //! Read-only, bounded delivery snapshots. The browser never reads a live workspace path.
-use crate::Server;
-use jeeves_protocol::{
-    ErrorObject, TaskReviewCaptureParams, TaskReviewFile, TaskReviewView, codes,
-};
+use crate::{Server, rpc_error::invalid};
+use jeeves_protocol::{ErrorObject, TaskReviewCaptureParams, TaskReviewFile, TaskReviewView};
 use jeeves_state::{TaskRow, TaskStatus};
 use std::{
     io::Read,
@@ -14,14 +12,6 @@ const FILE_LIMIT: usize = 64 * 1024;
 const PATCH_LIMIT: usize = 192 * 1024;
 const TOTAL_LIMIT: usize = 2 * 1024 * 1024;
 const PATH_LIMIT: usize = 100;
-
-fn invalid(message: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: message.to_string(),
-        data: None,
-    }
-}
 
 fn text(bytes: Vec<u8>) -> Option<String> {
     if bytes.contains(&0) {

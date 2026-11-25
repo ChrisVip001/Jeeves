@@ -9,20 +9,7 @@ use crate::{EventSink, Server};
 use jeeves_protocol::*;
 use std::time::Instant;
 pub const MAIN_SESSION: &str = "jeeves-main";
-pub(super) fn invalid(message: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INVALID_PARAMS,
-        message: message.to_string(),
-        data: None,
-    }
-}
-pub(super) fn internal(error: impl ToString) -> ErrorObject {
-    ErrorObject {
-        code: codes::INTERNAL_ERROR,
-        message: error.to_string(),
-        data: None,
-    }
-}
+pub(super) use crate::rpc_error::{internal, invalid};
 
 pub async fn main_session(
     server: &Server,
