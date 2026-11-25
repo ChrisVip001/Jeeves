@@ -4,7 +4,15 @@ Run `cargo test --locked -p jeeves-app-server --lib interaction::tests::web_look
 
 Three fictional Chinese lookups cover stale opening hours, similarly named transit lines, and a date the publisher has not announced. They drive the main-chat interaction and real web tool wrappers with scripted adapters. The checks require one reply, the expected fact with an attached source link, literal support in the fetch output, one search and one fetch at the fixture seam, and zero background tasks. Negative controls cover stale facts, wrong or detached links, missing evidence, extra calls, and task creation.
 
-No network, key, or real model is needed. This checks wiring and literal assertions, not production search ranking or whether a live model chose well.
+Three additional fictional flight fixtures replay a calendar minimum next to a wrong-day offer,
+a matching outbound leg priced as part of a round trip, and a self-contained one-way quote next
+to a cheaper reverse route. They check the fetched evidence and which offer-scope guidance
+reaches the model. Scripted replies exercise partial results, indicative prices, and unknown
+booking terms separately. All prices and flight identifiers are test data.
+
+No network, key, or real model is needed. This checks wiring and literal assertions, not whether
+a live model follows the guidance, how production search ranks sites, or whether a flight is
+bookable.
 
 ## Optional live pilot, not run by this repository check
 

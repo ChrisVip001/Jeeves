@@ -14,12 +14,15 @@ use tokio::sync::Mutex;
 const ENDPOINT: &str = "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch";
 const DEADLINE: Duration = Duration::from_secs(20);
 const COOLDOWN: Duration = Duration::from_mins(1);
+/// Share excerpt budget across distinct hits without dropping follow-up URLs. Fetch has a separate cap.
 const SEARCH_EXCERPT_BUDGET: usize = 4_000;
 const MAX_SEARCH_EXCERPT: usize = 2_000;
 const OFFER_OBJECTIVE: &str = concat!(
     "For current prices or availability, prioritize direct listings with actionable quotes ",
-    "for the exact date, item, and currency. Surface price and availability together with ",
-    "the item's identifying details. Mark schedules or historical averages as context, not quotes.",
+    "for the exact local date, item, and currency. Keep amount, currency, date, identifying ",
+    "details and scope from the same offer record (for travel, direction and one-way vs ",
+    "round-trip). Do not combine fields from separate offers. Mark starting prices, ",
+    "schedules or historical averages as context, not quotes.",
 );
 
 #[derive(Default)]
@@ -192,8 +195,6 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
     if sources.is_empty() {
         return Ok(None);
     }
-    // Search results are leads. Share the excerpt budget across the actual distinct hits,
-    // leaving every URL available for a follow-up fetch. Source-body fetch limits are separate.
     let budget = if search {
         (SEARCH_EXCERPT_BUDGET / sources.len()).min(MAX_SEARCH_EXCERPT)
     } else {

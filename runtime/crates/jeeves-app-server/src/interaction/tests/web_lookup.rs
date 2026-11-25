@@ -16,6 +16,10 @@ struct Case {
     evidence: String,
     claim: String,
     wrong: String,
+    #[serde(default)]
+    other_wrong: Vec<String>,
+    #[serde(default)]
+    offer: bool,
 }
 
 fn cases() -> Vec<Case> {
@@ -56,7 +60,10 @@ impl Case {
         {
             failures.push("missing cited claim");
         }
-        if reply.contains(&self.wrong) {
+        if std::iter::once(&self.wrong)
+            .chain(&self.other_wrong)
+            .any(|wrong| reply.contains(wrong))
+        {
             failures.push("wrong value");
         }
         if !fetched.contains(&self.evidence) {
@@ -78,11 +85,18 @@ fn first_answer_checks_reject_wrong_detached_unsupported_and_extra_work() {
         let calls = case.calls();
         let reply = case.reply();
         assert!(case.failures(&reply, &case.body, &calls, 0).is_empty());
-        let stale = format!("{}，[来源]({})。", case.wrong, case.url());
-        assert_eq!(
-            case.failures(&stale, &case.body, &calls, 0),
-            ["missing cited claim", "wrong value"]
-        );
+        for wrong in std::iter::once(&case.wrong).chain(&case.other_wrong) {
+            let stale = format!("{wrong}，[来源]({})。", case.url());
+            assert_eq!(
+                case.failures(&stale, &case.body, &calls, 0),
+                ["missing cited claim", "wrong value"]
+            );
+            let mixed = format!("{reply}另有推荐价：{wrong}。");
+            assert_eq!(
+                case.failures(&mixed, &case.body, &calls, 0),
+                ["wrong value"]
+            );
+        }
         let wrong_url = reply.replace(
             &case.url(),
             "https://93.184.216.34/fixtures/different-entity",
@@ -166,6 +180,24 @@ async fn run_case(case: Case) {
         let requests = model.received.lock().unwrap();
         assert_eq!(requests.len(), 3);
         assert_eq!(asked(&requests[0]), case.ask);
+        if case.offer {
+            let fetch = requests[1]
+                .tools
+                .iter()
+                .find(|tool| tool.name == "fetch_url")
+                .unwrap();
+            for rule in [
+                "same offer record",
+                "Do not join separate sections",
+                "bundles vs single items",
+                "checkout total, availability, or unlisted terms",
+            ] {
+                assert!(
+                    fetch.description.contains(rule),
+                    "missing offer rule: {rule}"
+                );
+            }
+        }
         let saw = |request: &CreateRequest, id: &str, text: &str| {
             request
                 .messages

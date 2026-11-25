@@ -19,8 +19,10 @@ fn fresh_lookup_prioritizes_dated_offer_evidence_without_rewriting_queries() {
     assert_eq!(args["search_queries"], json!([query]));
     let objective = args["objective"].as_str().unwrap();
     assert!(objective.contains(query));
-    assert!(objective.contains("exact date, item, and currency"));
+    assert!(objective.contains("exact local date, item, and currency"));
     assert!(objective.contains("direct listings with actionable quotes"));
+    assert!(objective.contains("same offer record"));
+    assert!(objective.contains("direction and one-way vs round-trip"));
     assert!(objective.contains("schedules or historical averages"));
 }
 

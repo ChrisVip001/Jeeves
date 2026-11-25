@@ -209,6 +209,7 @@ Values are read at spawn and scrub time, so a secret added in Settings works on 
 **`fetch_url`** (`url`): http/https only; every resolved address must be public (loopback, private, link-local and reserved ranges are refused);
 redirects are followed by hand, at most 5, re-checked on every hop; timeout 20 s; download capped at 2 MiB and text at 50 000 characters, with a truncation note.
 HTML is converted to text by the module's own converter. The body is wrapped by `report::as_external` as data, not instructions.
+For current offers, the tool guidance asks the model to verify amount, currency, item, local date, and relevant scope in the same listing or clearly scoped section. It distinguishes indicative prices and schedules from verified checkout totals and availability; it is not a structured quote validator.
 
 **`search_web`** (`query`, `max_results` default 5): each turn may make at most `JEEVES_SEARCH_MAX_PER_TURN` calls (default 20, clamped 1–200).
 In production app-server first tries the Parallel search MCP handler for both `search_web` and `fetch_url` (connected on first use; a failure cools it down for 60 s and the built-in path answers).
