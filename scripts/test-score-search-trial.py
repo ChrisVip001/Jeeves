@@ -94,6 +94,51 @@ class SearchTrialTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertFalse(report["official_fetch_support"])
 
+    def test_useful_second_fetch_preserves_factual_credit(self):
+        key = "florida-groceries"
+        source = CASES[key]["source"]
+        article = source.replace("-accessible-", "-")
+
+        def visit_article_first(events):
+            events[3:3] = [
+                dict(type="toolStarted", toolUseId="article", tool="fetch_url",
+                     args=dict(url=article)),
+                dict(type="toolCompleted", toolUseId="article", tool="fetch_url",
+                     status="ok", output=f"Figure 5: [Accessible version]({source})"),
+            ]
+
+        code, report = self.run_score(key, stream(key, visit_article_first))
+        self.assertEqual(code, 1)
+        self.assertFalse(report["pass"])
+        self.assertTrue(report["cited_fact"])
+        self.assertTrue(report["official_fetch_support"])
+        self.assertFalse(report["ordered_search_then_fetch"])
+        self.assertEqual(report["search_tool_calls"], 1)
+        self.assertEqual(report["fetch_tool_calls"], 2)
+
+    def test_correct_time_does_not_verify_a_different_official_product(self):
+        key = "matthew-warning-clock"
+        source = CASES[key]["source"]
+        bulletin = source.replace(".fstadv.", ".public.")
+
+        def use_public_bulletin(events):
+            events[3]["args"]["url"] = bulletin
+            events[4]["output"] = events[4]["output"].replace(source, bulletin)
+
+        for cite_bulletin in (False, True):
+            with self.subTest(cite_bulletin=cite_bulletin):
+                def edit(events):
+                    use_public_bulletin(events)
+                    if cite_bulletin:
+                        events[-1]["reply"] = events[-1]["reply"].replace(source, bulletin)
+
+                code, report = self.run_score(key, stream(key, edit))
+                self.assertEqual(code, 1)
+                self.assertFalse(report["pass"])
+                self.assertEqual(report["cited_fact"], not cite_bulletin)
+                self.assertFalse(report["official_fetch_support"])
+                self.assertTrue(report["ordered_search_then_fetch"])
+
     def test_fail_closed_cases(self):
         key = "pep8-indent"
         source = CASES[key]["source"]

@@ -16,3 +16,11 @@ The public-cases manifest freezes three historical/reference questions, exact of
 4. Share only the aggregate scorer output with the revision and trial policy. The scorer emits counts and booleans, not the reply, argument strings, tool output, or error details. Runtime can still write internal logs, the chat database and traces (including user content), so keep the disposable home private and do not attach or commit it. Treat outputs with missing/zero usage as unavailable. A reported nonzero total is the Runtime's turn total, not a provider billing receipt. Tool starts count user-facing tool calls: internal backend fallbacks and provider HTTP attempts are not visible here.
 
 The checker can be exercised entirely offline with `python3 scripts/test-score-search-trial.py`. It accepts only focused search-then-fetch cases with a matching structured Parallel source URL and predefined evidence (the built-in extractor does not expose its final redirect URL to this stream), not all semantically correct phrasings. It does not itself run or spend anything; an isolated host/client must be arranged separately before live use.
+
+Interpret the component fields separately from the strict fast-path flag. For example, the official
+Fed article can lead to the required accessible table via its Figure 5 link. A second fetch of that
+table can establish the expected fact and evidence while failing the one-fetch fast-path criterion.
+For the NOAA question, the official Public Advisory and Forecast/Advisory are different documents
+even when they report the same time. A matching number and unverified citation are not proof that
+the requested product was read. Treat blocked source access as an evidence issue, distinct from an
+incorrect answer; use human review for source paths and phrasings outside the fixed checker.
