@@ -60,6 +60,7 @@ impl BrowserHost {
             session.worker.close();
             workers.push(session.worker.clone());
         }
+        let desktop_tasks = self.desktop.held_tasks();
         let desktop = self.desktop.stop_matching(|_| true);
         let mut tx = self.pool.begin().await?;
         let changed = sqlx::query("UPDATE executor_control SET stopped=1,generation=generation+1 WHERE id=1 AND stopped=0")
@@ -74,6 +75,14 @@ impl BrowserHost {
                 .execute(&mut *tx).await?;
         }
         tx.commit().await?;
+        let held: Vec<String> = sqlx::query_scalar(
+            "SELECT task_id FROM browser_sessions WHERE status='needsAttention'",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        for task in held.into_iter().chain(desktop_tasks) {
+            crate::control_lease::revoke_task(&self.pool, &task, "emergency stop").await?;
+        }
         self.desktop.finish_stop(desktop).await?;
         for worker in workers {
             worker.wait_closed().await?;

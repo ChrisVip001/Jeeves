@@ -1,4 +1,5 @@
 use super::*;
+use std::path::PathBuf;
 
 #[tokio::test]
 async fn restart_requires_attention_and_old_instance_cannot_update_replacement() {
@@ -21,7 +22,12 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         })
         .await
         .unwrap();
-    let host = BrowserHost::new(pool.clone(), None).await;
+    let host = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     assert!(!host.available());
     let mut first = store::create(
         &pool,
@@ -29,6 +35,7 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         "owner",
         &["https://example.com".into()],
         "https://example.com",
+        None,
     )
     .await
     .unwrap();
@@ -37,7 +44,12 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         .await
         .unwrap();
     drop(host);
-    let _restarted = BrowserHost::new(pool.clone(), None).await;
+    let _restarted = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     let stopped = store::get(&pool, "browser-test").await.unwrap().unwrap();
     assert_eq!(stopped.status, "needsAttention");
     assert!(stopped.generation > first.generation);
@@ -47,6 +59,7 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         "owner",
         &["https://example.com".into()],
         "https://example.com",
+        None,
     )
     .await
     .unwrap();
@@ -58,6 +71,7 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         "owner",
         &["https://example.com".into()],
         "https://example.com",
+        None,
     )
     .await
     .unwrap();
@@ -98,6 +112,7 @@ async fn session_in(pool: &sqlx::SqlitePool, id: &str, status: &str) {
         "owner",
         &["https://example.com".into()],
         "https://example.com/inbox?token=secret",
+        None,
     )
     .await
     .unwrap();
@@ -113,7 +128,12 @@ async fn a_takeover_outlives_a_restart_and_says_so_without_leaking_the_url() {
         .unwrap();
     task(&pool, "held").await;
     session_in(&pool, "held", "human").await;
-    let _host = BrowserHost::new(pool.clone(), None).await;
+    let _host = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     assert!(is_held(&pool, "held").await.unwrap());
     let row = store::get(&pool, "held").await.unwrap().unwrap();
     assert_eq!(row.status, "needsAttention");
@@ -136,9 +156,19 @@ async fn the_hold_survives_a_second_restart_and_an_agent_session_is_not_a_hold()
     task(&pool, "agent").await;
     session_in(&pool, "held", "human").await;
     session_in(&pool, "agent", "agent").await;
-    let _first = BrowserHost::new(pool.clone(), None).await;
+    let _first = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     let since = store::hold_get(&pool, "held").await.unwrap().unwrap().url;
-    let _second = BrowserHost::new(pool.clone(), None).await;
+    let _second = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     assert!(
         is_held(&pool, "held").await.unwrap(),
         "still held after another restart"
@@ -158,13 +188,19 @@ async fn a_hold_is_cleared_only_by_the_fresh_observation() {
         .unwrap();
     task(&pool, "held").await;
     session_in(&pool, "held", "human").await;
-    let _host = BrowserHost::new(pool.clone(), None).await;
+    let _host = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     store::create(
         &pool,
         "held",
         "owner",
         &["https://example.com".into()],
         "https://example.com",
+        None,
     )
     .await
     .unwrap();
@@ -228,7 +264,12 @@ async fn a_late_worker_receipt_cannot_restore_authority_on_takeover_or_stop() {
     let pool = jeeves_state::open(&dir.path().join("state.db"))
         .await
         .unwrap();
-    let host = BrowserHost::new(pool.clone(), None).await;
+    let host = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     task(&pool, "late").await;
     session_in(&pool, "late", "agent").await;
     let old = store::get(&pool, "late").await.unwrap().unwrap();
@@ -272,7 +313,12 @@ async fn a_late_worker_receipt_cannot_restore_authority_on_takeover_or_stop() {
             .await
             .unwrap()
     );
-    let restarted = BrowserHost::new(pool.clone(), None).await;
+    let restarted = BrowserHost::new(
+        pool.clone(),
+        PathBuf::from("/tmp/jeeves-browser-test"),
+        None,
+    )
+    .await;
     assert_eq!(
         restarted.executor_status().await.unwrap().generation,
         stopped.generation

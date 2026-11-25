@@ -202,6 +202,7 @@ pub const ALWAYS_ON: &[&str] = &[
     "todo_write",
     "browser_observe",
     "browser_act",
+    "browser_batch",
     "find_tools",
     "memory",
     "read_page",

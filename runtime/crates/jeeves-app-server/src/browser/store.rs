@@ -1,5 +1,5 @@
 use anyhow::{Result, ensure};
-use jeeves_protocol::BrowserSessionView;
+use jeeves_protocol::{BrowserSessionView, ControlLeaseRef};
 use sqlx::{FromRow, SqlitePool};
 #[derive(Clone, FromRow)]
 pub(super) struct Row {
@@ -12,9 +12,17 @@ pub(super) struct Row {
     pub title: String,
     pub observed_at: Option<String>,
     pub error: Option<String>,
+    pub profile_id: Option<String>,
 }
 impl Row {
     pub fn view(self) -> Result<BrowserSessionView> {
+        let lease_id = crate::control_lease::browser_lease_id(&self.id);
+        let handoff_reason =
+            matches!(self.status.as_str(), "human" | "needsAttention").then(|| {
+                self.error
+                    .clone()
+                    .unwrap_or_else(|| "Browser control changed".to_string())
+            });
         Ok(BrowserSessionView {
             id: self.id,
             task_id: self.task_id,
@@ -25,6 +33,12 @@ impl Row {
             title: self.title,
             observed_at: self.observed_at,
             error: self.error,
+            profile_id: self.profile_id,
+            lease: Some(ControlLeaseRef {
+                lease_id,
+                epoch: self.generation,
+            }),
+            handoff_reason,
         })
     }
 }
@@ -45,8 +59,9 @@ pub(super) async fn create(
     owner: &str,
     origins: &[String],
     url: &str,
+    profile_id: Option<&str>,
 ) -> Result<Row> {
-    sqlx::query("INSERT INTO browser_sessions(id,task_id,owner_session_id,status,origins_json,url) VALUES(lower(hex(randomblob(16))),?,?,'starting',?,?) ON CONFLICT(task_id) DO UPDATE SET id=lower(hex(randomblob(16))),generation=generation+1,status='starting',origins_json=excluded.origins_json,url=excluded.url,title='',observed_at=NULL,error=NULL,updated_at=datetime('now') WHERE browser_sessions.status IN ('closed','needsAttention','starting')").bind(task).bind(owner).bind(serde_json::to_string(origins)?).bind(url).execute(pool).await?;
+    sqlx::query("INSERT INTO browser_sessions(id,task_id,owner_session_id,status,origins_json,url,profile_id) VALUES(lower(hex(randomblob(16))),?,?,'starting',?,?,?) ON CONFLICT(task_id) DO UPDATE SET id=lower(hex(randomblob(16))),generation=generation+1,status='starting',origins_json=excluded.origins_json,url=excluded.url,profile_id=excluded.profile_id,title='',observed_at=NULL,error=NULL,updated_at=datetime('now') WHERE browser_sessions.status IN ('closed','needsAttention','starting')").bind(task).bind(owner).bind(serde_json::to_string(origins)?).bind(url).bind(profile_id).execute(pool).await?;
     let row = get(pool, task)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Browser session missing"))?;
@@ -54,6 +69,17 @@ pub(super) async fn create(
         row.status == "starting",
         "Close the existing browser before starting another"
     );
+    crate::control_lease::upsert(
+        pool,
+        &crate::control_lease::browser_lease_id(&row.id),
+        task,
+        Some(owner),
+        "browser",
+        row.generation,
+        &row.status,
+        row.error.as_deref(),
+    )
+    .await?;
     Ok(row)
 }
 pub(super) async fn update(pool: &SqlitePool, row: &Row, expected: i32) -> Result<bool> {
@@ -61,6 +87,26 @@ pub(super) async fn update(pool: &SqlitePool, row: &Row, expected: i32) -> Resul
         WHERE task_id=? AND id=? AND generation=? AND status NOT IN ('closed','needsAttention')")
         .bind(row.generation).bind(&row.status).bind(&row.url).bind(&row.title).bind(&row.observed_at).bind(&row.error)
         .bind(&row.task_id).bind(&row.id).bind(expected).execute(pool).await?.rows_affected();
+    if changed == 1 {
+        let owner: Option<String> = sqlx::query_scalar(
+            "SELECT owner_session_id FROM browser_sessions WHERE task_id=? AND id=?",
+        )
+        .bind(&row.task_id)
+        .bind(&row.id)
+        .fetch_optional(pool)
+        .await?;
+        crate::control_lease::upsert(
+            pool,
+            &crate::control_lease::browser_lease_id(&row.id),
+            &row.task_id,
+            owner.as_deref(),
+            "browser",
+            row.generation,
+            &row.status,
+            row.error.as_deref(),
+        )
+        .await?;
+    }
     Ok(changed == 1)
 }
 /// A takeover that outlived the Runtime. Kept until a fresh browser has been opened and observed.

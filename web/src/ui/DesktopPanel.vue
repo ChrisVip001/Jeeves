@@ -159,6 +159,9 @@ function receipt(status: string) {
           {{ t("本机未启用窗口执行器。") }}
         </p>
         <template v-else>
+          <p v-if="state.status.lease" class="meta">
+            {{ t("控制代次") }} #{{ state.status.lease.epoch }}
+          </p>
           <div class="desktop-actions">
             <button
               v-if="!state.status.selected"
@@ -190,6 +193,9 @@ function receipt(status: string) {
           </div>
           <template v-if="state.observation">
             <strong class="window-name">{{ state.observation.window }}</strong>
+            <p v-if="state.observation.truncated" class="meta">
+              {{ t("窗口内容已截断，请滚动后重新观察。") }}
+            </p>
             <label
               v-if="
                 state.observation.elements.some((item) => item.actions.length)
@@ -204,7 +210,7 @@ function receipt(status: string) {
                   :key="item.id"
                   :value="item.id"
                 >
-                  {{ item.label }}
+                  {{ item.role }} · {{ item.label }}
                 </option>
               </select>
             </label>
@@ -318,7 +324,21 @@ function receipt(status: string) {
               </figure>
               <div v-if="state.advice" role="status">
                 <strong>{{ t("模型建议") }}</strong>
-                <p class="desktop-advice">{{ state.advice }}</p>
+                <p class="desktop-advice">{{ state.advice.text }}</p>
+                <p v-if="state.advice.risk" class="meta">
+                  {{ t("风险") }}: {{ state.advice.risk }}
+                </p>
+                <ul v-if="state.advice.references.length" class="desktop-advice-refs">
+                  <li
+                    v-for="ref in state.advice.references"
+                    :key="ref.elementId"
+                  >
+                    <code>#{{ ref.elementId }}</code> {{ ref.label }} —
+                    {{ ref.reason }}
+                    <small>{{ Math.round(ref.confidence * 100) }}%</small>
+                  </li>
+                </ul>
+                <p class="meta">{{ t("建议不会自动执行。") }}</p>
               </div>
             </div>
           </details>

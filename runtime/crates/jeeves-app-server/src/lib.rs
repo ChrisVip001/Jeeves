@@ -26,6 +26,7 @@ mod connector_oauth;
 mod connector_settings;
 mod connector_tools;
 mod connector_wait;
+mod control_lease;
 mod desktop;
 mod devices;
 mod dispatch;

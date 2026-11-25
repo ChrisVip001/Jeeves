@@ -861,5 +861,10 @@ Hosted tools, native compaction and asynchronous API tools are still unsupported
 | `JEEVES_BROWSER_RUNTIME` | unset | Self-contained components prepared by `just browser-runtime`; without installation browser tools are absent. Browser-enabled desktop bundles locate their own resources |
 | `JEEVES_DESKTOP_HELPER` | unset | Absolute path to the trusted macOS window helper. The packaged Mac shell locates its bundled helper for its local Runtime. See [single-window operation](protocol.md#macos-single-window-operation) for development. |
 | `JEEVES_BROWSER_HEADLESS` | `0` | Tests only; no visible window exists and human takeover is explicitly refused |
+| `JEEVES_BROWSER_CDP_ATTACH` | `0` | Allow attaching to an already open browser through a literal loopback CDP endpoint (`http://127.0.0.1` / `ws://127.0.0.1` / `[::1]`) |
 
 The Web UI controls a browser on the Runtime machine. Remote interactive viewing is not included.
+
+A browser can be opened with a login profile name (letters, digits, `-` and `_`, at most 64 characters). The name adopts that profile's saved cookies and local storage into the new task context. Only the human operator may save or forget a profile while in control; the Runtime stores the state through the credential vault, never exposes it to the model, and keeps it scoped to that owner. Emergency stop and profile forgetting revoke the saved state for future browsers; an open browser still needs a fresh observation after control returns.
+
+With `JEEVES_BROWSER_CDP_ATTACH=1`, the cockpit can attach to an already open browser through a literal loopback CDP endpoint. The operator must start that browser with debugging enabled; Jeeves reserves it for one task, disconnects rather than closing it, and still enforces origin scope, generation and human takeover. Attached mode cannot use the Runtime's local DNS-pinning proxy, so only allow origins you trust and close the debug port when you are done.

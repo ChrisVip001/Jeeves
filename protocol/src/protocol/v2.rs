@@ -3031,6 +3031,14 @@ pub struct BrowserDownloadsResponse {
     pub downloads: Vec<BrowserDownloadView>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct ControlLeaseRef {
+    pub lease_id: String,
+    pub epoch: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
@@ -3048,6 +3056,24 @@ pub struct DesktopElement {
     pub id: i32,
     pub label: String,
     pub actions: Vec<DesktopAction>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub subrole: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub focused: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub bounds: Option<BrowserRect>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3057,6 +3083,12 @@ pub struct DesktopObservation {
     pub observation_id: String,
     pub window: String,
     pub elements: Vec<DesktopElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub truncated: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3070,6 +3102,9 @@ pub struct DesktopActParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional=nullable)]
     pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3079,6 +3114,9 @@ pub struct DesktopReceipt {
     pub id: String,
     pub status: String,
     pub action: DesktopAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3089,6 +3127,9 @@ pub struct DesktopStatus {
     pub selected: bool,
     pub screen_profile: Option<String>,
     pub receipts: Vec<DesktopReceipt>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3105,6 +3146,9 @@ pub struct DesktopModelParams {
 pub struct DesktopFrameParams {
     pub task_id: String,
     pub observation_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3123,13 +3167,30 @@ pub struct DesktopShareParams {
     pub task_id: String,
     pub frame_id: String,
     pub confirmed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct DesktopAdviceReference {
+    pub element_id: i32,
+    pub label: String,
+    pub reason: String,
+    pub confidence: f64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct DesktopAdvice {
     pub text: String,
+    #[serde(default)]
+    pub references: Vec<DesktopAdviceReference>,
+    #[serde(default)]
+    pub risk: String,
+    pub frame_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3181,6 +3242,22 @@ pub struct BrowserListResponse {
     pub available: bool,
     pub sessions: Vec<BrowserSessionView>,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum BrowserProviderKind {
+    Local,
+    CdpAttach,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct BrowserProviderSpec {
+    pub kind: BrowserProviderKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub endpoint: Option<String>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
@@ -3191,6 +3268,12 @@ pub struct BrowserStartParams {
     pub origins: Vec<String>,
     #[serde(default)]
     pub allow_localhost: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub profile_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub provider: Option<BrowserProviderSpec>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -3210,6 +3293,8 @@ pub enum BrowserControlAction {
     Pause,
     Close,
     AllowOrigin,
+    SaveProfile,
+    ForgetProfile,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -3224,6 +3309,15 @@ pub struct BrowserSessionView {
     pub title: String,
     pub observed_at: Option<String>,
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub profile_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub lease: Option<ControlLeaseRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub handoff_reason: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -3235,6 +3329,16 @@ pub struct BrowserFrameResponse {
     pub data_url: String,
     pub observed_at: String,
 }
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct BrowserRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
@@ -3242,6 +3346,18 @@ pub struct BrowserElement {
     pub reference: String,
     pub role: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub disabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checked: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub bounds: Option<BrowserRect>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -3253,6 +3369,9 @@ pub struct BrowserObservation {
     pub document_version: i32,
     pub elements: Vec<BrowserElement>,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub truncated: Option<bool>,
     pub collected_at: String,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -3284,12 +3403,21 @@ pub struct BrowserActInput {
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub enum BrowserWorkerCommand {
     Hello,
+    Batch {
+        generation: i32,
+        expires_at: String,
+        steps: Vec<BrowserActInput>,
+    },
     Launch {
         url: String,
         origins: Vec<String>,
         allow_localhost: bool,
         headless: bool,
         generation: i32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        storage_state: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cdp_endpoint: Option<String>,
     },
     Observe,
     Act {
@@ -3335,6 +3463,19 @@ pub struct BrowserWorkerState {
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct BrowserBatchReceipt {
+    pub index: i32,
+    pub kind: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub error: Option<String>,
+    pub uncertain: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct BrowserWorkerResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
@@ -3346,6 +3487,12 @@ pub struct BrowserWorkerResponse {
     pub id: i32,
     pub state: Option<BrowserWorkerState>,
     pub frame: Option<BrowserFrameResponse>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub batch: Option<Vec<BrowserBatchReceipt>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub profile: Option<String>,
     pub error: Option<String>,
     pub uncertain: bool,
 }

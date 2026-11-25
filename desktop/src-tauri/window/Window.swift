@@ -65,6 +65,12 @@ struct Control {
   let element: AXUIElement
   let label: String
   let actions: [String]
+  let role: String
+  let subrole: String
+  let enabled: Bool
+  let focused: Bool
+  let value: String?
+  let rect: CGRect?
 }
 @MainActor final class Scope {
   var app: AXUIElement?
@@ -178,7 +184,18 @@ struct Control {
       [string(node, kAXTitleAttribute), string(node, kAXDescriptionAttribute), role].first {
         !$0.isEmpty
       } ?? role
-    return Control(element: node, label: String(label.prefix(160)), actions: actions)
+    let value = role == kAXTextFieldRole ? string(node, kAXValueAttribute) : ""
+    return Control(
+      element: node,
+      label: String(label.prefix(160)),
+      actions: actions,
+      role: role,
+      subrole: sub,
+      enabled: true,
+      focused: (attribute(node, kAXFocusedAttribute) as? Bool) ?? false,
+      value: value.isEmpty ? nil : String(value.prefix(200)),
+      rect: bounds(node)
+    )
   }
   // AppKit scrollers can expose only a writable thumb position, with an implicit 0...1 range.
   func scrollPosition(_ node: AXUIElement) -> (value: Double, range: ClosedRange<Double>)? {
@@ -210,7 +227,7 @@ struct Control {
     _ = try checked()
     return AXUIElementSetAttributeValue(node, kAXValueAttribute as CFString, NSNumber(value: next))
   }
-  func scan(_ root: AXUIElement) -> [Control] {
+  func scan(_ root: AXUIElement) -> ([Control], Bool) {
     var result: [Control] = []
     var queue = [root]
     var offset = 0
@@ -228,19 +245,33 @@ struct Control {
         queue.append(contentsOf: children as? [AXUIElement] ?? [])
       }
     }
-    return result
+    return (result, result.count >= 128 || offset < queue.count)
   }
   func observe() throws -> Object {
     let root = try checked()
-    controls = scan(root)
+    let (found, truncated) = scan(root)
+    controls = found
     _ = try checked()
     observation = UUID().uuidString
     return [
       "kind": "observed",
       "observation": [
         "observationId": observation, "window": String(string(root, kAXTitleAttribute).prefix(256)),
-        "elements": controls.enumerated().map {
-          ["id": $0.offset, "label": $0.element.label, "actions": $0.element.actions] as Object
+        "truncated": truncated,
+        "elements": controls.enumerated().map { index, control in
+          var rect: Object? = nil
+          if let r = control.rect {
+            rect = [
+              "x": Int(r.origin.x), "y": Int(r.origin.y),
+              "width": Int(r.size.width), "height": Int(r.size.height),
+            ]
+          }
+          return [
+            "id": index, "label": control.label, "actions": control.actions,
+            "role": control.role, "subrole": control.subrole,
+            "enabled": control.enabled, "focused": control.focused,
+            "value": control.value as Any, "bounds": rect as Any,
+          ] as Object
         },
       ] as Object,
     ]
@@ -254,7 +285,7 @@ struct Control {
     let ref = controls[id]
     observation = ""
     guard ref.actions.contains(action),
-      scan(root).contains(where: {
+      scan(root).0.contains(where: {
         CFEqual($0.element, ref.element) && $0.label == ref.label && $0.actions.contains(action)
       }),
       let owner = elementAttribute(ref.element, kAXTopLevelUIElementAttribute), CFEqual(owner, root)

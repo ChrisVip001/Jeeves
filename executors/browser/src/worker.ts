@@ -17,6 +17,8 @@ const info = {
     "click",
     "fill",
     "scroll",
+    "batch",
+    "cdpAttach",
     "frame",
     "control",
   ],
@@ -62,6 +64,7 @@ lines.on("line", (line) => {
           "download",
           "observe",
           "act",
+          "batch",
         ].includes(request.command.kind)
       )
         throw Error("Invalid request");
@@ -85,6 +88,7 @@ lines.on("line", (line) => {
         info,
         state: session.state(),
         frame: null,
+        batch: (error as { receipts?: BrowserWorkerResponse["batch"] }).receipts ?? null,
         error: String(error).slice(0, 500),
         uncertain: error instanceof ActionFailure && error.uncertain,
       };
