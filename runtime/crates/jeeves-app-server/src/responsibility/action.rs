@@ -111,20 +111,25 @@ const DIGEST: Adapter = Adapter {
     },
     describe: |value| {
         let config: Digest = decode(value)?;
-        let labels = match &config.sources {
+        let mut details = match &config.sources {
             DigestSources::Named(s) => {
                 digest::validate(s, &config.options)?;
-                s.clone()
+                vec![s.join(", ")]
             }
             DigestSources::Generic(s) => {
                 digest::validate_generic(s, &config.options)?;
-                s.iter().map(|source| source.label.clone()).collect()
+                s.iter()
+                    .map(|source| {
+                        format!(
+                            "{}: {} {}",
+                            source.label, source.fetch.tool, source.fetch.args
+                        )
+                    })
+                    .collect()
             }
         };
-        Ok(vec![
-            labels.join(", "),
-            format!("{:?}", config.options.calendar_window),
-        ])
+        details.push(format!("{:?}", config.options.calendar_window));
+        Ok(details)
     },
     preflight: |server, value| {
         let config: Digest = decode(value)?;

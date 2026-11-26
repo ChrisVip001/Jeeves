@@ -239,7 +239,9 @@ lists several sources, each an approved read-only tool plus arguments, or the ea
 calendar/task/mail sources for compatibility. A record action can test the incoming event, the
 latest signed record within a freshness limit, or a record fetched from an approved read-only tool
 on each run. The review card names the exact tool, arguments, comparison, units or fields, and
-destination. The `capabilities` result lists every available read tool with its input schema.
+destination. For a digest with several read tools, the card shows each tool and its fixed arguments
+alongside its source label. The `capabilities` result lists every available read tool with its input
+schema.
 
 A model draft can reference a reviewed version of an installed skill. The owner separately enables
 the source and connector capabilities. Adding a task from existing capabilities requires no engine

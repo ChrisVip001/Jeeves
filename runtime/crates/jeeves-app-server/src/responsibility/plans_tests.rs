@@ -81,6 +81,78 @@ async fn a_plan_stays_in_review_until_a_human_activates_it() {
 }
 
 #[tokio::test]
+async fn a_private_morning_digest_stays_in_the_duty_history() {
+    let home = tempfile::tempdir().unwrap();
+    let server = test_server(&home).await;
+    sqlx::query("INSERT INTO agent_tasks(id,title,status) VALUES('open','Open morning item','pending'),('done','Finished morning item','done')")
+        .execute(&server.pool)
+        .await
+        .unwrap();
+    let proposal = reviews::tool(
+        server.clone(),
+        "morning-review".into(),
+        "每天早上八点把未完成事项整理成私密草稿。".into(),
+    );
+    let response = (proposal.handler)(
+        server.tool_ctx(crate::MAIN_SESSION, None, None),
+        json!({"action":"create","id":"private-morning","fields":{"purpose":"Private morning digest","plan":{
+            "trigger":{"kind":"cron","expression":"0 8 * * *","timeZone":"Asia/Shanghai"},
+            "action":{"kind":"digest","version":1,"config":{"sources":["openTasks"],
+                "options":{"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"list"}}},
+            "delivery":{"kind":"draft"}}}}),
+    )
+    .await
+    .unwrap();
+    let review: jeeves_protocol::ResponsibilityReview = serde_json::from_str(&response).unwrap();
+    assert_eq!(review.presentation.unwrap().delivery, "Private draft");
+    assert!(
+        list(&server, Utc::now())
+            .await
+            .unwrap()
+            .responsibilities
+            .is_empty()
+    );
+    let preview = sample(&server, review.contract, Utc::now()).await.unwrap();
+    assert!(preview.contains("Open morning item") && !preview.contains("Finished morning item"));
+    reviews::decide(
+        &server,
+        ResponsibilityDecision {
+            id: review.id,
+            accept: true,
+        },
+    )
+    .await
+    .unwrap();
+    let due =
+        sqlx::query_scalar("SELECT next_due_ms FROM responsibilities WHERE id='private-morning'")
+            .fetch_one(&server.pool)
+            .await
+            .unwrap();
+    let at = DateTime::from_timestamp_millis(due).unwrap();
+    tick(&server, at).await.unwrap();
+    let work = jeeves_state::responsibility_runs::take(&server.pool, due)
+        .await
+        .unwrap()
+        .unwrap();
+    let (sink, _rx) = crate::EventSink::channel();
+    worker::process(&server, &sink, &work).await.unwrap();
+    tick(&server, at).await.unwrap();
+    let runs = worker::reports(&server, "private-morning")
+        .await
+        .unwrap()
+        .reports;
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].status, "draft");
+    assert_eq!(runs[0].body.as_deref(), Some(preview.as_str()));
+    let chat_rows: i64 = sqlx::query_scalar("SELECT count(*) FROM chat_log WHERE source=?")
+        .bind(&work.wake_key)
+        .fetch_one(&server.pool)
+        .await
+        .unwrap();
+    assert_eq!(chat_rows, 0);
+}
+
+#[tokio::test]
 async fn event_admission_preserves_the_cursor_when_a_wake_cannot_commit() {
     let home = tempfile::tempdir().unwrap();
     std::fs::write(
@@ -173,7 +245,7 @@ async fn scheduled_records_check_the_latest_signed_observation() {
     std::fs::write(
         home.path().join("webhooks.json"),
         json!({"hooks":[{"name":"observations","event_type":"reading","signature":true,
-            "event_fields":{"totalMinor":"integer","reference":"string"}}]})
+            "event_fields":{"totalMinor":"integer","currency":"string","variant":"string","reference":"string"}}]})
         .to_string(),
     )
     .unwrap();
@@ -185,7 +257,9 @@ async fn scheduled_records_check_the_latest_signed_observation() {
     let plan = json!({
         "trigger":{"kind":"every","intervalSeconds":60},
         "action":{"kind":"records.evaluate","version":1,"config":{
-            "all":[{"field":"totalMinor","op":"lt","value":180000}],
+            "all":[{"field":"totalMinor","op":"lt","value":180000},
+                {"field":"currency","op":"eq","value":"CNY"},
+                {"field":"variant","op":"eq","value":"256 GB"}],
             "include":["reference"],"message":"A reading is below the limit",
             "snapshot":{"source":"observations","eventType":"reading","maxAgeSeconds":180}
         }},
@@ -208,23 +282,78 @@ async fn scheduled_records_check_the_latest_signed_observation() {
     .await
     .unwrap();
     let (sink, _rx) = crate::EventSink::channel();
-    for (event_id, previous_cursor, value, expected) in [
-        ("at-limit", None, 180000, "skipped"),
-        ("below-limit", Some("at-limit"), 179999, "confirmed"),
+    let mut due: i64 =
+        sqlx::query_scalar("SELECT next_due_ms FROM responsibilities WHERE id='check-reading'")
+            .fetch_one(&server.pool)
+            .await
+            .unwrap();
+    for (event_id, previous_cursor, value, variant, expected) in [
+        ("at-limit", None, 180000, "256 GB", "skipped"),
+        (
+            "below-limit",
+            Some("at-limit"),
+            179999,
+            "256 GB",
+            "confirmed",
+        ),
+        (
+            "old-limit-only",
+            Some("below-limit"),
+            175000,
+            "256 GB",
+            "skipped",
+        ),
+        (
+            "wrong-variant",
+            Some("old-limit-only"),
+            159999,
+            "128 GB",
+            "skipped",
+        ),
+        (
+            "new-match",
+            Some("wrong-variant"),
+            169999,
+            "256 GB",
+            "confirmed",
+        ),
     ] {
+        if event_id == "old-limit-only" {
+            let mut revised = serde_json::to_value(
+                list(&server, now).await.unwrap().responsibilities[0]
+                    .contract
+                    .plan
+                    .as_ref()
+                    .unwrap(),
+            )
+            .unwrap();
+            revised["action"]["config"]["all"][0]["value"] = json!(170000);
+            let proposal = reviews::tool(
+                server.clone(),
+                "new-limit".into(),
+                "Lower the limit to 1700".into(),
+            );
+            (proposal.handler)(server.tool_ctx(crate::MAIN_SESSION, None, None), json!({
+                "action":"amend","id":"check-reading","expectedRevision":1,"fields":{"plan":revised}
+            })).await.unwrap();
+            reviews::decide(
+                &server,
+                ResponsibilityDecision {
+                    id: "new-limit".into(),
+                    accept: true,
+                },
+            )
+            .await
+            .unwrap();
+        }
         let event = serde_json::from_value(json!({
             "source":"observations","eventType":"reading","eventId":event_id,
             "cursor":event_id,"previousCursor":previous_cursor,"occurredAt":now.to_rfc3339(),
-            "fields":{"totalMinor":value,"reference":"signed-receipt"}
+            "fields":{"totalMinor":value,"currency":"CNY","variant":variant,"reference":"signed-receipt"}
         }))
         .unwrap();
         let event_receipt = events::admit(&server, event, now).await.unwrap();
         assert_eq!(event_receipt.admitted, 0);
-        let due: i64 =
-            sqlx::query_scalar("SELECT next_due_ms FROM responsibilities WHERE id='check-reading'")
-                .fetch_one(&server.pool)
-                .await
-                .unwrap();
         tick(&server, DateTime::from_timestamp_millis(due).unwrap())
             .await
             .unwrap();
@@ -240,10 +369,32 @@ async fn scheduled_records_check_the_latest_signed_observation() {
             let body = run.body.as_deref().unwrap();
             assert!(
                 body.contains("signed-receipt")
-                    && body.contains("observations/reading/below-limit")
+                    && body.contains(&format!("observations/reading/{event_id}"))
             );
         }
+        tick(&server, DateTime::from_timestamp_millis(due).unwrap())
+            .await
+            .unwrap();
+        assert!(
+            jeeves_state::responsibility_runs::take(&server.pool, due)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        due += 60_000;
     }
+    let reports = worker::reports(&server, "check-reading")
+        .await
+        .unwrap()
+        .reports;
+    assert_eq!(reports.len(), 5);
+    let deliveries: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM chat_log WHERE source LIKE 'responsibility:check-reading:%'",
+    )
+    .fetch_one(&server.pool)
+    .await
+    .unwrap();
+    assert_eq!(deliveries, 2);
     let calls: i64 = sqlx::query_scalar("SELECT count(*) FROM model_requests")
         .fetch_one(&server.pool)
         .await
@@ -268,10 +419,11 @@ fn the_catalog_exposes_fetch_and_read_tools_without_hardcoded_sources() {
 }
 
 #[test]
-fn digest_accepts_generic_fetch_sources_alongside_named_ones() {
+fn digest_review_shows_the_reads_behind_each_label() {
     let config = json!({
         "sources":[
-            {"label":"Recent mail","tool":"email_read","args":{"limit":5}}
+            {"label":"Recent mail","tool":"email_read","args":{"limit":5}},
+            {"label":"Calendar","tool":"calendar_list","args":{"limit":10}}
         ],
         "options":{"timeZone":"Asia/Shanghai","calendarWindow":"today","layout":"list"}
     });
@@ -282,7 +434,8 @@ fn digest_accepts_generic_fetch_sources_alongside_named_ones() {
     })
     .unwrap();
     let details = (adapter.describe)(&config).unwrap();
-    assert!(details.iter().any(|line| line.contains("Recent mail")));
+    assert!(details.contains(&r#"Recent mail: email_read {"limit":5}"#.into()));
+    assert!(details.contains(&r#"Calendar: calendar_list {"limit":10}"#.into()));
 }
 
 #[test]
