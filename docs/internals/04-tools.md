@@ -212,6 +212,7 @@ HTML is converted to text by the module's own converter. The body is wrapped by 
 For current offers, the tool guidance asks the model to verify amount, currency, item, local date, and relevant scope in the same listing or clearly scoped section. It distinguishes indicative prices and schedules from verified checkout totals and availability; it is not a structured quote validator.
 
 **`search_web`** (`query`, `max_results` default 5): each turn may make at most `JEEVES_SEARCH_MAX_PER_TURN` calls (default 20, clamped 1–200).
+For an approximate schedule time, opt in with `approximate_time` matching exactly one literal `HH:MM` in the dated route query. Jeeves keeps the original query and adds one timetable query that replaces only the clock time with a 30-minute window on either side, clipped to the same day; this discovers candidates, not booking or seat-map confirmation. Omit the field for strict departure bounds.
 In production app-server first tries the Parallel search MCP handler for both `search_web` and `fetch_url` (connected on first use; a failure cools it down for 60 s and the built-in path answers).
 The built-in path uses Tavily (`TAVILY_API_KEY` or `JEEVES_SEARCH_API_KEY`) and Brave (`BRAVE_API_KEY`) when keyed; with no key it uses DuckDuckGo and then Bing (`JEEVES_SEARCH_DDG=0` / `JEEVES_SEARCH_BING=0` turn them off).
 When no backend is usable the tool is not registered and stderr says why. Results are wrapped by `report::as_search_results`.

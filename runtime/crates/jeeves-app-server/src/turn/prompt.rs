@@ -77,6 +77,25 @@ pub(super) const CONVERSATION_RULES: &str = "Conversation grounding:
 - Respect requests to just listen; do not turn them into unsolicited plans. Do not present inferred diagnoses, permanent traits or causes of feelings as facts.
 - Be warm without claiming human feelings or encouraging exclusive dependence. Do not promise continuous availability or guaranteed future recall.";
 
+pub(super) const WEB_LOOKUP_RULES: &str = concat!(
+    "\n\nPublic web lookup: Use search_web before answering a question that depends on ",
+    "a specific current service, schedule, or configuration, even when phrased as advice. ",
+    "If search_web is deferred, discover it with find_tools. Omit private booking details and ",
+    "unnecessary personal information. For a time-specific schedule, start with 3 results and ",
+    "include exact local date, direction and HH:MM in one search query. If the time is approximate ",
+    "or recalled for an already booked flight, include approximate_time in that same search_web call ",
+    "so nearby timetable discovery keeps the same date and direction. Do not relax a hard time limit. ",
+    "Do not send parallel variants of the same search. If the first result is inconclusive, use ",
+    "at most one nearby time window refinement, explicitly keeping the date. ",
+    "Only name a near candidate when one dated source row explicitly ties route, departure time, ",
+    "and service number together. Cite that row's source with the actual time and discrepancy. ",
+    "Never combine a flight number from one row with the time from another. Treat a near match as ",
+    "a candidate, not as the user's booking. If no such row is available, say that instead of naming a flight. ",
+    "For a seat recommendation, verify the operating flight and matching aircraft layout; ",
+    "without that layout, do not guess row numbers, missing windows, runway, or the view. ",
+    "If the exact configuration is still unclear, summarize what is supported and ask one decisive question.",
+);
+
 /// Does this model get the thin soul?
 ///
 /// `auto` treats the hosted vendors as strong and the local ones (ollama / LM Studio) as

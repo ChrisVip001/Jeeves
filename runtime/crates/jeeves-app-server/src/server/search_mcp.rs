@@ -17,6 +17,13 @@ const COOLDOWN: Duration = Duration::from_mins(1);
 /// Share excerpt budget across distinct hits without dropping follow-up URLs. Fetch has a separate cap.
 const SEARCH_EXCERPT_BUDGET: usize = 4_000;
 const MAX_SEARCH_EXCERPT: usize = 2_000;
+const SCHEDULE_OBJECTIVE: &str = concat!(
+    "For schedules, prioritize sources whose rows identify the exact local date (or a valid ",
+    "dated schedule with matching weekday), direction, departure time, and operating service ",
+    "number together. If the requested time has no exact match, include nearby same-date, ",
+    "same-direction rows with actual times. Never splice fields across rows or treat ",
+    "the reverse direction, another date, or a historical instance as a match.",
+);
 const OFFER_OBJECTIVE: &str = concat!(
     "For current prices or availability, prioritize direct listings with actionable quotes ",
     "for the exact local date, item, and currency. Keep amount, currency, date, identifying ",
@@ -86,14 +93,25 @@ async fn execute(state: &Mutex<State>, home: &Path, args: Value) -> Result<Strin
 fn request(args: &Value) -> Result<(&'static str, Value)> {
     if let Some(query) = args.get("query").and_then(Value::as_str) {
         ensure!(!query.trim().is_empty(), "Search query must not be empty");
+        let mut queries = vec![query];
+        if let Some(nearby) = args.get("nearby_query").and_then(Value::as_str)
+            && !nearby.is_empty()
+            && nearby != query
+        {
+            queries.push(nearby);
+        }
+        let objective = if queries.len() == 2 {
+            format!(
+                "Find dated timetable or flight-status rows for {query}, not general route announcements. The second query looks for nearby departures without changing date or direction. Return the closest available rows, showing local time, service number, and a date or applicable weekday.\n{SCHEDULE_OBJECTIVE}"
+            )
+        } else {
+            format!(
+                "Find reliable primary sources for: {query}\n{SCHEDULE_OBJECTIVE}\n{OFFER_OBJECTIVE}"
+            )
+        };
         Ok((
             "web_search",
-            json!({
-                "objective": format!(
-                    "Find reliable primary sources for: {query}\n{OFFER_OBJECTIVE}"
-                ),
-                "search_queries": [query]
-            }),
+            json!({"objective": objective, "search_queries": queries}),
         ))
     } else {
         let url = args

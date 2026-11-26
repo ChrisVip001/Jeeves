@@ -27,6 +27,31 @@ fn fresh_lookup_prioritizes_dated_offer_evidence_without_rewriting_queries() {
 }
 
 #[test]
+fn schedule_lookup_keeps_the_query_and_asks_for_coherent_nearby_rows() {
+    let query = "2030-11-08 甲城到乙城 06:15 至 06:45 客运时刻表";
+    let (_, args) = request(&json!({"query": query, "max_results": 3})).unwrap();
+    assert_eq!(args["search_queries"], json!([query]));
+    let objective = args["objective"].as_str().unwrap();
+    assert!(objective.contains("operating service number together"));
+    assert!(objective.contains("nearby same-date, same-direction rows"));
+    assert!(objective.contains("Never splice fields across rows"));
+}
+
+#[test]
+fn approximate_time_sends_exact_and_alternate_in_the_same_request() {
+    let query = "2030-11-08 甲城到乙城 06:30";
+    let nearby = "2030-11-08 甲城到乙城 06:00 to 07:00 timetable";
+    let (_, args) = request(&json!({"query":query, "nearby_query":nearby})).unwrap();
+    assert_eq!(args["search_queries"], json!([query, nearby]));
+    assert!(
+        args["objective"]
+            .as_str()
+            .unwrap()
+            .contains("closest available rows")
+    );
+}
+
+#[test]
 fn malformed_empty_error_and_wrong_fetch_results_fail_closed() {
     for text in ["not JSON", "{}", r#"{"error":"quota"}"#] {
         assert!(render(text, &json!({"query":"Tokio"})).is_err(), "{text}");

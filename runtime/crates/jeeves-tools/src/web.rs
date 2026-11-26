@@ -74,7 +74,7 @@ fn search_url_key(mut url: reqwest::Url) -> String {
     url.to_string()
 }
 
-type SearchKey = (String, u32);
+type SearchKey = (String, u32, Option<String>);
 type SearchResult = Arc<OnceCell<String>>;
 
 /// Ignore duplicate ASCII separators in plain search keys, not in quoted or escaped searches.
@@ -117,13 +117,18 @@ impl TurnLimits {
         &self,
         query: &str,
         max_results: u32,
+        nearby: Option<&str>,
         fetch: impl Future<Output = Result<String>>,
     ) -> Result<String> {
         let result = self
             .successes
             .lock()
             .map_err(|_| anyhow::anyhow!("Search result cache is unavailable"))?
-            .entry((search_query_key(query), max_results))
+            .entry((
+                search_query_key(query),
+                max_results,
+                nearby.map(search_query_key),
+            ))
             .or_default()
             .clone();
         result.get_or_try_init(|| fetch).await.cloned()
@@ -657,6 +662,51 @@ pub fn search_web() -> Tool {
     search_web_with_primary(None)
 }
 
+pub(super) fn nearby_schedule_query(query: &str, time: &str) -> Result<String> {
+    let valid = time.len() == 5
+        && time.as_bytes()[2] == b':'
+        && time
+            .bytes()
+            .enumerate()
+            .all(|(i, b)| i == 2 || b.is_ascii_digit())
+        && time[..2].parse::<u8>().is_ok_and(|h| h < 24)
+        && time[3..].parse::<u8>().is_ok_and(|m| m < 60);
+    anyhow::ensure!(valid, "approximate_time must be HH:MM");
+    let mut matches = query.match_indices(time).filter(|(start, _)| {
+        let end = start + time.len();
+        !query[..*start]
+            .bytes()
+            .next_back()
+            .is_some_and(|b| b.is_ascii_digit() || b == b':')
+            && !query[end..]
+                .bytes()
+                .next()
+                .is_some_and(|b| b.is_ascii_digit() || b == b':')
+    });
+    let (start, _) = matches
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("Include approximate_time literally in the dated query"))?;
+    anyhow::ensure!(
+        matches.next().is_none(),
+        "Include approximate_time only once in the dated query"
+    );
+    let mut nearby = query.to_string();
+    let hh = u32::from(time.as_bytes()[0] - b'0') * 10 + u32::from(time.as_bytes()[1] - b'0');
+    let mm = u32::from(time.as_bytes()[3] - b'0') * 10 + u32::from(time.as_bytes()[4] - b'0');
+    let minute = hh * 60 + mm;
+    let lo = minute.saturating_sub(30);
+    let hi = (minute + 30).min(23 * 60 + 59);
+    let window = format!(
+        "{:02}:{:02} to {:02}:{:02} timetable",
+        lo / 60,
+        lo % 60,
+        hi / 60,
+        hi % 60
+    );
+    nearby.replace_range(start..start + time.len(), &window);
+    Ok(nearby)
+}
+
 pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
     Tool {
         name: "search_web".to_string(),
@@ -666,7 +716,8 @@ pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Focused search terms; use site:example.com to target primary sources. Refine the query if results are irrelevant."},
-                "max_results": {"type": "integer", "description": "how many at most, 5 by default"}
+                "max_results": {"type": "integer", "description": "how many at most, 5 by default"},
+                "approximate_time": {"type": "string", "description": "For a schedule lookup with a flexible or remembered time, supply the same HH:MM literal used in query (e.g. 06:30). Runs exact and nearby timetable discovery while keeping all other query terms. Never set this for a strict time requirement."}
             },
             "required": ["query"]
         }),
@@ -684,9 +735,14 @@ pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
                 let query = query.trim();
                 anyhow::ensure!(!query.is_empty(), "Search query must not be empty");
                 let max_results = opt_u32(&args, "max_results", 5)?.clamp(1, 10);
+                let nearby = args.get("approximate_time").map(|value| {
+                    let time = value.as_str().ok_or_else(|| anyhow::anyhow!("approximate_time must be a string"))?;
+                    nearby_schedule_query(query, time)
+                }).transpose()?;
+                let nearby = nearby.as_deref();
                 let limits = ctx.turn_limits.clone();
                 limits
-                    .search_once(query, max_results, search_uncached(&primary, ctx, query, max_results))
+                    .search_once(query, max_results, nearby, search_uncached(&primary, ctx, query, max_results, nearby))
                     .await
             })
         }),
@@ -698,16 +754,15 @@ async fn search_uncached(
     ctx: ToolCtx,
     query: &str,
     max_results: u32,
+    nearby: Option<&str>,
 ) -> Result<String> {
     let task_dir = ctx.task_run_id.as_ref().and(ctx.cwd.clone());
 
-    if let Some(text) = primary::call(
-        primary,
-        ctx,
-        json!({"query": query, "max_results": max_results}),
-    )
-    .await
-    {
+    let mut request = json!({"query": query, "max_results": max_results});
+    if let Some(nearby) = nearby {
+        request["nearby_query"] = json!(nearby);
+    }
+    if let Some(text) = primary::call(primary, ctx, request).await {
         if let Some(dir) = task_dir.as_deref() {
             for url in text
                 .lines()
@@ -727,9 +782,39 @@ async fn search_uncached(
             "no search backend available (no key, and both Bing and DDG are switched off). Configure a key (TAVILY_API_KEY / BRAVE_API_KEY), or re-enable JEEVES_SEARCH_BING / JEEVES_SEARCH_DDG."
         ));
     }
-    let (engine, hits) = match search_backends(&plan, query, max_results).await {
-        Ok(result) => result,
-        Err(error) => {
+    let exact = search_backends(&plan, query, max_results);
+    let (exact, fallback) = if let Some(nearby) = nearby {
+        let (exact, alternate) = tokio::join!(exact, search_backends(&plan, nearby, max_results));
+        (exact, alternate.ok())
+    } else {
+        (exact.await, None)
+    };
+    let (engine, hits) = match (exact, fallback) {
+        (Ok((engine, hits)), None) => (engine, hits),
+        (Err(_), Some(found)) => found,
+        (Ok((engine, exact)), Some((near_engine, near))) => {
+            let mut exact = exact.into_iter();
+            let mut near = near.into_iter();
+            let mut seen = std::collections::HashSet::new();
+            let hits = std::iter::from_fn(|| {
+                let pair = [exact.next(), near.next()];
+                pair.iter().any(Option::is_some).then_some(pair)
+            })
+            .flatten()
+            .flatten()
+            .filter(|(_, _, link)| {
+                seen.insert(search_source_key(link).unwrap_or_else(|| link.clone()))
+            })
+            .take(max_results as usize)
+            .collect();
+            let engine = if engine == near_engine {
+                engine
+            } else {
+                "combined search backends"
+            };
+            (engine, hits)
+        }
+        (Err(error), None) => {
             return Err(anyhow::anyhow!(
                 "web search returned no usable results ({error}). Refine the query or use fetch_url with a known source URL. Report that search failed; do not invent search findings."
             ));

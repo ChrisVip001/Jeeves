@@ -165,14 +165,16 @@ mod tests {
         let limits = crate::web::TurnLimits::default();
         assert!(
             limits
-                .search_once("still relevant", 5, async {
+                .search_once("still relevant", 5, None, async {
                     anyhow::bail!("temporary search failure")
                 })
                 .await
                 .is_err()
         );
         let output = limits
-            .search_once("still relevant", 5, async { Ok("now available".into()) })
+            .search_once("still relevant", 5, None, async {
+                Ok("now available".into())
+            })
             .await
             .unwrap();
         assert_eq!(output, "now available");

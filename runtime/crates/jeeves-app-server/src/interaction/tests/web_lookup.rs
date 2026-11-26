@@ -224,3 +224,94 @@ async fn run_case(case: Case) {
     let failures = case.failures(replies[0], &web[1].output, &recorded.lock().unwrap(), tasks);
     assert!(failures.is_empty(), "{}: {failures:?}", case.id);
 }
+
+#[tokio::test]
+async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
+    let (_home, mut server, _) = setup().await;
+    let ask = "我订了 2030-11-08 早晨六点半从甲城到乙城的经济舱，哪个靠窗位不被机翼挡？";
+    let exact = "2030-11-08 甲城 乙城 06:30 航班";
+    let nearby = "2030-11-08 甲城 乙城 06:00 to 07:00 timetable 航班";
+    let url = "https://93.184.216.34/fixtures/seat-timetable";
+    let timetable =
+        "2030-11-08 甲城到乙城 QZ123 06:25，乙城到甲城 QZ456 06:30。未公布机型或客舱图。";
+    let recorded = Arc::new(Mutex::new(Vec::new()));
+    let calls = Arc::clone(&recorded);
+    let adapter: jeeves_tools::Handler = Arc::new(move |_, args| {
+        let calls = Arc::clone(&calls);
+        Box::pin(async move {
+            let output = match args["query"].as_str() {
+                Some(q) if q == exact && args["nearby_query"].as_str() == Some(nearby) => {
+                    format!("Source 1: Timetable\n{timetable}\nURL: {url}")
+                }
+                None if args["url"].as_str() == Some(url) => timetable.to_string(),
+                _ => panic!("unexpected fixture lookup"),
+            };
+            calls.lock().unwrap().push(args);
+            Ok(output)
+        })
+    });
+    let mut tools = server.tools.without("search_web").without("fetch_url");
+    tools.register(search_web_with_primary(Some(adapter.clone())));
+    tools.register(fetch_url_with_primary(Some(adapter)));
+    server.tools = Arc::new(tools);
+    let reply = format!(
+        "同日同向的候选是 [QZ123，06:25]({url})，比你记的早五分钟。没有核实机型和座位图，先不猜排号。"
+    );
+    let model = Arc::new(Mock::streaming(vec![
+        Mock::tool_use(
+            "nearby",
+            "search_web",
+            json!({"query":exact,"approximate_time":"06:30"}),
+        ),
+        Mock::tool_use("verify", "fetch_url", json!({"url":url})),
+        Mock::text(&reply),
+    ]));
+    server.install_provider(Resolved {
+        client: model.clone(),
+        model: "fixture".into(),
+        small_model: "fixture".into(),
+        provider_id: "mock".into(),
+        vision: false,
+        context_window: 32000,
+    });
+    let events = send(&server, ask, "nearby-flight", None).await.unwrap();
+    {
+        let requests = model.received.lock().unwrap();
+        assert_eq!(asked(&requests[0]), ask);
+        assert!(requests[0].tools.iter().any(|t| t.name == "search_web"));
+        let prompt = requests[0].system_text().unwrap();
+        for rule in [
+            "even when phrased as advice",
+            "nearby time window",
+            "same date and direction",
+            "explicitly keeping the date",
+            "a candidate, not as the user's booking",
+            "Never combine a flight number from one row with the time from another",
+            "Do not relax a hard time limit",
+            "do not guess row numbers",
+        ] {
+            assert!(prompt.contains(rule), "{rule}");
+        }
+        assert!(
+            requests[1]
+                .messages
+                .iter()
+                .flat_map(|m| &m.content)
+                .any(|b| {
+                    matches!(b, ContentBlock::ToolResult { tool_use_id, content }
+                if tool_use_id == "nearby" && content.contains("QZ123 06:25"))
+                })
+        );
+    }
+    assert_eq!(
+        *recorded.lock().unwrap(),
+        [
+            json!({"query":exact,"max_results":5,"nearby_query":nearby}),
+            json!({"url":url})
+        ]
+    );
+    assert!(events.iter().any(
+        |event| matches!(event, ServerNotification::TurnCompleted(done) if done.reply == reply)
+    ));
+    assert!(server.tasks.list(10).await.unwrap().is_empty());
+}

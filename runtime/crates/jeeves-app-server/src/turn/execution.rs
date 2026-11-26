@@ -311,6 +311,9 @@ pub(crate) async fn full_turn(
             instructions: instructions.as_deref(),
             capabilities: capabilities.as_deref(),
         });
+        if main_chat && turn_tools.get("search_web").is_some() {
+            prompt.tail.push_str(super::prompt::WEB_LOOKUP_RULES);
+        }
         prompt.tail.push_str(&chat_operations.prompt);
         prompt.tail.push_str(server.permission_note(session_id));
         prompt
