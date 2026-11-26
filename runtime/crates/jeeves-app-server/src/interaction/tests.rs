@@ -1,6 +1,7 @@
 mod deliverables;
 mod lookup;
 mod mail;
+mod recurring;
 mod scope;
 mod web_lookup;
 use super::*;

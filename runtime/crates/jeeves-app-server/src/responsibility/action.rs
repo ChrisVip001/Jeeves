@@ -191,6 +191,7 @@ fn adapters() -> &'static [Adapter] {
         super::model::ADAPTER,
         super::research::ADAPTER,
         super::records::ADAPTER,
+        super::collect::ADAPTER,
     ]
 }
 

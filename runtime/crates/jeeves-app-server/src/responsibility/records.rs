@@ -36,7 +36,7 @@ impl Snapshot {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Predicate {
+pub(super) struct Predicate {
     field: String,
     op: Operator,
     value: Value,
@@ -50,6 +50,42 @@ enum Operator {
     Contains,
     Lt,
     Gt,
+}
+
+impl Predicate {
+    pub(super) fn schema() -> Value {
+        json!({"type":"object","required":["field","op","value"],"additionalProperties":false,
+            "properties":{"field":{"type":"string"},"op":{"enum":["eq","in","contains","lt","gt"]},"value":{"description":"Literal comparison value in the source field format. Arrays for in; a scalar for contains."}}})
+    }
+
+    pub(super) fn validate(&self) -> Result<()> {
+        ensure!(
+            trigger::slug(&self.field),
+            "Conditions must reference declared field names"
+        );
+        let simple = |v: &Value| v.is_string() || v.is_boolean() || v.as_i64().is_some();
+        let valid = match self.op {
+            Operator::Eq | Operator::Contains => simple(&self.value),
+            Operator::In => self
+                .value
+                .as_array()
+                .is_some_and(|items| (1..=32).contains(&items.len()) && items.iter().all(simple)),
+            Operator::Lt | Operator::Gt => self.value.as_i64().is_some(),
+        };
+        ensure!(valid, "Invalid comparison value for {}", self.field);
+        Ok(())
+    }
+
+    pub(super) fn describe(&self) -> String {
+        let operation = match self.op {
+            Operator::Eq => "equals",
+            Operator::In => "is one of",
+            Operator::Contains => "contains",
+            Operator::Lt => "less than",
+            Operator::Gt => "greater than",
+        };
+        format!("{} {operation} {}", self.field, self.value)
+    }
 }
 
 fn config(value: &Value) -> Result<Conditions> {
@@ -69,20 +105,7 @@ fn config(value: &Value) -> Result<Conditions> {
         "Output fields must be declared field names"
     );
     for filter in &config.all {
-        ensure!(
-            trigger::slug(&filter.field),
-            "Conditions must reference declared field names"
-        );
-        let simple = |v: &Value| v.is_string() || v.is_boolean() || v.as_i64().is_some();
-        let valid = match filter.op {
-            Operator::Eq | Operator::Contains => simple(&filter.value),
-            Operator::In => filter
-                .value
-                .as_array()
-                .is_some_and(|items| (1..=32).contains(&items.len()) && items.iter().all(simple)),
-            Operator::Lt | Operator::Gt => filter.value.as_i64().is_some(),
-        };
-        ensure!(valid, "Invalid comparison value for {}", filter.field);
+        filter.validate()?;
     }
     if let Some(source) = &config.snapshot {
         ensure!(
@@ -102,7 +125,7 @@ pub(super) fn less_than(value: &Value, limit: &Value) -> bool {
         .is_some_and(|(value, limit)| value < limit)
 }
 
-fn verdict(record: &Value, filter: &Predicate) -> Result<bool> {
+pub(super) fn verdict(record: &Value, filter: &Predicate) -> Result<bool> {
     let value = record
         .get(&filter.field)
         .with_context(|| format!("Source did not supply {}", filter.field))?;
@@ -185,10 +208,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
         json!({
             "type":"object","required":["all","include","message"],"additionalProperties":false,
             "properties":{
-                "all":{"type":"array","minItems":1,"maxItems":8,"items":{
-                    "type":"object","required":["field","op","value"],"additionalProperties":false,
-                    "properties":{"field":{"type":"string"},"op":{"enum":["eq","in","contains","lt","gt"]},"value":{"description":"Literal comparison value in the source field format. Arrays for in; a scalar for contains."}}
-                }},
+                "all":{"type":"array","minItems":1,"maxItems":8,"items":Predicate::schema()},
                 "include":{"type":"array","maxItems":8,"items":{"type":"string"}},
                 "message":{"type":"string","description":"Literal introduction. The selected include fields are added separately; do not use placeholders."},
                 "snapshot":{"type":"object","description":"Use with a timer to check the latest signed record from an enabled event source.","required":["source","eventType","maxAgeSeconds"],"additionalProperties":false,"properties":{"source":{"type":"string"},"eventType":{"type":"string"},"maxAgeSeconds":{"type":"integer","minimum":60,"maximum":86400}}},
@@ -208,16 +228,7 @@ pub(super) const ADAPTER: Adapter = Adapter {
         if let Some(source) = config.source {
             details.push(format!("Read {} {}", source.tool, source.args));
         }
-        for filter in config.all {
-            let operation = match filter.op {
-                Operator::Eq => "equals",
-                Operator::In => "is one of",
-                Operator::Contains => "contains",
-                Operator::Lt => "less than",
-                Operator::Gt => "greater than",
-            };
-            details.push(format!("{} {operation} {}", filter.field, filter.value));
-        }
+        details.extend(config.all.iter().map(Predicate::describe));
         if !config.include.is_empty() {
             details.push(format!("Show: {}", config.include.join(", ")));
         }

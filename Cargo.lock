@@ -1300,6 +1300,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "deunicode",
+ "futures-util",
  "iana-time-zone",
  "jeeves-agent",
  "jeeves-config",

@@ -23,8 +23,9 @@ pub(crate) fn tool(server: Server, turn: String, message: String) -> Tool {
         Before creating a plan or replacing a plan element, call capabilities: it lists triggers, 
         actions, readTools, eventSources, skills and deliveries. Use plan for the complete trigger, 
         action and delivery. For an old definition compose a complete plan from the capabilities. 
-        To watch a source, use the fetch action or records.evaluate with a source built from readTools; 
-        never hardcode a bundled duty. Compare the exact field values shown by the source, including media
+        To watch a source, use the fetch action or records.evaluate with a source built from readTools.
+        To combine filtered rows from independent reads, use records.collect with the known array paths
+        and field names for each source. Compare the exact field values shown by the source, including media
         types and units. Static action messages have no placeholder interpolation. Always list before 
         choosing an existing id and expectedRevision. If several match, ask. Create or amend leaves a review for the owner. 
         Describe the pending change. Never claim activation, pausing or delivery before human confirmation. 

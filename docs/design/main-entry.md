@@ -243,6 +243,14 @@ destination. For a digest with several read tools, the card shows each tool and 
 alongside its source label. The `capabilities` result lists every available read tool with its input
 schema.
 
+For a one-time or recurring comparison, `records.collect` reads up to three approved sources in
+parallel. Each source specifies its record array by JSON pointer, the conditions that every match
+must satisfy, and the fields to show. The report groups matching rows returned by the approved
+calls in reviewed source order and
+shows up to ten matches per source, with an omitted count. If a read fails or a required field or
+record array is missing, the run history identifies the affected source for review. A successful
+read with no matches is reported as such. The action uses no model requests at run time.
+
 A model draft can reference a reviewed version of an installed skill. The owner separately enables
 the source and connector capabilities. Adding a task from existing capabilities requires no engine
 change. A new provider authentication flow, source protocol or external write needs a connector

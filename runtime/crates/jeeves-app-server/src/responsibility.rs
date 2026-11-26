@@ -8,6 +8,7 @@ use jeeves_protocol::{
 use jeeves_state::responsibilities::{Responsibilities, ResponsibilityRow};
 
 pub(crate) mod action;
+mod collect;
 pub(crate) mod digest;
 pub(crate) mod events;
 mod fetch;
