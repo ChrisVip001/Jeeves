@@ -564,6 +564,13 @@ the remote service owns its own redirects and page extraction. A successful extr
 is not proof that a claim is correct or that the source is current. See the
 [Parallel MCP documentation](https://docs.parallel.ai/integrations/mcp/quickstart).
 
+In a proxy-only deployment, successful search or proxied HTTP does not prove that
+Jeeves can resolve the page through the runtime's system DNS. Check with
+`getent ahosts <public-host>` on Linux or `dscacheutil -q host -a name <public-host>`
+on macOS, in the runtime environment itself. A DNS failure means the page was not
+read. Restore DNS using the deployment's supported resolver; do not substitute
+a raw IP, rewrite the URL, or disable public-address checks.
+
 Built-in search backends form an ordered chain: Tavily, then Brave; without any key the
 keyless **DuckDuckGo Lite → Bing HTML** pair enters the plan. Errors, verification
 pages and empty or unusable result lists advance to the next configured backend.

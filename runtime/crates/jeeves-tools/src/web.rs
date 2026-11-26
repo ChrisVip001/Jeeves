@@ -887,8 +887,7 @@ pub(crate) async fn check_url(url: &reqwest::Url, allow_private: bool) -> Result
     })
     .await
     .map_err(|e| anyhow::anyhow!("Could not resolve the task: {e}"))?;
-    let ips = resolved
-        .map_err(|e| anyhow::anyhow!("Could not resolve {}: {e}", url.host_str().unwrap_or("?")))?;
+    let ips = resolved.map_err(|e| dns_error(url, &e))?;
     if ips.is_empty() {
         anyhow::bail!(
             "Could not resolve any address: {}",
@@ -902,6 +901,25 @@ pub(crate) async fn check_url(url: &reqwest::Url, allow_private: bool) -> Result
         );
     }
     Ok(())
+}
+
+fn dns_error(url: &reqwest::Url, error: &std::io::Error) -> anyhow::Error {
+    anyhow::anyhow!(
+        "Public fetch DNS check failed for {}: {error}. No page was read. \
+         Do not substitute an address or assume the page is missing. Use evidence already read \
+         or a different relevant public source; report any unresolved verification.",
+        url.host_str().unwrap_or("?")
+    )
+}
+
+#[cfg(test)]
+#[test]
+fn dns_failure_reports_an_unread_page_without_url_parameters() {
+    let url = reqwest::Url::parse("https://example.test/record?reference=private-value").unwrap();
+    let error = dns_error(&url, &std::io::Error::other("test resolver unavailable")).to_string();
+    assert!(error.contains("DNS check failed for example.test"));
+    assert!(error.contains("No page was read"));
+    assert!(!error.contains("private-value"));
 }
 
 /// Block-level tags render as newlines; inline tags (a/span/strong…) don't.

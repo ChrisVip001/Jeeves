@@ -504,6 +504,11 @@ MCP 结果保留来源 URL、确实获得的发布或采集日期及本次读取
 自身重定向和正文提取。抽取成功不证明事实正确或来源足够新。
 参见 [Parallel MCP 文档](https://docs.parallel.ai/integrations/mcp/quickstart)。
 
+在仅通过代理联网的环境中，能搜索或通过代理访问 HTTP 不代表 Jeeves 所在的运行环境
+能用系统 DNS 解析目标网页。在运行环境中检查：Linux 执行 `getent ahosts <public-host>`，
+macOS 执行 `dscacheutil -q host -a name <public-host>`。DNS 校验失败代表网页未被读取。
+请使用部署环境支持的系统解析服务恢复 DNS，不要替换成裸 IP、改写链接或禁用公开地址校验。
+
 内置搜索后端是一条有序降级链：Tavily → Brave；完全没配 key 时才走免 key 的
 **DuckDuckGo Lite → Bing HTML**。遇到错误、验证页、空结果或无可用条目时继续尝试
 下一个已配置引擎。付费后端失败后不额外启用免费端点。关闭 MCP 且没有可用内置后端时
