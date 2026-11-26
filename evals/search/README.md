@@ -10,9 +10,9 @@ to a cheaper reverse route. They check the fetched evidence and which offer-scop
 reaches the model. Scripted replies exercise partial results, indicative prices, and unknown
 booking terms separately. All prices and flight identifiers are test data.
 
-No network, key, or real model is needed. This checks wiring and literal assertions, not whether
-a live model follows the guidance, how production search ranks sites, or whether a flight is
-bookable.
+The dated seat-advice fixtures in the same command exercise the actual first-visible main-chat reply. Separately score a lead (a dated link from old-page navigation), a successful fetch of the target's main status, and an honest unconfirmed reply. The fixtures include navigation in both date directions, reverse routes, a scheduled departure outside the window despite a matching actual time, a mismatched record ID, and a model that guesses after a fetch DNS failure. They assert no draft escaped by streaming and no task was created.
+
+No network, key, or real model is needed. These checks establish the main-chat wiring and evidence gate, not whether a live model finds the right page, how production search ranks sites, or whether a flight is bookable.
 
 ## Optional live pilot, not run by this repository check
 

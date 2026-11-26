@@ -45,6 +45,7 @@ Ask about screenshots, compare sourced prices and review an action in Chat. Ask 
 Tell Jeeves what you need in your own words — even if the request is still vague. It turns an informal goal into a clear one, then delivers the result in the conversation. The kind of work spans information retrieval (web, internal and local sources), documents (slides, spreadsheets, Markdown), audio and video content, writing or improving programs, comparing prices and placing supported orders. [How conversation becomes work](docs/design/main-entry.md)
 
 - **Converse** in the terminal, the dashboard, or a connected chat. See [Feishu chat and approval cards](docs/guide.md#lark--feishu).
+- **Check flight seat advice** in the owner’s main chat. The dated-flight shortcut separates a public flight match from your booking and gives no exact seat advice without verified layout evidence. [What counts as a match](docs/internals/04-tools.md#web)
 - **Use Feishu business capabilities** through the official CLI and the `feishu-cli` skill (`just install-feishu-cli`); existing exec permissions and approvals apply
 - **Remember**: semantic facts (FTS5, CJK-capable), dated episodes and procedural Skills, with local keyword retrieval on each full turn ([docs/architecture.md](docs/architecture.md))
 - **Show its memory**: the dashboard's memory center opens the ledger, the memory library and the context meter; `/compact [focus]` compacts on demand ([docs/operations.md](docs/operations.md))

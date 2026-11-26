@@ -45,6 +45,7 @@ just desktop-open      # 已运行时回到原窗口
 用你自己的话告诉 Jeeves 需要什么——哪怕请求还不清楚。它会把模糊的目标整理明确，再在对话里交付结果。交办的工作可以覆盖信息检索（互联网、内网和本地来源）、文档（幻灯片、表格、Markdown）、音视频内容、编写或改进程序、比价，以及通过已配置渠道下单。[对话如何变成工作](docs/design/main-entry.zh.md)
 
 - **对话**：可通过终端、网页驾驶舱或聊天网关使用。[飞书对话和审批卡](docs/guide.zh.md#飞书--lark)
+- **核对航班后给选座建议**：主聊天会区分公开航班匹配和你的订单；未核实座位图时不猜具体座位。[核验依据](docs/internals/04-tools.zh.md#网络)
 - **使用飞书业务能力**：官方 CLI 配合 `feishu-cli` 技能（`just install-feishu-cli`），复用现有命令执行权限和审批
 - **记忆**：语义事实（FTS5、支持中文）、带日期的情景、过程 Skills，完整回合按用户消息在本地检索（[docs/architecture.zh.md](docs/architecture.zh.md)）
 - **把记忆摊开给你看**：驾驶舱的记忆中心能翻账本、记忆库和上下文占用；`/compact [重点]` 可随时压缩（[docs/operations.zh.md](docs/operations.zh.md)）
