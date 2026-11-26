@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { DesktopObservation, DesktopStatus } from "../src/protocol.ts";
+import type { DesktopAdvice, DesktopObservation, DesktopStatus } from "../src/protocol.ts";
 import { useDesktop } from "../src/ui/useDesktop.ts";
 
+const lease = { leaseId: "desktop-task", epoch: 3 };
 const observation: DesktopObservation = {
   observationId: "first",
   window: "Notes",
   elements: [{ id: 7, label: "Title", actions: ["setText"] }],
+  lease,
 };
 const selected: DesktopStatus = {
   available: true,
   selected: true,
   screenProfile: "local",
   receipts: [],
+  lease,
 };
 function fixture(responses: Record<string, (body: unknown) => unknown>) {
   const calls: Array<{ path: string; body: unknown }> = [];
@@ -25,6 +28,12 @@ function fixture(responses: Record<string, (body: unknown) => unknown>) {
   return { panel, calls };
 }
 test("a local preview requires a separate one-shot authorization for the displayed frame", async () => {
+  const advice: DesktopAdvice = {
+    text: "Check the title.",
+    references: [],
+    risk: "",
+    frameId: "image-1",
+  };
   const { panel, calls } = fixture({
     select: () => observation,
     status: () => selected,
@@ -33,7 +42,7 @@ test("a local preview requires a separate one-shot authorization for the display
       dataUrl: "data:image/png;base64,fixture",
       destination: "local · model",
     }),
-    share: () => ({ text: "Check the title." }),
+    share: () => advice,
   });
   await panel.select();
   await panel.capture();
@@ -41,15 +50,17 @@ test("a local preview requires a separate one-shot authorization for the display
     calls.map((c) => c.path.split("/").at(-1)),
     ["select", "status?taskId=task", "frame"],
   );
+  assert.deepEqual(calls.at(-1)?.body, { taskId: "task", observationId: "first", lease });
   await Promise.all([panel.share(), panel.share()]);
   assert.deepEqual(calls.at(-1)?.body, {
     taskId: "task",
     frameId: "image-1",
     confirmed: true,
+    lease,
   });
   assert.equal(calls.filter((c) => c.path.endsWith("/share")).length, 1);
   assert.equal(panel.state.frame, null);
-  assert.equal(panel.state.advice, "Check the title.");
+  assert.deepEqual(panel.state.advice, advice);
   assert.equal(panel.state.observation, null);
 });
 
@@ -82,6 +93,7 @@ test("uncertain input is not repeated and its receipt is fetched without showing
     elementId: 7,
     action: "setText",
     text: "fixture-private",
+    lease,
   });
   assert.ok(!JSON.stringify(panel.state).includes("fixture-private"));
 });
