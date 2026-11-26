@@ -265,11 +265,20 @@ impl BrowserHost {
         let session = self.session(&p.task_id)?;
         self.human_authority(&session, p.generation).await?;
         ensure!(valid_id(&p.frame_id), "Refresh the human browser frame");
-        if let BrowserHumanInput::Text { text } = &p.input {
-            ensure!(
+        match &p.input {
+            BrowserHumanInput::Text { text } => ensure!(
                 !text.is_empty() && text.encode_utf16().count() <= 4000,
                 "Invalid input length"
-            );
+            ),
+            BrowserHumanInput::Upload {
+                chooser_id,
+                filename,
+                data,
+            } => {
+                ensure!(valid_id(chooser_id), "Open the website file chooser first");
+                validate_upload(filename, data)?;
+            }
+            _ => {}
         }
         let reply = self
             .exchange(
@@ -283,6 +292,35 @@ impl BrowserHost {
             .await?;
         Self::preview(reply)
     }
+}
+fn validate_upload(filename: &str, data: &str) -> Result<()> {
+    const UPLOAD_MAX: usize = 1024 * 1024;
+    ensure!(
+        !filename.is_empty()
+            && filename.len() <= 255
+            && !filename.contains(['/', '\\', ':'])
+            && !filename.chars().any(char::is_control)
+            && data.len() <= UPLOAD_MAX.div_ceil(3) * 4,
+        "Select a PNG or JPEG image under 1 MiB"
+    );
+    let bytes = STANDARD.decode(data).context("Invalid upload data")?;
+    let extension = filename
+        .rsplit('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    ensure!(
+        bytes.len() <= UPLOAD_MAX
+            && match extension.as_str() {
+                "png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+                "jpg" | "jpeg" => bytes.starts_with(b"\xff\xd8\xff"),
+                _ => false,
+            }
+            && crate::image_meta::size(&bytes)
+                .is_some_and(|(w, h)| (1..=4096).contains(&w) && (1..=4096).contains(&h)),
+        "Select a PNG or JPEG image under 1 MiB and at most 4096 pixels per side"
+    );
+    Ok(())
 }
 fn download_rows(reply: BrowserWorkerResponse) -> Result<Vec<BrowserDownloadView>> {
     if let Some(error) = reply.error {

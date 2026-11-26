@@ -164,6 +164,7 @@ impl BrowserHost {
         );
         let expected = row.generation;
         let heartbeat = matches!(command, BrowserWorkerCommand::Heartbeat);
+        let launch = matches!(command, BrowserWorkerCommand::Launch { .. });
         let fresh = matches!(
             command,
             BrowserWorkerCommand::Launch { .. }
@@ -192,6 +193,9 @@ impl BrowserHost {
                 return Err(error);
             }
         };
+        if launch && response.error.is_some() {
+            return Ok(response);
+        }
         let state = response
             .state
             .as_ref()

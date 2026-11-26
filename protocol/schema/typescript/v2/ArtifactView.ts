@@ -8,6 +8,10 @@ export type ArtifactView = {
    * Complete text of an observed successful whole-file write up to 64 KiB.
    */
   writtenText?: string;
+  /**
+   * The current file can be read in this task's managed workspace.
+   */
+  workspaceFile?: boolean;
   path: string;
   bytes: number;
   at: string;

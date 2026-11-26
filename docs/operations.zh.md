@@ -143,9 +143,11 @@ jeeves service uninstall        # 卸载并删除单元；JEEVES_HOME 里的状�
 
 Mac 和 Web 共用开发工作区时，在 `<home>/desktop-gateway` 写一行 Go 网关地址，例如 `https://localhost:8743`。启动网关时把 `GW_RUNTIME_HOME` 设为同一个 `JEEVES_HOME` 的绝对路径。网关使用 `GW_RUNTIME_TOKEN`，Runtime 使用仅所有者可读的 `<home>/runtime-token`，两者使用同一服务凭据。App 启动 Runtime 时由系统分配端口，网关每次重启后都会发现它。浏览器和 App 使用同一个网关地址。Finder 启动仓库构建的 App 时可沿用仓库中的 `.jeeves`，安装到系统的副本默认使用 `~/.jeeves`。
 
+如果桌面应用提示无法连接本地网关，请启动该账号原来配置的网关，再退出并重新打开 Jeeves。网关未运行时，私网 Runtime 仍可能正常运行。
+
 在仓库根目录运行 `just dashboard-build` 后，重新载入网关页面即可更新前端。Runtime 代码在替换二进制并重启后生效。
 
-应用打开后进入「对话」。从「工作」或回执打开交付页面并补充要求。[对话、事项与交付](design/main-entry.zh.md)
+应用打开后进入「对话」。从「工作」或回执打开交付页面并补充要求。在当前事项中展开「任务浏览器」，即可启动浏览器并选择允许访问的网站。[对话、事项与交付](design/main-entry.zh.md)
 
 在 Mac 的仓库目录运行 `just smoke-mac-cockpit` 可复验桌面端。命令会构建 Jeeves.app，在自己的前台窗口中操作主聊天和 Cowork；运行时使用临时目录，模型和发布服务均由本机模拟。测试随后退出并重新打开应用，用同一份临时数据核对任务 ID、完整会话和唯一的完成摘要。运行终端需已有辅助功能权限。若已有屏幕录制权限，测试会将 Jeeves 单窗口截图和 JSON 报告一起保存在 `target/acceptance/mac-cockpit/<运行时间>/`。
 

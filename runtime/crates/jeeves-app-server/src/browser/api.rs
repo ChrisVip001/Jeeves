@@ -215,7 +215,16 @@ impl BrowserHost {
             )
             .await?;
         if let Some(error) = reply.error {
-            self.failed(&session, &error).await;
+            let expected = row.generation;
+            row.status = "needsAttention".into();
+            row.error = Some(error.clone());
+            row.generation = expected
+                .checked_add(1)
+                .ok_or_else(|| anyhow!("Browser generation exhausted"))?;
+            if store::update(&self.pool, &row, expected).await? {
+                session.worker.close();
+                eprintln!("(jeeves) task {}: browser launch failed: {error}", task.id);
+            }
             return Err(anyhow!(error));
         }
         if store::hold_get(&self.pool, &task.id).await?.is_some() {

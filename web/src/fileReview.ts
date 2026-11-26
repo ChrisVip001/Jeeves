@@ -1,3 +1,7 @@
+import type { TaskReviewFile } from "./protocol";
+
+export type WorkFile = TaskReviewFile & { workspace?: boolean };
+
 type DiffRow = {
   before?: number;
   after?: number;

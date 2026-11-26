@@ -504,10 +504,11 @@ exit "$status"
         direct.args(&argv[1..]).stdin(Stdio::null());
         direct
     };
+    if let Some(cwd) = writable.first() {
+        command_builder.current_dir(cwd);
+    }
     if let Some(root) = isolated {
-        command_builder
-            .current_dir(&writable[0])
-            .env("TMPDIR", root);
+        command_builder.env("TMPDIR", root);
     }
     if let Some(secrets) = &policy.secrets {
         for (name, value) in secrets.get() {
@@ -751,7 +752,7 @@ pub fn run_command(policy: ExecPolicy) -> Tool {
             "type": "object",
             "properties": {
                 "command": {"type": "string", "description": "The shell command to run"},
-                "cwd": {"type": "string", "description": "Working directory (default: where Jeeves was started)"},
+                "cwd": {"type": "string", "description": "Working directory (default: this turn's workspace, or the Runtime directory if none is bound)"},
                 "background": {
                     "type": "boolean",
                     "description": "Run it in the background (default false = this turn waits for it). Good for anything taking minutes: you get a job id immediately, then the job tool: action=output for progress, action=list for all of them, action=kill to stop one. Sandbox and approval rules are identical to the foreground."

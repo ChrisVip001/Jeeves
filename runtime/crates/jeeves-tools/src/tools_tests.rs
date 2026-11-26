@@ -1089,7 +1089,7 @@ async fn computer_tools_without_a_host_say_so_instead_of_panicking() {
         .execute(
             ctx,
             "computer_act",
-            json!({"observationId":"o1","elementId":1,"action":"click"}),
+            json!({"observationId":"o1","lease":{"leaseId":"fixture","epoch":1},"elementId":1,"action":"click"}),
         )
         .await;
     assert!(acted.contains("No desktop window"), "{acted}");

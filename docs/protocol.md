@@ -92,6 +92,7 @@ before the response). Every type is defined in
 | `browser/start` | `BrowserStartParams` → `BrowserSessionView` | start a task browser (human-only) |
 | `browser/control` | `BrowserControlParams` → `BrowserSessionView` | control a browser with the expected generation (human-only) |
 | `browser/frame` | `TaskGetParams` → `BrowserFrameResponse` | one bounded on-demand frame (human-only) |
+| `task/file` | `TaskFileParams` → `TaskFileResponse` | original bytes of a listed managed workspace file (human-only); cockpit posts `action: "file"` to `/api/task` |
 | `memory/ledger` | `MemoryLedgerParams` → `MemoryLedgerResponse` | one session's ledger, newest first; with `turnId` also that turn's entries. Read-only |
 | `memory/index` | — → `MemoryIndexResponse` | the bundle's catalog (`index.md`) plus one summary per page. Read-only |
 | `memory/page` | `MemoryPageParams` → `MemoryPageResponse` | one page with body and `sources`; `page: null` when there is no such page |
@@ -460,7 +461,7 @@ Open the desktop window panel on a task card. Select the application and confirm
 
 Observe lists available controls. You can press buttons, step vertical scroll bars or set plain text in an ordinary single-line field. Switching windows in the selected application, closing the window or taking over requires a fresh selection. Pausing a task revokes that task’s window. Each input consumes an observation. The panel shows the last 20 action receipts. An interrupted action with an unconfirmed effect remains unknown. Inspect the target before deciding how to continue.
 
-You can select a separate vision profile for the Runtime. Preview returns the chosen window image to the cockpit. If Stage Manager has moved the window off screen, the helper can bring its application forward. Capture requires a unique on-screen match for the confirmed window. Review the image, model and destination before confirming a single send. The model returns short advice with a risk label and element references validated against the current observation; advice is never executed automatically. Receipts omit pixels and typed values. Observing again, changing the screen profile, takeover and emergency stop invalidate the preview.
+**Capture selected window** previews a JPEG for local saving without selecting a model (`desktop/frame` with `localOnly: true`). If Stage Manager has moved the window off screen, the helper can bring its application forward. Capture requires a unique on-screen match for the confirmed window. To ask a vision model for advice, select a screen profile, preview the image and confirm the displayed destination. The model returns short advice with a risk label and element references validated against the current observation; advice is never executed automatically. Receipts omit pixels and typed values. Observing again, changing the screen profile, takeover and emergency stop invalidate the preview.
 
 With Accessibility and Screen Recording already granted, run `just smoke-mac-window` for the native regression. It launches two disposable AppKit windows, checks the scroll position, verifies each preview by its color marker, and checks that switching windows revokes access and identical titles and bounds block capture.
 
@@ -473,6 +474,8 @@ Browsers and native windows share a control lease. The Runtime records the lease
 ### Remote browser input and downloads
 
 Open the task browser in your authenticated cockpit, choose **Take over**, then open the remote controls. The desktop and phone layouts operate the same task-scoped Chromium context. Click within the displayed image, enter text, scroll, or use Tab, Enter, Escape and Backspace. Input consumes one human frame and returns a new one. Refresh after the display changes or after 30 seconds. Returning control takes a fresh observation. Use a trusted encrypted connection for a remote cockpit. The paired-device presence endpoint does not grant cockpit access.
+
+To attach an image, open the website’s file chooser in the remote controls, choose a PNG or JPEG of up to 1 MiB and 4096 pixels per side, then press **Upload image** to send it to the displayed origin. A chooser accepts one image and is bound to the current browser frame and control generation. The task agent cannot choose or upload local files.
 
 Downloads started on allowed websites while the operator has control appear in the task browser. Choose **Save** to publish a completed file to the task’s artifacts or **Cancel** to discard it. Each browser context handles up to 16 downloads of at most 768 KiB each. Its temporary list ends with the browser. Saved artifacts survive restart under `<home>/artifacts/<taskId>/`. Each name includes a unique download ID, so two reports with the same name remain separate. If recording an accepted file is interrupted, the engine retries from its local copy at startup. It preserves an existing edited file for review.
 

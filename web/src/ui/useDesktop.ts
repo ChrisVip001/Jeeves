@@ -139,7 +139,7 @@ export function useDesktop(taskId: string, request: Request) {
         },
       );
     },
-    capture() {
+    capture(localOnly = false) {
       const observationId = state.observation?.observationId;
       if (!observationId) return;
       clearPreview();
@@ -148,6 +148,7 @@ export function useDesktop(taskId: string, request: Request) {
           request<DesktopFrame>("/api/desktop/frame", {
             taskId,
             observationId,
+            localOnly,
             lease: state.observation?.lease ?? state.status?.lease,
           } satisfies DesktopFrameParams),
         (frame) => {
@@ -157,7 +158,7 @@ export function useDesktop(taskId: string, request: Request) {
     },
     share() {
       const frame = state.frame;
-      if (!frame) return;
+      if (!frame?.destination) return;
       const lease = state.observation?.lease ?? state.status?.lease;
       clearPreview();
       state.observation = null;

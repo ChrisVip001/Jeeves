@@ -48,6 +48,7 @@ export class BrowserSession {
   async close(status = "closed") {
     if (["closed", "needsAttention"].includes(this.status)) return;
     this.status = status;
+    this.remote.clear();
     this.generation++;
     if (this.watchdog) clearInterval(this.watchdog);
     await this.browser?.close().catch(() => {});
@@ -223,8 +224,12 @@ export class BrowserSession {
         void popup.close();
       });
       this.page.on("filechooser", (chooser) => {
-        this.scope?.blocked.add("uploads unsupported");
-        void chooser.setFiles([]);
+        if (this.status === "human" && this.active && this.page) {
+          this.remote.offer(this.page, chooser);
+        } else {
+          this.scope?.blocked.add("take control to attach a file");
+          void chooser.setFiles([]).catch(() => {});
+        }
       });
       this.downloads = await BrowserDownloads.open(
         this.browser,
@@ -274,6 +279,7 @@ export class BrowserSession {
         throw Error("Stale browser control generation");
       this.generation = command.generation;
       this.status = "pausing";
+      this.remote.clear();
       const previous = this.latest;
       this.latest = undefined;
       if (this.active) await this.active.catch(() => {});

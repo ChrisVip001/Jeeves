@@ -103,6 +103,75 @@ async fn create_task(
 }
 
 #[tokio::test]
+async fn work_card_serves_current_markdown_and_declared_binary_files() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    use jeeves_protocol::methods::{TASK_ARTIFACTS, TASK_CREATE, TASK_FILE};
+
+    let (server, home) = boot(None).await;
+    let envelope = call(
+        &server,
+        TASK_CREATE,
+        json!({
+            "sessionId": "owner", "title": "Work files",
+            "acceptance": [{"kind": "fileExists", "path": "office.xlsx"}],
+        }),
+    )
+    .await
+    .unwrap();
+    let id = envelope["task"]["id"].as_str().unwrap();
+    let task = server.tasks.get(id).await.unwrap().unwrap();
+    let root = PathBuf::from(task.cwd.unwrap());
+    let markdown = root.join("research.md");
+    let workbook = b"PK\x03\x04\0actual workbook bytes";
+    std::fs::write(&markdown, "# Revised\n").unwrap();
+    std::fs::write(root.join("office.xlsx"), workbook).unwrap();
+    std::fs::write(home.join("private.txt"), "private").unwrap();
+    std::fs::hard_link(home.join("private.txt"), root.join("linked.txt")).unwrap();
+    std::fs::write(root.join("unlisted.txt"), "unlisted").unwrap();
+    server
+        .artifacts
+        .add(id, None, markdown.to_str().unwrap(), 10)
+        .await
+        .unwrap();
+    server
+        .artifacts
+        .add(id, None, root.join("linked.txt").to_str().unwrap(), 7)
+        .await
+        .unwrap();
+
+    let artifacts = call(&server, TASK_ARTIFACTS, json!({"taskId": id}))
+        .await
+        .unwrap();
+    let listed = artifacts["artifacts"].as_array().unwrap();
+    assert_eq!(
+        listed
+            .iter()
+            .filter(|file| file["workspaceFile"] == true)
+            .count(),
+        2
+    );
+    for (path, expected) in [
+        ("research.md", b"# Revised\n".as_slice()),
+        ("office.xlsx", workbook.as_slice()),
+    ] {
+        let file = call(&server, TASK_FILE, json!({"taskId": id, "path": path}))
+            .await
+            .unwrap();
+        assert_eq!(
+            STANDARD.decode(file["data"].as_str().unwrap()).unwrap(),
+            expected
+        );
+    }
+    for path in ["linked.txt", "unlisted.txt", "../../private.txt"] {
+        assert!(
+            call(&server, TASK_FILE, json!({"taskId": id, "path": path}))
+                .await
+                .is_err()
+        );
+    }
+}
+
+#[tokio::test]
 async fn several_tasks_may_be_open_in_one_session_and_the_newest_is_the_card() {
     let (server, _home) = boot(None).await;
     let first = create_task(

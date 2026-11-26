@@ -5,18 +5,19 @@ import { taskReceiptBody } from "./render";
 import type { TaskDeliveryView } from "./protocol";
 import { t } from "./i18n";
 import { renderMarkdown, stripToolFold } from "./markdown";
-import type { AgentTaskView, TaskReviewFile } from "./protocol";
+import type { AgentTaskView } from "./protocol";
+import type { WorkFile } from "./fileReview";
 import type { TaskCenter } from "./ui/useTasks";
 
 const props = defineProps<{ task: AgentTaskView; center: TaskCenter; selected?: string }>();
-const emit = defineEmits<{open: [TaskReviewFile, HTMLElement]}>();
+const emit = defineEmits<{open: [WorkFile, HTMLElement]}>();
 const delivery = computed(() => props.center.state.deliveries[props.task.id]);
 const review = computed(() => props.center.state.reviews[props.task.id]);
-const files = computed(() => {
+const files = computed<WorkFile[]>(() => {
   const reviewed = review.value?.files ?? [];
   if (review.value) return reviewed;
   return (props.center.state.artifacts[props.task.id] ?? []).map(file => ({
-    path: file.path, change: "recorded", content: file.writtenText ?? null, patch: null,
+    path: file.path, change: "recorded", content: file.writtenText ?? null, patch: null, workspace: file.workspaceFile,
   }));
 });
 function statusLabel(change: string) {

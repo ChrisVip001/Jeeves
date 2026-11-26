@@ -147,9 +147,11 @@ Before a joint test, run `just desktop-status` to record the existing app and Ru
 
 For a shared Mac and Web development workspace, put the Go gateway's loopback origin on one line in `<home>/desktop-gateway`, for example `https://localhost:8743`. Start that gateway with `GW_RUNTIME_HOME` set to the same absolute `JEEVES_HOME`. Give the gateway and Runtime the same private credential using `GW_RUNTIME_TOKEN` and the owner-only `<home>/runtime-token` file. The App starts the Runtime on an OS-assigned port, and the gateway discovers it after every restart. The browser and App use the same origin. A Finder launch of the checkout bundle can reuse its `.jeeves` directory. Installed copies default to `~/.jeeves`.
 
+If the app reports that it cannot connect to the local gateway, start the gateway configured for that account, then quit and reopen Jeeves. The private Runtime can be up while the gateway is down.
+
 Run `just dashboard-build` and reload the gateway page to see frontend changes. Runtime changes take effect after replacing the binary and restarting it.
 
-The app opens in Chat. Open a receipt or Work to read a delivery and request a revision. [Chat, work and delivery](design/main-entry.md)
+The app opens in Chat. Open a receipt or Work to read a delivery and request a revision. Open **Task browser** in the selected work item to start a browser and choose its permitted sites. [Chat, work and delivery](design/main-entry.md)
 
 To repeat the native acceptance on a Mac, run `just smoke-mac-cockpit` from the repository. It builds Jeeves.app, opens its own foreground window, and drives the chat and Cowork with an isolated Runtime and simulated model and publication service. It quits and reopens the app on the same temporary data to check task identity, conversation history and a single completion. Accessibility must already be enabled for the runner. When Screen Recording is already available, the test saves screenshots of the Jeeves window alongside its JSON report under `target/acceptance/mac-cockpit/<run>/`.
 

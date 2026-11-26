@@ -38,6 +38,7 @@ export const METHODS = {
   APPROVAL_RESPOND: "approval/respond",
   TODO_VIEW: "todo/view",
   TASK_CREATE: "task/create",
+  TASK_FILE: "task/file",
   TASK_START: "task/start",
   TASK_OPERATIONS: "task/operations",
   TASK_RECONCILE: "task/reconcile",

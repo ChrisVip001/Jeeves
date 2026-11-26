@@ -172,6 +172,25 @@ mod worker {
         let o = rpc(&s, "desktop/select", task()).await.unwrap();
         let capture = json!({"taskId":"input-task","observationId":o["observationId"]});
         assert!(rpc(&s, "desktop/frame", capture.clone()).await.is_err());
+        let mut local_capture = capture.clone();
+        local_capture["localOnly"] = json!(true);
+        let local = rpc(&s, "desktop/frame", local_capture).await.unwrap();
+        assert!(local["destination"].is_null());
+        assert!(
+            local["dataUrl"]
+                .as_str()
+                .unwrap()
+                .starts_with("data:image/jpeg;base64,")
+        );
+        assert!(
+            rpc(
+                &s,
+                "desktop/share",
+                json!({"taskId":"input-task","frameId":local["frameId"],"confirmed":true})
+            )
+            .await
+            .is_err()
+        );
         let model = json!({"taskId":"input-task","profileId":"screen-fixture"});
         rpc(&s, "desktop/model", model.clone()).await.unwrap();
         let frame = rpc(&s, "desktop/frame", capture.clone()).await.unwrap();

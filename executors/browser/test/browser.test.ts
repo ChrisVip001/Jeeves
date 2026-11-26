@@ -28,7 +28,7 @@ test(
       }
       res.setHeader("Content-Type", "text/html");
       res.end(
-        `<body><h1>Fixture</h1><label>Name<input placeholder="Name"></label><input type="password" aria-label="Password"><input autocomplete="one-time-code" aria-label="OTP"><button onclick="location.href='/saved'">Save</button><a href="http://169.254.169.254/">Blocked</a><button onclick="setTimeout(()=>document.body.append(' changed'),150)">Change later</button></body>`,
+        `<body><h1>Fixture</h1><label>Name<input placeholder="Name"></label><input type="password" aria-label="Password"><input autocomplete="one-time-code" aria-label="OTP"><button onclick="location.href='/saved'">Save</button><a href="http://169.254.169.254/">Blocked</a><button onclick="setTimeout(()=>document.body.append(' changed'),150)">Change later</button><input type="file" id="image" style="position:absolute;top:100px;left:8px"></body>`,
       );
     });
     await new Promise<void>((resolve) =>
@@ -133,6 +133,25 @@ test(
       );
       const humanFrame = await browser.command({ kind: "frame" });
       assert.ok(humanFrame.frame);
+      const chosen = await browser.command({ kind: "humanInput", generation: 2,
+        frameId: humanFrame.frame!.frameId!, input: { kind: "click", x: 40, y: 110 } });
+      assert.equal(chosen.frame?.upload?.origin, origin);
+      const upload = {
+        kind: "humanInput" as const,
+        generation: 2,
+        frameId: chosen.frame!.frameId!,
+        input: {
+          kind: "upload" as const, chooserId: chosen.frame!.upload!.chooserId,
+          filename: "fixture.png",
+          data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/e1EAAAAASUVORK5CYII=",
+        },
+      };
+      await browser.command(upload);
+      await assert.rejects(browser.command(upload), /refresh/i);
+      const attached = await humanPage.locator("#image").evaluate(
+        async (element: HTMLInputElement) => Array.from(new Uint8Array(await element.files![0].arrayBuffer())),
+      );
+      assert.deepEqual(attached, [...Buffer.from(upload.input.data, "base64")]);
       await browser.command({
         kind: "control",
         generation: 3,

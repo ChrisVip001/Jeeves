@@ -934,6 +934,11 @@ async fn dispatch(
             respond(crate::task::artifacts(server, &p.task_id).await?)
         }
 
+        methods::TASK_FILE => {
+            let p: jeeves_protocol::TaskFileParams = parse(params, method)?;
+            respond(crate::task::files::read(server, p).await?)
+        }
+
         methods::TASK_SUSPEND => {
             let p: TaskActionParams = parse(params, method)?;
             respond(crate::task::suspend(server, sink, p).await?)

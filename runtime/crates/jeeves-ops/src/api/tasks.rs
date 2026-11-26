@@ -119,6 +119,19 @@ pub async fn task(
             Err(error) => failed(StatusCode::OK, error),
         };
     }
+    if action == "file" {
+        return match app
+            .request::<jeeves_protocol::TaskFileResponse>(methods::TASK_FILE, body)
+            .await
+        {
+            Ok(response) => (
+                [(axum::http::header::CACHE_CONTROL, "no-store")],
+                Json(response),
+            )
+                .into_response(),
+            Err(error) => failed(StatusCode::BAD_REQUEST, error),
+        };
+    }
     if matches!(action.as_str(), "operations" | "reconcile") {
         let translated = if action == "operations" {
             serde_json::from_value::<jeeves_protocol::TaskGetParams>(body).map(|params| {

@@ -60,7 +60,7 @@ from the service's response or confirmed record.
 | Recover | A stopped work page offers [operation review](../operations.md#reviewing-unknown-operations) and an explicit resume on the same assignment. |
 | Find work | Search titles in Work or follow a receipt. On a wide screen the list stays on the left and the open item fills the right; on a phone the list opens the item as its own page. Reload, back and forward retain the destination. |
 | Inspect delivery | The latest terminal run has its own receipt. Results and files precede expandable conversation history. Replies from older runtimes are labeled separately. |
-| Review a file | Open a delivered file in the right pane on Mac or full screen on phone. For repository tasks, switch to Line changes to see additions and deletions with old and new line numbers. Save a copy from the text preview. |
+| Review a file | Open a delivered file in the right pane on Mac or full screen on phone. Managed tasks can show the current Markdown and download original files up to 8 MiB. The card lists files recorded by tools or named in the task’s acceptance criteria. Repository tasks keep their Git snapshot, with a line-by-line diff and a text copy. |
 | Amend | Reply directly in the work page. Drafts are scoped to their chat or assignment within the current browser tab and survive reload. |
 | Manage the account | The profile leads with the account and entry to the assistant. Account and security groups devices, password changes and two-factor authentication. |
 

@@ -3,5 +3,5 @@
 export type DesktopFrame = {
   frameId: string;
   dataUrl: string;
-  destination: string;
+  destination?: string;
 };

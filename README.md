@@ -38,7 +38,9 @@ just desktop-build     # optional Mac development bundle
 just desktop-open      # return to the original window if already running
 ```
 
-Ask about screenshots, compare sourced prices and review an action in Chat. Ask Jeeves to keep watching one of the compared prices, then adjust the threshold from your phone. Open **Work** to see which checks failed or passed after correction, review changed lines and continue the task. [Getting started](docs/guide.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
+[Recover a local Mac gateway connection](docs/operations.md#mac-desktop-app) if the desktop app reports that it cannot connect.
+
+Ask about screenshots, compare sourced prices and review an action in Chat. Ask Jeeves to keep watching one of the compared prices, then adjust the threshold from your phone. Open **Work** to download deliverables, see acceptance checks, review changed lines and continue the task. [Getting started](docs/guide.md) · [Mac desktop app](docs/operations.md#mac-desktop-app)
 
 ## What Jeeves can do
 

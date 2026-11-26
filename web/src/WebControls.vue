@@ -9,6 +9,7 @@ import ResponsibilityCards from "./ResponsibilityCards.vue";
 import LongTerm from "./LongTerm.vue";
 import ChatDecisions from "./ChatDecisions.vue";
 import ApprovalNotice from "./ApprovalNotice.vue";
+import BrowserPanel from "./ui/BrowserPanel.vue";
 import DesktopPanel from "./ui/DesktopPanel.vue";
 import ExecutorStop from "./ui/ExecutorStop.vue";
 import { executor, refreshExecutor, changeExecutor } from "./executor-control.ts";
@@ -255,7 +256,10 @@ watch(
       <div class="work-detail-pane">
         <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" :phone="phone" @details="openDetail(coworkTask.id)" @back="showActivity" @follow="followTask">
           <template #screen><WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks" /></template>
-          <template #tools><DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" /></template>
+          <template #tools>
+            <BrowserPanel v-if="!phone && webTasks.browser" :center="webTasks.browser" :task-id="coworkTask.id" :cancelled="coworkTask.status === 'cancelled'" />
+            <DesktopPanel v-if="!phone" v-bind="desktopProps(coworkTask)" />
+          </template>
         </CoworkConversation>
         <div v-else-if="state.view === 'cowork'" class="missing-work" role="status">
           <p>{{ webTasks.state.error || (webTasks.state.loadedOwner ? t("暂时无法打开原任务，请重试。") : t("正在读取任务…")) }}</p>

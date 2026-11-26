@@ -16,6 +16,7 @@
 //! * **Nothing is silent.** Every transition sends `TaskUpdated` (the hub folds it into a ping)
 //!   and the reason is stored, not dropped.
 
+pub(crate) mod files;
 pub(crate) mod git_checkpoint;
 pub(crate) mod integration;
 pub(crate) mod review;
@@ -541,6 +542,21 @@ pub(crate) async fn artifacts(
         Some(run) => review::load(server, task_id, run).await.map_err(internal)?,
         None => None,
     };
+    let artifacts = rows
+        .into_iter()
+        .map(|row| ArtifactView {
+            written_text: row.written_text,
+            workspace_file: None,
+            path: row.path,
+            bytes: narrow(row.bytes),
+            at: row.at,
+        })
+        .collect();
+    let artifacts = if let Some(task) = server.tasks.get(task_id).await.map_err(internal)? {
+        files::list(server.settings().home, task, artifacts).await?
+    } else {
+        artifacts
+    };
     Ok(TaskArtifactsResponse {
         review,
         latest_delivery: delivery.map(|row| jeeves_protocol::TaskDeliveryView {
@@ -552,15 +568,7 @@ pub(crate) async fn artifacts(
             run_id: row.run_id,
             at: row.at,
         }),
-        artifacts: rows
-            .iter()
-            .map(|row| ArtifactView {
-                written_text: row.written_text.clone(),
-                path: row.path.clone(),
-                bytes: narrow(row.bytes),
-                at: row.at.clone(),
-            })
-            .collect(),
+        artifacts,
     })
 }
 

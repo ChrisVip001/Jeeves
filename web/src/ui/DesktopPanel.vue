@@ -5,6 +5,7 @@ import { errorText, preferenceRequest } from "../api.ts";
 import type { DesktopAction, ModelProfilesResponse } from "../protocol.ts";
 import { useDesktop } from "./useDesktop.ts";
 import { useUiText } from "./translate.ts";
+import { decodeBase64, saveDownload } from "../fileDownload";
 
 const props = defineProps<{
   taskId: string;
@@ -130,6 +131,13 @@ function receipt(status: string) {
   if (status === "rejected") return t("已拒绝操作");
   return t("结果不明，请检查窗口");
 }
+function saveFrame() {
+  const data = state.frame?.dataUrl;
+  const prefix = "data:image/jpeg;base64,";
+  if (!data?.startsWith(prefix) || !previewReady.value || previewFailed.value || locked.value) return;
+  const jpeg = decodeBase64(data.slice(prefix.length));
+  saveDownload(new Blob([jpeg], { type: "image/jpeg" }), "jeeves-window.jpg");
+}
 </script>
 <template>
   <details
@@ -236,7 +244,27 @@ function receipt(status: string) {
                 {{ labels[action] }}
               </button>
             </div>
+            <button type="button" class="quiet-button" :disabled="locked" @click="panel.capture(true)">
+              {{ t("截取所选窗口") }}
+            </button>
           </template>
+          <figure v-if="state.frame">
+            <img :key="state.frame.frameId" :src="state.frame.dataUrl" :alt="t('所选窗口截图')"
+              @load="previewReady = true" @error="previewFailed = true" />
+            <p v-if="previewFailed" class="task-error" role="alert">{{ t("无法显示截图，请重新预览。") }}</p>
+            <figcaption v-if="state.frame.destination">
+              {{ t("仅此截图将发送至 {destination}", { destination: state.frame.destination }) }}
+            </figcaption>
+            <div class="desktop-actions">
+              <button type="button" class="quiet-button" :disabled="locked || !previewReady || previewFailed"
+                @click="saveFrame">{{ t("保存窗口截图") }}</button>
+              <button v-if="state.frame.destination" type="button" class="primary-button"
+                :disabled="locked || !previewReady || previewFailed" @click="panel.share">
+                {{ t("允许发送这张截图") }}
+              </button>
+              <button type="button" class="text-button" @click="panel.clearPreview">{{ t("放弃截图") }}</button>
+            </div>
+          </figure>
           <details @toggle="loadProfiles">
             <summary>{{ t("屏幕模型") }}</summary>
             <div class="desktop-body">
@@ -282,46 +310,10 @@ function receipt(status: string) {
                 type="button"
                 class="quiet-button"
                 :disabled="locked"
-                @click="panel.capture"
+                @click="panel.capture()"
               >
                 {{ t("在本地预览窗口截图") }}
               </button>
-              <figure v-if="state.frame">
-                <img
-                  :key="state.frame.frameId"
-                  :src="state.frame.dataUrl"
-                  :alt="t('待发送的窗口截图')"
-                  @load="previewReady = true"
-                  @error="previewFailed = true"
-                />
-                <p v-if="previewFailed" class="task-error" role="alert">
-                  {{ t("无法显示截图，请重新预览。") }}
-                </p>
-                <figcaption>
-                  {{
-                    t("仅此截图将发送至 {destination}", {
-                      destination: state.frame.destination,
-                    })
-                  }}
-                </figcaption>
-                <div class="desktop-actions">
-                  <button
-                    type="button"
-                    class="primary-button"
-                    :disabled="locked || !previewReady || previewFailed"
-                    @click="panel.share"
-                  >
-                    {{ t("允许发送这张截图") }}
-                  </button>
-                  <button
-                    type="button"
-                    class="text-button"
-                    @click="panel.clearPreview"
-                  >
-                    {{ t("放弃截图") }}
-                  </button>
-                </div>
-              </figure>
               <div v-if="state.advice" role="status">
                 <strong>{{ t("模型建议") }}</strong>
                 <p class="desktop-advice">{{ state.advice.text }}</p>

@@ -6,4 +6,5 @@ export type BrowserHumanInput =
   | { kind: "click"; x: number; y: number }
   | { kind: "text"; text: string }
   | { kind: "key"; key: BrowserHumanKey }
-  | { kind: "scroll"; direction: BrowserScrollDirection };
+  | { kind: "scroll"; direction: BrowserScrollDirection }
+  | { kind: "upload"; chooserId: string; filename: string; data: string };

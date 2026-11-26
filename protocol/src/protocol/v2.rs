@@ -104,6 +104,7 @@ pub mod methods {
     /// The files this task produced.
     pub const TASK_REVIEW_CAPTURE: &str = "task/reviewCapture";
     pub const TASK_ARTIFACTS: &str = "task/artifacts";
+    pub const TASK_FILE: &str = "task/file";
     pub const TASK_SUSPEND: &str = "task/suspend";
     pub const TASK_RESUME: &str = "task/resume";
     pub const TASK_CANCEL: &str = "task/cancel";
@@ -1236,9 +1237,30 @@ pub struct ArtifactView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub written_text: Option<String>,
+    /// The current file can be read in this task's managed workspace.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub workspace_file: Option<bool>,
     pub path: String,
     pub bytes: i32,
     pub at: String,
+}
+
+/// Read a file listed on the task's work card.
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct TaskFileParams {
+    pub task_id: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct TaskFileResponse {
+    pub filename: String,
+    pub data: String,
 }
 
 /// One recorded decision for an approval requested during this execution.
@@ -2977,10 +2999,25 @@ pub enum BrowserScrollDirection {
 )]
 #[ts(tag = "kind", rename_all = "camelCase", export_to = "v2/")]
 pub enum BrowserHumanInput {
-    Click { x: i32, y: i32 },
-    Text { text: String },
-    Key { key: BrowserHumanKey },
-    Scroll { direction: BrowserScrollDirection },
+    Click {
+        x: i32,
+        y: i32,
+    },
+    Text {
+        text: String,
+    },
+    Key {
+        key: BrowserHumanKey,
+    },
+    Scroll {
+        direction: BrowserScrollDirection,
+    },
+    Upload {
+        #[ts(rename = "chooserId")]
+        chooser_id: String,
+        filename: String,
+        data: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3155,6 +3192,9 @@ pub struct DesktopFrameParams {
     pub task_id: String,
     pub observation_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub local_only: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub lease: Option<ControlLeaseRef>,
 }
@@ -3165,7 +3205,9 @@ pub struct DesktopFrameParams {
 pub struct DesktopFrame {
     pub frame_id: String,
     pub data_url: String,
-    pub destination: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub destination: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
@@ -3336,6 +3378,17 @@ pub struct BrowserFrameResponse {
     pub frame_id: Option<String>,
     pub data_url: String,
     pub observed_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub upload: Option<BrowserUploadTarget>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub struct BrowserUploadTarget {
+    pub chooser_id: String,
+    pub origin: String,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]

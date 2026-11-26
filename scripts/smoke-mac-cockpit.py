@@ -268,6 +268,10 @@ def exercise(home, env, probe, posts, bundle):
             lambda: app.control("cowork-input") and app.see("Open source promotion"),
             "visible task conversation",
         )
+        wait_for(
+            lambda: app.see("Task browser") or app.see("任务浏览器"),
+            "task browser controls before a browser is open",
+        )
         evidence["cowork"] = app.capture("02-cowork")
         app.native("press", "mode-assistant")
         app.submit(
@@ -411,6 +415,7 @@ def exercise(home, env, probe, posts, bundle):
 def main():
     if sys.platform != "darwin" or not (BIN / "jeeves").is_file():
         raise SystemExit("Build Jeeves.app on macOS with just desktop-build first")
+    subprocess.run(["/usr/bin/codesign", "--verify", "--strict", APP], check=True)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     posts = []
     with tempfile.TemporaryDirectory(

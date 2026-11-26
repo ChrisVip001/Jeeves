@@ -88,6 +88,7 @@
     "TASK_CANCEL": "task/cancel",
     "TASK_CREATE": "task/create",
     "TASK_EVENTS": "task/events",
+    "TASK_FILE": "task/file",
     "TASK_GET": "task/get",
     "TASK_GIT_CHECKPOINT": "task/gitCheckpoint",
     "TASK_GIT_CHECKPOINT_POLICY": "task/gitCheckpointPolicy",

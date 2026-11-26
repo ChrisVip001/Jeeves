@@ -1,3 +1,6 @@
 {
-  "bundle": { "externalBin": ["binaries/jeeves", "binaries/jeeves-window"] }
+  "bundle": {
+    "externalBin": ["binaries/jeeves", "binaries/jeeves-window"],
+    "macOS": { "signingIdentity": "-" }
+  }
 }

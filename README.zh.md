@@ -38,7 +38,9 @@ just desktop-build     # 可选，打包 Mac 开发版
 just desktop-open      # 已运行时回到原窗口
 ```
 
-在主对话里发截图提问、比较带出处的价格，或预览并批准本次操作。比完价可以接着请 Jeeves 盯住其中一款，在手机上修改提醒阈值。从「工作」查看哪项验收失败、修正后是否通过，逐行审阅文件，或继续任务。[上手指南](docs/guide.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
+桌面应用提示连接失败时，可查看[本地网关恢复步骤](docs/operations.zh.md#mac-桌面应用)。
+
+在主对话里发截图提问、比较带出处的价格，或预览并批准本次操作。比完价可以接着请 Jeeves 盯住其中一款，在手机上修改提醒阈值。从「工作」下载交付文件、查看验收结果、逐行审阅或继续任务。[上手指南](docs/guide.zh.md) · [Mac 桌面应用](docs/operations.zh.md#mac-桌面应用)
 
 ## Jeeves 能做什么
 

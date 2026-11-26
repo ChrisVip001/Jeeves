@@ -180,6 +180,7 @@ Parameters: `command`, `cwd`, `background`. `vet()` returns `Allow`, `Deny(reaso
 The sandbox allows writes only under the writable roots (the call's `cwd`, which must lie inside the turn's working directory when one is bound, plus `JEEVES_EXEC_WRITABLE_ROOTS`),
 `/tmp`, `/private/tmp` and the temp directory. The network is cut unless `JEEVES_EXEC_NETWORK=1` (seatbelt `(deny network*)`, bwrap `--unshare-net`).
 Roots are canonicalized before they go into the rules.
+Foreground commands and background jobs start in the resolved working directory, so relative output paths are relative to that directory.
 
 Execution: stdin is null, stdout and stderr are read concurrently under `JEEVES_EXEC_TIMEOUT` (default 30 s, 1–3600), stdout is streamed as deltas to an observer when one is watching.
 The result includes the exit code and stdout. A non-zero exit marks the call failed. Non-empty stderr appears under `--- stderr ---`.

@@ -107,6 +107,28 @@ async fn an_allowed_command_runs_and_reports_its_exit_code() {
 }
 
 #[tokio::test]
+async fn a_non_worktree_command_uses_its_workspace_for_relative_outputs() {
+    if !sandbox_available() {
+        return;
+    }
+    let dir = tempfile::tempdir().expect("workspace");
+    let output = execute(
+        "echo workspace-data > relative-output.txt",
+        &policy(&["echo*"]),
+        &[dir.path().to_path_buf()],
+        None,
+        None,
+    )
+    .await;
+
+    assert!(output.contains("exit code 0"), "{output}");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("relative-output.txt")).unwrap(),
+        "workspace-data\n"
+    );
+}
+
+#[tokio::test]
 async fn the_sandbox_confines_writes_to_the_allowed_roots() {
     if !sandbox_available() {
         return;

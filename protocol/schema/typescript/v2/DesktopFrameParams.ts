@@ -4,5 +4,6 @@ import type { ControlLeaseRef } from "./ControlLeaseRef";
 export type DesktopFrameParams = {
   taskId: string;
   observationId: string;
+  localOnly?: boolean;
   lease?: ControlLeaseRef | null;
 };

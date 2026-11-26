@@ -15,6 +15,8 @@ doctest = false
 tempfile = { workspace = true }
 ring = "0.17"
 base64 = "0.22"
+cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
 reqwest = { workspace = true }
 regex = "=1.13.1"
 anyhow = { workspace = true }

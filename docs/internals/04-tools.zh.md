@@ -166,6 +166,7 @@ MCP 工具和未知工具永远不算已证明只读。
 沙箱只允许写入可写根（本次调用的 `cwd`——绑定了工作目录时必须位于其中——加 `JEEVES_EXEC_WRITABLE_ROOTS`）、
 `/tmp`、`/private/tmp` 与临时目录。除非 `JEEVES_EXEC_NETWORK=1`，网络被切断（seatbelt `(deny network*)`，bwrap `--unshare-net`）。
 根在写入规则前会先规范化。
+前台命令和后台作业都从解析后的工作目录启动，相对输出路径以该目录为准。
 
 执行：stdin 为空，stdout 与 stderr 并发读取，受 `JEEVES_EXEC_TIMEOUT`（默认 30 秒，1–3600）约束；有观察者时 stdout 以增量形式推送。
 结果包含退出码与标准输出。非零退出会将调用记为失败。有标准错误输出时，正文在 `--- stderr ---` 下列出。

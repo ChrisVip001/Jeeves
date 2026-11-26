@@ -719,6 +719,13 @@
         "path": {
           "type": "string"
         },
+        "workspaceFile": {
+          "description": "The current file can be read in this task's managed workspace.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "writtenText": {
           "description": "Complete text of an observed successful whole-file write up to 64 KiB.",
           "type": [
@@ -990,6 +997,16 @@
         },
         "observedAt": {
           "type": "string"
+        },
+        "upload": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BrowserUploadTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1079,6 +1096,33 @@
           },
           "required": [
             "direction",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "chooser_id": {
+              "type": "string"
+            },
+            "data": {
+              "type": "string"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "upload"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "chooser_id",
+            "data",
+            "filename",
             "kind"
           ],
           "type": "object"
@@ -1383,6 +1427,21 @@
         "url"
       ],
       "title": "BrowserStartParams",
+      "type": "object"
+    },
+    "BrowserUploadTarget": {
+      "properties": {
+        "chooserId": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "chooserId",
+        "origin"
+      ],
       "type": "object"
     },
     "BrowserWorkerCommand": {
@@ -2797,7 +2856,10 @@
           "type": "string"
         },
         "destination": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "frameId": {
           "type": "string"
@@ -2805,7 +2867,6 @@
       },
       "required": [
         "dataUrl",
-        "destination",
         "frameId"
       ],
       "title": "DesktopFrame",
@@ -2821,6 +2882,12 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "localOnly": {
+          "type": [
+            "boolean",
+            "null"
           ]
         },
         "observationId": {
@@ -7327,6 +7394,39 @@
         "nextCursor"
       ],
       "title": "TaskEventsResponse",
+      "type": "object"
+    },
+    "TaskFileParams": {
+      "description": "Read a file listed on the task's work card.",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "taskId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "taskId"
+      ],
+      "title": "TaskFileParams",
+      "type": "object"
+    },
+    "TaskFileResponse": {
+      "properties": {
+        "data": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data",
+        "filename"
+      ],
+      "title": "TaskFileResponse",
       "type": "object"
     },
     "TaskGetParams": {

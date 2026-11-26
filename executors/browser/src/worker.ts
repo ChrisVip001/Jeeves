@@ -41,7 +41,7 @@ const lines = readline.createInterface({
 });
 lines.on("close", () => void stop());
 lines.on("line", (line) => {
-  if (line.length > 64000) {
+    if (line.length > 1_410_000) {
     void stop();
     return;
   }
@@ -49,6 +49,8 @@ lines.on("line", (line) => {
     let request: BrowserWorkerRequest;
     try {
       request = JSON.parse(line);
+      if (line.length > 64000 && !(request.command?.kind === "humanInput" && request.command.input?.kind === "upload"))
+        throw Error("Request exceeds the browser command limit");
       if (
         !Number.isInteger(request.id) ||
         request.id < 1 ||

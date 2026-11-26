@@ -4,12 +4,13 @@
 use std::{
     fs::OpenOptions,
     io::{BufRead, BufReader},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{Mutex, mpsc},
     time::Duration,
 };
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder, webview::DownloadEvent};
 
 use crate::window_state::{self, MIN_SIZE};
 
@@ -18,6 +19,7 @@ use crate::window_state::{self, MIN_SIZE};
 struct Runtime(Mutex<Option<Child>>);
 
 const START_TIMEOUT: Duration = Duration::from_secs(65);
+const GATEWAY_CONNECT_TIMEOUT: Duration = Duration::from_millis(500);
 /// `jeeves runtime` announces the private listener when it is ready.
 const READY_MARK: &str = "Jeeves Runtime → ";
 
@@ -199,6 +201,7 @@ fn window_target(target: Result<String, String>) -> WebviewUrl {
                             && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))))
             })
             .ok_or_else(|| "远程服务需要 HTTPS 地址，同机服务可以使用回环 HTTP".into())
+            .and_then(check_local_gateway)
     }) {
         Ok(url) => WebviewUrl::External(url),
         Err(why) => {
@@ -207,6 +210,28 @@ fn window_target(target: Result<String, String>) -> WebviewUrl {
             WebviewUrl::App(format!("index.html?{}", page.query().expect("error query")).into())
         }
     }
+}
+
+fn check_local_gateway(url: tauri::Url) -> Result<tauri::Url, String> {
+    let port = url.port_or_known_default().expect("HTTP or HTTPS URL");
+    let ipv4 = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+    let ipv6 = SocketAddr::from((Ipv6Addr::LOCALHOST, port));
+    let addresses = match url.host_str() {
+        Some("localhost") => &[ipv4, ipv6][..],
+        Some("127.0.0.1") => std::slice::from_ref(&ipv4),
+        Some("[::1]") => std::slice::from_ref(&ipv6),
+        _ => return Ok(url),
+    };
+    if addresses
+        .iter()
+        .any(|address| TcpStream::connect_timeout(address, GATEWAY_CONNECT_TIMEOUT).is_ok())
+    {
+        return Ok(url);
+    }
+    Err(format!(
+        "无法连接本地 Jeeves 网关（{}）。请启动原有网关，然后退出并重新打开 Jeeves。",
+        url.origin().ascii_serialization()
+    ))
 }
 
 /// The cockpit titles itself `(N) Jeeves` while N items wait for the user; the Dock badge
@@ -219,10 +244,34 @@ fn waiting_count(title: &str) -> Option<i64> {
 
 fn open_window(app: &tauri::AppHandle, target: Result<String, String>) -> tauri::Result<()> {
     let url = window_target(target);
+    let origin = match &url {
+        WebviewUrl::External(url) => Some(url.origin()),
+        _ => None,
+    };
     let builder = WebviewWindowBuilder::new(app, "main", url)
         .title("Jeeves")
         .inner_size(1180.0, 800.0)
         .min_inner_size(MIN_SIZE.0, MIN_SIZE.1)
+        .on_download(move |webview, event| match event {
+            DownloadEvent::Requested { url, destination } => {
+                url.scheme() == "blob"
+                    && origin
+                        .as_ref()
+                        .is_some_and(|allowed| &url.origin() == allowed)
+                    && webview
+                        .app_handle()
+                        .path()
+                        .download_dir()
+                        .is_ok_and(|directory| destination.parent() == Some(directory.as_path()))
+            }
+            DownloadEvent::Finished { success, .. } => {
+                if !success {
+                    eprintln!("(jeeves) desktop file download failed");
+                }
+                true
+            }
+            _ => false,
+        })
         .on_document_title_changed(|window, title| {
             let count = waiting_count(&title);
             if let Err(error) = window.set_badge_count(count) {
@@ -323,9 +372,23 @@ mod tests {
         ] {
             std::assert_matches!(window_target(Ok(raw.into())), WebviewUrl::App(_));
         }
+        let gateway = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = gateway.local_addr().unwrap();
         std::assert_matches!(
-            window_target(Ok("http://127.0.0.1:7777".into())),
+            window_target(Ok(format!("http://{address}"))),
             WebviewUrl::External(_)
+        );
+    }
+
+    #[test]
+    fn a_missing_local_gateway_opens_the_local_error_page() {
+        let gateway = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = gateway.local_addr().unwrap();
+        drop(gateway);
+
+        std::assert_matches!(
+            window_target(Ok(format!("https://{address}"))),
+            WebviewUrl::App(page) if page.to_string_lossy().contains("error=")
         );
     }
 }

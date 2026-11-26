@@ -12,7 +12,7 @@ import { submissionTracker } from "./ui/submission";
 import GoalDraftCard from "./GoalDraftCard.vue";
 import TaskDelivery from "./TaskDelivery.vue";
 import TaskFileReview from "./TaskFileReview.vue";
-import type { TaskReviewFile } from "./protocol";
+import type { WorkFile } from "./fileReview";
 import TaskTranscript from "./ui/TaskTranscript.vue";
 import type { AgentTaskView } from "./ui/types";
 const props=defineProps<{task:AgentTaskView; phone?:boolean}>();
@@ -32,10 +32,10 @@ const tracker=submissionTracker(accountStorage);
 const draftKey = accountKey("jeeves.task-draft." + props.task.id);
 const text = ref(sessionStorage.getItem(draftKey) ?? "");
 const historyOpen = ref(false);
-const reviewFile = ref<TaskReviewFile | null>(null);
+const reviewFile = ref<WorkFile | null>(null);
 const review = computed(() => webTasks.state.reviews[props.task.id]);
 let reviewOpener: HTMLElement | undefined;
-function openReview(file: TaskReviewFile, opener: HTMLElement) {
+function openReview(file: WorkFile, opener: HTMLElement) {
   reviewOpener = opener;
   reviewFile.value = file;
 }
@@ -120,7 +120,7 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
     </form>
     <p v-if="feedback" class="cw-feedback" role="status">{{ feedback }}</p>
   </section>
-  <TaskFileReview v-if="reviewFile" :key="reviewFile.path" :file="reviewFile"
+  <TaskFileReview v-if="reviewFile" :key="reviewFile.path" :file="reviewFile" :task-id="task.id"
     :base="review?.baseCommit" :result="review?.resultCommit" @close="closeReview" />
   </div>
 </template>

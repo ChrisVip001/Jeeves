@@ -13,6 +13,9 @@ const dialog = ref<HTMLDialogElement>();
 const loadedId = ref("");
 const fullSize = ref(false);
 const draft = ref("");
+const selectedImage = ref<File>();
+const uploadError = ref("");
+const readingImage = ref(false);
 const frame = computed(() => props.center.state.frames[props.row.taskId]);
 const busy = computed(() => !!props.center.state.busy[props.row.taskId]);
 const interactive = computed(
@@ -29,6 +32,10 @@ watch(
   },
 );
 watch(() => frame.value?.frameId, () => { draft.value = ""; });
+watch(() => frame.value?.upload?.chooserId, () => {
+  selectedImage.value = undefined;
+  uploadError.value = "";
+});
 onMounted(() => {
   dialog.value?.showModal();
   void props.center.frame(props.row.taskId);
@@ -55,6 +62,35 @@ function sendText() {
   const text = draft.value;
   draft.value = "";
   send({ kind: "text", text });
+}
+async function upload() {
+  const file = selectedImage.value;
+  const target = frame.value?.upload;
+  const frameId = loadedId.value;
+  if (!file || !target || !interactive.value || busy.value || readingImage.value) return;
+  if (file.size > 1024 * 1024 || !/\.(png|jpe?g)$/i.test(file.name)) {
+    uploadError.value = t("请选择不超过 1 MiB 的 PNG 或 JPEG 图片。");
+    return;
+  }
+  readingImage.value = true;
+  uploadError.value = "";
+  try {
+    const data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",", 2)[1] ?? "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    if (frame.value?.upload?.chooserId === target.chooserId && frameId === loadedId.value) {
+      await props.center.input(props.row, frameId, {
+        kind: "upload", chooserId: target.chooserId, filename: file.name, data,
+      });
+    }
+  } catch {
+    uploadError.value = t("无法读取所选图片。");
+  } finally {
+    readingImage.value = false;
+  }
 }
 </script>
 <template>
@@ -140,6 +176,17 @@ function sendText() {
         {{ center.state.errors[row.taskId] }}
       </p>
       <template v-if="row.status === 'human' && frame?.frameId">
+        <form v-if="frame.upload" :key="frame.upload.chooserId" @submit.prevent="upload">
+          <label>
+            {{ t("选择要传给 {origin} 的图片", { origin: frame.upload.origin }) }}
+            <input type="file" accept=".png,.jpg,.jpeg" :disabled="busy || readingImage"
+              @change="selectedImage = ($event.target as HTMLInputElement).files?.[0]" />
+          </label>
+          <button type="submit" class="quiet-button" :disabled="busy || readingImage || !interactive || !selectedImage">
+            {{ t("上传图片") }}
+          </button>
+          <p v-if="uploadError" role="alert">{{ uploadError }}</p>
+        </form>
         <p class="remote-hint">
           {{ t("点画面选择位置，或用 Tab 切换焦点、Enter 激活。") }}
         </p>

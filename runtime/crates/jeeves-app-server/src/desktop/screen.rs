@@ -90,12 +90,17 @@ impl Server {
                 .is_some_and(|o| o.observation_id == p.observation_id),
             "Observe the selected window before capturing it"
         );
-        let id = self
-            .screen_profile()
-            .await?
-            .ok_or_else(|| anyhow!("Choose a screen model before previewing"))?;
-        let profile = self.screen_settings(&id)?;
-        let (resolved, destination) = self.screen_destination(&profile)?;
+        let share = if p.local_only.unwrap_or_default() {
+            None
+        } else {
+            let id = self
+                .screen_profile()
+                .await?
+                .ok_or_else(|| anyhow!("Choose a screen model before previewing"))?;
+            let profile = self.screen_settings(&id)?;
+            let (resolved, destination) = self.screen_destination(&profile)?;
+            Some((serde_json::to_string(&profile)?, resolved, destination))
+        };
         let frame_id: String = sqlx::query_scalar("SELECT lower(hex(randomblob(16)))")
             .fetch_one(&self.pool)
             .await?;
@@ -124,11 +129,14 @@ impl Server {
             "Invalid window image"
         );
         let data_url = format!("data:image/jpeg;base64,{jpeg}");
-        state.frame = Some(Preview {
-            id: frame_id.clone(),
-            profile: serde_json::to_string(&profile)?,
-            resolved,
-            jpeg,
+        let destination = share.map(|(profile, resolved, destination)| {
+            state.frame = Some(Preview {
+                id: frame_id.clone(),
+                profile,
+                resolved,
+                jpeg,
+            });
+            destination
         });
         Ok(DesktopFrame {
             frame_id,

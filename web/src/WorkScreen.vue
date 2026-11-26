@@ -10,7 +10,7 @@ const browser = computed(() => props.center.browser);
 const row = computed(() => browser.value?.state.sessions.find(item => item.taskId === props.task.id));
 /** Whether the interactive remote-control dialog is open (only meaningful while you hold control). */
 const remote = ref(false);
-const live = computed(() => !!row.value && !["closed", "needsAttention"].includes(row.value.status));
+const live = computed(() => !!row.value && !["starting", "closed", "needsAttention"].includes(row.value.status));
 const frame = computed(() => browser.value?.state.frames[props.task.id]);
 const busy = computed(() => !!browser.value?.state.busy[props.task.id]);
 const controlError = computed(() => browser.value?.state.errors[props.task.id]);
