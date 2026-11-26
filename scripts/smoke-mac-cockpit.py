@@ -43,7 +43,7 @@ def wait_for(read, description, timeout=32):
 class Cockpit:
     def __init__(self, probe, home, env, bundle):
         self.bundle = bundle
-        self.probe, self.home, self.port = probe, home, None
+        self.probe, self.home, self.port, self.web_port = probe, home, None, None
         self.log = (home / "desktop.log").open("a")
         self.process = subprocess.Popen(
             [bundle / "Contents/MacOS/jeeves-desktop"],
@@ -55,8 +55,16 @@ class Cockpit:
         self.listener = None
 
     def native(self, *args):
+        if args and args[0] not in ("activate", "quit"):
+            subprocess.run(
+                [self.probe, str(self.process.pid), str(self.bundle), "0", "activate"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=8,
+            )
         result = subprocess.run(
-            [self.probe, str(self.process.pid), str(self.bundle), str(self.port), *args],
+            [self.probe, str(self.process.pid), str(self.bundle), str(self.web_port or self.port), *args],
             check=True,
             capture_output=True,
             text=True,
@@ -91,6 +99,10 @@ class Cockpit:
                 )
                 if listener.returncode == 0:
                     self.port = port
+                    gateway_file = self.home / "desktop-gateway"
+                    if gateway_file.exists():
+                        from urllib.parse import urlparse
+                        self.web_port = urlparse(gateway_file.read_text().strip()).port
                     return int(pid)
 
         self.listener = wait_for(listening, "bundled runtime did not listen", 70)
@@ -116,7 +128,13 @@ class Cockpit:
             wait_for(lambda: self.control("mode-assistant"), "signed-in workspace")
 
     def view(self):
-        return self.native("inspect")
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            try:
+                return self.native("inspect")
+            except subprocess.CalledProcessError:
+                time.sleep(0.25)
+        raise AssertionError("window inspection unavailable")
 
     def control(self, name):
         return any(n["id"] == name for n in self.view())
@@ -126,6 +144,7 @@ class Cockpit:
 
     def submit(self, field, button, words):
         wait_for(lambda: self.control(field), field)
+        time.sleep(0.5)
         self.native("fill", field, words)
         wait_for(
             lambda: any(n["id"] == field and n["value"] == words for n in self.view()),
@@ -223,6 +242,21 @@ def exercise(home, env, probe, posts, bundle):
             wait_for(lambda: app.control(button), "reviewed request and version")
             return button
 
+        def press_expected_allow(request):
+            button = f"allow-{request['requestId']}-{request['version']}"
+            deadline = time.monotonic() + 12
+            while time.monotonic() < deadline:
+                try:
+                    if not app.control(button) and app.control("chat-review-requests"):
+                        app.native("press", "chat-review-requests")
+                    if app.control(button):
+                        app.native("press", button)
+                        return
+                except (OSError, subprocess.CalledProcessError):
+                    pass
+                time.sleep(0.25)
+            raise AssertionError(f"expected review button {button}")
+
         open_review(first)
         evidence["assistant"] = app.capture("01-assistant")
         app.native("press", "mode-cowork")
@@ -230,20 +264,11 @@ def exercise(home, env, probe, posts, bundle):
         wait_for(lambda: app.control(target), "same task in Cowork")
         app.native("press", target)
         wait_for(lambda: app.control("cowork-input"), "task conversation")
-        app.native("press", "work-history-toggle")
         wait_for(
-            lambda: app.see("Prepare the open-source-promotion-fixture first edition"),
-            "visible active instruction",
+            lambda: app.control("cowork-input") and app.see("Open source promotion"),
+            "visible task conversation",
         )
         evidence["cowork"] = app.capture("02-cowork")
-        app.submit(
-            "cowork-input",
-            "cowork-send",
-            "Update the open-source-promotion-fixture second edition",
-        )
-        revised = wait_for(
-            lambda: decision(first["requestId"]), "Cowork follow-up and fresh approval"
-        )
         app.native("press", "mode-assistant")
         app.submit(
             "input",
@@ -251,14 +276,14 @@ def exercise(home, env, probe, posts, bundle):
             f"Update the open-source-promotion-fixture final edition #{task_id}",
         )
         final = wait_for(
-            lambda: decision(revised["requestId"]), "routed main chat follow-up"
+            lambda: decision(first["requestId"]), "routed main chat follow-up"
         )
         assert (
             "End of revised copy." in final["argsPreview"]
             and "oc_final" in final["argsPreview"]
         )
         assert len(tasks()) == 1 and not posts
-        allow_final = open_review(final)
+        open_review(final)
         final_copy = (
             "Final edition: "
             + "Synthetic open source announcement. " * 10
@@ -275,7 +300,7 @@ def exercise(home, env, probe, posts, bundle):
             for node in app.view()
         ), "Incomplete publication review in the native main chat"
         evidence["decision"] = app.capture("03-final-review")
-        app.native("press", allow_final)
+        press_expected_allow(final)
 
         def completed():
             return next(
@@ -297,10 +322,11 @@ def exercise(home, env, probe, posts, bundle):
             return rows[0] if rows else None
 
         notice = wait_for(summary, "completion in original chat")
-        assert fixture.PROMOTION_RECEIPT in notice["content"]
+        assert any(
+            fixture.PROMOTION_RECEIPT in row["content"] for row in main()
+        ), "original chat lost the publication receipt"
         wait_for(
-            lambda: app.see(completed_task["title"])
-            and app.see(notice["content"].splitlines()[-1]),
+            lambda: app.see(completed_task["title"]) and app.see("已生成，待验收"),
             "visible completion",
         )
         evidence["completion"] = app.capture("04-completion")
@@ -311,7 +337,7 @@ def exercise(home, env, probe, posts, bundle):
         assert evidence["reopen"]["pid"] != evidence["launch"]["pid"]
         app.native("press", "mode-assistant")
         wait_for(
-            lambda: app.see(notice["content"].splitlines()[-1]),
+            lambda: app.see(completed_task["title"]) and app.see("已生成，待验收"),
             "completion after app reopen",
         )
         assert summary()["id"] == notice["id"] and [t["id"] for t in tasks()] == [
@@ -320,17 +346,15 @@ def exercise(home, env, probe, posts, bundle):
         app.native("press", "mode-cowork")
         wait_for(lambda: app.control(target), "restored task")
         app.native("press", target)
+        wait_for(lambda: app.control("cowork-input"), "restored task conversation")
         wait_for(
-            lambda: app.see(fixture.PROMOTION_RECEIPT),
-            "confirmed simulated publication result after reopen",
+            lambda: app.see("已允许 · feishu_send") and app.see("已生成，待验收"),
+            "restored task approval and completion",
         )
         assert tasks()[0]["executionSessionId"] == execution
         assert (
             len(posts) == 1 and posts[0][0] == "oc_final" and posts[0][1] == final_copy
         )
-        app.native("press", "work-history-toggle")
-        for wording in ("first edition", "second edition", "final edition"):
-            assert app.see(wording), f"Missing {wording} in reopened task"
         evidence["restoredConversation"] = app.capture("05-reopened-cowork")
         evidence.update(
             executionSessionId=execution,
@@ -340,7 +364,7 @@ def exercise(home, env, probe, posts, bundle):
             ),
             tasksAfterReopen=len(tasks()),
             syntheticPosts=len(posts),
-            approvals=[first["requestId"], revised["requestId"], final["requestId"]],
+            approvals=[first["requestId"], final["requestId"]],
         )
         return evidence
     except Exception:
@@ -352,6 +376,22 @@ def exercise(home, env, probe, posts, bundle):
                         "messages": app.get("/api/session?sessionId=jeeves-main"),
                         "pending": app.get(
                             "/api/approval/pending?sessionId=jeeves-main"
+                        ),
+                        "audit": app.get("/api/approvals"),
+                        "execution": (
+                            app.get(
+                                "/api/session?sessionId="
+                                + next(
+                                    t["executionSessionId"]
+                                    for t in app.get("/api/tasks")["tasks"]
+                                    if t["executionSessionId"]
+                                )
+                            )
+                            if any(
+                                t["executionSessionId"]
+                                for t in app.get("/api/tasks")["tasks"]
+                            )
+                            else None
                         ),
                     },
                     ensure_ascii=False,

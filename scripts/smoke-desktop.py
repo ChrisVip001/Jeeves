@@ -64,6 +64,16 @@ class Provider(BaseHTTPRequestHandler):
             task_tool = any(t.get('function', {}).get('name') == 'task' for t in body.get('tools', []))
             if inline_delivery_fixture.respond(self, messages, body.get('tools', [])):
                 pass
+            elif any(
+                m['role'] == 'tool'
+                and 'Sent to oc_final (Feishu message_id om_synthetic)' in str(m.get('content', ''))
+                for m in messages
+            ) or (
+                'Original assignment:' in user
+                and 'open-source-promotion-fixture' in user
+                and 'Background from the main conversation' in user
+            ):
+                self.chunk({'content': PROMOTION_RECEIPT}, 'stop')
             elif 'open-source-promotion-fixture' in user and not tool_result:
                 final = 'final edition' in user
                 revised = 'second edition' in user
@@ -92,7 +102,13 @@ class Provider(BaseHTTPRequestHandler):
                     self.chunk({}, 'tool_calls')
                 else:
                     self.chunk({'content': 'Custom tool unavailable.'}, 'stop')
-            elif 'approval-fixture' in user and not tool_result:
+            elif 'Original assignment:' in user and 'approval-fixture' in user:
+                self.chunk({'content': '记忆已保存并核验。'}, 'stop')
+            elif 'approval-fixture' in user and not any(
+                m['role'] == 'tool'
+                and 'approved once' in str(m.get('content', ''))
+                for m in messages
+            ):
                 self.chunk({'tool_calls': [{'index': 0, 'id': 'fixture-call', 'type': 'function', 'function': {'name': 'memory', 'arguments': '{"action":"save","subject":"desktop-fixture","content":"approved once"}'}}]})
                 self.chunk({}, 'tool_calls')
             else:
