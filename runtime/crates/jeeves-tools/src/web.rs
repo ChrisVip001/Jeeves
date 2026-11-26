@@ -1204,6 +1204,16 @@ fn numeric_entity(entity: &str) -> Option<String> {
     code.and_then(char::from_u32).map(|c| c.to_string())
 }
 
+/// FlightStats tracker pages need the built-in extractor's same-origin links for dated navigation and detail verification.
+pub fn is_flightstats_tracker(url: &reqwest::Url) -> bool {
+    url.scheme() == "https"
+        && matches!(
+            url.host_str(),
+            Some("www.flightstats.com" | "flightstats.com")
+        )
+        && url.path().starts_with("/v2/flight-tracker/")
+}
+
 pub fn fetch_url() -> Tool {
     fetch_url_with_primary(None)
 }
@@ -1238,10 +1248,12 @@ pub fn fetch_url_with_primary(primary: Option<crate::Handler>) -> Tool {
                 let task_dir = ctx.task_run_id.as_ref().and(ctx.cwd.clone());
                 if primary.is_some() {
                     let parsed = reqwest::Url::parse(&url)?;
-                    check_url(&parsed, false).await?;
-                    if let Some(text) = primary::call(&primary, ctx, json!({"url": url})).await {
-                        keep_snapshot(task_dir.as_deref(), &url, &text);
-                        return Ok(text);
+                    if !is_flightstats_tracker(&parsed) {
+                        check_url(&parsed, false).await?;
+                        if let Some(text) = primary::call(&primary, ctx, json!({"url": url})).await {
+                            keep_snapshot(task_dir.as_deref(), &url, &text);
+                            return Ok(text);
+                        }
                     }
                 }
                 let text = execute_fetch(&url, false).await?;

@@ -219,6 +219,7 @@ pub struct ToolOutcome {
     /// uses to settle the row it opened on `ToolStart`.
     pub tool_use_id: String,
     pub name: String,
+    pub input: serde_json::Value,
     pub output: String,
     pub success: bool,
     pub duration_ms: i64,
@@ -402,24 +403,47 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
 }
 
 pub type ScheduleRefinement = Box<dyn FnOnce(&str) -> Option<Value> + Send>;
+pub type ScheduleFollow = Box<dyn Fn(&ToolOutcome) -> Option<Value> + Send>;
 
-/// A host-selected public lookup, plus at most one refinement of its successful result.
-pub struct ScheduleSearch {
-    pub initial: Value,
-    pub refine: ScheduleRefinement,
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ScheduleTool {
+    Search,
+    Fetch,
 }
 
-/// Run the host searches through normal admission, checkpointing and observation.
+impl ScheduleTool {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Search => "search_web",
+            Self::Fetch => "fetch_url",
+        }
+    }
+}
+
+/// A host-selected lookup, one optional search refinement, and one original dated link.
+pub struct ScheduleSearch {
+    pub initial: (ScheduleTool, Value),
+    pub refine: Option<ScheduleRefinement>,
+    pub follow: ScheduleFollow,
+}
+
+/// Run scheduled reads through normal admission, checkpointing and observation.
 pub async fn run_with_schedule_search(
     turn: Turn<'_>,
-    search: Option<ScheduleSearch>,
+    schedule: Option<ScheduleSearch>,
 ) -> Result<LoopResult> {
-    let search = search.filter(|_| {
-        turn.resume.is_none() && turn.run_limits.is_none() && turn.tools.get("search_web").is_some()
+    let schedule = schedule.filter(|schedule| {
+        turn.resume.is_none()
+            && turn.run_limits.is_none()
+            && turn.tools.get(schedule.initial.0.name()).is_some()
     });
-    let (mut search, mut refine) = match search {
-        Some(ScheduleSearch { initial, refine }) => (Some(initial), Some(refine)),
-        None => (None, None),
+    let (mut pending, mut refine, mut follow) = match schedule {
+        Some(ScheduleSearch {
+            initial,
+            refine,
+            follow,
+        }) => (Some(initial), refine, Some(follow)),
+        None => (None, None, None),
     };
     let round_id = turn
         .resume
@@ -612,17 +636,17 @@ pub async fn run_with_schedule_search(
         if out_of_tokens {
             schemas.clear();
         }
-        let mut preflight = if out_of_tokens { None } else { search.take() };
-        let is_preflight = preflight.is_some();
+        let mut preflight = if out_of_tokens { None } else { pending.take() };
+        let preflight_tool = preflight.as_ref().map(|(tool, _)| *tool);
         let mut recovered_overflow = false;
         let sampled = loop {
-            if let Some(input) = preflight.take() {
+            if let Some((tool, input)) = preflight.take() {
                 break Some(jeeves_provider::CreateResponse {
                     stop_reason: StopReason::ToolUse,
                     usage: Usage::default(),
                     content: vec![ContentBlock::ToolUse {
                         id: format!("schedule-{round_id}-{iteration}"),
-                        name: "search_web".into(),
+                        name: tool.name().into(),
                         input,
                         extra: None,
                     }],
@@ -701,7 +725,9 @@ pub async fn run_with_schedule_search(
         usage.cache_creation_input_tokens += response.usage.cache_creation_input_tokens;
         last_observed = response.usage.prompt_size().max(0) as usize;
         sent_len = messages.len();
-        if !is_preflight && let Some(notify) = &notify {
+        if preflight_tool.is_none()
+            && let Some(notify) = &notify
+        {
             notify(LoopEvent::Llm {
                 iteration,
                 stop_reason: response.stop_reason,
@@ -931,12 +957,13 @@ pub async fn run_with_schedule_search(
                     Some(cancel) => tokio::select! {
                             _ = cancel.wait() => {
                                 for (position, slot) in slots.iter().enumerate() {
-                                    if let (Some((output, duration_ms)), Some((id, name, _))) =
+                                    if let (Some((output, duration_ms)), Some((id, name, input))) =
                                         (slot, segment.get(position))
                                     {
                                         tool_calls.push(ToolOutcome {
                                             tool_use_id: id.clone(),
                                             name: name.clone(),
+                                            input: input.clone(),
                                             output: output.text.clone(),
                                             success: output.success,
                                             duration_ms: *duration_ms,
@@ -1021,20 +1048,30 @@ pub async fn run_with_schedule_search(
                 let success =
                     output.success && !uncertain.load(std::sync::atomic::Ordering::Acquire);
                 let output = output.text;
-                if is_preflight
+                if preflight_tool == Some(ScheduleTool::Search)
                     && let Some(refine) = refine.take()
                     && success
                     && turn.ctx.turn_limits.search_max > 1
                 {
-                    search = refine(&output);
+                    pending = refine(&output).map(|input| (ScheduleTool::Search, input));
                 }
-                tool_calls.push(ToolOutcome {
+                let outcome = ToolOutcome {
                     tool_use_id: id.clone(),
                     name: name.clone(),
+                    input: input.clone(),
                     output: output.clone(),
                     success,
                     duration_ms,
-                });
+                };
+                if success
+                    && name == ScheduleTool::Fetch.name()
+                    && pending.is_none()
+                    && let Some(next) = follow.as_ref().and_then(|follow| follow(&outcome))
+                {
+                    pending = Some((ScheduleTool::Fetch, next));
+                    follow = None;
+                }
+                tool_calls.push(outcome);
                 let verdict = guard.observe(name, input, &output, success);
                 progressed |= !verdict.is_stall();
                 let for_model = guard::for_model(&output, name, input, &verdict);

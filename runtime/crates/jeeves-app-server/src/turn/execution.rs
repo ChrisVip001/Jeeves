@@ -301,11 +301,18 @@ pub(crate) async fn full_turn(
         && !shared
         && !chat_operations.unresolved
         && owner_run.is_none()
-        && resume.is_none()
-        && turn_tools.get("search_web").is_some())
+        && resume.is_none())
     .then(|| super::schedule_lookup::request(message, chrono::Local::now().date_naive()))
     .flatten();
-    let scheduled_search = schedule_lookup.is_some();
+    let guarded_flight = schedule_lookup.is_some();
+    let mut initial_search = schedule_lookup.as_ref().and_then(|lookup| {
+        lookup.plan(
+            message,
+            turn_tools.get("search_web").is_some(),
+            turn_tools.get("fetch_url").is_some(),
+        )
+    });
+    let scheduled_search = initial_search.is_some();
     let prompt_for = |summary: Option<&str>| {
         let mut prompt = build_system(PromptParts {
             soul: &soul,
@@ -474,7 +481,6 @@ pub(crate) async fn full_turn(
         server
             .catalog
             .output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
-    let mut initial_search = schedule_lookup.map(super::schedule_lookup::Lookup::plan);
     let mut result: LoopResult = loop {
         let context_budget = budget_tokens(resolved, &settings, factor)
             .saturating_sub(
@@ -503,7 +509,7 @@ pub(crate) async fn full_turn(
                     .map(|budget| budget as usize),
                 tool_result_budget: crate::tool_result_budget(&settings),
                 observer: observer.clone(),
-                on_text: (!scheduled_search).then(|| on_text.clone()),
+                on_text: (!guarded_flight).then(|| on_text.clone()),
                 interrupt: interrupt.clone(),
                 checkpoint: checkpoint.clone(),
                 steering: steering.clone(),
@@ -545,8 +551,12 @@ pub(crate) async fn full_turn(
         }
     };
 
-    if scheduled_search {
-        result.reply = super::schedule_lookup::seat_safe_reply(&result.reply);
+    if let Some(lookup) = schedule_lookup {
+        result.reply = if result.interrupted {
+            String::new()
+        } else {
+            lookup.evidence_reply(&result.tool_calls)
+        };
     }
     Ok(FullTurn {
         result,

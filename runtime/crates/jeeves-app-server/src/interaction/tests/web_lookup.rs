@@ -310,8 +310,8 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             "Never combine a flight number from one row with the time from another",
             "Do not relax a hard time limit",
             "do not guess row numbers",
-            "Cite a candidate",
-            "Do not assume two different numbers are a codeshare",
+            "successfully fetched dated flight tracker detail",
+            "A verified public flight is still not confirmation of the user's booking.",
         ] {
             assert!(prompt.contains(rule), "{rule}");
         }
@@ -355,30 +355,16 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             _ => None,
         })
         .unwrap();
-    let grounded = |answer: &str| {
-        answer.split('。').any(|line| {
-            line.contains("2030-11-08 甲城到乙城")
-                && line.contains(&format!("[QZ123，06:25]({url})"))
-        }) && !answer.contains("QZ456")
-            && !answer.contains("QZ789")
-    };
-    assert!(grounded(done));
-    assert!(!done.contains("左侧") && !done.contains("20A") && !done.contains("20 排"));
+    assert!(done.contains("未能核实"));
     assert!(done.contains("航司值机页的座位图"));
+    for unsupported in ["QZ123", "QZ456", "QZ789", "左侧", "20A", "20 排"] {
+        assert!(!done.contains(unsupported));
+    }
     assert!(
         !events
             .iter()
             .any(|e| matches!(e, ServerNotification::TextDelta(_)))
     );
-    for rejected in [
-        done.replace("2030-11-08", "2030-11-09"),
-        done.replace("甲城到乙城", "乙城到甲城"),
-        done.replace("QZ123", "QZ456"),
-        done.replace("06:25", "06:30"),
-        done.replace(url, "https://elsewhere.test"),
-    ] {
-        assert!(!grounded(&rejected));
-    }
     assert!(
         matches!(events.iter().find(|e| matches!(e, ServerNotification::ToolStarted(_))),
         Some(ServerNotification::ToolStarted(started)) if started.tool == "search_web")
@@ -431,3 +417,5 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     );
     assert!(server.tasks.list(10).await.unwrap().is_empty());
 }
+
+mod dated_status;
