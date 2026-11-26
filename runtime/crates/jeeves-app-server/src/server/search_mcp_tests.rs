@@ -12,6 +12,46 @@ fn search_and_fetch_map_to_read_only_tools() {
 }
 
 #[test]
+fn fresh_lookup_prioritizes_dated_offer_evidence_without_rewriting_queries() {
+    let query = "site:offers.example 深圳 济南 2026-11-26 单程 实时票价";
+    let (tool, args) = request(&json!({"query": query, "max_results": 3})).unwrap();
+    assert_eq!(tool, "web_search");
+    assert_eq!(args["search_queries"], json!([query]));
+    let objective = args["objective"].as_str().unwrap();
+    assert!(objective.contains(query));
+    assert!(objective.contains("exact local date, item, and currency"));
+    assert!(objective.contains("direct listings with actionable quotes"));
+    assert!(objective.contains("same offer record"));
+    assert!(objective.contains("direction and one-way vs round-trip"));
+    assert!(objective.contains("schedules or historical averages"));
+}
+
+#[test]
+fn schedule_lookup_keeps_the_query_and_asks_for_coherent_nearby_rows() {
+    let query = "2030-11-08 甲城到乙城 06:15 至 06:45 客运时刻表";
+    let (_, args) = request(&json!({"query": query, "max_results": 3})).unwrap();
+    assert_eq!(args["search_queries"], json!([query]));
+    let objective = args["objective"].as_str().unwrap();
+    assert!(objective.contains("operating service number together"));
+    assert!(objective.contains("nearby same-date, same-direction rows"));
+    assert!(objective.contains("Never splice fields across rows"));
+}
+
+#[test]
+fn approximate_time_sends_exact_and_alternate_in_the_same_request() {
+    let query = "2030-11-08 甲城到乙城 06:30";
+    let nearby = "2030-11-08 甲城到乙城 06:00 to 07:00 timetable";
+    let (_, args) = request(&json!({"query":query, "nearby_query":nearby})).unwrap();
+    assert_eq!(args["search_queries"], json!([query, nearby]));
+    assert!(
+        args["objective"]
+            .as_str()
+            .unwrap()
+            .contains("closest available rows")
+    );
+}
+
+#[test]
 fn malformed_empty_error_and_wrong_fetch_results_fail_closed() {
     for text in ["not JSON", "{}", r#"{"error":"quota"}"#] {
         assert!(render(text, &json!({"query":"Tokio"})).is_err(), "{text}");
@@ -54,6 +94,30 @@ fn sources_keep_provenance_scope_and_bounded_excerpts() {
     assert!(text.len() < 3000);
 }
 
+#[test]
+fn search_shares_excerpt_budget_across_sources_and_keeps_each_quote() {
+    let rows: Vec<_> = (1..=5)
+        .map(|i| {
+            json!({
+                "url": format!("https://offers.example/{i}"),
+                "title": format!("Option {i}"),
+                "excerpts": [format!("11月26日 报价 ¥{i}00\n{}", "附加页面内容".repeat(450))]
+            })
+        })
+        .collect();
+    let result = render(
+        &json!({"results": rows}).to_string(),
+        &json!({"query":"dated prices", "max_results":5}),
+    )
+    .unwrap()
+    .unwrap();
+    for i in 1..=5 {
+        assert!(result.contains(&format!("URL: https://offers.example/{i}")));
+        assert!(result.contains(&format!("11月26日 报价 ¥{i}00")));
+    }
+    assert!(result.chars().count() <= 4_800);
+}
+
 #[tokio::test]
 async fn cooldown_skips_network() {
     let state = Mutex::new(State {
@@ -88,4 +152,78 @@ async fn live_parallel_search_and_fetch() {
     .unwrap();
     assert!(fetched.to_lowercase().contains("tutorial"), "{fetched}");
     eprintln!("Live Parallel MCP returned scoped sources and readable tutorial content");
+}
+
+#[test]
+fn fetch_requires_readable_full_content_instead_of_search_excerpts() {
+    let source = "https://docs.example/rules";
+    for content in [Value::Null, json!(" \n ")] {
+        let body = json!({"results":[{
+            "url": source,
+            "full_content": content,
+            "excerpts":["A brief lead is not the full source"]
+        }]});
+        assert!(
+            render(&body.to_string(), &json!({"url":source}))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            render(&body.to_string(), &json!({"query":"new rules"}))
+                .unwrap()
+                .unwrap()
+                .contains("A brief lead")
+        );
+    }
+}
+
+#[test]
+fn parallel_search_deduplicates_tracking_links_but_preserves_distinct_revisions() {
+    let first = "https://museum.example/hours?id=7&utm_source=directory";
+    let current = "https://museum.example/hours?id=8";
+    let body = json!({"results":[
+        {"url":first, "excerpts":["旧版营业时间"]},
+        {"url":"https://museum.example/hours?utm_content=ad&id=7", "excerpts":["旧公告重复"]},
+        {"url":current, "excerpts":["新版营业时间"]},
+    ]});
+    let text = render(
+        &body.to_string(),
+        &json!({"query":"site:museum.example 营业时间","max_results":2}),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(text.contains(first), "{text}");
+    assert!(text.contains(current), "{text}");
+    assert!(!text.contains("旧公告重复"), "{text}");
+}
+
+#[test]
+fn exact_fetch_does_not_treat_tracking_normalization_as_page_identity() {
+    let body = json!({"results":[
+        {"url":"https://museum.example/hours?id=7&utm_source=directory","full_content":"Unmatched"}
+    ]});
+    assert!(
+        render(
+            &body.to_string(),
+            &json!({"url":"https://museum.example/hours?id=7"})
+        )
+        .unwrap()
+        .is_none()
+    );
+}
+
+#[test]
+fn repeated_official_scope_cannot_let_an_old_page_take_the_only_slot() {
+    let body = json!({"results":[
+        {"url":"https://library.example/notices-old/hours","excerpts":["去年营业时间"]},
+        {"url":"https://directory.example/notices/hours","excerpts":["第三方转述"]},
+        {"url":"https://library.example/notices/hours","excerpts":["官方最新营业时间"]}
+    ]});
+    let text = render(
+        &body.to_string(),
+        &json!({"query":"site:library.example/notices 营业时间 SITE:Library.Example/notices/","max_results":1}),
+    )
+    .unwrap()
+    .unwrap();
+    assert!(text.contains("官方最新营业时间"), "{text}");
 }

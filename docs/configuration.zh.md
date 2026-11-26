@@ -488,6 +488,8 @@ Jeeves **不会**自动去读这些变量——密钥只来自你配置进模型
 | `JEEVES_SEARCH_DDG` | `0` 关闭免 key 的 DuckDuckGo Lite（默认开，无 key 时优先尝试） |
 | `JEEVES_JUDGE_MODEL` | `jeeves judge` 的裁判模型（默认用 small model；裁判不是选手） |
 
+HTTPS 连接使用 Rustls，支持内置和操作系统信任根。在受管环境中，请按操作系统要求安装组织的可信代理 CA，或使用平台支持的证书包（例如在 Linux 上用 `SSL_CERT_FILE` 指向可信 PEM 证书包）。证书和主机名校验仍开启，不会绕过网络策略或公开 URL 校验。
+
 生产运行时保留 `search_web`、`fetch_url` 两个入口，内部优先使用官方
 `https://mcp.parallel.ai/mcp` 的搜索与抓取操作。此托管服务独立于用户
 `mcp.json` 配置，首次调用网页工具时才连接，启动时不联网；采用匿名访问，
@@ -501,6 +503,11 @@ MCP 结果保留来源 URL、确实获得的发布或采集日期及本次读取
 50,000 字符。抓取目标在发送到服务前先通过本地公开地址校验；远程服务负责其
 自身重定向和正文提取。抽取成功不证明事实正确或来源足够新。
 参见 [Parallel MCP 文档](https://docs.parallel.ai/integrations/mcp/quickstart)。
+
+在仅通过代理联网的环境中，能搜索或通过代理访问 HTTP 不代表 Jeeves 所在的运行环境
+能用系统 DNS 解析目标网页。在运行环境中检查：Linux 执行 `getent ahosts <public-host>`，
+macOS 执行 `dscacheutil -q host -a name <public-host>`。DNS 校验失败代表网页未被读取。
+请使用部署环境支持的系统解析服务恢复 DNS，不要替换成裸 IP、改写链接或禁用公开地址校验。
 
 内置搜索后端是一条有序降级链：Tavily → Brave；完全没配 key 时才走免 key 的
 **DuckDuckGo Lite → Bing HTML**。遇到错误、验证页、空结果或无可用条目时继续尝试

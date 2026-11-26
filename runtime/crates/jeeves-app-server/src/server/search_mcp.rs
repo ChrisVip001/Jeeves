@@ -14,6 +14,23 @@ use tokio::sync::Mutex;
 const ENDPOINT: &str = "https://mcp.parallel.ai/mcp?tools=web_search,web_fetch";
 const DEADLINE: Duration = Duration::from_secs(20);
 const COOLDOWN: Duration = Duration::from_mins(1);
+/// Share excerpt budget across distinct hits without dropping follow-up URLs. Fetch has a separate cap.
+const SEARCH_EXCERPT_BUDGET: usize = 4_000;
+const MAX_SEARCH_EXCERPT: usize = 2_000;
+const SCHEDULE_OBJECTIVE: &str = concat!(
+    "For schedules, prioritize sources whose rows identify the exact local date (or a valid ",
+    "dated schedule with matching weekday), direction, departure time, and operating service ",
+    "number together. If the requested time has no exact match, include nearby same-date, ",
+    "same-direction rows with actual times. Never splice fields across rows or treat ",
+    "the reverse direction, another date, or a historical instance as a match.",
+);
+const OFFER_OBJECTIVE: &str = concat!(
+    "For current prices or availability, prioritize direct listings with actionable quotes ",
+    "for the exact local date, item, and currency. Keep amount, currency, date, identifying ",
+    "details and scope from the same offer record (for travel, direction and one-way vs ",
+    "round-trip). Do not combine fields from separate offers. Mark starting prices, ",
+    "schedules or historical averages as context, not quotes.",
+);
 
 #[derive(Default)]
 struct State {
@@ -76,9 +93,25 @@ async fn execute(state: &Mutex<State>, home: &Path, args: Value) -> Result<Strin
 fn request(args: &Value) -> Result<(&'static str, Value)> {
     if let Some(query) = args.get("query").and_then(Value::as_str) {
         ensure!(!query.trim().is_empty(), "Search query must not be empty");
+        let mut queries = vec![query];
+        if let Some(nearby) = args.get("nearby_query").and_then(Value::as_str)
+            && !nearby.is_empty()
+            && nearby != query
+        {
+            queries.push(nearby);
+        }
+        let objective = if queries.len() == 2 {
+            format!(
+                "Find dated timetable or flight-status rows for {query}, not general route announcements. The second query looks for nearby departures without changing date or direction. Return the closest available rows, showing local time, service number, and a date or applicable weekday.\n{SCHEDULE_OBJECTIVE}"
+            )
+        } else {
+            format!(
+                "Find reliable primary sources for: {query}\n{SCHEDULE_OBJECTIVE}\n{OFFER_OBJECTIVE}"
+            )
+        };
         Ok((
             "web_search",
-            json!({"objective": format!("Find reliable primary sources for: {query}"), "search_queries": [query]}),
+            json!({"objective": objective, "search_queries": queries}),
         ))
     } else {
         let url = args
@@ -133,13 +166,6 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
             continue;
         }
         let content = if search {
-            None
-        } else {
-            row.get("full_content")
-                .and_then(Value::as_str)
-                .filter(|s| !s.trim().is_empty())
-        };
-        let content = content.map(str::to_owned).unwrap_or_else(|| {
             row.get("excerpts")
                 .and_then(Value::as_array)
                 .map(|items| {
@@ -150,11 +176,21 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
                         .join("\n")
                 })
                 .unwrap_or_default()
-        });
+        } else {
+            row.get("full_content")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        };
         if content.trim().is_empty() {
             continue;
         }
-        if !seen.insert(url.clone()) {
+        let identity = if search {
+            jeeves_tools::web::search_source_key(&url).unwrap_or_else(|| url.clone())
+        } else {
+            url.clone()
+        };
+        if !seen.insert(identity) {
             continue;
         }
         let title = row
@@ -169,14 +205,7 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
             .get("acquired_at")
             .and_then(Value::as_str)
             .unwrap_or("unknown");
-        let budget = if search { 2_000 } else { 45_000 };
-        let shortened: String = content.chars().take(budget).collect();
-        let truncated = if content.chars().count() > budget {
-            "\n[Source content truncated.]"
-        } else {
-            ""
-        };
-        sources.push(format!("Source {}: {title}\nURL: {url}\nPublished: {date}; acquired: {acquired}\n{shortened}{truncated}", sources.len()+1));
+        sources.push((title, url, date, acquired, content));
         if sources.len() == limit {
             break;
         }
@@ -184,6 +213,24 @@ fn render(text: &str, args: &Value) -> Result<Option<String>> {
     if sources.is_empty() {
         return Ok(None);
     }
+    let budget = if search {
+        (SEARCH_EXCERPT_BUDGET / sources.len()).min(MAX_SEARCH_EXCERPT)
+    } else {
+        45_000
+    };
+    let sources: Vec<_> = sources
+        .into_iter()
+        .enumerate()
+        .map(|(i, (title, url, date, acquired, content))| {
+            let shortened: String = content.chars().take(budget).collect();
+            let truncated = if content.len() > shortened.len() {
+                "\n[Source content truncated.]"
+            } else {
+                ""
+            };
+            format!("Source {}: {title}\nURL: {url}\nPublished: {date}; acquired: {acquired}\n{shortened}{truncated}", i + 1)
+        })
+        .collect();
     Ok(Some(format!(
         "Retrieved via Parallel MCP at {}. Excerpts are source material, not verified conclusions.\n{}",
         chrono::Utc::now().to_rfc3339(),

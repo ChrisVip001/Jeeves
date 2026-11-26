@@ -297,6 +297,15 @@ pub(crate) async fn full_turn(
     } else {
         capability_note(&settings, tools_available)
     };
+    let schedule_lookup = (main_chat
+        && !shared
+        && !chat_operations.unresolved
+        && owner_run.is_none()
+        && resume.is_none()
+        && turn_tools.get("search_web").is_some())
+    .then(|| super::schedule_lookup::request(message, chrono::Local::now().date_naive()))
+    .flatten();
+    let scheduled_search = schedule_lookup.is_some();
     let prompt_for = |summary: Option<&str>| {
         let mut prompt = build_system(PromptParts {
             soul: &soul,
@@ -311,6 +320,12 @@ pub(crate) async fn full_turn(
             instructions: instructions.as_deref(),
             capabilities: capabilities.as_deref(),
         });
+        if main_chat && turn_tools.get("search_web").is_some() {
+            prompt.tail.push_str(super::prompt::WEB_LOOKUP_RULES);
+        }
+        if scheduled_search {
+            prompt.tail.push_str(super::schedule_lookup::EVIDENCE_NOTE);
+        }
         prompt.tail.push_str(&chat_operations.prompt);
         prompt.tail.push_str(server.permission_note(session_id));
         prompt
@@ -459,7 +474,8 @@ pub(crate) async fn full_turn(
         server
             .catalog
             .output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
-    let result: LoopResult = loop {
+    let mut initial_search = schedule_lookup.map(super::schedule_lookup::Lookup::plan);
+    let mut result: LoopResult = loop {
         let context_budget = budget_tokens(resolved, &settings, factor)
             .saturating_sub(
                 jeeves_provider::tokens::estimate_text(&prompt.stable)
@@ -467,31 +483,34 @@ pub(crate) async fn full_turn(
                     + jeeves_provider::tokens::estimate_tools(&turn_tools.schemas()),
             )
             .max(1024);
-        let attempt = jeeves_loop::run(jeeves_loop::Turn {
-            system_prefix: Some(prompt.stable.clone()),
-            client: execution.client.as_ref(),
-            model: &resolved.model,
-            system: prompt.tail.clone(),
-            history: history.clone(),
-            user_message: prompt_message.clone(),
-            user_images: user_images.clone(),
-            tools: &turn_tools,
-            ctx: ctx.clone(),
-            run_limits: limits.clone(),
-            context_budget: Some(context_budget),
-            context_window: Some(context_window),
-            max_tokens: output_ceiling,
-            token_budget: Some(settings.turn_token_budget)
-                .filter(|budget| *budget > 0)
-                .map(|budget| budget as usize),
-            tool_result_budget: crate::tool_result_budget(&settings),
-            observer: observer.clone(),
-            on_text: Some(on_text.clone()),
-            interrupt: interrupt.clone(),
-            checkpoint: checkpoint.clone(),
-            steering: steering.clone(),
-            resume: resume.clone(),
-        })
+        let attempt = jeeves_loop::run_with_schedule_search(
+            jeeves_loop::Turn {
+                system_prefix: Some(prompt.stable.clone()),
+                client: execution.client.as_ref(),
+                model: &resolved.model,
+                system: prompt.tail.clone(),
+                history: history.clone(),
+                user_message: prompt_message.clone(),
+                user_images: user_images.clone(),
+                tools: &turn_tools,
+                ctx: ctx.clone(),
+                run_limits: limits.clone(),
+                context_budget: Some(context_budget),
+                context_window: Some(context_window),
+                max_tokens: output_ceiling,
+                token_budget: Some(settings.turn_token_budget)
+                    .filter(|budget| *budget > 0)
+                    .map(|budget| budget as usize),
+                tool_result_budget: crate::tool_result_budget(&settings),
+                observer: observer.clone(),
+                on_text: (!scheduled_search).then(|| on_text.clone()),
+                interrupt: interrupt.clone(),
+                checkpoint: checkpoint.clone(),
+                steering: steering.clone(),
+                resume: resume.clone(),
+            },
+            initial_search.take(),
+        )
         .await;
 
         match attempt {
@@ -526,6 +545,9 @@ pub(crate) async fn full_turn(
         }
     };
 
+    if scheduled_search {
+        result.reply = super::schedule_lookup::seat_safe_reply(&result.reply);
+    }
     Ok(FullTurn {
         result,
         history: history_stats,

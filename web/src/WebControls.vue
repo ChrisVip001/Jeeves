@@ -253,7 +253,7 @@ watch(
         </ActivityPage>
       </div>
       <div class="work-detail-pane">
-        <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" @details="openDetail(coworkTask.id)" @back="showActivity">
+        <CoworkConversation v-if="state.view === 'cowork' && coworkTask" :key="coworkTask.id" :task="coworkTask" :phone="phone" @details="openDetail(coworkTask.id)" @back="showActivity" @follow="followTask">
           <template #screen><WorkScreen :key="'screen-' + coworkTask.id" :task="coworkTask" :center="webTasks" /></template>
           <template #tools><DesktopPanel v-if="!phone" :key="'desk-' + coworkTask.id" v-bind="desktopProps(coworkTask)" /></template>
         </CoworkConversation>

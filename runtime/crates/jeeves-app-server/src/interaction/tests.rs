@@ -2,6 +2,7 @@ mod deliverables;
 mod lookup;
 mod mail;
 mod scope;
+mod web_lookup;
 use super::*;
 use crate::{Frame, Server};
 use jeeves_provider::{CreateRequest, CreateResponse, Provider, ProviderError, Resolved, TextSink};

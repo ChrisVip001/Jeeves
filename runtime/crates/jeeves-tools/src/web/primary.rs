@@ -90,6 +90,97 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn exact_search_retries_share_one_success_within_a_turn() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let count = calls.clone();
+        let handler: Handler = Arc::new(move |_, _| {
+            let request = count.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                Ok(format!("Search fixture retrieval #{request}"))
+            })
+        });
+        let tool = crate::web::search_web_with_primary(Some(handler));
+        let ctx = crate::web_tests::ctx().await;
+        let args = json!({"query":"示例市科技馆 现行闭馆时间"});
+        let (first, repeated) = tokio::join!(
+            (tool.handler)(ctx.clone(), args.clone()),
+            (tool.handler)(ctx.clone(), args.clone())
+        );
+        assert_eq!(first.unwrap(), repeated.unwrap());
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+        for different in [
+            json!({"query":"示例市科技馆 现行闭馆时间","max_results":3}),
+            json!({"query":"示例市科技馆 票价"}),
+        ] {
+            (tool.handler)(ctx.clone(), different).await.unwrap();
+        }
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
+        (tool.handler)(crate::web_tests::ctx().await, args.clone())
+            .await
+            .unwrap();
+        assert_eq!(calls.load(Ordering::Relaxed), 4);
+
+        assert_eq!(ctx.turn_limits.used.load(Ordering::Relaxed), 4);
+    }
+
+    #[tokio::test]
+    async fn extra_spaces_between_unquoted_search_terms_do_not_repeat_retrieval() {
+        let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let capture = calls.clone();
+        let handler: Handler = Arc::new(move |_, args| {
+            capture.lock().unwrap().push(args);
+            Box::pin(async { Ok("Official opening hours".into()) })
+        });
+        let tool = crate::web::search_web_with_primary(Some(handler));
+        let ctx = crate::web_tests::ctx().await;
+        let first = "site:museum.example/notice  科技馆 周六";
+        let variants = [
+            first,
+            "site:museum.example/notice 科技馆   周六",
+            "site:museum.example/notice \"科技馆 周六\"",
+            "site:museum.example/notice \"科技馆  周六\"",
+            r"site:museum.example/notice 科技馆\ 周六",
+            r"site:museum.example/notice 科技馆\  周六",
+        ];
+        for query in variants {
+            (tool.handler)(ctx.clone(), json!({"query": query}))
+                .await
+                .unwrap();
+        }
+        let calls = calls.lock().unwrap();
+        assert_eq!(
+            calls
+                .iter()
+                .map(|args| args["query"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            [first, variants[2], variants[3], variants[4], variants[5]],
+        );
+        assert_eq!(ctx.turn_limits.used.load(Ordering::Relaxed), 6);
+    }
+
+    #[tokio::test]
+    async fn failed_search_can_be_retried() {
+        let limits = crate::web::TurnLimits::default();
+        assert!(
+            limits
+                .search_once("still relevant", 5, None, async {
+                    anyhow::bail!("temporary search failure")
+                })
+                .await
+                .is_err()
+        );
+        let output = limits
+            .search_once("still relevant", 5, None, async {
+                Ok("now available".into())
+            })
+            .await
+            .unwrap();
+        assert_eq!(output, "now available");
+    }
+
+    #[tokio::test]
     async fn failure_empty_and_error_text_activate_fallback() {
         for result in [Ok("".to_string()), Err(anyhow::anyhow!("offline"))] {
             let result = Arc::new(std::sync::Mutex::new(Some(result)));

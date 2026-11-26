@@ -529,3 +529,103 @@ async fn site_search_rejects_unrelated_and_deceptive_domains_before_fallback() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn scoped_search_filters_before_spending_the_result_limit() {
+    let entry = |title: &str, url: &str| (title.into(), "开放时间".into(), url.into());
+    let plan = [Backend::Fixture(Some(vec![
+        entry("过时的转载", "https://example.net/visit"),
+        entry("官方公告", "https://city.example/visit"),
+    ]))];
+    let (_, hits) = super::web::search_backends(&plan, "site:city.example 景区 开放时间", 1)
+        .await
+        .unwrap();
+    assert_eq!(hits, [entry("官方公告", "https://city.example/visit")]);
+}
+
+#[test]
+fn site_path_scope_requires_a_segment_boundary() {
+    let query = "site:docs.example/pricing 现行价格";
+    for link in [
+        "https://docs.example/pricing",
+        "https://www.docs.example/pricing/current",
+    ] {
+        assert!(super::web::matches_site(query, link), "{link}");
+    }
+    for link in [
+        "https://docs.example/pricing-old",
+        "https://docs.example/pricingevil/current",
+    ] {
+        assert!(!super::web::matches_site(query, link), "{link}");
+    }
+}
+
+#[test]
+fn tracking_variants_do_not_displace_distinct_source_revisions() {
+    let hit = |title: &str, url: &str| (title.to_string(), "公告".into(), url.to_string());
+    let first = "https://library.example/notices?id=145&utm_source=bulletin#hours";
+    let current = "https://library.example/notices?id=146";
+    let hits = super::web::clean_hits(
+        vec![
+            hit("图书馆公告 145", first),
+            hit(
+                "同一旧公告的搜索广告",
+                "https://library.example/notices?utm_medium=cpc&id=145",
+            ),
+            hit("图书馆公告 146", current),
+        ],
+        2,
+    );
+    assert_eq!(
+        hits,
+        [hit("图书馆公告 145", first), hit("图书馆公告 146", current)]
+    );
+}
+
+#[tokio::test]
+async fn repeated_official_scope_keeps_filtering_across_fallback_providers() {
+    let entry = |url: &str| ("营业时间".into(), "公告".into(), url.into());
+    let official = entry("https://library.example/notices/hours");
+    let plan = [
+        Backend::Fixture(Some(vec![
+            entry("https://library.example/notices-old/hours"),
+            entry("https://directory.example/notices/hours"),
+        ])),
+        Backend::Fixture(Some(vec![official.clone()])),
+    ];
+    let (_, hits) = super::web::search_backends(
+        &plan,
+        "site:library.example/notices 营业时间 SITE:Library.Example/notices/",
+        1,
+    )
+    .await
+    .unwrap();
+    assert_eq!(hits, [official]);
+}
+
+#[test]
+fn nearby_schedule_query_only_changes_one_valid_clock_token() {
+    assert_eq!(
+        super::web::nearby_schedule_query("甲城 乙城 2030-11-08 06:30", "06:30").unwrap(),
+        "甲城 乙城 2030-11-08 06:00 to 07:00 timetable"
+    );
+    assert_eq!(
+        super::web::nearby_schedule_query("2050-01-01 A to B 00:10", "00:10").unwrap(),
+        "2050-01-01 A to B 00:00 to 00:40 timetable"
+    );
+    assert_eq!(
+        super::web::nearby_schedule_query("2050-01-01 A to B 23:45", "23:45").unwrap(),
+        "2050-01-01 A to B 23:15 to 23:59 timetable"
+    );
+    for (query, time) in [
+        ("2030-11-08 16:30", "06:30"),
+        ("2030-11-08 106:30", "06:30"),
+        ("2030-11-08 06:300", "06:30"),
+        ("06:30 和 06:30", "06:30"),
+        ("24:00", "24:00"),
+        ("06:60", "06:60"),
+        ("a界:", "a界:"),
+    ] {
+        assert!(super::web::nearby_schedule_query(query, time).is_err());
+    }
+}

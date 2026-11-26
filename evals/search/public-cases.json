@@ -1,0 +1,23 @@
+{
+  "pep8-indent": {
+    "question": "请查 PEP 8 官方原文：普通代码块每级缩进应该用几个空格？在结论后附上官网链接。",
+    "source": "https://peps.python.org/pep-0008/",
+    "answer": "(?<![\\d.])4\\s*(?:个)?\\s*空格",
+    "evidence": "Use\\s+4\\s+spaces\\s+per\\s+indentation\\s+level",
+    "reject": "(?<![\\d.])[28]\\s*(?:个)?\\s*空格|(?:并非|不是|不宜|不应|不建议|不推荐|不需要|不用|不要)\\s*(?:普通代码块\\s*)?(?:每级\\s*)?(?:缩进\\s*)?(?:使用\\s*|用\\s*)?(?:每级\\s*)?4\\s*(?:个)?\\s*空格"
+  },
+  "matthew-warning-clock": {
+    "question": "请查 NOAA 原文：2016 年 10 月 5 日 Matthew 第 30 号 Forecast/Advisory 的签发时间是几点 UTC？只答时刻和来源。",
+    "source": "https://www.nhc.noaa.gov/archive/2016/al14/al142016.fstadv.030.shtml",
+    "answer": "(?<![\\d:.])(?:15:00|1500)\\s*UTC",
+    "evidence": "(?<![\\d:.])1500\\s+UTC\\s+WED\\s+OCT\\s+05\\s+2016",
+    "reject": "(?<![\\d:.])(?:03:00|0300|09:00|0900|21:00|2100)\\s*UTC|(?:并非|不是|不在|并未在|未在)\\s*(?:于\\s*)?(?:15:00|1500)\\s*UTC"
+  },
+  "florida-groceries": {
+    "question": "查美联储 2016 年 Matthew 支出报告的图 5：10 月 5 日佛州杂货支出相对基线估计变动多少？请给可访问表格的官方链接。",
+    "source": "https://www.federalreserve.gov/econresdata/notes/feds-notes/2016/effect-of-hurricane-matthew-on-consumer-spending-accessible-20161202.html",
+    "answer": "(?:上升|增加|\\+)\\s*47\\.6\\s*[%％]",
+    "evidence": "10/5/2016[|\\s]+47\\.6",
+    "reject": "(?:下降|减少|[-−])\\s*47\\.6\\s*[%％]|(?:并未|没有|未曾|未|并非|不是)\\s*(?:估计\\s*)?(?:上升|增加|\\+)\\s*47\\.6\\s*[%％]"
+  }
+}

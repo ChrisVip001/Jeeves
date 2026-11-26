@@ -116,7 +116,12 @@ def custom_connector(base, session, home):
             assert not asks and not (Path(home) / 'commits').exists()
             assert any('Custom tool unavailable.' in str(e) for e in events)
         else:
-            assert len(asks) == 1 and 'synthetic' in asks[0]['argsPreview']
+            assert len(asks) == 1, {
+                'approvalCount': len(asks),
+                'approvals': [{key: ask.get(key) for key in ('requestId', 'turnId', 'tool')} for ask in asks],
+                'eventTypes': [event['type'] for event in events],
+            }
+            assert 'synthetic' in asks[0]['argsPreview'], 'Expected the synthetic value in the approval preview'
             assert any(e['type'] == 'toolCompleted' and 'receipt local-1' in e['output'] for e in events)
             assert module.count(Path(home) / 'commits') == 1
     assert request(base, '/api/mcp/remove', {'name':'custom'})['ok']

@@ -15,8 +15,9 @@ import TaskFileReview from "./TaskFileReview.vue";
 import type { TaskReviewFile } from "./protocol";
 import TaskTranscript from "./ui/TaskTranscript.vue";
 import type { AgentTaskView } from "./ui/types";
-const props=defineProps<{task:AgentTaskView}>();
-const emit=defineEmits<{details:[];back:[]}>();
+const props=defineProps<{task:AgentTaskView; phone?:boolean}>();
+const emit=defineEmits<{details:[];back:[];follow:[id:string]}>();
+const canFollow = computed(() => ['pending', 'running', 'done'].includes(props.task.status));
 const approval = computed(() => webTasks.approvalFor(props.task));
 /** The task's acceptance conditions as a step list: passed, failing, or not measured yet. */
 const steps = computed(() => props.task.acceptance.map((condition, index) => {
@@ -51,7 +52,7 @@ const feedback=ref("");
 const revision=ref(0);
 async function send() {
   const message=text.value.trim();
-  if(!message || sending.value) return;
+  if(props.phone || !message || sending.value) return;
   sending.value=true;
   feedback.value="";
   try {
@@ -110,7 +111,9 @@ watch(() => [props.task.status, props.task.currentTurnId, props.task.roundsUsed,
         <TaskTranscript v-if="historyOpen" :task="task" :center="webTasks" :revision="revision" history-only />
       </details>
     </div>
-    <form class="cowork-compose" v-if="['pending','running','done'].includes(task.status)" @submit.prevent="send">
+    <button v-if="phone && canFollow" type="button" class="today-btn cowork-follow"
+      @click="emit('follow', task.id)">{{ t("在主聊天跟进") }}</button>
+    <form v-else-if="canFollow" class="cowork-compose" @submit.prevent="send">
       <label class="sr" for="cowork-input">{{ t("补充要求") }}</label>
       <textarea id="cowork-input" v-model="text" :disabled="sending" :placeholder="t('给这个任务补充要求…')" rows="2" @keydown.enter.meta.prevent="send" @keydown.enter.ctrl.prevent="send" />
       <button id="cowork-send" type="submit" class="primary-button" :disabled="sending || !text.trim()"><ArrowUp :size="16" />{{ t("发送") }}</button>

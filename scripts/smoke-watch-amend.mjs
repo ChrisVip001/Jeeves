@@ -15,10 +15,18 @@ try {
   await page.goto(workspace);
   await page.getByRole("button", {name:"工作", exact:true}).first().click();
   await page.locator(`[data-cowork-task="${task}"]`).click();
-  await page.locator("#cowork-input").fill("改成低于1700才提醒，其他照旧。");
-  const stream = page.waitForResponse(r=>r.url().endsWith("/api/interaction") && r.request().method()==="POST");
-  await page.locator("#cowork-send").click();
-  const response = await stream;
+  const follow = page.getByRole("button", {name:"在主聊天跟进", exact:true});
+  await follow.waitFor({state:"visible"});
+  assert.equal(await page.locator("#cowork-input, #cowork-send").count(), 0);
+  await follow.click();
+  const message = "改成低于1700才提醒，其他照旧。";
+  await page.locator("#input").fill(message);
+  const [response] = await Promise.all([
+    page.waitForResponse(r=>r.url().endsWith("/api/interaction") && r.request().method()==="POST"),
+    page.locator("#send").click(),
+  ]);
+  assert.equal(response.request().postDataJSON().taskId, task);
+  assert.equal(response.request().postDataJSON().message, message);
   assert.ok((await response.body()).includes("1700.00"));
 } finally {
   await browser.close();
