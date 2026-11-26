@@ -477,14 +477,28 @@ impl ToolRegistry {
         name: &str,
         args: &Value,
     ) -> Result<(), String> {
-        if self.browser_view_only
-            && name == "browser_act"
-            && !matches!(args["kind"].as_str(), Some("navigate" | "scroll"))
-        {
-            return Err(
-                "browser_act is view-only for this session; navigate and scroll are allowed, clicks, fills and other writes are refused before approval"
-                    .into(),
-            );
+        if self.browser_view_only && name == "browser_act" {
+            let kind = args["kind"].as_str();
+            if !matches!(kind, Some("navigate" | "scroll")) {
+                return Err(
+                    "browser_act is view-only for this session; navigate and scroll are allowed, clicks, fills and other writes are refused before approval"
+                        .into(),
+                );
+            }
+        }
+        if self.browser_view_only && name == "browser_batch" {
+            let steps = args["steps"].as_array().ok_or_else(|| {
+                "browser_batch requires a steps array even in view-only mode".to_string()
+            })?;
+            if steps
+                .iter()
+                .any(|step| !matches!(step["kind"].as_str(), Some("navigate" | "scroll")))
+            {
+                return Err(
+                    "browser_batch is view-only for this session; navigate and scroll steps are allowed, clicks, fills and other writes are refused before approval"
+                        .into(),
+                );
+            }
         }
         let ticket = if let Some(policy) = &self.policy {
             Some(

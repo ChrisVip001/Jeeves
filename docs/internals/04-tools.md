@@ -33,7 +33,7 @@ Gated tools:
 | `write_file`, `edit`, `apply_patch` | `JEEVES_WRITE` | No file can be changed |
 | `delegate_task` | `JEEVES_DELEGATE` | No subagents |
 | `browser_observe`, `browser_act`, `browser_batch` | Browser runtime installed (`JEEVES_BROWSER_RUNTIME`) and available | No task browser |
-| `computer_observe`, `computer_act` | macOS window helper installed (`JEEVES_DESKTOP_HELPER`) and a human selected a window | No desktop window; the person selects one from the task card |
+| `computer_observe`, `computer_act` | macOS window helper installed (`JEEVES_DESKTOP_HELPER`); a window must be selected before each call | No desktop window; the person selects one from the task card |
 
 Not counted: connector tools (`feishu_send`; `calendar_list`; `email_read`; `email_send` when the email
 allowlist is non-empty), the `task` tool (registered per turn on the main conversation, and only for senders allowed to dispatch),

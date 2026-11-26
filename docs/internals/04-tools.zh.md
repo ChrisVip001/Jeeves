@@ -33,7 +33,7 @@
 | `write_file`、`edit`、`apply_patch` | `JEEVES_WRITE` | 不能修改任何文件 |
 | `delegate_task` | `JEEVES_DELEGATE` | 没有子代理 |
 | `browser_observe`、`browser_act`、`browser_batch` | 已安装浏览器运行时（`JEEVES_BROWSER_RUNTIME`）且可用 | 没有任务浏览器 |
-| `computer_observe`、`computer_act` | 已安装 macOS 窗口助手（`JEEVES_DESKTOP_HELPER`）且人已选定窗口 | 没有桌面窗口；人需在任务卡里选一个 |
+| `computer_observe`、`computer_act` | 已安装 macOS 窗口助手（`JEEVES_DESKTOP_HELPER`）；每次调用前仍需人选定窗口 | 没有桌面窗口；人需在任务卡里选一个 |
 
 不计入：连接器工具（`feishu_send`；`calendar_list`；`email_read`；邮件白名单非空时的 `email_send`）、
 `task` 工具（每轮在主对话上注册，且只对允许派发的发送者）以及 MCP 工具。连接器读取工具声明 `read`；

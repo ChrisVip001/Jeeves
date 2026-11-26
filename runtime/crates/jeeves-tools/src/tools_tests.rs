@@ -1011,6 +1011,13 @@ async fn view_only_registry_refuses_browser_writes_before_approval() {
             result.expect_err("refused").contains("view-only"),
             "the refusal must explain why"
         );
+        let batch = json!({"steps":[
+            {"kind":"navigate","observationId":"e1","url":"https://example.com"},
+            {"kind":kind,"observationId":"e1","reference":"e1","expectedName":"Name"}
+        ]});
+        let result = registry.admit_call(&mut ctx, "browser_batch", &batch).await;
+        assert!(result.is_err(), "batch with {kind} should be refused");
+        assert!(result.expect_err("refused").contains("view-only"));
     }
 }
 
@@ -1028,6 +1035,14 @@ async fn view_only_registry_allows_browser_navigation_and_scroll() {
                 .is_ok(),
             "{kind} should pass the view-only gate"
         );
+        let batch = json!({"steps":[{"kind":kind,"observationId":"e1"}]});
+        assert!(
+            registry
+                .admit_call(&mut ctx, "browser_batch", &batch)
+                .await
+                .is_ok(),
+            "batch with {kind} should pass the view-only gate"
+        );
     }
 }
 
@@ -1043,6 +1058,20 @@ async fn view_only_is_inherited_by_registry_copies() {
             .admit_call(&mut ctx, "browser_act", &args)
             .await
             .is_err()
+    );
+}
+
+#[test]
+fn computer_act_schema_requires_a_lease() {
+    let tool = crate::computer_use::computer_act();
+    let required = tool
+        .input_schema
+        .get("required")
+        .and_then(|value| value.as_array())
+        .expect("computer_act required fields");
+    assert!(
+        required.iter().any(|name| name.as_str() == Some("lease")),
+        "a stale lease must fail before a desktop action is dispatched"
     );
 }
 

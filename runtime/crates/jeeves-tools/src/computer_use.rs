@@ -36,17 +36,18 @@ pub fn computer_observe() -> Tool {
 pub fn computer_act() -> Tool {
     Tool {
         name: "computer_act".into(),
-        description: "Use a current observation to click, scroll or set text in this task's selected desktop window. Copy the exact label from the observation; old observations fail. Text is only allowed for a text field. Never retry an unknown external result; the receipt shows whether the action was confirmed."
+        description: "Use a current observation to click, scroll or set text in this task's selected desktop window. Copy the observationId and its lease exactly; old observations and stale leases fail. Text is only allowed for a text field. Never retry an unknown external result; the receipt shows whether the action was confirmed."
             .into(),
         input_schema: json!({
             "type":"object",
             "properties":{
                 "observationId":{"type":"string","minLength":1,"maxLength":128},
+                "lease":{"type":"object","properties":{"leaseId":{"type":"string","minLength":1},"epoch":{"type":"integer","minimum":1}},"required":["leaseId","epoch"],"additionalProperties":false},
                 "elementId":{"type":"integer","minimum":0},
                 "action":{"type":"string","enum":["click","scrollUp","scrollDown","setText"]},
                 "text":{"type":"string","maxLength":2048}
             },
-            "required":["observationId","elementId","action"],
+            "required":["observationId","lease","elementId","action"],
             "additionalProperties":false
         }),
         handler: with_host(|host, ctx, input| host.act(ctx, input)),

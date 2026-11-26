@@ -187,7 +187,7 @@ Vue 和 Vite 将工作台及账号页面构建到 `web/dist/`。Go 网关在通�
 
 ## 7.9 任务浏览器 worker
 
-模型只看到 `browser_observe` 和 `browser_act`（`jeeves-tools/src/browser.rs`，位于注入的 host trait 之后）。所有权、批准的来源、
+模型看到 `browser_observe`、`browser_act` 和 `browser_batch`（`jeeves-tools/src/browser.rs`，位于注入的 host trait 之后）。所有权、批准的来源、
 进程生命周期和控制代数在 `jeeves-app-server/src/browser/`（`api`、`process`、`store`）；`/api/browser*` 路由只做传输，
 `browser/start` 只能由人调用。
 

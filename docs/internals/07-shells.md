@@ -206,7 +206,7 @@ second terminal:
 
 ## 7.9 Task browser worker
 
-The model sees only `browser_observe` and `browser_act` (`jeeves-tools/src/browser.rs`, behind an injected host trait). Ownership, approved
+The model sees `browser_observe`, `browser_act` and `browser_batch` (`jeeves-tools/src/browser.rs`, behind an injected host trait). Ownership, approved
 origins, process lifetime and control generations live in `jeeves-app-server/src/browser/` (`api`, `process`, `store`); the `/api/browser*`
 routes are transport only, and `browser/start` is a human-only call.
 

@@ -39,6 +39,12 @@ impl jeeves_tools::computer_use::ComputerUseHost for DesktopTools {
             let task_id = host.active_task(&ctx).await?;
             let window = host.browser.desktop.window(&task_id)?;
             let mut payload = input.clone();
+            let lease = payload
+                .get("lease")
+                .filter(|value| !value.is_null())
+                .cloned()
+                .ok_or_else(|| anyhow!("Pass the lease from the latest observation"))?;
+            payload["lease"] = lease;
             payload["taskId"] = serde_json::json!(task_id);
             let params: jeeves_protocol::DesktopActParams = serde_json::from_value(payload)
                 .map_err(|e| anyhow!("Invalid desktop action: {e}"))?;
