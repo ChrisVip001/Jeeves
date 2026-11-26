@@ -308,3 +308,26 @@ async fn deepseek_research_replay() {
         })
     );
 }
+
+#[tokio::test]
+#[ignore = "opt-in: real model with a four-call fixed web fixture"]
+async fn research_evidence_live_probe() {
+    let (_home, mut server, _) = setup().await;
+    let trace = tools(&mut server, &[Traffic, Mirror, Access, Throughput], false);
+    let (resolved, provider) = live_provider();
+    server.install_provider(resolved);
+    let ask = "/web_research\n巴尔的摩港大桥坍塌后航道恢复了吗？\n2024 年 7–8 月进港船只与 2023 年同期相比如何？\n2024 年 7–8 月港务局码头集装箱吞吐量与 2023 年同期相比如何？";
+    let result = send(&server, ask, "evidence-v1-live", None).await;
+    let reply = result.as_ref().ok().and_then(|events| {
+        events.iter().find_map(|event| match event {
+            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
+            _ => None,
+        })
+    });
+    let trace = trace.lock().unwrap().clone();
+    println!(
+        "EVIDENCE_V1_LIVE {}",
+        json!({"reply":reply,"trace":trace,"accounting":provider.accounting()})
+    );
+    assert!(reply.is_some());
+}

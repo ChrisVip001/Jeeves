@@ -316,6 +316,33 @@ fn available_spans<'a>(
     Ok(batch)
 }
 
+pub(super) async fn start_research(
+    server: &Server,
+    p: &InteractionStartParams,
+    sink: &EventSink,
+) -> Result<String, String> {
+    let item = Item {
+        title: "Deep research".into(),
+        instruction: p.message.clone(),
+        acceptance: vec![],
+        after_task_ids: vec![],
+        goal_draft: None,
+    };
+    start_one(
+        server,
+        p,
+        sink,
+        "",
+        &item,
+        vec![AcceptanceView {
+            kind: "researchEvidence".into(),
+            ..Default::default()
+        }],
+        None,
+    )
+    .await
+}
+
 async fn start_one(
     server: &Server,
     p: &InteractionStartParams,
@@ -494,7 +521,31 @@ pub(super) async fn continue_task(
                 return Err("task is starting; retry after its status updates".into());
             }
         }
+        jeeves_state::TaskStatus::NeedsAttention
+            if p.source.is_none()
+                && task.last_stop_reason.as_deref() == Some(crate::research::INCOMPLETE) =>
+        {
+            if has_attachments {
+                return Err("Research continuation accepts public-source instructions only".into());
+            }
+            queue
+                .continue_research(task_id, text, &p.message_id, crate::research::INCOMPLETE)
+                .await
+                .map_err(|e| e.to_string())?;
+            crate::task::dispatch::kick(server.clone(), sink.clone());
+        }
         jeeves_state::TaskStatus::Done => {
+            if sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM research_evidence WHERE task_id=?)",
+            )
+            .bind(task_id)
+            .fetch_one(&server.pool)
+            .await
+            .map_err(|e| e.to_string())?
+            {
+                return Err("Start a new research request to amend an accepted report".into());
+            }
+
             let attachments = serde_json::to_string(&p.attachments.clone().unwrap_or_default())
                 .map_err(|e| e.to_string())?;
             let checks = crate::task::normalise_acceptance(acceptance).map_err(|e| e.message)?;

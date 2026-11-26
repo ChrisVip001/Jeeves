@@ -236,6 +236,41 @@ impl TaskDispatch {
         tx.commit().await?;
         Ok(())
     }
+    /// Requeue a settled, read-only research continuation explicitly requested by its owner.
+    /// A generic needs-attention task must still use the reconciliation path.
+    pub async fn continue_research(
+        &self,
+        task_id: &str,
+        message: &str,
+        message_id: &str,
+        expected_reason: &str,
+    ) -> Result<()> {
+        ensure!(
+            !message.trim().is_empty() && message.len() <= 64_000,
+            "Invalid research follow-up"
+        );
+        let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
+        let changed = sqlx::query(
+            "UPDATE agent_tasks SET status='pending',finished_at=NULL,current_turn_id=NULL,
+                last_stop_reason=NULL,checks_json='[]',rounds_used=0
+             WHERE id=? AND status='needs_attention' AND last_stop_reason=?
+             AND EXISTS(SELECT 1 FROM research_evidence WHERE task_id=agent_tasks.id)
+             AND EXISTS(SELECT 1 FROM task_dispatch WHERE task_id=agent_tasks.id AND state='finished')"
+        ).bind(task_id).bind(expected_reason).execute(&mut *tx).await?.rows_affected();
+        ensure!(
+            changed == 1,
+            "Research is not waiting on a safe, settled continuation"
+        );
+        let changed = sqlx::query("UPDATE task_dispatch SET message=?,attachments_json='[]',turn_id='task-turn:'||lower(hex(randomblob(16))),state='pending' WHERE task_id=? AND state='finished'")
+            .bind(message).bind(task_id).execute(&mut *tx).await?.rows_affected();
+        ensure!(
+            changed == 1,
+            "Research dispatch changed before continuation"
+        );
+        Self::record_amendment(&mut tx, task_id, message_id, message).await?;
+        tx.commit().await?;
+        Ok(())
+    }
     pub async fn record_amendment(
         conn: &mut sqlx::SqliteConnection,
         task_id: &str,

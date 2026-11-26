@@ -55,6 +55,7 @@ pub enum Acceptance {
     SourceSupports {
         claims_path: String,
     },
+    ResearchEvidence,
 }
 
 /// How a command check ended.
@@ -174,11 +175,12 @@ impl Acceptance {
                     .map(str::to_string);
                 Ok(Self::CommandSucceeds { argv, cwd })
             }
+            "researchEvidence" => Ok(Self::ResearchEvidence),
             "sourceSupports" => Ok(Self::SourceSupports {
                 claims_path: field("path")?,
             }),
             other => Err(format!(
-                "unknown acceptance kind '{other}' (supported: fileExists / fileContains / jsonEquals / toolsOk / receiptConfirmed / commandSucceeds / sourceSupports)"
+                "unknown acceptance kind '{other}' (supported: fileExists / fileContains / jsonEquals / toolsOk / receiptConfirmed / commandSucceeds / sourceSupports / researchEvidence)"
             )),
         }
     }
@@ -199,6 +201,7 @@ impl Acceptance {
                 format!("a {kind} receipt for {ref_prefix}… is confirmed by read-back")
             }
             Self::CommandSucceeds { argv, .. } => format!("`{}` exits 0", argv.join(" ")),
+            Self::ResearchEvidence => "each required question has a recorded source excerpt".into(),
             Self::SourceSupports { claims_path } => {
                 format!("every claim in {claims_path} quotes a saved source")
             }
@@ -312,6 +315,9 @@ impl Verifier {
                 Acceptance::CommandSucceeds { argv, cwd } => {
                     let (passed, detail) = self.command_succeeds(argv, cwd.as_deref()).await;
                     (passed, detail, None)
+                }
+                Acceptance::ResearchEvidence => {
+                    (false, "No host research result was supplied".into(), None)
                 }
                 Acceptance::SourceSupports { claims_path } => {
                     let (passed, detail) = self.source_supports(claims_path);

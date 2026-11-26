@@ -152,6 +152,7 @@ pub(crate) async fn drive_task(
                 run_id: run_id.as_deref(),
                 acceptance: &acceptance,
                 verify_root: turn_cwd.clone(),
+                research_complete: full.research_complete,
                 started: round_started,
                 wall_offset_ms,
             },
@@ -300,6 +301,12 @@ pub(crate) async fn drive_task(
             }
         }
 
+        if task.is_some() && full.research_complete == Some(false) {
+            break (
+                TaskDecision::NeedsAttention(crate::research::INCOMPLETE.into()),
+                Some("research-evidence-incomplete".into()),
+            );
+        }
         let response_limit = if let Some(reason) = full.result.stop_detail.as_deref() {
             Some(reason)
         } else if full.result.token_budget_reached && task.is_some() {
@@ -386,7 +393,8 @@ pub(crate) async fn drive_task(
             );
         }
 
-        if goal_condition.is_none()
+        if full.research_complete.is_none()
+            && goal_condition.is_none()
             && acceptance.is_empty()
             && worked
             && !self_checked

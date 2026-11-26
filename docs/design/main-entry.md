@@ -296,3 +296,24 @@ change, read those two guides before editing a component or a prompt.
 
 Task ownership, routing and live approvals are specified in the
 [main interaction protocol](../protocol.md#main-human-interaction).
+
+## Public-source research preview
+
+From the private main chat, use `/web_research` or `/deep_research`. Put one
+required question per line after the command. The quick path returns supported
+excerpts and explicit gaps in chat. The deep path queues an ordinary task and
+keeps questions, leads, tool-observed excerpts and budget in private runtime
+state across restarts. Follow up on the same task to continue an incomplete
+research run; use a new research request if the scope changes.
+
+At the budget boundary, unopened leads reserve reads for unresolved questions.
+Dismiss an irrelevant lead to permit a focused refinement; an identical query
+or repeat read reuses the saved result without another web request.
+
+This first version returns source excerpts, not independently verified
+interpretations. It separates search leads from fetched observations and does
+not publish model prose or certify conflicting or missing evidence. An accepted
+task carries a host-measured `researchEvidence` check tied to the hash of the
+inline report. Regular chat, older task acceptance and scheduled research are
+unchanged. If the model or its limit stops a research run, the runtime still
+returns whatever excerpts were recorded and does not mark the task accepted.
