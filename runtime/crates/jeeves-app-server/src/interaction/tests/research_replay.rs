@@ -368,3 +368,5 @@ async fn task_reopen_preserves_unresolved_throughput_and_the_original_fetch() {
     let final_report = std::fs::read_to_string(workspace.join("report.md")).unwrap();
     assert!(score(&final_report, &opened, true));
 }
+
+mod live;

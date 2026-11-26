@@ -177,6 +177,17 @@ The test uses translated fixture excerpts and scripted model decisions. It valid
 the runtime traces and expected acceptance criteria, not autonomous selection,
 semantic review, or live-web accuracy.
 
+
+An opt-in companion runs the same controlled corpus through real DeepSeek Flash with
+`cargo test --locked -p jeeves-app-server --lib deepseek_research_replay -- --ignored --nocapture`.
+Supply the approved `DEEPSEEK_API_KEY` in the environment (never on the command line).
+The three chat arms cap fixture web calls at four and allow up to eight model requests
+each; the restart arm uses a scripted initial checkpoint and the real model only after it
+reopens. Unknown URLs cannot be fetched. The test prints successful reads, reply or
+report, and model usage for review. A completed run is not a passing quality score,
+and model traffic does not make this a live-web test. See the
+[November 26 controlled run](../../evals/results/deepseek-flash-research-ranking-replay-2026-11-26.json).
+
 ## 8.8 Smoke Scripts
 
 Smokes use the real `jeeves` binary, because they test the process boundary that in-process evals skip.

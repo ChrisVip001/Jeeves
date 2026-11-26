@@ -1,0 +1,231 @@
+{
+  "baseline": "d34bf3009fde77022f6fdcf615edada0736de599",
+  "model": "deepseek-flash",
+  "modelVersionSource": "https://api-docs.deepseek.com/news/news261017/",
+  "environment": "Jeeves runtime with real model and offline fixture search/fetch. One sample per arm, not live-web or autonomous discovery evidence.",
+  "caps": {
+    "webCallsPerArm": 4,
+    "modelRequestsPerArm": 8,
+    "maxOutputTokensPerRequest": 1024
+  },
+  "totals": {
+    "requests": 21,
+    "inputTokens": 113590,
+    "outputTokens": 10433
+  },
+  "observations": [
+    "Traffic-first and TEU-first both performed two searches that returned the same candidate set, then fetched access and TEU. The vessel record was visible but not read within the cap. Both marked it unresolved instead of claiming full recovery.",
+    "The withheld-TEU arm did not confirm throughput. It read access and vessel evidence but discounted both abbreviated fixture pages as placeholders; it also introduced unverified background from memory. That arm does not pass the partial-answer rubric, and the fixture realism limits interpretation.",
+    "The real model resumed after a scripted checkpoint and fetched the missing throughput and access. It also read a mirror of the already opened traffic source. The resulting report distinguishes all three measures and recognizes the mirror relationship, but its wording overstates some evidence and its task ended Failed. The exact final acceptance checks were not captured in this first run; successful artifact writing is not task acceptance.",
+    "The experiment shows a practical need to count genuinely new candidates and track per-question evidence, not just raise a call limit. It does not isolate natural search recall or establish a general ranking effect."
+  ],
+  "runs": [
+    {
+      "accounting": {
+        "inputTokens": 24951,
+        "outputTokens": 1487,
+        "requests": 5,
+        "responses": 5
+      },
+      "arm": "traffic-first",
+      "reply": "**结论：没有恢复。航道在 6 月中旬已经恢复，但码头集装箱吞吐量在 7–8 月仍远低于 2023 年同期；进港船只这一项我没能核实。**\n\n逐项情况：\n\n| 项目 | 状态 | 依据 |\n|---|---|---|\n| 航道 | 已恢复，6 月中旬完成 | USACE（美国陆军工程兵团）航道恢复公告，只有一句结论，没有给出宽度或水深的具体数值 |\n| 港务局码头集装箱吞吐量 | 未恢复，7–8 月仍远低于 2023 年同期 | 马里兰港务委员会码头集装箱统计，同样只有一句结论，没有提供具体 TEU 数字和同比比例 |\n| 进港船只 | **未核实** | 已找到两个来源，分别是原始稿件和一篇转载版本，但读取这两个页面时，网页抓取额度耗尽，因此两个都打不开 |\n\n两点需要注意：\n\n- 可读的两个来源都是摘要，没有月度数据表，所以“远低于”具体低多少，我无法给出数字。如果你要写进报告，需要原始统计表。\n- 进港船只这一项存在一个转载版本（mirror 页），它的内容和原始版本是否一致我没能比较。以后如果补数据，应以原始来源为准，避免引用被改过数值的转载版本。\n\n下一步建议：我可以再跑一次抓取，专门读取进港船只那两个页面；或者你把手上的 MPA 月度统计（TEU 和船舶挂靠数）给我，我直接算同比。你希望用哪一种方式？",
+      "trace": [
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "usace-channel-restoration",
+            "kind": "fetch",
+            "record": "Access"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "mpa-october-minutes",
+            "kind": "fetch",
+            "record": "Throughput"
+          },
+          "ok": true
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        },
+        {
+          "kind": "search",
+          "result": "budget"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "inputTokens": 19081,
+        "outputTokens": 1150,
+        "requests": 4,
+        "responses": 4
+      },
+      "arm": "teu-first",
+      "reply": "结论：没有全部恢复。航道恢复到位，但码头集装箱吞吐量仍明显低于 2023 年同期；进港船只这一项我没能核实到数据。\n\n**分项**\n\n1. **航道**：已恢复。联邦航道在 2024 年 6 月中旬恢复通航，7–8 月已不在受阻状态。\n2. **港务局码头集装箱吞吐量**：没有恢复。7–8 月吞吐量仍远低于 2023 年同期（来源明确用了“仍远低于”的表述，未给出具体 TEU 数字）。\n3. **进港船只**：未核实。两个相关的船只到港统计页面都没取到内容（抓取额度耗尽），我手上没有可以引用的数值，不能替你说“恢复了”或“没恢复”。\n\n**来源**\n- 港务局码头集装箱统计：https://93.184.216.34/research-replay/terminal-teu\n- 航道恢复公告：https://93.184.216.34/research-replay/channel\n- 未取到：https://93.184.216.34/research-replay/arrivals、https://93.184.216.34/research-replay/mirror-vessel-arrivals\n\n**证据强度**：以上两条来自搜索索引镜像的重发页面，不是 MPA/USACE 原始报告的直读，也没有月度明细。要落到“恢复到百分之几”这种结论，需要原始月度吞吐表和 AIS 到港记录，这两样我这次没拿到。\n\n需要我下一轮专门补进港船只这项（按 2024 年 7 月、8 月对 2023 年同月的到港艘次和总吨位对比）吗？我的倾向是先补这个数，因为它是判断“航道通了但货没回来”还是“船也没回来”的关键。",
+      "trace": [
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "mpa-october-minutes",
+            "kind": "fetch",
+            "record": "Throughput"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "usace-channel-restoration",
+            "kind": "fetch",
+            "record": "Access"
+          },
+          "ok": true
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "inputTokens": 18581,
+        "outputTokens": 1557,
+        "requests": 4,
+        "responses": 4
+      },
+      "arm": "no-teu",
+      "reply": "**结论：三项都没有核实到，无法判断，我也不会凭印象给数字。**\n\n查到的东西只有两条，而且不能当证据：\n- 一个占位页面写着“7 至 8 月进港船只接近 2023 年同期”\n- 另一个写“航道已于 6 月中旬恢复”\n\n页面在 `93.184.216.34` 上，那是保留给示例的地址，内容只有一句话，没有日期、没有具体数字、没有发布机构。按这个标准，它连“航道 6 月中旬恢复”这句话都不能算证据。之后我换了两次查询（USACE 巴尔尔的摩分区公告、马里兰港务局统计页），检索额度直接报 “Fixture web budget exhausted”，一次都没执行成功。\n\n以下属于我的记忆、未经核实，只用来列清单，不要当结论：\n- 桥梁在 2024 年 3 月 26 日坍塌，主航道（Fort McHenry 航道）在 6 月中旬才恢复 700 英尺宽、50 英尺深的通行条件。\n- “航道通航”不等于“货量恢复”，两者之间常有一两个月滞后，所以 7 至 8 月正好处在模糊区。\n\n要真正回答，需要取到每月、对应口岸和口径的数据，建议按这三块去拿原始表：\n1. **航道**：USACE 巴尔尔的摩分区（Baltimore District）通航公告，确认完全恢复的日期和宽度与深度。\n2. **进港船只**：MPA 月度统计里的船舶挂靠次数，或 AIS 类数据商（如 PortVision）的靠泊记录，注意别把“锚地待泊”算成进港。\n3. **集装箱吞吐量**：MPA 自有码头（Seagirt、Dundalk）的月度 TEU，2023 年 7 至 8 月对比 2024 年 7 至 8 月。这里有个坑：要说明私有码头（如亚马逊的 Sparrows Point）是否计入，否则口径不同结论会翻。\n\n要不要我在检索额度恢复后重跑这一轮，按上面三块分开取数，回来给你一张 2023/2024 同月的对比表？",
+      "trace": [
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "mpa-october-minutes",
+            "kind": "fetch",
+            "record": "Traffic"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "usace-channel-restoration",
+            "kind": "fetch",
+            "record": "Access"
+          },
+          "ok": true
+        },
+        {
+          "kind": "search",
+          "result": "budget"
+        },
+        {
+          "kind": "search",
+          "result": "budget"
+        }
+      ]
+    },
+    {
+      "accounting": {
+        "inputTokens": 50977,
+        "outputTokens": 6239,
+        "requests": 8,
+        "responses": 8
+      },
+      "arm": "restart",
+      "reply": "# 巴尔的摩港 2024 年 7–8 月是否恢复到 2023 年同期水平\n\n## 结论\n\n没有整体恢复，三项指标不一致：航道已恢复，进港船只接近 2023 年同期，但港务局码头集装箱吞吐量仍远低于 2023 年同期。\n\n| 指标 | 是否达到 2023 年同期 | 依据 |\n| --- | --- | --- |\n| 航道 | 是（6 月中旬已恢复，7–8 月不构成瓶颈） | [USACE 航道恢复公告](https://93.184.216.34/research-replay/channel) |\n| 进港船只 | 基本是（\"接近\" 2023 年同期） | [进港船只更新](https://93.184.216.34/research-replay/arrivals) |\n| 港务局码头集装箱吞吐量 | 否，仍\"远低于\" 2023 年同期 | [MPA 码头集装箱统计](https://93.184.216.34/research-replay/terminal-teu) |\n\n## 说明\n\n- 航道：联邦航道于 2024 年 6 月中旬恢复，因此 7–8 月期间航道通航能力不再是恢复到 2023 年水平的限制项（[来源](https://93.184.216.34/research-replay/channel)）。\n- 进港船只：7–8 月进港船只数量接近 2023 年同期（[来源](https://93.184.216.34/research-replay/arrivals)）。\n- 码头吞吐量：7–8 月港务局码头集装箱吞吐量仍远低于 2023 年同期（[来源](https://93.184.216.34/research-replay/terminal-teu)）。\n\n## 证据强度与局限\n\n1. 三处来源均只给出定性判断，没有任何绝对数值（TEU、船舶艘次）或月度拆分，因此无法给出与 2023 年同期的具体百分比差距。\"接近\" 与 \"远低于\" 的幅度只能按原文理解。\n2. 进港船只一项的两个链接（`/arrivals` 与 `/mirror-vessel-arrivals`）正文完全相同，属于同一份更新的转载，不构成两份独立来源；该项实质只有一份证据。\n3. 三份来源均未标注发布日期、统计口径（是否含私营码头、是否按自然月）或两年对比的具体月份，来源标题分别指向 USACE 公告、港口恢复更新和马里兰港务委员会统计，但页面本身不含可核对的编号。\n4. 船只数量接近同期而 MPA 码头集装箱量远低于同期，两者并存有两种常见解释——船型变小/载箱率下降，或货量转向非 MPA 码头——现有证据不支持在其中做出选择，属未证实推断。\n5. 复核建议：取 MPA 月度统计原表（2024 年 7、8 月与 2023 年同月 TEU）和 USACE 分阶段复航时间表原文，可直接补齐数值与日期。\n\n## 来源\n\n- https://93.184.216.34/research-replay/channel — 航道\n- https://93.184.216.34/research-replay/arrivals — 进港船只\n- https://93.184.216.34/research-replay/mirror-vessel-arrivals — 同上，转载副本\n- https://93.184.216.34/research-replay/terminal-teu — 码头集装箱吞吐量\n",
+      "status": "Failed",
+      "trace": [
+        {
+          "call": {
+            "family": "usace-channel-restoration",
+            "kind": "fetch",
+            "record": "Access"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "mpa-october-minutes",
+            "kind": "fetch",
+            "record": "Throughput"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "family": "mpa-october-minutes",
+            "kind": "fetch",
+            "record": "Mirror"
+          },
+          "ok": true
+        },
+        {
+          "call": {
+            "kind": "search"
+          },
+          "ok": true
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        },
+        {
+          "kind": "fetch",
+          "result": "budget"
+        }
+      ]
+    }
+  ]
+}

@@ -122,6 +122,15 @@ Prompt 断言检查的是模型实际看到了什么：窗口、摘要、技能�
 来源为改写后的固定样本，模型行为由脚本指定。它验证运行链路和验收规则，不代表模型会自主选证，
 也不验证语义审查或实时网页准确率。
 
+
+另有显式启用的真实 DeepSeek Flash 回放：
+`cargo test --locked -p jeeves-app-server --lib deepseek_research_replay -- --ignored --nocapture`。
+通过环境变量提供获准使用的 `DEEPSEEK_API_KEY`，不把密钥写入命令行。
+三个聊天对照组各最多四次固定样本网页调用、八次模型请求；重启组先用脚本建立检查点，
+再由真实模型决定如何继续。未知 URL 不会被抓取。测试打印读取记录、回复或报告及模型用量供审查。
+运行完成不代表质量合格，真实模型也不代表使用了实时网页。见
+[11 月 26 日受控回放](../../evals/results/deepseek-flash-research-ranking-replay-2026-11-26.json)。
+
 ## 8.8 冒烟脚本
 
 冒烟使用真实的 `jeeves` 二进制，因为它们测的是进程内 eval 绕过的进程边界。
