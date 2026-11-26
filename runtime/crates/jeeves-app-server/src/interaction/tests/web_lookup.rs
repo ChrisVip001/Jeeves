@@ -232,7 +232,9 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     let exact = "甲城 到 乙城 航班 2030-11-08 06:30 起飞 航班号";
     let nearby = "甲城 到 乙城 航班 2030-11-08 06:00 to 07:00 timetable 起飞 航班号";
     let url = "https://93.184.216.34/fixtures/seat-timetable";
-    let timetable = "2030-11-08 甲城到乙城 QZ123 06:25\n2030-11-08 乙城到甲城 QZ456 06:30\n2030-11-09 甲城到乙城 QZ789 06:30\n未公布机型或客舱图。";
+    let focused = "QZ123 甲城 到 乙城 2030-11-08 航班动态 当日实际计划起飞 航司 机场";
+    let leads = "甲城到乙城 QZ123 06:25\n2030-11-08 乙城到甲城 QZ456 06:30\n2030-11-09 甲城到乙城 QZ789 06:30";
+    let timetable = "2030-11-08 甲城到乙城 QZ123 06:25\n未公布机型或客舱图。";
     let recorded = Arc::new(Mutex::new(Vec::new()));
     let calls = Arc::clone(&recorded);
     let adapter: jeeves_tools::Handler = Arc::new(move |_, args| {
@@ -240,7 +242,10 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
         Box::pin(async move {
             let output = match args["query"].as_str() {
                 Some(q) if q == exact && args["nearby_query"].as_str() == Some(nearby) => {
-                    format!("Source 1: Timetable\n{timetable}\nURL: {url}")
+                    format!("Source 1: Timetable\n{leads}\nURL: {url}")
+                }
+                Some(q) if q == focused && args.get("nearby_query").is_none() => {
+                    format!("Source 1: Dated status\n{timetable}\nURL: {url}")
                 }
                 None if args["url"].as_str() == Some(url) => timetable.to_string(),
                 _ => panic!("unexpected fixture lookup"),
@@ -300,11 +305,25 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
                 if tool_use_id.starts_with("schedule-") && content.contains("QZ123 06:25"))
                 })
         );
+        let refinement_result = requests[0]
+            .messages
+            .iter()
+            .flat_map(|m| &m.content)
+            .find_map(|b| match b {
+                ContentBlock::ToolResult {
+                    tool_use_id,
+                    content,
+                } if content.contains("Dated status") => Some(tool_use_id),
+                _ => None,
+            })
+            .expect("dated refinement runs before the first model call");
+        assert!(refinement_result.starts_with("schedule-") && refinement_result.ends_with("-2"));
     }
     assert_eq!(
         *recorded.lock().unwrap(),
         [
             json!({"query":exact,"max_results":4,"nearby_query":nearby}),
+            json!({"query":focused,"max_results":3}),
             json!({"url":url})
         ]
     );
@@ -342,7 +361,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             .iter()
             .any(|e| matches!(e, ServerNotification::ToolStarted(_)))
     );
-    assert_eq!(recorded.lock().unwrap().len(), 2);
+    assert_eq!(recorded.lock().unwrap().len(), 3);
     let (sink, mut frames) = EventSink::channel();
     start(
         &server,
@@ -371,7 +390,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             Frame::Notification(ServerNotification::ToolStarted(_))
         ));
     }
-    assert_eq!(recorded.lock().unwrap().len(), 2);
+    assert_eq!(recorded.lock().unwrap().len(), 3);
     assert!(model.received.lock().unwrap()[2].tools.is_empty());
     assert!(server.tasks.list(10).await.unwrap().is_empty());
 }

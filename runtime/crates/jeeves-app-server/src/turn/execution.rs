@@ -474,7 +474,7 @@ pub(crate) async fn full_turn(
         server
             .catalog
             .output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
-    let mut initial_search = schedule_lookup;
+    let mut initial_search = schedule_lookup.map(super::schedule_lookup::Lookup::plan);
     let result: LoopResult = loop {
         let context_budget = budget_tokens(resolved, &settings, factor)
             .saturating_sub(

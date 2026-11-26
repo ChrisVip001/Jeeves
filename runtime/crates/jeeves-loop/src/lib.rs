@@ -401,11 +401,26 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
     run_with_schedule_search(turn, None).await
 }
 
-/// Run a host-selected public search through normal admission, checkpointing and observation.
-pub async fn run_with_schedule_search(turn: Turn<'_>, search: Option<Value>) -> Result<LoopResult> {
-    let mut search = search.filter(|_| {
+pub type ScheduleRefinement = Box<dyn FnOnce(&str) -> Option<Value> + Send>;
+
+/// A host-selected public lookup, plus at most one refinement of its successful result.
+pub struct ScheduleSearch {
+    pub initial: Value,
+    pub refine: ScheduleRefinement,
+}
+
+/// Run the host searches through normal admission, checkpointing and observation.
+pub async fn run_with_schedule_search(
+    turn: Turn<'_>,
+    search: Option<ScheduleSearch>,
+) -> Result<LoopResult> {
+    let search = search.filter(|_| {
         turn.resume.is_none() && turn.run_limits.is_none() && turn.tools.get("search_web").is_some()
     });
+    let (mut search, mut refine) = match search {
+        Some(ScheduleSearch { initial, refine }) => (Some(initial), Some(refine)),
+        None => (None, None),
+    };
     let round_id = turn
         .resume
         .as_ref()
@@ -606,7 +621,7 @@ pub async fn run_with_schedule_search(turn: Turn<'_>, search: Option<Value>) -> 
                     stop_reason: StopReason::ToolUse,
                     usage: Usage::default(),
                     content: vec![ContentBlock::ToolUse {
-                        id: format!("schedule-{round_id}"),
+                        id: format!("schedule-{round_id}-{iteration}"),
                         name: "search_web".into(),
                         input,
                         extra: None,
@@ -1006,6 +1021,13 @@ pub async fn run_with_schedule_search(turn: Turn<'_>, search: Option<Value>) -> 
                 let success =
                     output.success && !uncertain.load(std::sync::atomic::Ordering::Acquire);
                 let output = output.text;
+                if is_preflight
+                    && let Some(refine) = refine.take()
+                    && success
+                    && turn.ctx.turn_limits.search_max > 1
+                {
+                    search = refine(&output);
+                }
                 tool_calls.push(ToolOutcome {
                     tool_use_id: id.clone(),
                     name: name.clone(),
