@@ -228,12 +228,11 @@ async fn run_case(case: Case) {
 #[tokio::test]
 async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     let (_home, mut server, _) = setup().await;
-    let ask = "我订了 2030-11-08 早晨六点半从甲城到乙城的经济舱，哪个靠窗位不被机翼挡？";
-    let exact = "2030-11-08 甲城 乙城 06:30 航班";
-    let nearby = "2030-11-08 甲城 乙城 06:00 to 07:00 timetable 航班";
+    let ask = "我订了 2030-11-08 早晨六点半从甲城到乙城的飞机（经济舱），哪个靠窗位不被机翼挡？";
+    let exact = "甲城 到 乙城 航班 2030-11-08 06:30 起飞 航班号";
+    let nearby = "甲城 到 乙城 航班 2030-11-08 06:00 to 07:00 timetable 起飞 航班号";
     let url = "https://93.184.216.34/fixtures/seat-timetable";
-    let timetable =
-        "2030-11-08 甲城到乙城 QZ123 06:25，乙城到甲城 QZ456 06:30。未公布机型或客舱图。";
+    let timetable = "2030-11-08 甲城到乙城 QZ123 06:25\n2030-11-08 乙城到甲城 QZ456 06:30\n2030-11-09 甲城到乙城 QZ789 06:30\n未公布机型或客舱图。";
     let recorded = Arc::new(Mutex::new(Vec::new()));
     let calls = Arc::clone(&recorded);
     let adapter: jeeves_tools::Handler = Arc::new(move |_, args| {
@@ -255,16 +254,12 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     tools.register(fetch_url_with_primary(Some(adapter)));
     server.tools = Arc::new(tools);
     let reply = format!(
-        "同日同向的候选是 [QZ123，06:25]({url})，比你记的早五分钟。没有核实机型和座位图，先不猜排号。"
+        "2030-11-08 甲城到乙城的候选是 [QZ123，06:25]({url})，比你记的早五分钟。没有核实机型和座位图，先不猜排号。"
     );
     let model = Arc::new(Mock::streaming(vec![
-        Mock::tool_use(
-            "nearby",
-            "search_web",
-            json!({"query":exact,"approximate_time":"06:30"}),
-        ),
         Mock::tool_use("verify", "fetch_url", json!({"url":url})),
         Mock::text(&reply),
+        Mock::text("这是外部会话，不执行查询。"),
     ]));
     server.install_provider(Resolved {
         client: model.clone(),
@@ -277,7 +272,8 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     let events = send(&server, ask, "nearby-flight", None).await.unwrap();
     {
         let requests = model.received.lock().unwrap();
-        assert_eq!(asked(&requests[0]), ask);
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].messages.iter().any(|m| m.text().ends_with(ask)));
         assert!(requests[0].tools.iter().any(|t| t.name == "search_web"));
         let prompt = requests[0].system_text().unwrap();
         for rule in [
@@ -289,29 +285,93 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             "Never combine a flight number from one row with the time from another",
             "Do not relax a hard time limit",
             "do not guess row numbers",
+            "Cite a candidate",
+            "Do not assume two different numbers are a codeshare",
         ] {
             assert!(prompt.contains(rule), "{rule}");
         }
         assert!(
-            requests[1]
+            requests[0]
                 .messages
                 .iter()
                 .flat_map(|m| &m.content)
                 .any(|b| {
                     matches!(b, ContentBlock::ToolResult { tool_use_id, content }
-                if tool_use_id == "nearby" && content.contains("QZ123 06:25"))
+                if tool_use_id.starts_with("schedule-") && content.contains("QZ123 06:25"))
                 })
         );
     }
     assert_eq!(
         *recorded.lock().unwrap(),
         [
-            json!({"query":exact,"max_results":5,"nearby_query":nearby}),
+            json!({"query":exact,"max_results":4,"nearby_query":nearby}),
             json!({"url":url})
         ]
     );
-    assert!(events.iter().any(
-        |event| matches!(event, ServerNotification::TurnCompleted(done) if done.reply == reply)
-    ));
+    let done = events
+        .iter()
+        .find_map(|event| match event {
+            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
+            _ => None,
+        })
+        .unwrap();
+    let grounded = |answer: &str| {
+        answer.split('。').any(|line| {
+            line.contains("2030-11-08 甲城到乙城")
+                && line.contains(&format!("[QZ123，06:25]({url})"))
+        }) && !answer.contains("QZ456")
+            && !answer.contains("QZ789")
+    };
+    assert!(grounded(done));
+    for rejected in [
+        done.replace("2030-11-08", "2030-11-09"),
+        done.replace("甲城到乙城", "乙城到甲城"),
+        done.replace("QZ123", "QZ456"),
+        done.replace("06:25", "06:30"),
+        done.replace(url, "https://elsewhere.test"),
+    ] {
+        assert!(!grounded(&rejected));
+    }
+    assert!(
+        matches!(events.iter().find(|e| matches!(e, ServerNotification::ToolStarted(_))),
+        Some(ServerNotification::ToolStarted(started)) if started.tool == "search_web")
+    );
+    let replay = send(&server, ask, "nearby-flight", None).await.unwrap();
+    assert!(
+        !replay
+            .iter()
+            .any(|e| matches!(e, ServerNotification::ToolStarted(_)))
+    );
+    assert_eq!(recorded.lock().unwrap().len(), 2);
+    let (sink, mut frames) = EventSink::channel();
+    start(
+        &server,
+        InteractionStartParams {
+            session_id: MAIN_SESSION.into(),
+            message_id: "nearby-flight-external".into(),
+            message: ask.into(),
+            task_id: None,
+            cwd: None,
+            attachments: None,
+            source: Some(jeeves_protocol::InteractionSource {
+                channel: "lark".into(),
+                chat_id: "chat".into(),
+                message_id: "guest-message".into(),
+                sender_id: "guest".into(),
+            }),
+        },
+        RequestId::Number(4),
+        &sink,
+    )
+    .await
+    .unwrap();
+    while let Ok(frame) = frames.try_recv() {
+        assert!(!matches!(
+            frame,
+            Frame::Notification(ServerNotification::ToolStarted(_))
+        ));
+    }
+    assert_eq!(recorded.lock().unwrap().len(), 2);
+    assert!(model.received.lock().unwrap()[2].tools.is_empty());
     assert!(server.tasks.list(10).await.unwrap().is_empty());
 }

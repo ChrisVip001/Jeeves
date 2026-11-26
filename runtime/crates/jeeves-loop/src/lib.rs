@@ -398,6 +398,14 @@ fn admitted_exchange(
 }
 
 pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
+    run_with_schedule_search(turn, None).await
+}
+
+/// Run a host-selected public search through normal admission, checkpointing and observation.
+pub async fn run_with_schedule_search(turn: Turn<'_>, search: Option<Value>) -> Result<LoopResult> {
+    let mut search = search.filter(|_| {
+        turn.resume.is_none() && turn.run_limits.is_none() && turn.tools.get("search_web").is_some()
+    });
     let round_id = turn
         .resume
         .as_ref()
@@ -589,8 +597,22 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         if out_of_tokens {
             schemas.clear();
         }
+        let mut preflight = if out_of_tokens { None } else { search.take() };
+        let is_preflight = preflight.is_some();
         let mut recovered_overflow = false;
         let sampled = loop {
+            if let Some(input) = preflight.take() {
+                break Some(jeeves_provider::CreateResponse {
+                    stop_reason: StopReason::ToolUse,
+                    usage: Usage::default(),
+                    content: vec![ContentBlock::ToolUse {
+                        id: format!("schedule-{round_id}"),
+                        name: "search_web".into(),
+                        input,
+                        extra: None,
+                    }],
+                });
+            }
             let mut model_messages = request_messages.clone();
             if out_of_tokens {
                 model_messages.push(Message {
@@ -664,7 +686,7 @@ pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
         usage.cache_creation_input_tokens += response.usage.cache_creation_input_tokens;
         last_observed = response.usage.prompt_size().max(0) as usize;
         sent_len = messages.len();
-        if let Some(notify) = &notify {
+        if !is_preflight && let Some(notify) = &notify {
             notify(LoopEvent::Llm {
                 iteration,
                 stop_reason: response.stop_reason,

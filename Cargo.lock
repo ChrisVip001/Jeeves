@@ -1304,6 +1304,7 @@ dependencies = [
  "jeeves-provider",
  "jeeves-state",
  "jeeves-tools",
+ "regex",
  "reqwest",
  "ring",
  "serde",

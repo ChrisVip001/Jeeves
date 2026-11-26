@@ -197,6 +197,7 @@ HTML 由本模块自己的转换器转成文本。正文经 `report::as_external
 
 **`search_web`**（`query`、`max_results` 默认 5）：每轮最多调用 `JEEVES_SEARCH_MAX_PER_TURN` 次（默认 20，限制在 1–200）。
 查询约略的班次时间时，可传 `approximate_time`，并在含日期与方向的查询中写一次相同的 `HH:MM`。Jeeves 保留原查询，再补一条时刻表查询，仅将原时刻替换为前后各 30 分钟的时间窗，不跨日，用于发现候选，不确认订单或座位图。时间是硬约束时不传此字段。
+在所有者主聊天中，对已订航班的中文选座问题，日期、方向和记忆中的时刻均明确时，运行时可在调用模型前查一次公开时刻表，只发送这些查询字段。检测到硬性时刻约束或不要搜索的指示时，不预先搜索。
 生产中 app-server 先让 Parallel 搜索 MCP 处理器接管 `search_web` 与 `fetch_url`（首次使用时连接；失败则冷却 60 秒，由内置路径应答）。
 内置路径在有密钥时使用 Tavily（`TAVILY_API_KEY` 或 `JEEVES_SEARCH_API_KEY`）和 Brave（`BRAVE_API_KEY`）；没有密钥时依次用 DuckDuckGo 与 Bing（`JEEVES_SEARCH_DDG=0` / `JEEVES_SEARCH_BING=0` 可关闭）。
 没有可用后端时该工具不注册，stderr 会说明原因。结果经 `report::as_search_results` 包装。
