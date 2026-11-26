@@ -8,6 +8,10 @@ import type { CodeCheckSpec } from "./CodeCheckSpec";
  */
 export type TaskCreateParams = {
   /**
+   * Existing tasks in this conversation whose verified deliveries must precede this task.
+   */
+  dependsOnTaskIds?: Array<string>;
+  /**
    * The human-selected parent coding task whose worktree receives this child's checkpoint.
    */
   parentTaskId?: string;

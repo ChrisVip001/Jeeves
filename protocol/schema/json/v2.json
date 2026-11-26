@@ -263,6 +263,16 @@
         "title": {
           "type": "string"
         },
+        "waitingForTaskIds": {
+          "description": "Predecessor tasks whose verified delivery is still outstanding.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "worktreePath": {
           "description": "Set when `cwd` is a Jeeves-made git worktree: its path and branch. Never auto-deleted.",
           "type": [
@@ -7084,6 +7094,16 @@
           "description": "The working directory this task owns. Absent = a new managed directory under home/workspaces.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "dependsOnTaskIds": {
+          "description": "Existing tasks in this conversation whose verified deliveries must precede this task.",
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },

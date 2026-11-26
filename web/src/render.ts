@@ -247,7 +247,7 @@ export function renderTaskCard(
                   ? t("等待后台作业")
                   : task.status === "pending" &&
                       task.dispatchState === "pending"
-                    ? t("排队中")
+                    ? (task.waitingForTaskIds?.length ? t("等待前置事项验收") : t("排队中"))
                     : (statusText[task.status] ?? task.status)) +
             (task.goalCondition != null
               ? t(" · 第 {round}/{max} 轮", {

@@ -15,6 +15,12 @@ use super::{
 };
 use crate::{EventSink, Server, route};
 
+pub(crate) struct ConversationTurn<'a> {
+    pub message_id: &'a str,
+    pub channel: bool,
+    pub use_inline_task: bool,
+}
+
 pub async fn run_turn(
     server: &Server,
     params: TurnStartParams,
@@ -31,10 +37,10 @@ pub(crate) async fn run_turn_inner(
     sink: &EventSink,
     dispatch: Option<jeeves_state::dispatch::DispatchRow>,
     interaction_tool: Option<&jeeves_tools::Tool>,
-    interaction: Option<(&str, bool)>,
+    interaction: Option<ConversationTurn<'_>>,
 ) -> Result<(), ErrorObject> {
     let started = std::time::Instant::now();
-    let channel = interaction.is_some_and(|(_, channel)| channel);
+    let channel = interaction.as_ref().is_some_and(|turn| turn.channel);
 
     let session_id = params
         .session_id
@@ -51,10 +57,13 @@ pub(crate) async fn run_turn_inner(
         }
     }
 
-    let task = if channel {
-        Ok(None)
-    } else if let Some(dispatch) = &dispatch {
+    let task = if let Some(dispatch) = &dispatch {
         server.tasks.get(&dispatch.task_id).await
+    } else if interaction
+        .as_ref()
+        .is_some_and(|turn| !turn.use_inline_task)
+    {
+        Ok(None)
     } else {
         server.tasks.active(&session_id).await
     }
@@ -96,7 +105,8 @@ message: "The model is not configured yet: no API key. Open Settings → Models 
         .as_ref()
         .map(|row| row.turn_id.clone())
         .or_else(|| {
-            interaction.map(|(key, channel)| jeeves_protocol::interaction_turn_id(key, channel))
+            interaction
+                .map(|turn| jeeves_protocol::interaction_turn_id(turn.message_id, turn.channel))
         })
         .unwrap_or_else(new_turn_id);
     let classifier = super::meter::for_owner(

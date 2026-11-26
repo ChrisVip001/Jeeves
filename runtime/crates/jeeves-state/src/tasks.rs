@@ -229,6 +229,7 @@ impl Tasks {
             "SELECT {COLS} FROM agent_tasks
              WHERE session_id = ? AND status IN ('pending', 'running', 'suspended', 'needs_attention')
              AND NOT EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=agent_tasks.id)
+             AND NOT EXISTS(SELECT 1 FROM task_dependencies d WHERE d.task_id=agent_tasks.id)
              AND NOT EXISTS(SELECT 1 FROM responsibility_predecessors w WHERE w.task_id=agent_tasks.id)
              AND NOT EXISTS(SELECT 1 FROM task_pause_fences p WHERE p.task_id=agent_tasks.id)
              ORDER BY created_at DESC, rowid DESC LIMIT 1"

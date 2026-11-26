@@ -77,6 +77,7 @@ const next = computed(() => {
     case "running":
       return t("正在做");
     case "pending":
+      if (task.waitingForTaskIds?.length) return t("等待前置事项验收");
       return t("排队中，轮到就开始");
     case "suspended":
       return t("已暂停，你说继续才动");
@@ -88,6 +89,8 @@ const next = computed(() => {
       return t("等你处理后继续");
   }
 });
+const prerequisites = computed(() => (props.task.waitingForTaskIds ?? []).map(id =>
+  props.center.state.tasks.find(task => task.id === id)?.title ?? id));
 const need = computed(() => {
   if (approval.value) return t("确认一个动作，见下方");
   const task = props.task;
@@ -138,6 +141,7 @@ const busy = computed(() => !!props.center.state.busy);
 
       <p v-if="task.inputCondition?.state === 'pending'" class="meta">{{ t("等{what}", {what: task.inputCondition.description}) }}</p>
       <p v-else-if="['failed','suspended','needs_attention','needsAttention'].includes(task.status)" class="meta">{{ task.lastStopReason || task.suspendReason }}</p>
+      <p v-if="prerequisites.length" class="meta">{{ t("等待这些事项验收通过：{tasks}", { tasks: prerequisites.join(" · ") }) }}</p>
       <TaskTranscript :center="center" :task="task" />
       <details class="execution-details">
         <summary>{{ t("执行记录") }}</summary>

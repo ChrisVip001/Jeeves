@@ -52,7 +52,7 @@ pub(crate) async fn start(
     id: RequestId,
     sink: &EventSink,
 ) -> Result<(), ErrorObject> {
-    start_with_tier(server, p, id, sink, None).await
+    start_with_tier(server, p, id, sink, None, false).await
 }
 
 #[derive(serde::Serialize)]
@@ -68,6 +68,7 @@ async fn start_with_tier(
     id: RequestId,
     sink: &EventSink,
     tier: Option<String>,
+    use_inline_task: bool,
 ) -> Result<(), ErrorObject> {
     if p.source.is_some() && (p.cwd.is_some() || p.attachments.is_some()) {
         return Err(invalid(
@@ -103,7 +104,7 @@ async fn start_with_tier(
     {
         return receipt::replay(server, (&p.session_id, &p.message_id), &input, id, sink).await;
     }
-    let result = execute(server, &p, id, sink, tier).await;
+    let result = execute(server, &p, id, sink, tier, use_inline_task).await;
     if let Err(error) = &result
         && let Err(failure) = jeeves_state::interactions::fail(
             &server.pool,
@@ -154,6 +155,7 @@ pub async fn submit_main(
         id,
         sink,
         params.tier,
+        true,
     )
     .await
 }
@@ -166,6 +168,7 @@ async fn execute(
     id: RequestId,
     sink: &EventSink,
     tier: Option<String>,
+    use_inline_task: bool,
 ) -> Result<(), ErrorObject> {
     let settings = server.settings();
     let may_dispatch = may_dispatch(&settings.dispatchers, p.source.as_ref())
@@ -246,7 +249,7 @@ async fn execute(
         );
     }
     let tool = may_dispatch.then(|| task_tool::build(server.clone(), p.clone(), sink.clone()));
-    receipt::conversation(server, p, id, sink, tool.as_ref(), tier).await
+    receipt::conversation(server, p, id, sink, tool.as_ref(), tier, use_inline_task).await
 }
 
 fn lark_owner(home: &std::path::Path, source: &InteractionSource) -> bool {

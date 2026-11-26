@@ -12,6 +12,10 @@ import type { TaskInputView } from "./TaskInputView";
  */
 export type AgentTaskView = {
   /**
+   * Predecessor tasks whose verified delivery is still outstanding.
+   */
+  waitingForTaskIds?: Array<string>;
+  /**
    * The human-selected parent coding task whose worktree receives this child's checkpoint.
    */
   parentTaskId?: string;

@@ -27,6 +27,157 @@ async fn add(tasks: &Tasks, id: &str) {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn dependent_dispatch_waits_for_each_verified_completion_after_restart() {
+    let (dir, pool, tasks, queue) = fixture().await;
+    for id in [
+        "source-a",
+        "source-b",
+        "dependent",
+        "paused",
+        "cancelled",
+        "independent",
+    ] {
+        add(&tasks, id).await;
+    }
+    let mut conn = pool.acquire().await.unwrap();
+    for id in ["dependent", "paused", "cancelled"] {
+        for prerequisite in ["source-a", "source-b"] {
+            TaskDispatch::add_dependency_on(&mut conn, id, prerequisite)
+                .await
+                .unwrap();
+        }
+        queue.enqueue(id, id).await.unwrap();
+    }
+    drop(conn);
+    queue
+        .enqueue("independent", "standalone work")
+        .await
+        .unwrap();
+    assert_eq!(queue.claim().await.unwrap().unwrap().task_id, "independent");
+    queue.finish("independent").await.unwrap();
+    tasks.finish("source-a", TaskStatus::Done).await.unwrap();
+    assert!(queue.claim_leased("worker", 30, 2).await.unwrap().is_none());
+    assert_eq!(
+        queue.unresolved_dependencies("dependent").await.unwrap(),
+        ["source-a", "source-b"]
+    );
+    tasks.suspend("paused", Some("human pause")).await.unwrap();
+    tasks
+        .finish("cancelled", TaskStatus::Cancelled)
+        .await
+        .unwrap();
+    drop((tasks, queue));
+    pool.close().await;
+
+    let pool = crate::open(&dir.path().join("state.db")).await.unwrap();
+    let tasks = Tasks::new(pool.clone());
+    let queue = TaskDispatch::new(pool.clone());
+    assert!(queue.claim_leased("worker", 30, 2).await.unwrap().is_none());
+    measure_prerequisite(&pool, "source-a", "a-verified", true).await;
+    measure_prerequisite(&pool, "source-b", "b-failed", false).await;
+    assert_eq!(
+        queue.unresolved_dependencies("dependent").await.unwrap(),
+        ["source-b"]
+    );
+    assert!(!queue.has_ready_dependents("source-b").await.unwrap());
+    measure_prerequisite(&pool, "source-b", "b-verified", true).await;
+    assert!(queue.has_ready_dependents("source-b").await.unwrap());
+    let (left, right) = tokio::join!(
+        queue.claim_leased("first-worker", 30, 2),
+        queue.claim_leased("second-worker", 30, 2)
+    );
+    let claims: Vec<_> = [left.unwrap(), right.unwrap()]
+        .into_iter()
+        .flatten()
+        .collect();
+    assert_eq!(claims.len(), 1);
+    assert_eq!(claims[0].task_id, "dependent");
+    queue.finish("dependent").await.unwrap();
+    assert!(queue.resume_unstarted("paused").await.unwrap());
+    assert_eq!(queue.claim().await.unwrap().unwrap().task_id, "paused");
+    queue.finish("paused").await.unwrap();
+    assert!(queue.claim().await.unwrap().is_none());
+    assert_eq!(
+        tasks.get("cancelled").await.unwrap().unwrap().status,
+        TaskStatus::Cancelled
+    );
+}
+
+#[tokio::test]
+async fn a_new_dependency_on_a_reopened_task_requires_fresh_evidence() {
+    let (_dir, pool, tasks, queue) = fixture().await;
+    for id in ["source", "before", "after"] {
+        add(&tasks, id).await;
+    }
+    measure_prerequisite(&pool, "source", "initial", true).await;
+    let mut conn = pool.acquire().await.unwrap();
+    TaskDispatch::add_dependency_on(&mut conn, "before", "source")
+        .await
+        .unwrap();
+    tasks.set_running("source", "revision").await.unwrap();
+    TaskDispatch::add_dependency_on(&mut conn, "after", "source")
+        .await
+        .unwrap();
+    assert!(
+        queue
+            .unresolved_dependencies("before")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        queue.unresolved_dependencies("after").await.unwrap(),
+        ["source"]
+    );
+    measure_prerequisite(&pool, "source", "revised", true).await;
+    assert!(
+        queue
+            .unresolved_dependencies("after")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+async fn measure_prerequisite(pool: &sqlx::SqlitePool, id: &str, run: &str, passed: bool) {
+    let acceptance = r#"[{"kind":"toolsOk"}]"#;
+    sqlx::query("UPDATE agent_tasks SET acceptance_json=? WHERE id=?")
+        .bind(acceptance)
+        .bind(id)
+        .execute(pool)
+        .await
+        .unwrap();
+    let tasks = Tasks::new(pool.clone());
+    crate::Runs::new(pool.clone())
+        .start(run, id, Some("work"), Some(run))
+        .await
+        .unwrap();
+    tasks.set_running(id, run).await.unwrap();
+    let checks = serde_json::json!([{"label":"checks", "passed":passed}]).to_string();
+    crate::verification::Verifications::new(pool.clone())
+        .record(id, run, run, acceptance, &checks, &[])
+        .await
+        .unwrap();
+    if passed {
+        tasks
+            .finish_run(id, TaskStatus::Done, None, Some(run))
+            .await
+            .unwrap();
+    } else {
+        assert!(
+            tasks
+                .finish_run(id, TaskStatus::Done, None, Some(run))
+                .await
+                .is_err()
+        );
+        tasks
+            .needs_attention(id, "failed verification")
+            .await
+            .unwrap();
+    }
+}
 #[tokio::test]
 async fn dispatch_claim_is_single_and_keeps_conversation_separate() {
     let (_dir, _pool, tasks, queue) = fixture().await;

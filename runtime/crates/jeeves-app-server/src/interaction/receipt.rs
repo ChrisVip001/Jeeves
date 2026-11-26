@@ -58,6 +58,7 @@ pub(super) async fn conversation(
     sink: &EventSink,
     interaction_tool: Option<&jeeves_tools::Tool>,
     tier: Option<String>,
+    use_inline_task: bool,
 ) -> Result<(), ErrorObject> {
     let params = TurnStartParams {
         session_id: Some(p.session_id.clone()),
@@ -75,21 +76,25 @@ pub(super) async fn conversation(
         id,
         sink,
         interaction_tool,
-        p.source.is_some(),
+        crate::turn::ConversationTurn {
+            message_id: &p.message_id,
+            channel: p.source.is_some(),
+            use_inline_task: use_inline_task && p.source.is_none(),
+        },
     )
     .await
 }
 
 /// Run one turn and keep its result and start/finish notifications under `(session, key)`,
 /// so a retry of the same message replays them instead of running again.
-pub(crate) async fn recorded(
+async fn recorded(
     server: &Server,
     (session, key): (&str, &str),
     params: TurnStartParams,
     id: RequestId,
     sink: &EventSink,
     interaction_tool: Option<&jeeves_tools::Tool>,
-    channel: bool,
+    interaction: crate::turn::ConversationTurn<'_>,
 ) -> Result<(), ErrorObject> {
     let (outlet, mut frames) = EventSink::channel();
     let (sender, receiver) = tokio::sync::oneshot::channel();
@@ -124,7 +129,7 @@ pub(crate) async fn recorded(
         &outlet,
         None,
         interaction_tool,
-        Some((key, channel)),
+        Some(interaction),
     )
     .await?;
     drop(outlet);

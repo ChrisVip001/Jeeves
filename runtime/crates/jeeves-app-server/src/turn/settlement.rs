@@ -331,6 +331,16 @@ pub(super) async fn settle_task(
         }
         if let Ok(Some(row)) = server.tasks.get(&task.id).await {
             crate::task::notify(sink, &row, verdict_reason.as_deref());
+            if row.status == TaskStatus::Done {
+                let queue = jeeves_state::dispatch::TaskDispatch::new(server.pool.clone());
+                match queue.has_ready_dependents(&row.id).await {
+                    Ok(true) => crate::task::dispatch::kick(server.clone(), sink.clone()),
+                    Ok(false) => (),
+                    Err(error) => {
+                        eprintln!("(jeeves) task {}: dependent lookup failed: {error}", row.id)
+                    }
+                }
+            }
         }
     } else if let Some(run_id) = &run_id {
         server

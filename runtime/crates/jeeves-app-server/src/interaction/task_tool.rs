@@ -18,6 +18,7 @@ const DESCRIPTION: &str = "Open a durable task thread for a goal that must survi
 Handle casual conversation, general questions, advice and progress inquiries directly. Work that needs a few tools, outside sources or an approval can also be carried out inside the conversation without opening a task. Use a task when the work itself needs to persist, not merely because the request is phrased as 'do something'. \
 Summarize the intended outcome from the conversation and keep the human's constraints. Ask a focused question if a material gap in the outcome, cost or authorization cannot be resolved from context. \
 create: one item per independent goal that needs persistence (at most 4). Give each item a short title that summarizes its outcome. Copy `instruction` word for word from the human's current message. \
+Use after_task_ids only if the human explicitly asks to wait for verified delivery from existing tasks. Resolve those tasks with list, and include the human's reference to each task by its ID or exact title in the copied instruction. Report this as waiting for verification, not as work already started. \
 Use acceptance for objectively verifiable deliverables. Use the shared task criteria. Copy file paths, required literal text and test commands from the human instruction. \
 Add goal_draft when the outcome is clear to you but cannot be stated as a mechanical check: one sentence, in the human's language, naming what must be true for this to count as done. It takes effect only if the person confirms it, so draft what you believe they asked for and never invent a goal they did not ask for. Omit it when the acceptance checks already say when the work is done. \
 continue: pass a follow-up to the existing task (task_id from list). Use its words once. When the follow-up names a file, required text or test command for a finished task, add matching acceptance so the revised delivery is measured too; the previous run's checks do not carry over. If the target is unclear, ask which task the human means. \
@@ -32,6 +33,8 @@ struct Item {
     instruction: String,
     #[serde(default)]
     acceptance: Vec<AcceptanceView>,
+    #[serde(default)]
+    after_task_ids: Vec<String>,
     /// A "done when" sentence for the person to confirm. Inert until they do.
     #[serde(default)]
     goal_draft: Option<String>,
@@ -121,6 +124,7 @@ pub(super) fn build(server: Server, p: InteractionStartParams, sink: EventSink) 
                             "title": {"type": "string", "description": "Short summary of the requested outcome in the human's language"},
                             "instruction": {"type": "string", "description": "Exact contiguous substring of the human's message"},
                             "acceptance": acceptance_schema(),
+                            "after_task_ids": {"type":"array","maxItems":8,"uniqueItems":true,"items":{"type":"string"},"description":"Existing task IDs whose verified delivery the human explicitly asked to wait for"},
                             "goal_draft": {"type": "string", "description": "One sentence naming what must be true for this to count as done; takes effect only after the person confirms it. Omit when acceptance already measures the outcome."}
                         },
                         "required": ["title", "instruction"]
@@ -236,6 +240,9 @@ async fn run(
                 .iter()
                 .map(Item::acceptance)
                 .collect::<Result<Vec<_>, _>>()?;
+            for item in &items {
+                validate_dependencies(server, p, item).await?;
+            }
             let context = if p.source.is_none() {
                 task_context(server, &p.session_id).await?
             } else {
@@ -328,6 +335,8 @@ async fn start_one(
     let task = crate::task::create_with_handoff(
         server,
         TaskCreateParams {
+            depends_on_task_ids: (!item.after_task_ids.is_empty())
+                .then(|| item.after_task_ids.clone()),
             session_id: Some(p.session_id.clone()),
             title: item.title.clone(),
             goal_condition: None,
@@ -347,7 +356,46 @@ async fn start_one(
     .map_err(|e| e.message)?
     .task;
     crate::task::dispatch::kick(server.clone(), sink.clone());
-    Ok(format!("• {} ({}): queued", item.title, task.id))
+    let mut line = format!("• {} ({}): queued", item.title, task.id);
+    if let Some(waiting) = task.waiting_for_task_ids {
+        line.push_str(&format!(
+            "\nWaiting for verified delivery from: {}",
+            waiting.join(", ")
+        ));
+    }
+    Ok(line)
+}
+
+async fn validate_dependencies(
+    server: &Server,
+    p: &InteractionStartParams,
+    item: &Item,
+) -> Result<(), String> {
+    for id in &item.after_task_ids {
+        let row = owned_task(server, p, id).await?;
+        if item.instruction.contains(id) {
+            continue;
+        }
+        let matches: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM agent_tasks t
+             WHERE t.session_id=? AND t.title=? AND (? IS NULL OR EXISTS(
+                 SELECT 1 FROM task_sources s WHERE s.task_id=t.id AND s.channel=?
+                     AND s.chat_id=? AND s.sender_id=?))",
+        )
+        .bind(&p.session_id)
+        .bind(&row.title)
+        .bind(p.source.as_ref().map(|s| &s.channel))
+        .bind(p.source.as_ref().map(|s| &s.channel))
+        .bind(p.source.as_ref().map(|s| &s.chat_id))
+        .bind(p.source.as_ref().map(|s| &s.sender_id))
+        .fetch_one(&server.pool)
+        .await
+        .map_err(|error| error.to_string())?;
+        if !item.instruction.contains(&row.title) || matches != 1 {
+            return Err("Each prerequisite must be named unambiguously in the human instruction by ID or exact title".into());
+        }
+    }
+    Ok(())
 }
 
 /// The ids of the tasks a `task` call queued, read back from its own `• title (id): queued` lines.

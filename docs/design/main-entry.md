@@ -147,6 +147,8 @@ or when an external action needs review. [Runtime limits](../configuration.md#be
 Mac and phone can search task titles and open the same execution session. The main conversation
 collects task notices and receipts.
 
+In chat, name an existing task and ask Jeeves to start a new task after its delivery passes verification. The new task shows which prerequisites it is waiting for. [Task execution](../protocol.md#independent-task-execution)
+
 ## 4. Runtime contract
 
 The main conversation can deliver a result immediately or continue the same goal in a durable task.

@@ -48,6 +48,8 @@ export const UI_EN: Record<string, string> = {
   "账号与安全": "Account and security",
   "继续上次的事项": "Return to your work",
   "等待任务开始": "Waiting to start",
+  "等待前置事项验收": "Waiting for prerequisite verification",
+  "等待这些事项验收通过：{tasks}": "Waiting for verification of {tasks}",
   "正在处理这件事。": "Work is underway.",
   "执行记录": "Execution details",
   "正在读取任务…": "Loading tasks…",

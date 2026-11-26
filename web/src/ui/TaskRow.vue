@@ -49,7 +49,7 @@ const when = computed(() => {
     case "running":
       return t("正在做");
     case "pending":
-      return t("排队中");
+      return task.waitingForTaskIds?.length ? t("等待前置事项验收") : t("排队中");
     case "suspended":
       return t("已暂停，你说继续才动");
     case "done":

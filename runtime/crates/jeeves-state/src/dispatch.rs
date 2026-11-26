@@ -25,6 +25,7 @@ struct ProgressRow {
     status: String,
     last_stop_reason: Option<String>,
     acceptance_json: String,
+    waiting_for_dependencies: bool,
 }
 #[derive(Clone)]
 pub struct TaskDispatch {
@@ -33,6 +34,49 @@ pub struct TaskDispatch {
 impl TaskDispatch {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
+    }
+    /// Bind a new task to evidence from the predecessor's current or a later run.
+    pub async fn add_dependency_on(
+        conn: &mut sqlx::SqliteConnection,
+        task_id: &str,
+        prerequisite_id: &str,
+    ) -> Result<()> {
+        let inserted = sqlx::query(
+            "INSERT INTO task_dependencies(task_id,prerequisite_id,first_completion_id)
+             SELECT ?,p.id,COALESCE((SELECT c.id + (p.status <> 'done')
+                 FROM task_completions c WHERE c.task_id=p.id ORDER BY c.id DESC LIMIT 1),0)
+             FROM agent_tasks p WHERE p.id=?",
+        )
+        .bind(task_id)
+        .bind(prerequisite_id)
+        .execute(conn)
+        .await?
+        .rows_affected();
+        ensure!(
+            inserted == 1,
+            "Task prerequisite disappeared before creation"
+        );
+        Ok(())
+    }
+
+    pub async fn unresolved_dependencies(&self, task_id: &str) -> Result<Vec<String>> {
+        Ok(sqlx::query_scalar(
+            "SELECT prerequisite_id FROM pending_task_dependencies WHERE task_id=? ORDER BY prerequisite_id",
+        )
+        .bind(task_id)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    pub async fn has_ready_dependents(&self, prerequisite_id: &str) -> Result<bool> {
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM task_dependencies r
+                JOIN ready_task_dispatches d ON d.task_id=r.task_id
+                WHERE r.prerequisite_id=?)",
+        )
+        .bind(prerequisite_id)
+        .fetch_one(&self.pool)
+        .await?)
     }
     pub async fn enqueue(&self, task_id: &str, message: &str) -> Result<DispatchRow> {
         self.enqueue_with_attachments(task_id, message, "[]").await
@@ -94,8 +138,7 @@ impl TaskDispatch {
     pub async fn claim(&self) -> Result<Option<DispatchRow>> {
         Ok(sqlx::query_as(
             "UPDATE task_dispatch SET state='claimed' WHERE task_id=(
-            SELECT d.task_id FROM task_dispatch d JOIN agent_tasks t ON t.id=d.task_id
-            WHERE d.state='pending' AND t.status='pending' AND NOT EXISTS(SELECT 1 FROM task_pause_fences p WHERE p.task_id=t.id) ORDER BY d.rowid LIMIT 1)
+            SELECT task_id FROM ready_task_dispatches ORDER BY dispatch_order LIMIT 1)
             AND NOT EXISTS(SELECT 1 FROM task_dispatch WHERE state='claimed')
             RETURNING task_id,session_id,turn_id,message,state,attachments_json",
         )
@@ -113,8 +156,7 @@ impl TaskDispatch {
         let mut tx = self.pool.begin().await?;
         let row: Option<DispatchRow> = sqlx::query_as(
             "UPDATE task_dispatch SET state='claimed' WHERE task_id=(
-            SELECT d.task_id FROM task_dispatch d JOIN agent_tasks t ON t.id=d.task_id
-            WHERE d.state='pending' AND t.status='pending' AND NOT EXISTS(SELECT 1 FROM task_pause_fences p WHERE p.task_id=t.id) ORDER BY d.rowid LIMIT 1)
+            SELECT task_id FROM ready_task_dispatches ORDER BY dispatch_order LIMIT 1)
             AND (SELECT COUNT(*) FROM task_dispatch WHERE state='claimed')<?
             RETURNING task_id,session_id,turn_id,message,state,attachments_json",
         )
@@ -226,13 +268,16 @@ impl TaskDispatch {
     /// Bounded, owner-scoped progress without exposing another task's working transcript.
     pub async fn progress(&self, owner_session: &str) -> Result<Vec<serde_json::Value>> {
         let rows: Vec<ProgressRow> = sqlx::query_as(
-            "SELECT t.id,t.title,t.status,t.last_stop_reason,t.acceptance_json
+            "SELECT t.id,t.title,t.status,t.last_stop_reason,t.acceptance_json,
+                    EXISTS(SELECT 1 FROM pending_task_dependencies w WHERE w.task_id=t.id) AS waiting_for_dependencies
              FROM agent_tasks t WHERE t.session_id=? AND (EXISTS(SELECT 1 FROM task_dispatch d WHERE d.task_id=t.id) OR EXISTS(SELECT 1 FROM responsibility_predecessors w WHERE w.task_id=t.id)) ORDER BY t.rowid DESC LIMIT 5")
             .bind(owner_session).fetch_all(&self.pool).await?;
         Ok(rows
             .into_iter()
             .map(|row| {
-                let status = if row.status == "done" && row.acceptance_json == "[]" {
+                let status = if row.status == "pending" && row.waiting_for_dependencies {
+                    "waiting_for_dependencies".to_string()
+                } else if row.status == "done" && row.acceptance_json == "[]" {
                     "produced_unverified".to_string()
                 } else {
                     row.status

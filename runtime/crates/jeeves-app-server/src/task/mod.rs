@@ -27,7 +27,7 @@ use jeeves_protocol::{
     ServerNotification, SpentView, TaskActionParams, TaskArtifactsResponse, TaskCreateParams,
     TaskEnvelope, TaskListResponse, TaskRunsResponse, TaskUpdatedNotification, TaskViewResponse,
 };
-use jeeves_state::{TaskRow, TaskStatus};
+use jeeves_state::{TaskRow, TaskStatus, dispatch::TaskDispatch};
 
 use crate::{EventSink, Server, dispatch::internal, narrow, rpc_error::invalid};
 use jeeves_agent::verify::Acceptance;
@@ -61,10 +61,8 @@ pub(crate) async fn view(server: &Server, row: &TaskRow) -> Result<AgentTaskView
             None
         }
     };
-    let dispatch = match jeeves_state::dispatch::TaskDispatch::new(server.pool.clone())
-        .get(&row.id)
-        .await
-    {
+    let queue = TaskDispatch::new(server.pool.clone());
+    let dispatch = match queue.get(&row.id).await {
         Ok(dispatch) => dispatch,
         Err(error) => {
             eprintln!("(jeeves) task dispatch view unavailable: {error}");
@@ -83,7 +81,16 @@ pub(crate) async fn view(server: &Server, row: &TaskRow) -> Result<AgentTaskView
             }
         };
     let budget: BudgetView = stored("budget", &row.budget_json)?;
+    let waiting_for = if row.status.is_open() && row.current_turn_id.is_none() {
+        queue
+            .unresolved_dependencies(&row.id)
+            .await
+            .map_err(internal)?
+    } else {
+        Vec::new()
+    };
     Ok(AgentTaskView {
+        waiting_for_task_ids: (!waiting_for.is_empty()).then_some(waiting_for),
         parent_task_id: row.parent_task_id.clone(),
         input_condition,
         execution_session_id: dispatch.as_ref().map(|d| d.session_id.clone()),
@@ -211,6 +218,21 @@ pub(crate) async fn create_with_handoff(
         .as_deref()
         .map(str::trim)
         .filter(|text| !text.is_empty());
+    let dependencies = params.depends_on_task_ids.as_deref().unwrap_or_default();
+    if dependencies.len() > 8 {
+        return Err(invalid("a task can wait for at most eight other tasks"));
+    }
+    for (index, prerequisite) in dependencies.iter().enumerate() {
+        if dependencies[..index].contains(prerequisite) {
+            return Err(invalid("task prerequisites must be distinct"));
+        }
+        let row = server.tasks.get(prerequisite).await.map_err(internal)?;
+        if !row.is_some_and(|row| row.session_id.as_deref() == session) {
+            return Err(invalid(
+                "a prerequisite task is unavailable in this conversation",
+            ));
+        }
+    }
     let max_rounds = params
         .max_rounds
         .unwrap_or_else(|| server.settings().goal_max_rounds)
@@ -289,6 +311,11 @@ pub(crate) async fn create_with_handoff(
     jeeves_state::Tasks::insert(&mut tx, task, parent)
         .await
         .map_err(internal)?;
+    for prerequisite in dependencies {
+        TaskDispatch::add_dependency_on(&mut tx, &id, prerequisite)
+            .await
+            .map_err(internal)?;
+    }
     if let Some(handoff) = handoff {
         handoff.commit(&mut tx, &id).await.map_err(internal)?;
     }
@@ -385,11 +412,18 @@ pub(crate) async fn start_with_origin(
         )
         .await
         .map_err(|e| invalid(format!("Task was not queued: {e}")))?;
-    notify(sink, &row, Some("queued for independent execution"));
+    let task = view(server, &row).await;
+    let reason = if task
+        .as_ref()
+        .is_ok_and(|task| task.waiting_for_task_ids.is_some())
+    {
+        "queued; waiting for verified prerequisite tasks"
+    } else {
+        "queued for independent execution"
+    };
+    notify(sink, &row, Some(reason));
     crate::task::dispatch::kick(server.clone(), sink.clone());
-    Ok(TaskEnvelope {
-        task: view(server, &row).await?,
-    })
+    Ok(TaskEnvelope { task: task? })
 }
 
 pub(crate) async fn list(

@@ -32,7 +32,7 @@ const status = computed(() => {
   if (props.center.approvalFor(task)) return t("确认后继续");
   if (task.inputCondition?.state === "pending") return t("等{what}", {what: task.inputCondition.description});
   if (task.status === "running") return t("正在处理这件事。");
-  if (task.status === "pending") return t("等待任务开始");
+  if (task.status === "pending") return task.waitingForTaskIds?.length ? t("等待前置事项验收") : t("等待任务开始");
   if (live.value) return task.suspendReason || task.lastStopReason || t("已暂停");
   return "";
 });

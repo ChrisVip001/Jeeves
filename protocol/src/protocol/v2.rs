@@ -777,6 +777,10 @@ pub struct SpentView {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct AgentTaskView {
+    /// Predecessor tasks whose verified delivery is still outstanding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub waiting_for_task_ids: Option<Vec<String>>,
     /// The human-selected parent coding task whose worktree receives this child's checkpoint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -856,6 +860,10 @@ pub struct AgentTaskView {
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct TaskCreateParams {
+    /// Existing tasks in this conversation whose verified deliveries must precede this task.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub depends_on_task_ids: Option<Vec<String>>,
     /// The human-selected parent coding task whose worktree receives this child's checkpoint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]

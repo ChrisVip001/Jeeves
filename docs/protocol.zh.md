@@ -174,6 +174,8 @@ turnStarted → retry* → textDelta* → toolStarted → toolDelta* → toolCom
 
 `task/create` 只记录任务。人可以调用 `task/start {taskId, message}` 或点击驾驶舱的「开始任务」，授权首次执行。message 是实际指令，驾驶舱使用任务标题与目标。SQLite 持久队列由一个 worker 消费。创建本身不启动工作，模型没有开始任务的工具。
 
+`task/create` 的 `dependsOnTaskIds` 可指定同一会话中最多八项已存在且互不重复的前置事项。`task/start` 后，新事项会等到每项前置事项都留下关联通过验收的完成回执。若前置事项已完成，当前的核验交付即可满足依赖。若前置事项正在补做，则等待新的核验交付。已满足依赖的回执继续有效。事项视图用 `waitingForTaskIds` 列出尚待验收的事项。等待状态跨重启保留，并遵守用户的暂停和取消决定。
+
 `AgentTaskView.executionSessionId` 指向独立执行记录；`sessionId` 仍是原交流会话。`dispatchState` 为 pending / claimed / finished / interrupted，只描述首次派发，不代表任务最终结果。暂停与等待作业仍使用原任务状态。原聊天可独立继续，并携带有上限、限定本会话的任务进度；不复制工作对话。没有验收条件的产出在进度中标为尚未核验。
 
 每个任务只接受一次首次派发，重复开始会拒绝。待执行记录跨重启保留；已领取工作由 checkpoint 恢复负责，没有 checkpoint 的领取进入待核对，不重新提交。排队期间暂停后必须人工恢复，取消则不执行。`POST /api/task` 支持 `action: "start"` 与同样参数；TypeScript 客户端提供 `TASK_START`。

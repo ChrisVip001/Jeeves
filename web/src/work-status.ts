@@ -13,7 +13,7 @@ export function workStatus(center: TaskCenter, task: AgentTaskView): string {
   if (task.inputCondition?.state === "pending") return t("等{what}", { what: task.inputCondition.description });
   switch (task.status) {
     case "running": return t("正在执行");
-    case "pending": return t("等待执行");
+    case "pending": return task.waitingForTaskIds?.length ? t("等待前置事项验收") : t("等待执行");
     case "suspended": return t("已暂停");
     case "needsAttention": case "needs_attention": return t("需要你处理");
     case "failed": return t("执行失败");

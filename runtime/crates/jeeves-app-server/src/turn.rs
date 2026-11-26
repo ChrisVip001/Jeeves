@@ -5,7 +5,7 @@ mod progress;
 
 mod entry;
 pub use entry::run_turn;
-pub(crate) use entry::run_turn_inner;
+pub(crate) use entry::{ConversationTurn, run_turn_inner};
 mod finalize;
 pub(crate) use finalize::FinishedTurn;
 pub(crate) use finalize::finalize_turn;
