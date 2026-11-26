@@ -475,7 +475,7 @@ pub(crate) async fn full_turn(
             .catalog
             .output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
     let mut initial_search = schedule_lookup.map(super::schedule_lookup::Lookup::plan);
-    let result: LoopResult = loop {
+    let mut result: LoopResult = loop {
         let context_budget = budget_tokens(resolved, &settings, factor)
             .saturating_sub(
                 jeeves_provider::tokens::estimate_text(&prompt.stable)
@@ -503,7 +503,7 @@ pub(crate) async fn full_turn(
                     .map(|budget| budget as usize),
                 tool_result_budget: crate::tool_result_budget(&settings),
                 observer: observer.clone(),
-                on_text: Some(on_text.clone()),
+                on_text: (!scheduled_search).then(|| on_text.clone()),
                 interrupt: interrupt.clone(),
                 checkpoint: checkpoint.clone(),
                 steering: steering.clone(),
@@ -545,6 +545,9 @@ pub(crate) async fn full_turn(
         }
     };
 
+    if scheduled_search {
+        result.reply = super::schedule_lookup::seat_safe_reply(&result.reply);
+    }
     Ok(FullTurn {
         result,
         history: history_stats,

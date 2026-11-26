@@ -21,8 +21,11 @@ static CLOCK: LazyLock<Regex> = LazyLock::new(|| {
 
 pub(super) const EVIDENCE_NOTE: &str = concat!(
     "\n\nThe runtime scheduled one public timetable lookup for exact and nearby departure leads. ",
-    "Read both host results if present; the second is a single flight-number plus exact-date check, not confirmation. ",
-    "Do not repeat the route or flight-number search. If only the first result is present and it yields a credible flight number, ",
+    "Read both host results if present; the second targets either the flight ID and exact date or an airport departure board when initial snippets have no coherent row. Neither alone is confirmation. ",
+    "If a tracking page is for another day, look for a link under the requested date and matching route. ",
+    "Open that exact link, preserving the provider's full path and query parameters; do not construct a URL or cite the old page as the requested flight. ",
+    "Distinguish scheduled from actual times. Do not use an old day's actual departure, aircraft or layout for another date. ",
+    "Do not repeat the route or flight-number search. If no flight-number search has run and you see a credible flight number, ",
     "use at most one follow-up search targeted to that flight number and exact local date, not a broader route query. ",
     "Check the most relevant accessible source rather than combining fragments. Cite a candidate with a clickable source link and the ",
     "target local date, direction, departure time and flight number from the same row, or a dated ",
@@ -30,7 +33,7 @@ pub(super) const EVIDENCE_NOTE: &str = concat!(
     "not an itinerary or a confirmed candidate. Do not assume two different numbers are a codeshare. ",
     "A source that omits the requested departure does not prove no such flight exists. If no lead is ",
     "supported, say that plainly without listing unrelated flights. Without a matching seat map, give ",
-    "only conditional guidance for avoiding the wing and do not guess a row or which side faces the sun.",
+    "only conditional guidance for avoiding the wing. For this lookup leave specific row numbers, seat codes, and left/right advice to the airline seat map; do not name them.",
 );
 
 pub(super) struct Lookup {
@@ -52,8 +55,20 @@ impl Lookup {
     pub(super) fn plan(self) -> jeeves_loop::ScheduleSearch {
         jeeves_loop::ScheduleSearch {
             initial: self.initial(),
-            refine: Box::new(move |output| self.refinement(output)),
+            refine: Box::new(move |output| {
+                self.refinement(output).or_else(|| self.departure_board())
+            }),
         }
+    }
+
+    fn departure_board(&self) -> Option<Value> {
+        let minute = minutes(&self.time)?;
+        let lo = minute.saturating_sub(30);
+        let hi = (minute + 30).min(1439);
+        Some(json!({
+            "query": format!("{} 出发机场 {} 到达机场 {} {:02}:{:02}-{:02}:{:02} 航班动态 起飞机场出港 airport departure board flight status", self.origin, self.destination, self.day, lo / 60, lo % 60, hi / 60, hi % 60),
+            "max_results": 5
+        }))
     }
 
     // A lead must bind one direction, one flight number and one nearby clock on the same
@@ -139,6 +154,36 @@ impl Lookup {
             "max_results": 3
         }))
     }
+}
+
+// Narrow safety net for this shortcut. It never turns a model's claim that it saw a map
+// into permission to recommend precise seats. Keep flight evidence in separate sentences.
+pub(super) fn seat_safe_reply(reply: &str) -> String {
+    static SPECIFIC: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(concat!(
+            r"(?i)(?:左|右)\s*(?:侧|手边|边|舷)|\b(?:left|right)(?:[ -]hand)?\s+(?:side|window)\b|",
+            r"[0-9０-９一二三四五六七八九十]+\s*(?:排|号座)|\brows?\s*[#:]?\s*[0-9]+|",
+            r"\b(?:[1-9][0-9]?[A-FK]|seats?\s*#?\s*[0-9]+)\b"
+        ))
+        .unwrap()
+    });
+    let mut kept = String::new();
+    let mut removed = false;
+    for clause in reply.split_inclusive(['。', '！', '？', '\n']) {
+        if SPECIFIC.is_match(clause) {
+            removed = true;
+        } else {
+            kept.push_str(clause);
+        }
+    }
+    if removed {
+        kept = kept.trim().to_string();
+        if !kept.is_empty() {
+            kept.push_str("\n\n");
+        }
+        kept.push_str("选座请以航司值机页的座位图为准。要避开机翼，可在图上找有舷窗、且位于机翼前缘之前或后缘之后的位置。");
+    }
+    kept
 }
 
 fn minutes(value: &str) -> Option<u16> {
@@ -341,5 +386,36 @@ mod tests {
                 .refinement("Source 1: 甲城→乙城 QZ123 06:25")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn searches_departure_board_once_when_the_initial_rows_do_not_match() {
+        let today = NaiveDate::from_ymd_opt(2030, 11, 7).unwrap();
+        let plan = request(
+            "我订了明天00:10从甲城到乙城的飞机，怎么选座？订单 A1245678",
+            today,
+        )
+        .unwrap()
+        .plan();
+        let result = (plan.refine)("2030-11-07 甲城到乙城 QZ123 00:10").unwrap();
+        assert_eq!(
+            result,
+            json!({
+                "query": "甲城 出发机场 乙城 到达机场 2030-11-08 00:00-00:40 航班动态 起飞机场出港 airport departure board flight status",
+                "max_results": 5
+            })
+        );
+    }
+
+    #[test]
+    fn keeps_flight_source_and_suppresses_common_specific_seat_guesses() {
+        let answer = "候选是 [QZ123，06:25](https://example.test/date)。第八排可能好。Try seat 12A.
+建议右边。";
+        let result = seat_safe_reply(answer);
+        assert!(result.contains("[QZ123，06:25](https://example.test/date)"));
+        for rejected in ["第八排", "12A", "右边"] {
+            assert!(!result.contains(rejected));
+        }
+        assert!(result.contains("航司值机页的座位图"));
     }
 }

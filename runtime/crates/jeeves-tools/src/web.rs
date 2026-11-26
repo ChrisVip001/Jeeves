@@ -948,12 +948,19 @@ const BLOCK_TAGS: &[&str] = &[
 /// HTML → plain text: strip tags, drop script/style and comments, decode common entities,
 /// collapse whitespace. A hand-written state machine (~90 lines) — no html2text dependency;
 /// quality is enough "for the model to read" (the fallback path is exactly this).
+#[cfg(test)]
 pub(crate) fn html_to_text(html: &str) -> String {
+    render_html(html, None)
+}
+
+fn render_html(html: &str, base: Option<&reqwest::Url>) -> String {
     let lower = html.to_ascii_lowercase();
     let bytes = lower.as_bytes();
     let mut out = String::with_capacity(html.len() / 2 + 16);
     let mut i = 0usize;
     let mut skip_until: Option<&'static str> = None;
+    let mut anchor: Option<(usize, reqwest::Url)> = None;
+    let mut links = 0;
 
     while i < bytes.len() {
         if let Some(closer) = skip_until {
@@ -975,10 +982,9 @@ pub(crate) fn html_to_text(html: &str) -> String {
                     }
                     continue;
                 }
-                let Some(end_rel) = lower[i..].find('>') else {
+                let Some(end) = html_tag_end(bytes, i + 1) else {
                     break;
                 };
-                let end = i + end_rel;
                 let tag = lower[i + 1..end].trim();
                 let name = tag
                     .trim_start_matches('/')
@@ -988,6 +994,24 @@ pub(crate) fn html_to_text(html: &str) -> String {
                 match name {
                     "script" => skip_until = Some("</script>"),
                     "style" => skip_until = Some("</style>"),
+                    "a" if tag.starts_with('/') => {
+                        if let Some((start, url)) = anchor.take()
+                            && !out[start..].trim().is_empty()
+                        {
+                            out.push_str(" <");
+                            out.push_str(url.as_str());
+                            out.push('>');
+                            links += 1;
+                        }
+                    }
+                    "a" => {
+                        // Keep context inline (e.g. a time link under a dated heading).
+                        // Only same-origin navigable destinations; never follow anything here.
+                        anchor = base
+                            .filter(|_| links < 100)
+                            .and_then(|base| page_anchor(base, &html[i + 1..end]))
+                            .map(|url| (out.len(), url));
+                    }
                     _ => {
                         if BLOCK_TAGS.contains(&name) {
                             out.push('\n');
@@ -1050,6 +1074,86 @@ pub(crate) fn html_to_text(html: &str) -> String {
     collapsed
 }
 
+// Quotation in attributes does not end a tag. HTML has no backslash escaping here.
+fn html_tag_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut quote = None;
+    for (i, &byte) in bytes.iter().enumerate().skip(start) {
+        match quote {
+            Some(active) if byte == active => quote = None,
+            Some(_) => {}
+            None if matches!(byte, b'\'' | b'"') => quote = Some(byte),
+            None if byte == b'>' => return Some(i),
+            None => {}
+        }
+    }
+    None
+}
+
+fn page_anchor(base: &reqwest::Url, tag: &str) -> Option<reqwest::Url> {
+    let mut tail = tag.trim_start().get(1..)?;
+    let mut href = None;
+    loop {
+        tail = tail.trim_start();
+        if tail.is_empty() || tail == "/" {
+            break;
+        }
+        let end = tail
+            .find(|c: char| c.is_whitespace() || c == '=')
+            .unwrap_or(tail.len());
+        if end == 0 {
+            return None;
+        }
+        let (key, rest) = tail.split_at(end);
+        tail = rest.trim_start();
+        let Some(rest) = tail.strip_prefix('=') else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let (value, remaining) = match rest.as_bytes().first()? {
+            b'\'' => rest[1..].split_once('\'')?,
+            b'"' => rest[1..].split_once('"')?,
+            _ => rest.split_at(rest.find(char::is_whitespace).unwrap_or(rest.len())),
+        };
+        if key.eq_ignore_ascii_case("href") && href.replace(value).is_some() {
+            return None;
+        }
+        tail = remaining;
+    }
+    let raw = href?.trim();
+    if raw.is_empty() || raw.starts_with('#') || raw.len() > 2048 {
+        return None;
+    }
+    let mut decoded = String::new();
+    let mut rest = raw;
+    while let Some((literal, entity)) = rest.split_once('&') {
+        decoded.push_str(literal);
+        if let Some((name, remaining)) = entity.split_once(';')
+            && name.len() <= 11
+            && let Some(ch) = decode_entity(name)
+        {
+            decoded.push_str(&ch);
+            rest = remaining;
+        } else {
+            decoded.push('&');
+            rest = entity;
+        }
+    }
+    decoded.push_str(rest);
+    if decoded
+        .chars()
+        .any(|c| c.is_control() || matches!(c, '<' | '>'))
+    {
+        return None;
+    }
+    let target = base.join(&decoded).ok()?;
+    (matches!(target.scheme(), "http" | "https")
+        && target.origin() == base.origin()
+        && target.username().is_empty()
+        && target.password().is_none()
+        && &target != base)
+        .then_some(target)
+}
+
 /// Common named entities + numeric entities (`&#234;` / `&#xEA;`).
 fn decode_entity(entity: &str) -> Option<String> {
     let named: &str = match entity {
@@ -1098,7 +1202,8 @@ pub fn fetch_url_with_primary(primary: Option<crate::Handler>) -> Tool {
             "scope in the same offer record or clearly scoped section. Do not join separate sections ",
             "(such as calendar minima, different dates or directions, or bundles vs single items). ",
             "If only indicative prices or schedules are supported, say so; do not infer a ",
-            "checkout total, availability, or unlisted terms.",
+            "checkout total, availability, or unlisted terms. Where links are present, use the ",
+            "exact link scoped to the target record; do not synthesize a URL from its parameters.",
         )
             .to_string(),
         input_schema: json!({
@@ -1205,7 +1310,7 @@ pub(crate) async fn execute_fetch(url_text: &str, allow_private: bool) -> Result
         }
         let raw = String::from_utf8_lossy(&body);
         let text = if content_type.contains("html") || raw.contains('<') {
-            html_to_text(&raw)
+            render_html(&raw, Some(&url))
         } else {
             raw.into_owned()
         };
@@ -1226,4 +1331,43 @@ fn finish_fetch(text: &str, download_capped: bool) -> String {
         out.push_str("\n[Source exceeded the 2 MB download cap; content may be incomplete.]");
     }
     out
+}
+
+#[cfg(test)]
+mod fetched_links_tests {
+    use super::*;
+
+    #[test]
+    fn date_link_keeps_exact_query_scoped_with_its_visible_label() {
+        let base =
+            reqwest::Url::parse("https://example.test/tracker/QZ/123?date=7&id=old").unwrap();
+        let rendered = render_html(
+            r##"
+          <h3>Flights for 2030-11-08</h3>
+          <a title="plan > estimate" HREF="?date=8&amp;id=Future%2Brecord"><span>QZ123 06:25</span></a>
+          <a href=/future>also visible</a>
+          <script><a href="/script">hidden</a></script>
+          <!-- <a href="/comment">hidden</a> -->
+          <a data-href="/fake">not a link</a>
+          <a href="https://elsewhere.test/other">cross-origin</a>
+          <a href="javascript:alert(1)">not HTTP</a>
+          <a href="#fragment-only">fragment only</a>
+          <a href="/image-only"><img src="test"></a>
+        "##,
+            Some(&base),
+        );
+        assert!(rendered.contains("Flights for 2030-11-08\n\nQZ123 06:25 <https://example.test/tracker/QZ/123?date=8&id=Future%2Brecord>"), "{rendered}");
+        assert!(rendered.contains("also visible <https://example.test/future>"));
+        for unwanted in [
+            "elsewhere.test",
+            "javascript:",
+            "fragment-only",
+            "/image-only",
+            "/script",
+            "/comment",
+            "/fake",
+        ] {
+            assert!(!rendered.contains(unwanted), "{unwanted}: {rendered}");
+        }
+    }
 }

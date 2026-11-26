@@ -231,7 +231,8 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     let ask = "我订了 2030-11-08 早晨六点半从甲城到乙城的飞机（经济舱），哪个靠窗位不被机翼挡？";
     let exact = "甲城 到 乙城 航班 2030-11-08 06:30 起飞 航班号";
     let nearby = "甲城 到 乙城 航班 2030-11-08 06:00 to 07:00 timetable 起飞 航班号";
-    let url = "https://93.184.216.34/fixtures/seat-timetable";
+    let historical = "https://93.184.216.34/fixtures/seat-timetable?day=7&flightId=old";
+    let url = "https://93.184.216.34/fixtures/seat-timetable?day=8&flightId=target";
     let focused = "QZ123 甲城 到 乙城 2030-11-08 航班动态 当日实际计划起飞 航司 机场";
     let leads = "甲城到乙城 QZ123 06:25\n2030-11-08 乙城到甲城 QZ456 06:30\n2030-11-09 甲城到乙城 QZ789 06:30";
     let timetable = "2030-11-08 甲城到乙城 QZ123 06:25\n未公布机型或客舱图。";
@@ -242,11 +243,16 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
         Box::pin(async move {
             let output = match args["query"].as_str() {
                 Some(q) if q == exact && args["nearby_query"].as_str() == Some(nearby) => {
-                    format!("Source 1: Timetable\n{leads}\nURL: {url}")
+                    format!("Source 1: Timetable\n{leads}\nURL: {historical}")
                 }
                 Some(q) if q == focused && args.get("nearby_query").is_none() => {
-                    format!("Source 1: Dated status\n{timetable}\nURL: {url}")
+                    format!(
+                        "Source 1: Historical status\nURL: {historical}\n2030-11-07 甲城到乙城 QZ123 实际 06:30"
+                    )
                 }
+                None if args["url"].as_str() == Some(historical) => format!(
+                    "2030-11-07 实际 06:30\n2030-11-08 当天计划\n甲城到乙城 QZ123 06:25 <{url}>"
+                ),
                 None if args["url"].as_str() == Some(url) => timetable.to_string(),
                 _ => panic!("unexpected fixture lookup"),
             };
@@ -262,8 +268,9 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
         "2030-11-08 甲城到乙城的候选是 [QZ123，06:25]({url})，比你记的早五分钟。没有核实机型和座位图，先不猜排号。"
     );
     let model = Arc::new(Mock::streaming(vec![
+        Mock::tool_use("read-old", "fetch_url", json!({"url":historical})),
         Mock::tool_use("verify", "fetch_url", json!({"url":url})),
-        Mock::text(&reply),
+        Mock::text(&format!("{reply}建议选左侧第 20 排（20A）。")),
         Mock::text("这是外部会话，不执行查询。"),
     ]));
     server.install_provider(Resolved {
@@ -277,7 +284,20 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
     let events = send(&server, ask, "nearby-flight", None).await.unwrap();
     {
         let requests = model.received.lock().unwrap();
-        assert_eq!(requests.len(), 2);
+        assert_eq!(requests.len(), 3);
+        let has_text = |index: usize, needle: &str| {
+            requests[index]
+                .messages
+                .iter()
+                .flat_map(|m| &m.content)
+                .any(|block| {
+                    matches!(block,
+                ContentBlock::ToolResult { content, .. } if content.contains(needle))
+                })
+        };
+        assert!(!has_text(0, url));
+        assert!(has_text(1, &format!("QZ123 06:25 <{url}>")));
+        assert!(has_text(2, "2030-11-08 甲城到乙城 QZ123 06:25"));
         assert!(requests[0].messages.iter().any(|m| m.text().ends_with(ask)));
         assert!(requests[0].tools.iter().any(|t| t.name == "search_web"));
         let prompt = requests[0].system_text().unwrap();
@@ -313,7 +333,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
                 ContentBlock::ToolResult {
                     tool_use_id,
                     content,
-                } if content.contains("Dated status") => Some(tool_use_id),
+                } if content.contains("Historical status") => Some(tool_use_id),
                 _ => None,
             })
             .expect("dated refinement runs before the first model call");
@@ -324,6 +344,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
         [
             json!({"query":exact,"max_results":4,"nearby_query":nearby}),
             json!({"query":focused,"max_results":3}),
+            json!({"url":historical}),
             json!({"url":url})
         ]
     );
@@ -342,6 +363,13 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             && !answer.contains("QZ789")
     };
     assert!(grounded(done));
+    assert!(!done.contains("左侧") && !done.contains("20A") && !done.contains("20 排"));
+    assert!(done.contains("航司值机页的座位图"));
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, ServerNotification::TextDelta(_)))
+    );
     for rejected in [
         done.replace("2030-11-08", "2030-11-09"),
         done.replace("甲城到乙城", "乙城到甲城"),
@@ -361,7 +389,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             .iter()
             .any(|e| matches!(e, ServerNotification::ToolStarted(_)))
     );
-    assert_eq!(recorded.lock().unwrap().len(), 3);
+    assert_eq!(recorded.lock().unwrap().len(), 4);
     let (sink, mut frames) = EventSink::channel();
     start(
         &server,
@@ -390,7 +418,16 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
             Frame::Notification(ServerNotification::ToolStarted(_))
         ));
     }
-    assert_eq!(recorded.lock().unwrap().len(), 3);
-    assert!(model.received.lock().unwrap()[2].tools.is_empty());
+    assert_eq!(recorded.lock().unwrap().len(), 4);
+    assert!(
+        model
+            .received
+            .lock()
+            .unwrap()
+            .last()
+            .unwrap()
+            .tools
+            .is_empty()
+    );
     assert!(server.tasks.list(10).await.unwrap().is_empty());
 }
