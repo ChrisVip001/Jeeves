@@ -371,7 +371,12 @@ export class BrowserSession {
       const authority = () => this.authority(command.expiresAt, command.generation);
       authority();
       const latest = this.latest;
-      if (!latest || this.active) throw Error("Browser observation is stale; observe again before input");
+      if (
+        !latest ||
+        this.active ||
+        command.input.observationId !== latest.observation.id
+      )
+        throw Error("Browser observation is stale; observe again before input");
       let attempted = false;
       const action = async () => {
         attempted = await this.applyAct(command.input, latest, authority);

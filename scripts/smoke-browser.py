@@ -49,6 +49,10 @@ class Fixture(desktop.Provider):
                 self.chunk({},'tool_calls')
             self.wfile.write(b'data: [DONE]\n\n');self.wfile.flush();return
 
+        save_prompt=any('Save through the task browser' in str(message.get('content','')) for message in messages if message['role']=='user')
+        if save_prompt and type(self).submitted:
+            self.chunk({'content':'Verified saved once.'},'stop')
+            self.wfile.write(b'data: [DONE]\n\n');self.wfile.flush();return
         unknown=any('unknown-browser-fixture' in str(message.get('content','')) for message in messages if message['role']=='user')
         if not tool_calls:
             name='browser_observe';args={}
@@ -113,7 +117,9 @@ def run(binary=None,runtime=None):
             row=rpc.call('browser/list',dict(sessionId=owner))['sessions'][0];assert row['status']=='paused'
             with sqlite3.connect(Path(home)/'state.db') as db:
                 source=db.execute("SELECT source FROM chat_log WHERE task_id=?",(task,)).fetchall()
-                assert source and all(item[0]=='browser-task' for item in source),source
+                sources=[item[0] for item in source]
+                assert sources.count('browser-task') >= 2, source
+                assert set(sources) <= {'browser-task','task_decision','task_completion'}, source
                 operations=db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%operation%'").fetchall()
                 assert operations
             rpc.call('browser/control',dict(taskId=task,generation=row['generation'],action='close'))
