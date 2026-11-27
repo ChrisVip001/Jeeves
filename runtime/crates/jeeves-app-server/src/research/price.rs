@@ -46,6 +46,10 @@ pub(super) struct Query {
 }
 
 impl Query {
+    pub(super) fn feed_url(&self) -> Option<&str> {
+        self.url.as_deref()
+    }
+
     pub(super) fn parse(line: &str) -> Option<Result<Self>> {
         let args = line.strip_prefix(PREFIX)?.trim_start();
         if !args.starts_with('{') {

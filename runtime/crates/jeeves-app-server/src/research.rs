@@ -14,6 +14,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::Mutex;
 
 mod price;
+mod sources;
 
 const MAX_QUESTIONS: usize = 8;
 const MAX_OBSERVATIONS: usize = 16;
@@ -25,11 +26,25 @@ pub(crate) const INCOMPLETE: &str =
     "Research has unresolved or conflicting evidence; the partial findings are not final";
 pub(crate) const QUICK: &str = "/web_research";
 pub(crate) const DEEP: &str = "/deep_research";
-pub(crate) const NOTE: &str = "\nResearch mode: research_evidence(status) lists the immutable questions, prior observations and gaps. Use public, non-sensitive search terms. Search gives leads only. Fetch the candidate page to obtain its final URL and citable body. Failed and incomplete reads cannot be cited. When reads reserve the remaining budget, dismiss only irrelevant or redundant displayed leads via research_evidence(dismiss) before trying a focused new search. Prefer a read for a still-open question over repeating a search that did not add sources. Call research_evidence(record) with exact quotes from a fetched body; a quote must directly address that question in context. Do not conflate evidence for distinct questions. Record conflicting observations as conflicted; leave unsupported questions unbound. The runtime, not your prose, renders the result from recorded excerpts. Do not write a final report yourself. If a question has priceQuery in status, read its supplied feed URL if present. Otherwise look for a public merchant JSON feed on its exact host. Read other relevant matching feeds while budget permits. Each offers entry needs store, sku, variant, date, conditions, currency, priceKind and amount. Supported prices have currency CNY, priceKind checkout_total, and a decimal amount string. The host evaluates every matching observed record, so do not call record for these questions.";
+pub(crate) const NOTE: &str = concat!(
+    "\nResearch mode: research_evidence(status) lists questions, required sources, observations, and gaps. ",
+    "Read every required source before looking for candidates. Search gives leads only. Fetch pages to obtain citable bodies. ",
+    "Use public, non-sensitive search terms. When reads reserve the remaining budget, dismiss only irrelevant or redundant candidate leads. ",
+    "Read relevant displayed leads before trying another search. If a focused search returns no new leads, stop when you have no new evidence; don't guess endpoint paths. ",
+    "Use research_evidence(record) only for exact quotes that directly give the requested answer with its material constraints. ",
+    "An authentic excerpt can be background: when it gives a related fact but omits the requested result or a material constraint, ",
+    "use research_evidence(context) with the exact excerpts and a short gap in the user's language. ",
+    "Do not combine unrelated excerpts into an answer. Record conflicts as conflicting. The runtime renders the result; don't write a final report yourself. ",
+    "For questions marked verificationRequested, record excerpts as context with any missing scope; the host keeps the conclusion unresolved without a structured check. ",
+    "For priceQuery questions, the host evaluates observed records, so neither record nor context applies. ",
+    "If required reads do not yield a scoped quote, try a focused search on the exact merchant host and read any relevant leads. ",
+    "Look for a public JSON feed whose offers include store, sku, variant, date, conditions, currency CNY, priceKind checkout_total, and a decimal amount string."
+);
 
 pub(crate) struct Request {
     questions: Vec<String>,
     price_queries: BTreeMap<usize, price::Query>,
+    required_sources: Vec<String>,
 }
 
 pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Request>> {
@@ -38,12 +53,11 @@ pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Request>> {
         return None;
     }
     Some((|| {
-        let questions: Vec<_> = rest
+        let (source_lines, questions): (Vec<_>, Vec<_>) = rest
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty())
-            .map(str::to_owned)
-            .collect();
+            .partition(|line| sources::directive(line).is_some());
         ensure!(
             !questions.is_empty() && questions.len() <= MAX_QUESTIONS,
             "Supply one to eight research questions, one per line"
@@ -52,16 +66,18 @@ pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Request>> {
             questions.iter().all(|q| q.chars().count() <= 500),
             "Each research question must have at most 500 characters"
         );
-        let price_queries = questions
+        let price_queries: BTreeMap<usize, price::Query> = questions
             .iter()
             .enumerate()
             .filter_map(|(i, line)| {
                 price::Query::parse(line).map(|query| query.map(|query| (i, query)))
             })
             .collect::<Result<_>>()?;
+        let required_sources = sources::required(&source_lines, &questions, &price_queries)?;
         Ok(Request {
-            questions,
+            questions: questions.into_iter().map(str::to_owned).collect(),
             price_queries,
+            required_sources,
         })
     })())
 }
@@ -72,6 +88,8 @@ struct State {
     questions: Vec<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     price_queries: BTreeMap<usize, price::Query>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    required_sources: Vec<String>,
     observations: Vec<Observation>,
     bindings: Vec<Option<Binding>>,
     attempts: u32,
@@ -191,6 +209,16 @@ struct Citation {
 struct Binding {
     citations: Vec<Citation>,
     conflicting: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gap: Option<String>,
+}
+
+impl Binding {
+    fn unresolved_gap(&self, verification_requested: bool) -> Option<&str> {
+        self.gap.as_deref().or(verification_requested.then_some(
+            "The recorded excerpts do not independently verify the requested conclusion.",
+        ))
+    }
 }
 
 impl State {
@@ -204,6 +232,7 @@ impl State {
             bindings: vec![None; questions.len()],
             questions,
             price_queries: BTreeMap::new(),
+            required_sources: Vec::new(),
             observations: vec![],
             attempts: 0,
             limit,
@@ -216,6 +245,13 @@ impl State {
     fn eligible(&self, url: &str) -> bool {
         !self.dismissed.iter().any(|known| known == url)
             && !self.observations.iter().any(|obs| obs.matches_url(url))
+    }
+
+    fn required_unread(&self, url: &str) -> bool {
+        !self
+            .observations
+            .iter()
+            .any(|observation| observation.matches_url(url))
     }
 
     fn observation_count(&self) -> usize {
@@ -267,12 +303,21 @@ impl State {
             .enumerate()
             .filter(|(i, _)| match self.price_queries.get(i) {
                 Some(query) => !query.assess(self.observations.iter()).supported(),
-                None => self.binding(*i).is_none_or(|b| b.conflicting),
+                None => self.binding(*i).is_none_or(|b| {
+                    b.conflicting
+                        || b.unresolved_gap(sources::requests_verification(&self.questions[*i]))
+                            .is_some()
+                }),
             })
             .count() as u32;
         let eligible = self.leads.iter().filter(|url| self.eligible(url)).count() as u32;
+        let required = self
+            .required_sources
+            .iter()
+            .filter(|url| self.required_unread(url))
+            .count() as u32;
         ensure!(
-            fetching || remaining > unresolved.min(eligible),
+            fetching || remaining > required.max(unresolved.min(eligible)),
             "Remaining web calls are reserved for unopened leads. Inspect the research status; read a relevant lead or dismiss irrelevant leads before searching again"
         );
         self.attempts += 1;
@@ -285,13 +330,18 @@ impl State {
                 if let Some(query) = self.price_queries.get(&i) {
                     return json!({"id":i+1,"priceQuery":query,"state":query.assess(self.observations.iter()).state()});
                 }
-                json!({"id":i+1,"question":text,"state":match self.binding(i) {
+                let verification_requested = sources::requests_verification(text);
+                json!({"id":i+1,"question":text,"verificationRequested":verification_requested,"state":match self.binding(i) {
                     None => "unresolved",
                     Some(b) if b.conflicting => "conflicting",
+                    Some(b) if b.unresolved_gap(verification_requested).is_some() => "unresolved",
                     Some(_) => "excerpt-recorded",
                 }})
             }).collect::<Vec<_>>(),
             "unopenedLeads": self.leads.iter().filter(|url| self.eligible(url)).collect::<Vec<_>>(),
+            "requiredSources": self.required_sources.iter().map(|url| {
+                json!({"url":url,"state":if self.required_unread(url) { "unread" } else { "read" }})
+            }).collect::<Vec<_>>(),
             "sources": self.observations.iter().enumerate().filter(|(_,o)| o.valid_receipt()).map(|(i,o)| {
                 json!({"id":i+1,"url":o.url,"fetchedAt":o.fetched_at,"contentDigest":o.digest})
             }).collect::<Vec<_>>()
@@ -307,12 +357,21 @@ impl State {
             citations: Vec<Citation>,
             #[serde(default)]
             conflicting: bool,
+            gap: Option<String>,
         }
         let input: Input = serde_json::from_value(args)?;
         ensure!(
-            input.action == "record" && (1..=self.questions.len()).contains(&input.question),
+            (1..=self.questions.len()).contains(&input.question),
             "Choose a question from status"
         );
+        match (input.action.as_str(), &input.gap) {
+            ("record", None) => {}
+            ("context", Some(gap))
+                if !input.conflicting && !gap.trim().is_empty() && gap.chars().count() <= 240 => {}
+            _ => anyhow::bail!(
+                "For background context, give a short nonempty gap instead of an answer or conflict"
+            ),
+        }
         let index = input.question - 1;
         ensure!(
             !self.price_queries.contains_key(&index),
@@ -346,6 +405,7 @@ impl State {
         self.bindings[index] = Some(Binding {
             citations: input.citations,
             conflicting: input.conflicting,
+            gap: input.gap,
         });
         Ok(())
     }
@@ -375,6 +435,12 @@ impl State {
             if binding.conflicting {
                 complete = false;
                 parts.push("Unresolved: conflicting excerpts.".into());
+            } else if let Some(gap) =
+                binding.unresolved_gap(sources::requests_verification(question))
+            {
+                complete = false;
+                parts.push(format!("Unresolved: {}", literal(gap)));
+                parts.push("Background excerpts".into());
             }
             for citation in &binding.citations {
                 let source = &self.observations[citation.source - 1];
@@ -385,6 +451,14 @@ impl State {
                     source.fetched_at
                 ));
             }
+        }
+        for url in self
+            .required_sources
+            .iter()
+            .filter(|url| self.required_unread(url))
+        {
+            complete = false;
+            parts.push(format!("Required source unread: <{url}>"));
         }
         (parts.join("\n\n"), complete)
     }
@@ -451,6 +525,8 @@ impl Session {
         let request = questions?;
         let mut state = State::new(request.questions, durable.is_some());
         state.price_queries = request.price_queries;
+        state.required_sources = request.required_sources;
+        state.limit = state.limit.max(state.required_sources.len() as u32);
         let session = Self {
             state: Arc::new(Mutex::new(state.clone())),
             durable,
@@ -484,23 +560,25 @@ impl Session {
         let session = self.clone();
         Tool {
             name: "research_evidence".into(),
-            description: "Get research scope and source ids (status), record exact observed quotations against one question (record), or discard an unopened irrelevant lead by URL (dismiss). A conflict remains unresolved. Search snippets are not observations.".into(),
+            description: "Use status for questions, required sources and source IDs. Use record for exact quotes giving the requested answer or a conflict. Use context for exact background excerpts and a gap explaining why the requested answer remains unresolved. Use dismiss only for an irrelevant candidate lead. Search snippets are not observations.".into(),
             input_schema: json!({"type":"object","required":["action"],"properties":{
-                "action":{"enum":["status","record","dismiss"]},
+                "action":{"enum":["status","record","context","dismiss"]},
                 "url":{"type":"string"},
                 "question":{"type":"integer","minimum":1},
                 "conflicting":{"type":"boolean"},
+                "gap":{"type":"string","minLength":1,"maxLength":240},
                 "citations":{"type":"array","minItems":1,"maxItems":3,"items":{"type":"object","required":["source","quote"],"properties":{"source":{"type":"integer","minimum":1},"quote":{"type":"string","minLength":4,"maxLength":MAX_QUOTE}},"additionalProperties":false}}
             },"additionalProperties":false}),
             handler: Arc::new(move |_,args| {
                 let session=session.clone();
                 Box::pin(async move {
                     match args["action"].as_str() {
-                        Some("record") => session.update(|state| state.record(args)).await?,
+                        Some("record" | "context") => session.update(|state| state.record(args)).await?,
                         Some("dismiss") => {
                             let url = source_url(&jeeves_tools::require_str(&args,"url")?)?;
                             session.update(|state| {
-                                ensure!(state.leads.contains(&url) && state.eligible(&url),
+                                ensure!(!state.required_sources.contains(&url)
+                                    && state.leads.contains(&url) && state.eligible(&url),
                                     "Choose an unopened lead from status");
                                 state.dismissed.push(url);
                                 Ok(())

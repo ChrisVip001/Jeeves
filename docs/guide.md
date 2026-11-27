@@ -170,6 +170,12 @@ jeeves home import <dir>      # into an empty JEEVES_HOME; older schemas are mig
 
 The same pair moves a home between machines and between a local install and a hosted Pod. Keys and sign-ins are not exported (`secrets.json`, `mcp-auth/`, `connector-auth/`); add them again after importing. For hosting many users, see [operations](operations.md#running-jeeves-for-many-users).
 
+## 13. Public research
+
+Use `/web_research` for a direct reply or `/deep_research` for a task. Put each question on its own line. URLs in the question and separate `source <URL>` lines are required sources. The report lists required sources that lack a complete read.
+
+When you explicitly ask to verify a conclusion, the report can include background excerpts and keeps the conclusion unresolved until a structured check supports it. For a fixed merchant checkout price, use the [structured price query](design/search-evidence.zh.md#门店商品报价).
+
 ## Going further
 
 [Configuration reference](configuration.md) (for operators) · [Operations](operations.md) · [Security](../SECURITY.md) · [Limitations](limitations.md)

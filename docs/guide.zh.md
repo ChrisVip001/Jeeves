@@ -164,6 +164,12 @@ jeeves home import <dir>      # 导入到一个空的 JEEVES_HOME；较旧的 sc
 
 同一对命令可以在机器之间、也可以在本地安装与托管 Pod 之间搬家。密钥与登录不导出（`secrets.json`、`mcp-auth/`、`connector-auth/`）；导入后重新添加。多用户托管见[运行手册](operations.zh.md#给多个用户运行-jeeves)。
 
+## 13. 公开研究
+
+用 `/web_research` 当场答复，或用 `/deep_research` 开一个任务。每行写一个问题。问题中的链接和单独的 `source <URL>` 行都列入必读来源。缺少完整读取回执的必读来源会列在报告里。
+
+明确要求核验某个结论时，报告可以保留背景引文，结论保持待核实，直到有结构化核验结果支持。核对商家固定到手价可用[结构化报价查询](design/search-evidence.zh.md#门店商品报价)。
+
 ## 进一步
 
 [配置参考](configuration.zh.md)（给运维）· [运行手册](operations.zh.md) · [安全](../SECURITY.zh.md) · [限制](limitations.zh.md)

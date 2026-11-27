@@ -28,7 +28,7 @@ MCP 提取结果在严格核验中标为 `Unbound`，其文本仍可供普通搜
 
 深度研究把回执、读取时间、去除宿主提示后的页面正文和 SHA-256 存入任务状态。模型看到的长文预览有单独的长度限制。恢复时重新核对回执和正文哈希，缺回执或哈希不匹配的旧来源退出引用候选，保留原编号供历史消息对照。
 
-这一步覆盖来源和逐字摘录。实体、日期和结论之间的关系仍由场景适配器检查。对于开放式研究，运行时交付可复核的摘录和未解决的问题。
+这一步覆盖来源和逐字摘录。实体、日期和结论之间的关系仍由场景适配器检查。[公开研究](../guide.zh.md#13-公开研究)说明必读来源和待核实结果如何呈现。
 
 ## 门店商品报价
 
@@ -68,7 +68,7 @@ price {"host":"shop.example","store":"南山店","sku":"A250","variant":"250ml",
 - [深圳商场页](https://www.ikea.cn/cn/zh/stores/shenzhen/)
 - [宜家中国使用条款](https://www.ikea.cn/cn/zh/customer-service/terms-conditions/)
 
-基于这些页面整理的离线回放通过了快速研究和深度研究。两者均保留了已读来源并给出待核实结果，深度研究没有生成完成交付。本次执行环境中，Jeeves 的直接抓取在域名校验处失败，两条联网链路均保持待核实。公网直读验收可通过以下测试复跑，测试使用脚本化模型且只读取公开页面。
+基于这些页面整理的离线回放通过了快速研究和深度研究。两者均保留了已读来源并给出待核实结果，深度研究没有生成完成交付。公网直读验收使用脚本化模型，要求两种研究都从公网成功读取这两个页面并保留待核实结果。
 
 ```sh
 cargo test --locked -p jeeves-app-server --lib \
@@ -79,14 +79,11 @@ cargo test --locked -p jeeves-app-server --lib \
 
 #### 真实模型验收
 
-使用环境中已配置的 `DEEPSEEK_API_KEY` 运行这两项。已有 Jeeves 模型配置时，也可通过 `JEEVES_TEST_MODEL_HOME` 和 `JEEVES_TEST_MODEL_PROFILE` 指定配置目录及模型配置 ID，复用其中已保存的凭据。两项都调用 Jeeves 的真实 DeepSeek provider。网页内容固定为上述公开商品页和商场页的摘录，以便单独检查模型的阅读、工具选择和证据判断，公网直读由上一节的测试覆盖。
+使用环境中已配置的 `DEEPSEEK_API_KEY`。已有 Jeeves 模型配置时，可通过 `JEEVES_TEST_MODEL_HOME` 和 `JEEVES_TEST_MODEL_PROFILE` 指定配置目录及模型配置 ID。真模型用例回放商品页和商场页的公开摘录，公网直读由上一节覆盖。
 
 ```sh
 cargo test --locked -p jeeves-app-server --lib \
-  deepseek_merchant_acceptance_with_public_page_replay -- --ignored --nocapture
-
-cargo test --locked -p jeeves-app-server --lib \
-  deepseek_natural_merchant_question_leaves_checkout_unresolved -- --ignored --nocapture
+  deepseek_merchant_ -- --ignored --nocapture --test-threads=1
 ```
 
-结构化用例覆盖快速与深度研究，另一个用例走普通自然语言研究入口。验收要求模型实际收到 API 响应、自主读取两个来源，并保持到手价待核实。深度研究同时检查完成交付状态。日志输出请求响应数量、用量和读取的公开 URL。
+四个独立用例覆盖快速和深度研究的必读来源、仅给商品页时的来源发现、自然语言核验。每个用例检查模型响应、页面覆盖、待核实结论和正常收尾。深度研究还检查待处理状态和完成交付记录。日志记录请求数、响应数、读取页面及预算或供应商停止原因。完整结构化报价的正向验证见 `quick_research_prices_come_from_the_scoped_record_and_the_host_renders_conflicts`。

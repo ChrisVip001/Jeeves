@@ -11,7 +11,8 @@ const MAX_INPUT_ESTIMATE: usize = 12_000;
 pub(in crate::interaction::tests) struct Bounded {
     inner: Arc<dyn Provider>,
     sent: AtomicUsize,
-    usage: Mutex<Vec<jeeves_provider::Usage>>,
+    responses: Mutex<Vec<(jeeves_provider::Usage, jeeves_provider::StopReason)>>,
+    stopped: Mutex<Option<&'static str>>,
 }
 
 impl Provider for Bounded {
@@ -32,11 +33,18 @@ impl Bounded {
                 + jeeves_provider::tokens::estimate_text(
                     &request.system_text().unwrap_or_default(),
                 );
-            if request.model != MODEL
-                || tokens > MAX_INPUT_ESTIMATE
-                || self.sent.fetch_add(1, Ordering::Relaxed) >= REQUEST_CAP
-            {
-                return Err(ProviderError::Api("Fixture model cap reached".into()));
+            let stopped = if request.model != MODEL {
+                Some("wrong_model")
+            } else if tokens > MAX_INPUT_ESTIMATE {
+                Some("input_budget")
+            } else if self.sent.fetch_add(1, Ordering::Relaxed) >= REQUEST_CAP {
+                Some("request_budget")
+            } else {
+                None
+            };
+            if let Some(reason) = stopped {
+                *self.stopped.lock().unwrap() = Some(reason);
+                return Err(ProviderError::Api(format!("Fixture stopped: {reason}")));
             }
             request.max_tokens = request.max_tokens.min(MAX_OUTPUT);
             let result = match sink {
@@ -44,35 +52,44 @@ impl Bounded {
                 None => self.inner.create(request).await,
             };
             // The provider can include credential fragments in error text. Log only the status.
-            let response = result.map_err(|err| match err {
-                ProviderError::Http { status, .. } => {
-                    ProviderError::Api(format!("Fixture DeepSeek HTTP {status}"))
-                }
-                ProviderError::Network(_) => {
-                    ProviderError::Api("Fixture DeepSeek network error".into())
-                }
-                other => ProviderError::Api(format!(
-                    "Fixture DeepSeek response error: {}",
-                    match other {
-                        ProviderError::Parse(_) => "decode",
-                        ProviderError::Incomplete(_) => "stream incomplete",
-                        ProviderError::ContextOverflow { .. } => "context limit",
-                        _ => "API",
+            let response = result.map_err(|err| {
+                *self.stopped.lock().unwrap() = Some("provider_error");
+                match err {
+                    ProviderError::Http { status, .. } => {
+                        ProviderError::Api(format!("Fixture DeepSeek HTTP {status}"))
                     }
-                )),
+                    ProviderError::Network(_) => {
+                        ProviderError::Api("Fixture DeepSeek network error".into())
+                    }
+                    other => ProviderError::Api(format!(
+                        "Fixture DeepSeek response error: {}",
+                        match other {
+                            ProviderError::Parse(_) => "decode",
+                            ProviderError::Incomplete(_) => "stream incomplete",
+                            ProviderError::ContextOverflow { .. } => "context limit",
+                            _ => "API",
+                        }
+                    )),
+                }
             })?;
-            self.usage.lock().unwrap().push(response.usage);
+            self.responses
+                .lock()
+                .unwrap()
+                .push((response.usage, response.stop_reason));
             Ok(response)
         })
     }
 
     pub(in crate::interaction::tests) fn accounting(&self) -> Value {
-        let usage = self.usage.lock().unwrap();
+        let responses = self.responses.lock().unwrap();
+        let stopped = *self.stopped.lock().unwrap();
         json!({
             "requests":self.sent.load(Ordering::Relaxed).min(REQUEST_CAP),
-            "responses":usage.len(),
-            "inputTokens":usage.iter().map(|u| u.input_tokens).sum::<i64>(),
-            "outputTokens":usage.iter().map(|u| u.output_tokens).sum::<i64>(),
+            "responses":responses.len(),
+            "inputTokens":responses.iter().map(|(u, _)| u.input_tokens).sum::<i64>(),
+            "outputTokens":responses.iter().map(|(u, _)| u.output_tokens).sum::<i64>(),
+            "lastProviderStop":responses.last().map(|(_, reason)| reason),
+            "stoppedBy":stopped,
         })
     }
 }
@@ -146,7 +163,8 @@ pub(in crate::interaction::tests) fn live_provider() -> (Resolved, Arc<Bounded>)
     let bounded = Arc::new(Bounded {
         inner: resolved.client.clone(),
         sent: AtomicUsize::new(0),
-        usage: Mutex::new(Vec::new()),
+        responses: Mutex::new(Vec::new()),
+        stopped: Mutex::new(None),
     });
     resolved.client = bounded.clone();
     (resolved, bounded)

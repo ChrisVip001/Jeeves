@@ -11,7 +11,7 @@ const PAGES: [(&str, &str, &str); 2] = [
     ("merchant-store", STORE, "深圳商场"),
 ];
 
-fn request(mode: &str, date: &str) -> String {
+fn price_request(mode: &str, date: &str) -> String {
     let query = json!({
         "host":"www.ikea.cn",
         "store":"深圳商场",
@@ -22,6 +22,10 @@ fn request(mode: &str, date: &str) -> String {
         "url":PRODUCT,
     });
     format!("{mode}\nprice {query}")
+}
+
+fn request(mode: &str, date: &str) -> String {
+    format!("{}\nsource {STORE}", price_request(mode, date))
 }
 
 fn replies() -> Vec<CreateResponse> {
@@ -233,6 +237,8 @@ fn assert_model_completed(accounting: &serde_json::Value, reads: &[String]) {
         requests > 0 && responses == requests,
         "Provider did not complete its calls: {accounting}"
     );
+    assert_eq!(accounting["lastProviderStop"], "end_turn", "{accounting}");
+    assert!(accounting["stoppedBy"].is_null(), "{accounting}");
     for source in [PRODUCT, STORE] {
         assert!(
             reads.iter().any(|url| url == source),
@@ -241,38 +247,55 @@ fn assert_model_completed(accounting: &serde_json::Value, reads: &[String]) {
     }
 }
 
-#[tokio::test]
-#[ignore = "Opt-in: real DeepSeek calls with publicly observed merchant evidence replay"]
-async fn deepseek_merchant_acceptance_with_public_page_replay() {
+async fn live_quick(ask: &str, label: &str) -> (String, serde_json::Value, Vec<String>) {
     use crate::interaction::tests::research_replay::live::live_provider;
 
-    let date = "2026-11-27";
     let (resolved, provider) = live_provider();
     let (_home, mut server, _) = setup().await;
     let reads = install_live_model_pages(&mut server);
     server.install_provider(resolved);
-
-    let ask = request("/web_research", date);
-    let events = send(&server, &ask, "merchant-deepseek-quick", None)
-        .await
-        .unwrap();
+    let events = send(&server, ask, label, None).await.unwrap();
     let reply = events
-        .iter()
+        .into_iter()
         .find_map(|event| match event {
-            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
+            ServerNotification::TurnCompleted(done) => Some(done.reply),
             _ => None,
         })
         .unwrap();
     let accounting = provider.accounting();
     let opened = reads.lock().unwrap().clone();
-    eprintln!("Merchant real-model quick {accounting} reads={opened:?}");
-    assert_read_links(reply);
-    assert_model_completed(&accounting, &opened);
+    eprintln!("Merchant real-model {label} {accounting} reads={opened:?}");
+    (reply, accounting, opened)
+}
+
+#[tokio::test]
+#[ignore = "Opt-in: real DeepSeek with two declared merchant sources"]
+async fn deepseek_merchant_quick_reads_required_sources() {
+    let ask = request("/web_research", "2026-11-27");
+    let (reply, accounting, reads) = live_quick(&ask, "quick-required").await;
+    assert_read_links(&reply);
+    assert_model_completed(&accounting, &reads);
+}
+
+#[tokio::test]
+#[ignore = "Opt-in: real DeepSeek discovering a second merchant source"]
+async fn deepseek_merchant_quick_discovers_store_source() {
+    let ask = price_request("/web_research", "2026-11-27");
+    let (reply, accounting, reads) = live_quick(&ask, "quick-discovery").await;
+    assert_read_links(&reply);
+    assert_model_completed(&accounting, &reads);
+}
+
+#[tokio::test]
+#[ignore = "Opt-in: real DeepSeek with two declared merchant sources"]
+async fn deepseek_merchant_deep_reads_required_sources() {
+    use crate::interaction::tests::research_replay::live::live_provider;
 
     let (resolved, provider) = live_provider();
+    let (_home, mut server, _) = setup().await;
     let reads = install_live_model_pages(&mut server);
     server.install_provider(resolved);
-    let ask = request("/deep_research", date);
+    let ask = request("/deep_research", "2026-11-27");
     send(&server, &ask, "merchant-deepseek-deep", None)
         .await
         .unwrap();
@@ -297,7 +320,7 @@ async fn deepseek_merchant_acceptance_with_public_page_replay() {
     let (reply, complete) = session.render().await;
     let accounting = provider.accounting();
     let opened = reads.lock().unwrap().clone();
-    eprintln!("Merchant real-model deep {accounting} reads={opened:?}");
+    eprintln!("Merchant real-model deep-required {accounting} reads={opened:?}");
     assert!(!complete);
     assert!(
         server
@@ -313,37 +336,21 @@ async fn deepseek_merchant_acceptance_with_public_page_replay() {
 
 #[tokio::test]
 #[ignore = "Opt-in: real DeepSeek with a natural-language merchant question"]
-async fn deepseek_natural_merchant_question_leaves_checkout_unresolved() {
-    use crate::interaction::tests::research_replay::live::live_provider;
-
-    let (resolved, provider) = live_provider();
-    let (_home, mut server, _) = setup().await;
-    let reads = install_live_model_pages(&mut server);
-    server.install_provider(resolved);
-
+async fn deepseek_merchant_natural_question_leaves_checkout_unresolved() {
     let ask = format!(
         "/web_research\n请打开商品页 {PRODUCT} 和深圳商场页 {STORE}，确认 2026 年 11 月 27 日宜家深圳商场的白色 RÅSKOG 手推车（205.867.88，35 × 45 × 77 厘米）在没有优惠时的固定到手价。"
     );
-    let events = send(&server, &ask, "merchant-deepseek-natural", None)
-        .await
-        .unwrap();
-    let reply = events
-        .iter()
-        .find_map(|event| match event {
-            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
-            _ => None,
-        })
-        .unwrap();
-    let accounting = provider.accounting();
-    let opened = reads.lock().unwrap().clone();
-    eprintln!("Merchant real-model natural {accounting} reads={opened:?}");
-    assert_model_completed(&accounting, &opened);
-    assert!(
-        reply.contains("Unresolved:"),
-        "Free-form research bound an unsupported checkout claim: {reply}"
-    );
-    assert!(
-        !reply.contains("¥179") && !reply.contains("179 元"),
-        "{reply}"
-    );
+    let (reply, accounting, reads) = live_quick(&ask, "quick-natural").await;
+    assert_model_completed(&accounting, &reads);
+    assert!(reply.contains("Unresolved:"), "{reply}");
+    assert!(!reply.contains("商家列出的固定到手总价"), "{reply}");
+    if reply.contains("¥179") {
+        assert!(
+            reply.contains("Background excerpts")
+                && reply
+                    .lines()
+                    .any(|line| line.starts_with("> ") && line.contains("网站标价 ¥179.00")),
+            "{reply}"
+        );
+    }
 }

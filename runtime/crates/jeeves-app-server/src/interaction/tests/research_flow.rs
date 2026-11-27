@@ -90,6 +90,57 @@ fn cite(id: &str, question: u32, source: u32, quote: &str) -> CreateResponse {
 }
 
 #[tokio::test]
+async fn quick_research_preserves_context_and_reports_a_missing_required_source() {
+    let (_home, mut server, _) = setup().await;
+    let calls = install(
+        &mut server,
+        vec![
+            fetch("open", RESERVOIR),
+            Mock::tool_use(
+                "context",
+                "research_evidence",
+                json!({
+                    "action":"context", "question":1,
+                    "citations":[{"source":1,"quote":WATER}],
+                    "gap":"No reading for May 5 was established."
+                }),
+            ),
+            Mock::text(MODEL_ONLY),
+        ],
+    );
+    let events = send(
+        &server,
+        &format!(
+            "/web_research\nOpen {RESERVOIR} and <{TRANSIT}>. How full was the reservoir on May 5?"
+        ),
+        "quick-research-required-sources",
+        None,
+    )
+    .await
+    .unwrap();
+    let reply = events
+        .iter()
+        .find_map(|event| match event {
+            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
+            _ => None,
+        })
+        .unwrap();
+    assert!(
+        reply.contains("Unresolved:") && reply.contains(WATER),
+        "{reply}"
+    );
+    assert!(
+        reply.contains("No reading for May 5 was established."),
+        "{reply}"
+    );
+    assert!(
+        reply.contains(&format!("Required source unread: <{TRANSIT}>")),
+        "{reply}"
+    );
+    assert_eq!(*calls.lock().unwrap(), [RESERVOIR]);
+}
+
+#[tokio::test]
 async fn quick_reports_observed_excerpts_and_keeps_unopened_and_invented_claims_out() {
     let (_home, mut server, _) = setup().await;
     let calls = install(
@@ -479,6 +530,7 @@ async fn quick_research_prices_come_from_the_scoped_record_and_the_host_renders_
         );
         assert_eq!(reply.contains("同一口径出现不同报价"), conflict, "{reply}");
         assert_eq!(reply.contains("CNY 309.00"), conflict, "{reply}");
+        assert_eq!(reply.contains("待核实"), conflict, "{reply}");
         for absent in ["CNY 199", "CNY 209", "CNY 219", "CNY 179", "999 元"] {
             assert!(!reply.contains(absent), "{reply}");
         }

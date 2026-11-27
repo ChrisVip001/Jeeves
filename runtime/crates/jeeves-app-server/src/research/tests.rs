@@ -80,6 +80,59 @@ fn user_scope_and_source_identity_are_bounded() {
 }
 
 #[test]
+fn required_sources_survive_restore_and_need_a_bound_read_for_completion() {
+    let request = command(
+        "/web_research\nRead [the report](https://example.test/wiki/Report_(May)) and https://example.test/update。\nsource https://example.test/update#top",
+        QUICK,
+    )
+    .unwrap()
+    .unwrap();
+    let report = "https://example.test/wiki/Report_(May)";
+    let update = "https://example.test/update";
+    assert_eq!(request.required_sources, [update, report]);
+    assert_eq!(request.questions.len(), 1);
+
+    let mut state = State::new(request.questions, true);
+    state.required_sources = request.required_sources;
+    let text = "Capacity was 68 percent.";
+    source(&mut state, report, text);
+    state
+        .record(json!({"action":"record","question":1,"citations":[{"source":1,"quote":text}]}))
+        .unwrap();
+    source(&mut state, update, "Update.");
+    state.observations[1].receipt = None;
+    let saved = serde_json::to_string(&state).unwrap();
+    let mut restored = serde_json::from_str::<State>(&saved).unwrap().restore();
+    let (reply, complete) = restored.render();
+    assert!(!complete && reply.contains(&format!("Required source unread: <{update}>")));
+    source(&mut restored, update, "Update.");
+    assert!(restored.render().1);
+}
+
+#[test]
+fn explicitly_requested_verification_stays_open_when_the_model_records_an_excerpt() {
+    let quote = "Capacity was 68 percent on May 4.";
+    let mut state = State::new(
+        vec![
+            "Read https://example.test/report, then confirm the capacity on May 5.".into(),
+            "请打开 https://example.test/report，确认 5 月 5 日的水位。".into(),
+            "What capacity did the report give for May 4?".into(),
+        ],
+        false,
+    );
+    source(&mut state, "https://example.test/report", quote);
+    for question in 1..=3 {
+        state.record(json!({"action":"record","question":question,"citations":[{"source":1,"quote":quote}]})).unwrap();
+    }
+    let (report, complete) = state.render();
+    assert!(!complete);
+    assert_eq!(report.matches("Unresolved:").count(), 2);
+    assert_eq!(report.matches("Background excerpts").count(), 2);
+    assert_eq!(report.matches(quote).count(), 3);
+    assert_eq!(state.status()["questions"][2]["state"], "excerpt-recorded");
+}
+
+#[test]
 fn bounded_search_reserves_reads_without_blocking_a_refinement_after_irrelevant_leads() {
     let mut state = State::new(vec!["one".into(), "two".into(), "three".into()], false);
     assert!(state.charge_web(false).is_ok());
