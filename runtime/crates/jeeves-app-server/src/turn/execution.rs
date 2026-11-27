@@ -297,22 +297,17 @@ pub(crate) async fn full_turn(
     } else {
         capability_note(&settings, tools_available)
     };
-    let schedule_lookup = (main_chat
-        && !shared
-        && !chat_operations.unresolved
-        && owner_run.is_none()
-        && resume.is_none())
-    .then(|| super::schedule_lookup::request(message, chrono::Local::now().date_naive()))
-    .flatten();
-    let guarded_flight = schedule_lookup.is_some();
-    let mut initial_search = schedule_lookup.as_ref().and_then(|lookup| {
-        lookup.plan(
-            message,
-            turn_tools.get("search_web").is_some(),
-            turn_tools.get("fetch_url").is_some(),
-        )
-    });
-    let scheduled_search = initial_search.is_some();
+    let search_policy = super::search_policy::select(
+        main_chat
+            && !shared
+            && !chat_operations.unresolved
+            && owner_run.is_none()
+            && resume.is_none(),
+        message,
+        chrono::Local::now().date_naive(),
+        &turn_tools,
+    );
+    let mut preflight = search_policy.preflight;
     let prompt_for = |summary: Option<&str>| {
         let mut prompt = build_system(PromptParts {
             soul: &soul,
@@ -330,9 +325,7 @@ pub(crate) async fn full_turn(
         if main_chat && turn_tools.get("search_web").is_some() {
             prompt.tail.push_str(super::prompt::WEB_LOOKUP_RULES);
         }
-        if scheduled_search {
-            prompt.tail.push_str(super::schedule_lookup::EVIDENCE_NOTE);
-        }
+        prompt.tail.push_str(search_policy.prompt);
         prompt.tail.push_str(&chat_operations.prompt);
         prompt.tail.push_str(server.permission_note(session_id));
         prompt
@@ -481,7 +474,7 @@ pub(crate) async fn full_turn(
         server
             .catalog
             .output_ceiling(&resolved.provider_id, &resolved.model, settings.max_tokens);
-    let mut result: LoopResult = loop {
+    let result: LoopResult = loop {
         let context_budget = budget_tokens(resolved, &settings, factor)
             .saturating_sub(
                 jeeves_provider::tokens::estimate_text(&prompt.stable)
@@ -489,7 +482,7 @@ pub(crate) async fn full_turn(
                     + jeeves_provider::tokens::estimate_tools(&turn_tools.schemas()),
             )
             .max(1024);
-        let attempt = jeeves_loop::run_with_schedule_search(
+        let attempt = jeeves_loop::run_with_evidence(
             jeeves_loop::Turn {
                 system_prefix: Some(prompt.stable.clone()),
                 client: execution.client.as_ref(),
@@ -509,13 +502,14 @@ pub(crate) async fn full_turn(
                     .map(|budget| budget as usize),
                 tool_result_budget: crate::tool_result_budget(&settings),
                 observer: observer.clone(),
-                on_text: (!guarded_flight).then(|| on_text.clone()),
+                on_text: Some(on_text.clone()),
                 interrupt: interrupt.clone(),
                 checkpoint: checkpoint.clone(),
                 steering: steering.clone(),
                 resume: resume.clone(),
             },
-            initial_search.take(),
+            preflight.take(),
+            search_policy.answer.as_deref(),
         )
         .await;
 
@@ -551,13 +545,6 @@ pub(crate) async fn full_turn(
         }
     };
 
-    if let Some(lookup) = schedule_lookup {
-        result.reply = if result.interrupted {
-            String::new()
-        } else {
-            lookup.evidence_reply(&result.tool_calls)
-        };
-    }
     Ok(FullTurn {
         result,
         history: history_stats,

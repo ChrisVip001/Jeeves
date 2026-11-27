@@ -1813,6 +1813,7 @@ fn outcome(name: &str, output: &str) -> jeeves_loop::ToolOutcome {
         name: name.to_string(),
         output: output.to_string(),
         duration_ms: 1,
+        web_receipt: None,
     }
 }
 

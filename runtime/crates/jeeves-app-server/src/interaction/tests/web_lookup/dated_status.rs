@@ -31,19 +31,27 @@ async fn go(
     let mut tool = jeeves_tools::web::fetch_url();
     let first_response = first.clone();
     let second_response = second.clone();
-    tool.handler = Arc::new(move |_, args| {
+    tool.handler = Arc::new(move |ctx, args| {
         let first = first_response.clone();
         let second = second_response.clone();
         Box::pin(async move {
             let url = args["url"].as_str().unwrap();
-            if let Some((expected, body)) = first {
-                if expected == url {
-                    return Ok(body);
-                }
-            }
-            let (expected, result) = second.expect("unexpected fetch");
-            assert_eq!(url, expected);
-            result.map_err(anyhow::Error::msg)
+            let body = if let Some((_, body)) = first.filter(|(expected, _)| *expected == url) {
+                body
+            } else {
+                let (expected, result) = second.expect("unexpected fetch");
+                assert_eq!(url, expected);
+                result.map_err(anyhow::Error::msg)?
+            };
+            let _ = ctx
+                .web_receipt
+                .unwrap()
+                .set(jeeves_tools::web::WebReceipt::Page {
+                    requested: url.into(),
+                    effective: Some(url.into()),
+                    complete: true,
+                });
+            Ok(body)
         })
     });
     tools.register(tool);
@@ -86,7 +94,7 @@ async fn go(
                 .flat_map(|m| &m.content)
                 .any(|block| {
                     matches!(block, ContentBlock::ToolResult { tool_use_id, content }
-                        if tool_use_id.starts_with("schedule-") && content.contains("07-Nov-2030"))
+                        if tool_use_id.starts_with("preflight-") && content.contains("07-Nov-2030"))
                 })
         );
     }

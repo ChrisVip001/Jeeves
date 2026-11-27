@@ -32,6 +32,7 @@ async fn ctx(session: &str) -> super::ToolCtx {
         computer_use: None,
         turn_limits: std::sync::Arc::new(crate::web::TurnLimits::default()),
         on_delta: None,
+        web_receipt: None,
     }
 }
 

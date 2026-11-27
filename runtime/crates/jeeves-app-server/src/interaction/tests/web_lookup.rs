@@ -322,7 +322,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
                 .flat_map(|m| &m.content)
                 .any(|b| {
                     matches!(b, ContentBlock::ToolResult { tool_use_id, content }
-                if tool_use_id.starts_with("schedule-") && content.contains("QZ123 06:25"))
+                if tool_use_id.starts_with("preflight-") && content.contains("QZ123 06:25"))
                 })
         );
         let refinement_result = requests[0]
@@ -337,7 +337,7 @@ async fn seat_advice_can_search_nearby_without_inventing_a_seat_map() {
                 _ => None,
             })
             .expect("dated refinement runs before the first model call");
-        assert!(refinement_result.starts_with("schedule-") && refinement_result.ends_with("-2"));
+        assert!(refinement_result.starts_with("preflight-") && refinement_result.ends_with("-2"));
     }
     assert_eq!(
         *recorded.lock().unwrap(),

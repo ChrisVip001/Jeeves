@@ -30,6 +30,7 @@ async fn ctx() -> ToolCtx {
         chat: jeeves_state::Chat::new(pool.clone()),
         home,
         on_delta: None,
+        web_receipt: None,
     }
 }
 

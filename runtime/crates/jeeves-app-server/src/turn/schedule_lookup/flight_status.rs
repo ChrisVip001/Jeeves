@@ -2,7 +2,10 @@
 
 use super::{Lookup, minutes};
 use chrono::NaiveDate;
-use jeeves_loop::ToolOutcome;
+use jeeves_loop::{
+    ToolOutcome,
+    evidence::{self, Claim, Decision, Freshness, SourceRead},
+};
 use regex::Regex;
 use reqwest::Url;
 use std::sync::LazyLock;
@@ -59,49 +62,80 @@ fn record(url: &Url, prefix: &str) -> Option<Record> {
     })
 }
 
+type FlightClaim = Claim<(String, String), NaiveDate, String, Departure>;
+
 #[derive(PartialEq, Eq)]
-struct Verified {
-    record: Record,
-    departure: u16,
-    source: String,
+struct Departure {
+    record_id: String,
+    minutes: u16,
+    cancelled: bool,
 }
 
 impl Lookup {
     pub(in crate::turn) fn evidence_reply(&self, calls: &[ToolOutcome]) -> String {
-        let mut verified = calls.iter().filter_map(|call| self.verify(call));
-        if let Some(first) = verified.next()
-            && verified
-                .all(|other| other.record == first.record && other.departure == first.departure)
-        {
-            return format!(
+        let route = (city_key(&self.origin), city_key(&self.destination));
+        let decision = evidence::resolve(
+            calls,
+            &route,
+            Freshness::Within(self.day..=self.day),
+            |requested, effective, body| {
+                let (record, status) = scoped_tracker(requested, effective, body)?;
+                Some(FlightClaim {
+                    entity: (city_key(status.origin), city_key(status.destination)),
+                    recorded_at: Some(record.day),
+                    identity: record.flight,
+                    value: Departure {
+                        record_id: record.id,
+                        minutes: status.departure,
+                        cancelled: status.cancelled,
+                    },
+                })
+            },
+            |departure| {
+                !departure.cancelled
+                    && minutes(&self.time).is_some_and(|t| t.abs_diff(departure.minutes) <= 30)
+            },
+        );
+        match decision {
+            Decision::Confirmed {
+                identity,
+                value,
+                source,
+            } => format!(
                 "公开航班详情显示，{} {}到{}的 [{}]({}) 当地计划 {:02}:{:02} 起飞。这是符合你所述时段的候选航班，请和机票上的航班号核对。\n\n{SEAT_GUIDANCE}",
                 self.day,
                 self.origin,
                 self.destination,
-                first.record.flight,
-                first.source,
-                first.departure / 60,
-                first.departure % 60,
-            );
+                identity,
+                source,
+                value.minutes / 60,
+                value.minutes % 60,
+            ),
+            Decision::Conflict => format!(
+                "航班证据有冲突，未能核实你描述的航班。请提供机票上的航班号。\n\n{SEAT_GUIDANCE}"
+            ),
+            Decision::Insufficient => {
+                format!("未能核实你描述的航班。请提供机票上的航班号。\n\n{SEAT_GUIDANCE}")
+            }
         }
-        format!("未能核实你描述的航班。请提供机票上的航班号。\n\n{SEAT_GUIDANCE}")
-    }
-
-    fn verify(&self, call: &ToolOutcome) -> Option<Verified> {
-        let (url, record, status) = self.scoped_read(call)?;
-        if record.day != self.day || minutes(&self.time)?.abs_diff(status.departure) > 30 {
-            return None;
-        }
-        Some(Verified {
-            record,
-            departure: status.departure,
-            source: url.to_string(),
-        })
     }
 
     pub(super) fn navigation(&self, call: &ToolOutcome) -> Option<String> {
-        let (_, old, _) = self.scoped_read(call)?;
-        if old.day == self.day {
+        let SourceRead::Read {
+            requested,
+            effective,
+        } = call.source_read()
+        else {
+            return None;
+        };
+        let (old, status) = scoped_tracker(requested, effective, &call.output)?;
+        let origin = city_key(&self.origin);
+        let destination = city_key(&self.destination);
+        if old.day == self.day
+            || status.cancelled
+            || city_key(status.origin) != origin
+            || city_key(status.destination) != destination
+        {
             return None;
         }
         let (_, navigation) = call.output.split_once("Past and Upcoming Flights")?;
@@ -112,8 +146,6 @@ impl Lookup {
             .collect();
         let mut day = None;
         let mut links = std::collections::BTreeSet::new();
-        let origin = city_key(&self.origin);
-        let destination = city_key(&self.destination);
         let requested = minutes(&self.time)?;
         for (index, line) in lines.iter().enumerate() {
             if let Some(heading) = line.strip_prefix("Flights for ") {
@@ -157,29 +189,30 @@ impl Lookup {
         let only = links.next()?;
         links.next().is_none().then(|| only.to_string())
     }
+}
 
-    fn scoped_read<'a>(&self, call: &'a ToolOutcome) -> Option<(Url, Record, Status<'a>)> {
-        if call.name != "fetch_url" || !call.ok() {
-            return None;
-        }
-        let url = Url::parse(call.input["url"].as_str()?).ok()?;
-        let record = record(&url, "/v2/flight-tracker/")?;
-        let status = status(&call.output)?;
-        let origin = city_key(&self.origin);
-        let destination = city_key(&self.destination);
-        if status.flight.replace(' ', "") != record.flight
-            || status.day != record.day
-            || origin.is_empty()
-            || destination.is_empty()
-            || origin == destination
-            || city_key(status.origin) != origin
-            || city_key(status.destination) != destination
-            || status.record != record
-        {
-            return None;
-        }
-        Some((url, record, status))
+fn scoped_tracker<'a>(
+    requested: &str,
+    effective: &str,
+    body: &'a str,
+) -> Option<(Record, Status<'a>)> {
+    let prefix = "/v2/flight-tracker/";
+    let requested = record(&Url::parse(requested).ok()?, prefix)?;
+    let effective = record(&Url::parse(effective).ok()?, prefix)?;
+    let status = status(body)?;
+    let origin = city_key(status.origin);
+    let destination = city_key(status.destination);
+    if requested != effective
+        || status.flight.replace(' ', "") != effective.flight
+        || status.day != effective.day
+        || status.record != effective
+        || origin.is_empty()
+        || destination.is_empty()
+        || origin == destination
+    {
+        return None;
     }
+    Some((effective, status))
 }
 
 fn navigation_row<'a>(
@@ -243,6 +276,7 @@ struct Status<'a> {
     destination: &'a str,
     day: NaiveDate,
     departure: u16,
+    cancelled: bool,
     record: Record,
 }
 
@@ -274,10 +308,7 @@ fn status(body: &str) -> Option<Status<'_>> {
         return None;
     };
     let (origin_airport, destination_airport) = (airport(origin_code)?, airport(destination_code)?);
-    if origin_airport == destination_airport
-        || state.eq_ignore_ascii_case("Canceled")
-        || state.eq_ignore_ascii_case("Cancelled")
-    {
+    if origin_airport == destination_airport {
         return None;
     }
     let departure = unique_line(main, "Flight Departure Times")?;
@@ -317,6 +348,8 @@ fn status(body: &str) -> Option<Status<'_>> {
         destination,
         day: NaiveDate::parse_from_str(day, "%d-%b-%Y").ok()?,
         departure: local_clock(clock)?,
+        cancelled: state.eq_ignore_ascii_case("Canceled")
+            || state.eq_ignore_ascii_case("Cancelled"),
         record: record(&detail, "/v2/flight-details/")?,
     })
 }
@@ -330,4 +363,96 @@ fn unique_line(lines: &[&str], label: &str) -> Option<usize> {
 fn airport(line: &str) -> Option<&str> {
     let code = line.split_ascii_whitespace().next()?;
     (code.len() == 3 && code.bytes().all(|b| b.is_ascii_uppercase())).then_some(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jeeves_tools::web::WebReceipt;
+    use serde_json::json;
+
+    fn url(path: &str, day: u8, id: u16) -> String {
+        format!(
+            "https://www.flightstats.com/v2/{path}/QZ/123?month=11&flightId={id}&date={day}&year=2030"
+        )
+    }
+
+    fn read(day: u8, id: u16, clock: &str, state: &str) -> ToolOutcome {
+        let source = url("flight-tracker", day, id);
+        let details = url("flight-details", day, id);
+        ToolOutcome {
+            tool_use_id: format!("read-{id}"),
+            name: "fetch_url".into(),
+            input: json!({"url": source}),
+            output: format!(
+                "Flight Status\nQZ 123\nExample Air\nAAA\nJiacheng\nBBB\nYicheng\n{state}\nAAA\nJiacheng, CN\nFlight Departure Times\n{day:02}-Nov-2030\nScheduled\n{clock} CST\nActual\n06:45 CST\nBBB\nYicheng, CN\nFlight Arrival Times\nVIEW FLIGHT DETAILS <{details}>\nFlight Tracker"
+            ),
+            success: true,
+            duration_ms: 1,
+            web_receipt: Some(WebReceipt::Page {
+                requested: source.clone(),
+                effective: Some(source),
+                complete: true,
+            }),
+        }
+    }
+
+    fn lookup() -> Lookup {
+        super::super::request(
+            "我订了2030-11-08早上六点半从甲城到乙城的飞机，怎么选座？",
+            NaiveDate::from_ymd_opt(2030, 11, 7).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn old_tracker_navigation_is_not_evidence_and_exact_link_is_preserved() {
+        let lookup = lookup();
+        let mut old = read(7, 17, "06:27", "Scheduled");
+        let target = url("flight-tracker", 8, 23);
+        old.output.push_str(&format!(
+            "\nPast and Upcoming Flights\nFlights for Friday, 08-Nov-2030\n06:25 CST\nAAA\nJiacheng\nBBB\nYicheng\n08:30 CST\nFlight <{target}>"
+        ));
+        assert_eq!(lookup.navigation(&old).as_deref(), Some(target.as_str()));
+        assert!(lookup.evidence_reply(&[old.clone()]).contains("未能核实"));
+        let reply = lookup.evidence_reply(&[old, read(8, 23, "06:25", "Scheduled")]);
+        assert!(reply.contains(&format!("[QZ123]({target})")));
+        assert!(reply.contains("计划 06:25"));
+        assert!(reply.contains("候选航班"));
+        assert!(reply.contains("不能推荐具体排号"));
+        assert!(!reply.contains("06:45"));
+    }
+
+    #[test]
+    fn wrong_final_url_wrong_direction_truncation_and_conflicts_fail_closed() {
+        let lookup = lookup();
+        let good = read(8, 23, "06:25", "Scheduled");
+        let mut redirect = good.clone();
+        let Some(WebReceipt::Page { effective, .. }) = &mut redirect.web_receipt else {
+            unreachable!();
+        };
+        *effective = Some(url("flight-tracker", 7, 17));
+        let mut wrong_route = good.clone();
+        wrong_route.output = wrong_route
+            .output
+            .replace("Jiacheng", "SwapCity")
+            .replace("Yicheng", "Jiacheng")
+            .replace("SwapCity", "Yicheng");
+        let mut truncated = good.clone();
+        let Some(WebReceipt::Page { complete, .. }) = &mut truncated.web_receipt else {
+            unreachable!();
+        };
+        *complete = false;
+        let reply = lookup.evidence_reply(&[redirect, wrong_route, truncated]);
+        assert!(reply.contains("未能核实"));
+        assert!(!reply.contains("QZ123"));
+        for other in [
+            read(8, 23, "08:00", "Scheduled"),
+            read(8, 23, "06:25", "Cancelled"),
+        ] {
+            let reply = lookup.evidence_reply(&[good.clone(), other]);
+            assert!(reply.contains("证据有冲突"));
+            assert!(!reply.contains("QZ123"));
+        }
+    }
 }

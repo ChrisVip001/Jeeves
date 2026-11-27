@@ -29,6 +29,7 @@ use jeeves_tools::{ToolCtx, ToolRegistry};
 use serde_json::Value;
 
 pub mod budget;
+pub mod evidence;
 pub mod guard;
 mod projection;
 
@@ -223,6 +224,8 @@ pub struct ToolOutcome {
     pub output: String,
     pub success: bool,
     pub duration_ms: i64,
+    /// Host-owned provenance for this invocation, not model text or recovered history.
+    pub web_receipt: Option<jeeves_tools::web::WebReceipt>,
 }
 
 impl ToolOutcome {
@@ -399,19 +402,19 @@ fn admitted_exchange(
 }
 
 pub async fn run(turn: Turn<'_>) -> Result<LoopResult> {
-    run_with_schedule_search(turn, None).await
+    run_with_evidence(turn, None, None).await
 }
 
-pub type ScheduleRefinement = Box<dyn FnOnce(&str) -> Option<Value> + Send>;
-pub type ScheduleFollow = Box<dyn Fn(&ToolOutcome) -> Option<Value> + Send>;
+pub type SearchRefinement = Box<dyn FnOnce(&str) -> Option<Value> + Send>;
+pub type ReadFollow = Box<dyn Fn(&ToolOutcome) -> Option<Value> + Send>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ScheduleTool {
+pub enum WebTool {
     Search,
     Fetch,
 }
 
-impl ScheduleTool {
+impl WebTool {
     fn name(self) -> &'static str {
         match self {
             Self::Search => "search_web",
@@ -420,29 +423,50 @@ impl ScheduleTool {
     }
 }
 
-/// A host-selected lookup, one optional search refinement, and one original dated link.
-pub struct ScheduleSearch {
-    pub initial: (ScheduleTool, Value),
-    pub refine: Option<ScheduleRefinement>,
-    pub follow: ScheduleFollow,
+/// A bounded host-selected web lookup, with one optional refinement and one follow-up read.
+pub struct WebPreflight {
+    pub initial: (WebTool, Value),
+    pub refine: Option<SearchRefinement>,
+    pub follow: Option<ReadFollow>,
 }
 
-/// Run scheduled reads through normal admission, checkpointing and observation.
-pub async fn run_with_schedule_search(
-    turn: Turn<'_>,
-    schedule: Option<ScheduleSearch>,
+/// Preflight reads use normal admission, checkpointing and observation. An answer
+/// gate is independent of preflight; it can also review model-selected reads.
+pub async fn run_with_evidence(
+    mut turn: Turn<'_>,
+    preflight: Option<WebPreflight>,
+    gate: Option<evidence::AnswerGate<'_>>,
 ) -> Result<LoopResult> {
-    let schedule = schedule.filter(|schedule| {
+    if gate.is_some() {
+        turn.on_text = None;
+    }
+    let mut result = run_inner(turn, preflight, gate.is_some()).await?;
+    if let Some(gate) = gate {
+        if result.interrupted {
+            result.reply.clear();
+        } else if result.stop_reason != StopReason::UncertainEffect {
+            result.reply = gate(&result.tool_calls);
+        }
+    }
+    Ok(result)
+}
+
+async fn run_inner(
+    turn: Turn<'_>,
+    preflight: Option<WebPreflight>,
+    answer_guarded: bool,
+) -> Result<LoopResult> {
+    let preflight = preflight.filter(|preflight| {
         turn.resume.is_none()
             && turn.run_limits.is_none()
-            && turn.tools.get(schedule.initial.0.name()).is_some()
+            && turn.tools.get(preflight.initial.0.name()).is_some()
     });
-    let (mut pending, mut refine, mut follow) = match schedule {
-        Some(ScheduleSearch {
+    let (mut pending, mut refine, mut follow) = match preflight {
+        Some(WebPreflight {
             initial,
             refine,
             follow,
-        }) => (Some(initial), refine, Some(follow)),
+        }) => (Some(initial), refine, follow),
         None => (None, None, None),
     };
     let round_id = turn
@@ -645,7 +669,7 @@ pub async fn run_with_schedule_search(
                     stop_reason: StopReason::ToolUse,
                     usage: Usage::default(),
                     content: vec![ContentBlock::ToolUse {
-                        id: format!("schedule-{round_id}-{iteration}"),
+                        id: format!("preflight-{round_id}-{iteration}"),
                         name: tool.name().into(),
                         input,
                         extra: None,
@@ -677,7 +701,8 @@ pub async fn run_with_schedule_search(
                 tools: schemas.clone(),
                 max_tokens,
             };
-            match sample(&turn, request, notify.clone(), record.clone()).await {
+            let text_observer = if answer_guarded { None } else { notify.clone() };
+            match sample(&turn, request, text_observer, record.clone()).await {
                 Some(Ok(response)) => break Some(response),
                 Some(Err(error))
                     if error.is_context_overflow() && (iterations > 0 || turn.resume.is_some()) =>
@@ -944,50 +969,61 @@ pub async fn run_with_schedule_search(
                 let input = input.clone();
                 set.spawn(async move {
                     let started = Instant::now();
-                    let output = registry.execute_result(ctx, &name, input).await;
-                    (position, output, started.elapsed().as_millis() as i64)
+                    let (output, receipt) = registry.execute_observed(ctx, &name, input).await;
+                    (
+                        position,
+                        output,
+                        receipt,
+                        started.elapsed().as_millis() as i64,
+                    )
                 });
             }
 
-            let mut slots: Vec<Option<(jeeves_tools::ToolOutput, i64)>> = vec![None; segment.len()];
+            type CompletedCall = (
+                jeeves_tools::ToolOutput,
+                Option<jeeves_tools::web::WebReceipt>,
+                i64,
+            );
+            let mut slots: Vec<Option<CompletedCall>> = vec![None; segment.len()];
             let mut panic_note: Option<String> = None;
             let mut completed_reads = vec![None; segment.len()];
             loop {
                 let next = match turn.interrupt.as_ref() {
                     Some(cancel) => tokio::select! {
-                            _ = cancel.wait() => {
-                                for (position, slot) in slots.iter().enumerate() {
-                                    if let (Some((output, duration_ms)), Some((id, name, input))) =
-                                        (slot, segment.get(position))
-                                    {
-                                        tool_calls.push(ToolOutcome {
-                                            tool_use_id: id.clone(),
-                                            name: name.clone(),
-                                            input: input.clone(),
-                                            output: output.text.clone(),
-                                            success: output.success,
-                                            duration_ms: *duration_ms,
-                                        });
-                                    }
+                        _ = cancel.wait() => {
+                            for (position, slot) in slots.iter().enumerate() {
+                                if let (Some((output, receipt, duration_ms)), Some((id, name, input))) =
+                                    (slot, segment.get(position))
+                                {
+                                    tool_calls.push(ToolOutcome {
+                                        tool_use_id: id.clone(),
+                                        name: name.clone(),
+                                        input: input.clone(),
+                                        output: output.text.clone(),
+                                        success: output.success,
+                                        duration_ms: *duration_ms,
+                                        web_receipt: receipt.clone(),
+                                    });
                                 }
-                                return Ok(interrupted_result(Scene {
-                    round_id: round_id.clone(),
-                                    streamed,
-                                    tool_calls,
-                                    iterations: iteration - 1,
-                                    usage,
-                                    messages,
-                                    guard: GuardReport::close(&guard),
-                                    estimated_input_tokens: last_estimate,
-                                    observed_input_tokens: last_observed,
-                                }));
                             }
-                            next = set.join_next() => next,
-                        },
+                            return Ok(interrupted_result(Scene {
+                                round_id: round_id.clone(),
+                                streamed,
+                                tool_calls,
+                                iterations: iteration - 1,
+                                usage,
+                                messages,
+                                guard: GuardReport::close(&guard),
+                                estimated_input_tokens: last_estimate,
+                                observed_input_tokens: last_observed,
+                            }));
+                        }
+                        next = set.join_next() => next,
+                    },
                     None => set.join_next().await,
                 };
                 match next {
-                    Some(Ok((position, output, duration_ms))) => {
+                    Some(Ok((position, output, receipt, duration_ms))) => {
                         if segment.len() > 1 {
                             let op = &mut operations[position];
                             op.output = Some(output.clone());
@@ -1016,7 +1052,7 @@ pub async fn run_with_schedule_search(
                                 });
                             }
                         }
-                        slots[position] = Some((output, duration_ms));
+                        slots[position] = Some((output, receipt, duration_ms));
                     }
                     Some(Err(e)) => {
                         panic_note = Some(format!("Error: the tool task ended abnormally: {e}"))
@@ -1035,12 +1071,12 @@ pub async fn run_with_schedule_search(
                     }
                 }
                 for slot in slots.iter_mut().filter(|slot| slot.is_none()) {
-                    *slot = Some((jeeves_tools::ToolOutput::failure(note.clone()), 0));
+                    *slot = Some((jeeves_tools::ToolOutput::failure(note.clone()), None, 0));
                 }
             }
 
             for (position, slot) in slots.into_iter().enumerate() {
-                let Some((output, duration_ms)) = slot else {
+                let Some((output, receipt, duration_ms)) = slot else {
                     continue;
                 };
                 let (id, name, input) = &segment[position];
@@ -1048,13 +1084,6 @@ pub async fn run_with_schedule_search(
                 let success =
                     output.success && !uncertain.load(std::sync::atomic::Ordering::Acquire);
                 let output = output.text;
-                if preflight_tool == Some(ScheduleTool::Search)
-                    && let Some(refine) = refine.take()
-                    && success
-                    && turn.ctx.turn_limits.search_max > 1
-                {
-                    pending = refine(&output).map(|input| (ScheduleTool::Search, input));
-                }
                 let outcome = ToolOutcome {
                     tool_use_id: id.clone(),
                     name: name.clone(),
@@ -1062,13 +1091,21 @@ pub async fn run_with_schedule_search(
                     output: output.clone(),
                     success,
                     duration_ms,
+                    web_receipt: receipt,
                 };
-                if success
-                    && name == ScheduleTool::Fetch.name()
+                let source = outcome.source_read();
+                if preflight_tool == Some(WebTool::Search)
+                    && let Some(refine) = refine.take()
+                    && source == evidence::SourceRead::Lead
+                    && turn.ctx.turn_limits.search_max > 1
+                {
+                    pending = refine(&output).map(|input| (WebTool::Search, input));
+                }
+                if matches!(source, evidence::SourceRead::Read { .. })
                     && pending.is_none()
                     && let Some(next) = follow.as_ref().and_then(|follow| follow(&outcome))
                 {
-                    pending = Some((ScheduleTool::Fetch, next));
+                    pending = Some((WebTool::Fetch, next));
                     follow = None;
                 }
                 tool_calls.push(outcome);

@@ -1,7 +1,7 @@
 //! Narrow, public-only lookup for a remembered domestic flight departure.
 
 use chrono::{Days, NaiveDate};
-use jeeves_loop::{ScheduleSearch, ScheduleTool};
+use jeeves_loop::{WebPreflight, WebTool};
 use regex::Regex;
 use serde_json::{Value, json};
 use std::sync::LazyLock;
@@ -65,28 +65,30 @@ impl Lookup {
         message: &str,
         can_search: bool,
         can_fetch: bool,
-    ) -> Option<ScheduleSearch> {
+    ) -> Option<WebPreflight> {
         let initial_url = can_fetch
             .then(|| flight_status::explicit_tracker(message))
             .flatten();
         let (initial, refine) = if let Some(url) = initial_url {
-            ((ScheduleTool::Fetch, json!({"url": url})), None)
+            ((WebTool::Fetch, json!({"url": url})), None)
         } else if can_search {
             let lookup = self.clone();
-            let refine: jeeves_loop::ScheduleRefinement = Box::new(move |output| {
+            let refine: jeeves_loop::SearchRefinement = Box::new(move |output| {
                 lookup
                     .refinement(output)
                     .or_else(|| lookup.departure_board())
             });
-            ((ScheduleTool::Search, self.initial()), Some(refine))
+            ((WebTool::Search, self.initial()), Some(refine))
         } else {
             return None;
         };
         let lookup = self.clone();
-        Some(ScheduleSearch {
+        Some(WebPreflight {
             initial,
             refine,
-            follow: Box::new(move |read| lookup.navigation(read).map(|url| json!({"url": url}))),
+            follow: Some(Box::new(move |read| {
+                lookup.navigation(read).map(|url| json!({"url": url}))
+            })),
         })
     }
 

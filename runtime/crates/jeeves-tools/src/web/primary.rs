@@ -3,8 +3,14 @@
 use crate::{Handler, ToolCtx};
 use serde_json::Value;
 
-pub(super) async fn call(primary: &Option<Handler>, ctx: ToolCtx, args: Value) -> Option<String> {
+pub(super) async fn call(
+    primary: &Option<Handler>,
+    mut ctx: ToolCtx,
+    args: Value,
+) -> Option<super::PageText> {
     let handler = primary.as_ref()?;
+    // The outer built-in, not its text-only extractor, owns the receipt.
+    ctx.web_receipt = None;
     match handler(ctx, args).await {
         Ok(text) if !text.trim().is_empty() => Some(super::finish_fetch(&text, false)),
         _ => {

@@ -424,5 +424,6 @@ pub(crate) fn tool_ctx(
         jobs: injected.jobs,
         computer_use: injected.computer_use,
         on_delta: None,
+        web_receipt: None,
     }
 }

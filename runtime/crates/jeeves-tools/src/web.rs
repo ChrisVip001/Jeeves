@@ -707,6 +707,24 @@ pub(super) fn nearby_schedule_query(query: &str, time: &str) -> Result<String> {
     Ok(nearby)
 }
 
+/// Provenance reported by the actual web handler, independently of model-facing text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WebReceipt {
+    SearchLeads,
+    Page {
+        requested: String,
+        // Host extractors currently return only text, without an effective URL.
+        effective: Option<String>,
+        complete: bool,
+    },
+}
+
+fn record_web(ctx: &ToolCtx, receipt: WebReceipt) {
+    if let Some(slot) = &ctx.web_receipt {
+        let _ = slot.set(receipt);
+    }
+}
+
 pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
     Tool {
         name: "search_web".to_string(),
@@ -741,9 +759,11 @@ pub fn search_web_with_primary(primary: Option<crate::Handler>) -> Tool {
                 }).transpose()?;
                 let nearby = nearby.as_deref();
                 let limits = ctx.turn_limits.clone();
-                limits
-                    .search_once(query, max_results, nearby, search_uncached(&primary, ctx, query, max_results, nearby))
-                    .await
+                let text = limits
+                    .search_once(query, max_results, nearby, search_uncached(&primary, ctx.clone(), query, max_results, nearby))
+                    .await?;
+                record_web(&ctx, WebReceipt::SearchLeads);
+                Ok(text)
             })
         }),
     }
@@ -762,7 +782,8 @@ async fn search_uncached(
     if let Some(nearby) = nearby {
         request["nearby_query"] = json!(nearby);
     }
-    if let Some(text) = primary::call(primary, ctx, request).await {
+    if let Some(page) = primary::call(primary, ctx, request).await {
+        let text = page.text;
         if let Some(dir) = task_dir.as_deref() {
             for url in text
                 .lines()
@@ -1245,20 +1266,28 @@ pub fn fetch_url_with_primary(primary: Option<crate::Handler>) -> Tool {
             let primary = primary.clone();
             Box::pin(async move {
                 let url = require_str(&args, "url")?;
+                let requested = reqwest::Url::parse(&url)?;
                 let task_dir = ctx.task_run_id.as_ref().and(ctx.cwd.clone());
-                if primary.is_some() {
-                    let parsed = reqwest::Url::parse(&url)?;
-                    if !is_flightstats_tracker(&parsed) {
-                        check_url(&parsed, false).await?;
-                        if let Some(text) = primary::call(&primary, ctx, json!({"url": url})).await {
-                            keep_snapshot(task_dir.as_deref(), &url, &text);
-                            return Ok(text);
-                        }
+                let extracted = if primary.is_some() && !is_flightstats_tracker(&requested) {
+                    check_url(&requested, false).await?;
+                    primary::call(&primary, ctx.clone(), json!({"url": url})).await
+                } else {
+                    None
+                };
+                let (page, effective) = match extracted {
+                    Some(page) => (page, None),
+                    None => {
+                        let (page, effective) = read_page(&url, false).await?;
+                        (page, Some(effective))
                     }
-                }
-                let text = execute_fetch(&url, false).await?;
-                keep_snapshot(task_dir.as_deref(), &url, &text);
-                Ok(text)
+                };
+                keep_snapshot(task_dir.as_deref(), &url, &page.text);
+                record_web(&ctx, WebReceipt::Page {
+                    requested: requested.into(),
+                    effective: effective.map(Into::into),
+                    complete: page.complete,
+                });
+                Ok(page.text)
             })
         }),
     }
@@ -1279,7 +1308,10 @@ fn keep_search_snapshot(dir: &std::path::Path, query: &str, url: &str, text: &st
 }
 
 /// `allow_private` is for tests only (a local HTTP server as target); the tool always passes false.
-pub(crate) async fn execute_fetch(url_text: &str, allow_private: bool) -> Result<String> {
+pub(crate) async fn read_page(
+    url_text: &str,
+    allow_private: bool,
+) -> Result<(PageText, reqwest::Url)> {
     let mut url = reqwest::Url::parse(url_text)
         .map_err(|e| anyhow::anyhow!("Could not parse the URL ({url_text}): {e}"))?;
     check_url(&url, allow_private).await?;
@@ -1323,6 +1355,10 @@ pub(crate) async fn execute_fetch(url_text: &str, allow_private: bool) -> Result
             .and_then(|v| v.to_str().ok())
             .unwrap_or("")
             .to_string();
+        let partial_response = status == reqwest::StatusCode::PARTIAL_CONTENT
+            || response
+                .headers()
+                .contains_key(reqwest::header::CONTENT_RANGE);
         let mut body: Vec<u8> = Vec::new();
         let mut response = response;
         while let Some(chunk) = response
@@ -1344,14 +1380,27 @@ pub(crate) async fn execute_fetch(url_text: &str, allow_private: bool) -> Result
         } else {
             raw.into_owned()
         };
-        return Ok(finish_fetch(&text, download_capped));
+        let mut page = finish_fetch(&text, download_capped);
+        if partial_response {
+            page.complete = false;
+            page.text
+                .push_str("\n[Source returned a partial response; content may be incomplete.]");
+        }
+        return Ok((page, url));
     }
     anyhow::bail!("{url_text} redirected more than {FETCH_MAX_REDIRECTS} times; stopping here.")
 }
 
-fn finish_fetch(text: &str, download_capped: bool) -> String {
+#[derive(Debug)]
+pub(crate) struct PageText {
+    pub(crate) text: String,
+    pub(crate) complete: bool,
+}
+
+fn finish_fetch(text: &str, download_capped: bool) -> PageText {
     let mut out = crate::report::as_external(text);
-    if out.chars().count() > FETCH_MAX_CHARS {
+    let output_capped = out.chars().count() > FETCH_MAX_CHARS;
+    if output_capped {
         out = out.chars().take(FETCH_MAX_CHARS).collect();
         out.push_str(&format!(
             "\n\n[Content truncated at {FETCH_MAX_CHARS} characters. Try a more specific URL (an anchor, a pagination link) instead of forcing the whole page.]"
@@ -1360,7 +1409,10 @@ fn finish_fetch(text: &str, download_capped: bool) -> String {
     if download_capped {
         out.push_str("\n[Source exceeded the 2 MB download cap; content may be incomplete.]");
     }
-    out
+    PageText {
+        text: out,
+        complete: !download_capped && !output_capped && !text.trim().is_empty(),
+    }
 }
 
 #[cfg(test)]
