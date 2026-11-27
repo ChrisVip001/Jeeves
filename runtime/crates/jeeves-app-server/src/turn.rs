@@ -39,6 +39,7 @@ pub(crate) use execution::FullTurn;
 pub(crate) use execution::full_turn;
 mod prompt;
 mod schedule_lookup;
+mod search_policy;
 pub(crate) use prompt::PromptParts;
 
 pub(crate) use prompt::build_system;

@@ -694,6 +694,7 @@ async fn tool_ctx() -> jeeves_tools::ToolCtx {
         chat: jeeves_state::Chat::new(pool.clone()),
         home: std::path::PathBuf::from(".jeeves"),
         on_delta: None,
+        web_receipt: None,
     }
 }
 

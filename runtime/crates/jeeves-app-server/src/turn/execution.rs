@@ -314,23 +314,18 @@ pub(crate) async fn full_turn(
     } else {
         capability_note(&settings, tools_available)
     };
-    let schedule_lookup = (main_chat
-        && research.is_none()
-        && !shared
-        && !chat_operations.unresolved
-        && owner_run.is_none()
-        && resume.is_none())
-    .then(|| super::schedule_lookup::request(message, chrono::Local::now().date_naive()))
-    .flatten();
-    let guarded_flight = schedule_lookup.is_some();
-    let mut initial_search = schedule_lookup.as_ref().and_then(|lookup| {
-        lookup.plan(
-            message,
-            turn_tools.get("search_web").is_some(),
-            turn_tools.get("fetch_url").is_some(),
-        )
-    });
-    let scheduled_search = initial_search.is_some();
+    let search_policy = super::search_policy::select(
+        main_chat
+            && research.is_none()
+            && !shared
+            && !chat_operations.unresolved
+            && owner_run.is_none()
+            && resume.is_none(),
+        message,
+        chrono::Local::now().date_naive(),
+        &turn_tools,
+    );
+    let mut preflight = search_policy.preflight;
     let prompt_for = |summary: Option<&str>| {
         let mut prompt = build_system(PromptParts {
             soul: &soul,
@@ -348,9 +343,7 @@ pub(crate) async fn full_turn(
         if main_chat && turn_tools.get("search_web").is_some() {
             prompt.tail.push_str(super::prompt::WEB_LOOKUP_RULES);
         }
-        if scheduled_search {
-            prompt.tail.push_str(super::schedule_lookup::EVIDENCE_NOTE);
-        }
+        prompt.tail.push_str(search_policy.prompt);
         if research.is_some() {
             prompt.tail.push_str(crate::research::NOTE);
         }
@@ -529,7 +522,7 @@ pub(crate) async fn full_turn(
                 .map(|budget| budget as usize),
             tool_result_budget: crate::tool_result_budget(&settings),
             observer: observer.clone(),
-            on_text: (!guarded_flight && research.is_none()).then(|| on_text.clone()),
+            on_text: Some(on_text.clone()),
             interrupt: interrupt.clone(),
             checkpoint: checkpoint.clone(),
             steering: steering.clone(),
@@ -538,7 +531,8 @@ pub(crate) async fn full_turn(
         let attempt = if research.is_some() {
             jeeves_loop::run_research(turn).await
         } else {
-            jeeves_loop::run_with_schedule_search(turn, initial_search.take()).await
+            jeeves_loop::run_with_evidence(turn, preflight.take(), search_policy.answer.as_deref())
+                .await
         };
 
         match attempt {
@@ -573,13 +567,6 @@ pub(crate) async fn full_turn(
         }
     };
 
-    if let Some(lookup) = schedule_lookup {
-        result.reply = if result.interrupted {
-            String::new()
-        } else {
-            lookup.evidence_reply(&result.tool_calls)
-        };
-    }
     let research_complete = if let Some(research) = research {
         if result.interrupted {
             result.reply.clear();

@@ -38,6 +38,7 @@ async fn ctx() -> jeeves_tools::ToolCtx {
         chat: jeeves_state::Chat::new(pool.clone()),
         home: std::path::PathBuf::from(".jeeves"),
         on_delta: None,
+        web_receipt: None,
     }
 }
 
@@ -828,6 +829,7 @@ async fn an_oversized_tool_result_becomes_a_stub_before_the_next_request() {
         chat: jeeves_state::Chat::new(pool.clone()),
         home: home.path().to_path_buf(),
         on_delta: None,
+        web_receipt: None,
     };
 
     let big: Tool = Tool {
@@ -1531,4 +1533,100 @@ async fn a_reply_with_text_is_never_nudged() {
     let result = turn(&mock, &tools, ctx().await, None).await;
     assert_eq!(result.reply, "done.");
     assert_eq!(mock.received.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn evidence_gate_uses_model_selected_reads_and_never_streams_the_proposed_reply() {
+    use crate::evidence::{self, Claim, Decision, Freshness};
+    use jeeves_tools::web::WebReceipt;
+
+    let source = "https://registry.example/packages/widget";
+    let mut tools = jeeves_tools::ToolRegistry::new();
+    // A host-controlled handler fixture supplies provenance separately from the body.
+    tools.register(jeeves_tools::Tool {
+        name: "fetch_url".into(),
+        description: "Read a package registry source".into(),
+        input_schema: json!({"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}),
+        handler: Arc::new(move |ctx, _| {
+            Box::pin(async move {
+                let _ = ctx.web_receipt.unwrap().set(WebReceipt::Page {
+                    requested: source.into(),
+                    effective: Some(source.into()),
+                    complete: true,
+                });
+                Ok("widget stable 2030-11-08 v2.0".into())
+            })
+        }),
+    });
+    let mock = Mock::streaming(vec![
+        Mock::tool_use("package-read", "fetch_url", json!({"url": source})),
+        Mock::text("The latest stable package is v9.9. Install it now."),
+    ]);
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let observed = events.clone();
+    let observer: crate::Observer = Arc::new(move |event| observed.lock().unwrap().push(event));
+    let gate = |calls: &[crate::ToolOutcome]| {
+        let decision = evidence::resolve(
+            calls,
+            &"widget stable",
+            Freshness::Within(20301108..=20301108),
+            |_, effective, body| {
+                (effective == source && body == "widget stable 2030-11-08 v2.0").then_some(Claim {
+                    entity: "widget stable",
+                    recorded_at: Some(20301108),
+                    identity: "stable release",
+                    value: "v2.0",
+                })
+            },
+            |_| true,
+        );
+        match decision {
+            Decision::Confirmed { value, source, .. } => format!("{value} from {source}"),
+            _ => "No verified release".into(),
+        }
+    };
+
+    let result = crate::run_with_evidence(
+        Turn {
+            system_prefix: None,
+            user_images: Vec::new(),
+            client: &mock,
+            model: "test-model",
+            system: "You are Jeeves".into(),
+            history: Vec::new(),
+            user_message: "Verify the stable package".into(),
+            tools: &tools,
+            ctx: ctx().await,
+            run_limits: None,
+            context_budget: None,
+            context_window: None,
+            max_tokens: 1024,
+            token_budget: None,
+            tool_result_budget: Default::default(),
+            observer: Some(observer),
+            on_text: Some(Arc::new(|_| {
+                panic!("unreviewed text must not reach the sink")
+            })),
+            interrupt: None,
+            checkpoint: None,
+            steering: None,
+            resume: None,
+        },
+        None,
+        Some(&gate),
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.reply, format!("v2.0 from {source}"));
+    let events = events.lock().unwrap();
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event, LoopEvent::Tool { success: true, .. }))
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, LoopEvent::Text { .. }))
+    );
 }

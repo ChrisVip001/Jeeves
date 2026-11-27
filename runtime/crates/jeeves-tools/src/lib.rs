@@ -159,6 +159,10 @@ pub struct ToolCtx {
     /// returns. The final result is **always** the tool's return value; deltas are a progress
     /// feed for a human, never the answer, so a dropped chunk costs nothing but a repaint.
     pub on_delta: Option<DeltaSink>,
+    /// Invocation-local receipt slot, installed by the registry for observed web calls.
+    /// Not sent to the model or reconstructed from tool output text.
+    #[doc(hidden)]
+    pub web_receipt: Option<Arc<std::sync::OnceLock<web::WebReceipt>>>,
 }
 
 /// One chunk of live tool output. `Fn` and not a stream: the consumer is a notification sink
@@ -536,6 +540,23 @@ impl ToolRegistry {
     /// Unknown tools too; the model can correct itself.
     pub async fn execute(&self, ctx: ToolCtx, name: &str, args: Value) -> String {
         self.execute_result(ctx, name, args).await.text
+    }
+
+    /// Run through the normal registry gate, returning host-owned web provenance separately.
+    pub async fn execute_observed(
+        &self,
+        mut ctx: ToolCtx,
+        name: &str,
+        args: Value,
+    ) -> (ToolOutput, Option<web::WebReceipt>) {
+        if !matches!(name, "search_web" | "fetch_url") {
+            return (self.execute_result(ctx, name, args).await, None);
+        }
+        let slot = Arc::new(std::sync::OnceLock::new());
+        ctx.web_receipt = Some(slot.clone());
+        let output = self.execute_result(ctx, name, args).await;
+        let receipt = output.success.then(|| slot.get().cloned()).flatten();
+        (output, receipt)
     }
 
     pub async fn execute_result(&self, mut ctx: ToolCtx, name: &str, args: Value) -> ToolOutput {
