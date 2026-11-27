@@ -110,9 +110,10 @@ class Provider(BaseHTTPRequestHandler):
                     self.chunk({'content': 'Custom tool unavailable.'}, 'stop')
             elif 'Original assignment:' in user and 'approval-fixture' in user:
                 self.chunk({'content': '记忆已保存并核验。'}, 'stop')
-            elif 'approval-fixture' in user and not any(
-                m['role'] == 'tool'
-                and 'approved once' in str(m.get('content', ''))
+            # A denial still completes this fixture's one attempted write. Reusing the
+            # settled call ID after a denial correctly trips the runtime's replay fence.
+            elif 'approval-fixture' in user and not tool_result and not any(
+                m['role'] == 'tool' and m.get('tool_call_id') == 'fixture-call'
                 for m in messages
             ):
                 self.chunk({'tool_calls': [{'index': 0, 'id': 'fixture-call', 'type': 'function', 'function': {'name': 'memory', 'arguments': '{"action":"save","subject":"desktop-fixture","content":"approved once"}'}}]})

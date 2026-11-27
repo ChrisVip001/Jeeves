@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Offline Web smoke through authenticated HTTP and the real Rust runtime."""
+from contextlib import contextmanager
 import importlib.util
 import json
 import os
 import re
+import signal
 import socket
 from pathlib import Path
 import subprocess
@@ -46,12 +48,12 @@ def start_runtime(home, port, extra_env=None):
     return process
 
 
-def request(base, path, body=None, auth=True):
+def request(base, path, body=None, auth=True, timeout=20):
     headers = {'Authorization': 'Bearer ' + RUNTIME_TOKEN} if auth else {}
     if body is not None:
         headers['Content-Type'] = 'application/json'
     req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None, headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as response:
+    with urllib.request.urlopen(req, timeout=timeout) as response:
         return json.load(response)
 
 
@@ -71,25 +73,76 @@ def stream(base, session, message, approve=False):
     return events
 
 
+class NotificationDeadline(RuntimeError):
+    pass
+
+
+@contextmanager
+def notification_deadline(seconds):
+    # An idle socket timeout cannot bound a stream that keeps sending heartbeats.
+    def expire(_signal, _frame):
+        raise NotificationDeadline("Notification deadline exceeded")
+
+    previous = signal.signal(signal.SIGALRM, expire)
+    try:
+        signal.setitimer(signal.ITIMER_REAL, seconds)
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
+
+def phase(label):
+    print(f"Web smoke: {label}", flush=True)
+
+
+def matched_events(lines, execution_session):
+    turn = None
+    for line in lines:
+        if not line.startswith(b'data: '):
+            continue
+        event = json.loads(line[6:])
+        if turn is None and event.get('type') == 'turnStarted' and event.get('sessionId') == execution_session:
+            turn = event['turnId']
+        if turn and event.get('turnId') == turn:
+            yield event
+            if event['type'] == 'turnCompleted':
+                return
+
+
 def task_stream(base, session, message, approve=False):
     req = urllib.request.Request(base + '/api/notifications',
                                  headers={'Authorization': 'Bearer ' + RUNTIME_TOKEN})
     events = []
-    with urllib.request.urlopen(req, timeout=20) as response:
-        task = request(base, '/api/task', {'action': 'create', 'sessionId': session, 'title': message})['task']
-        request(base, '/api/task', {'action': 'start', 'taskId': task['id'], 'message': message})
-        for line in response:
-            if not line.startswith(b'data: '):
-                continue
-            event = json.loads(line[6:])
-            events.append(event)
-            if approve and event['type'] == 'approvalRequested':
-                params = {'turnId': event['turnId'], 'requestId': event['requestId'], 'approved': True, 'remember': 'once'}
-                assert request(base, '/api/approval', params)['accepted']
-                assert not request(base, '/api/approval', params)['accepted']
-            if event['type'] == 'turnCompleted':
-                return events
-    raise AssertionError('Task completed without its receipt')
+    task_id = None
+    phase("subscribe to task notifications")
+    try:
+        with notification_deadline(45), urllib.request.urlopen(req, timeout=20) as response:
+            task = request(base, '/api/task', {'action': 'create', 'sessionId': session, 'title': message})['task']
+            task_id = task['id']
+            started = request(base, '/api/task', {'action': 'start', 'taskId': task_id, 'message': message})['task']
+            assert started['id'] == task_id
+            execution_session = started['executionSessionId']
+            phase(f"await completion for task {task_id}")
+            for event in matched_events(response, execution_session):
+                events.append(event)
+                if approve and event['type'] == 'approvalRequested':
+                    phase(f"answer approval for turn {event['turnId']}")
+                    params = {'turnId': event['turnId'], 'requestId': event['requestId'], 'approved': True, 'remember': 'once'}
+                    assert request(base, '/api/approval', params)['accepted']
+                    assert not request(base, '/api/approval', params)['accepted']
+                if event['type'] == 'turnCompleted':
+                    return events
+    except NotificationDeadline as error:
+        snapshot = {}
+        if task_id:
+            try:
+                task = next((t for t in request(base, '/api/tasks', timeout=3)['tasks'] if t['id'] == task_id), {})
+                snapshot = {key: task.get(key) for key in ('status', 'dispatchState', 'currentTurnId')}
+            except (OSError, ValueError, KeyError):
+                snapshot = {'status': 'unavailable'}
+        raise AssertionError(f"Task {task_id} timed out: {snapshot}; matched events: {[e['type'] for e in events]}") from error
+    raise AssertionError(f'Task {task_id} completed without its receipt')
 
 
 def custom_connector(base, session, home):
@@ -205,6 +258,7 @@ def run(port=0, hold=False, mail_followup=False):
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
     with tempfile.TemporaryDirectory(prefix='jeeves-web-smoke-') as home:
+        phase("start disposable runtime")
         provider, process = start(home, port)
         base = f'http://127.0.0.1:{port}'
         try:
@@ -251,6 +305,7 @@ def run(port=0, hold=False, mail_followup=False):
             stop = request(base, '/api/executor/stop', {})
             assert stop['stopped'] and stop == request(base, '/api/executor/stop', {})
             assert not request(base, '/api/executor/release', {'expectedGeneration':stop['generation']})['stopped']
+            phase("check device pairing")
             device_pairing(base)
             catalog = request(base, '/api/connector/catalog')['entries']
             assert len(catalog) == 20
@@ -317,6 +372,7 @@ def run(port=0, hold=False, mail_followup=False):
             session = request(base, '/api/session/main')['sessionId']
             policy = request(base, '/api/session/permission?sessionId=' + session)
             assert policy['mode'] == 'standard'
+            phase("check custom connector")
             custom_connector(base, session, home)
             params = {'sessionId': session, 'mode': 'fullAccess', 'expectedRevision': 1, 'confirmFullAccess': False}
             try:
@@ -333,7 +389,9 @@ def run(port=0, hold=False, mail_followup=False):
             except urllib.error.HTTPError as error:
                 assert error.code == 400
             assert request(base, '/api/config')['config']['historyTurns'] == config['historyTurns']
-            events = stream(base, session, 'hello fixture')
+            phase("check ordinary interaction")
+            with notification_deadline(45):
+                events = stream(base, session, 'hello fixture')
             assert any(e['type'] == 'textDelta' for e in events)
             assert any(e['type'] == 'turnCompleted' for e in events)
             events = task_stream(base, session, 'approval-fixture', approve=True)
@@ -347,6 +405,7 @@ def run(port=0, hold=False, mail_followup=False):
             if mail_followup:
                 mail_tasks = seed_mail_followups(base, home)
                 print('Mail fixture tasks ' + json.dumps(mail_tasks), flush=True)
+            phase("check gateway assets")
             with gateway(base, home) as (origin, workspace, cookie):
                 def asset(url):
                     request = urllib.request.Request(url, headers={'Cookie': cookie})
@@ -364,6 +423,7 @@ def run(port=0, hold=False, mail_followup=False):
                                 ('mail-review', 'queued'), ('mail-travel', 'draft')]
 
         finally:
+            phase("stop disposable runtime")
             process.terminate()
             try:
                 process.wait(timeout=10)
