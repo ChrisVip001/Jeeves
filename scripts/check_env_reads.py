@@ -20,6 +20,7 @@ HOST = {
     "runtime/crates/jeeves-app-server/src/capability.rs": "capability probes: JEEVES_MCP_CONFIG bundled packs; credentials looked up by name",
     "runtime/crates/jeeves-app-server/src/route.rs": "JEEVES_MODEL_ROUTE: operator override for unattended runs",
     "runtime/crates/jeeves-app-server/src/server/search_mcp.rs": "JEEVES_SEARCH_MCP: operator switch",
+    "runtime/crates/jeeves-app-server/src/interaction/tests/research_replay/live.rs": "opt-in test fixture uses a dedicated DeepSeek credential from the test process",
     "runtime/crates/jeeves-app-server/src/browser/process.rs": "inherits the host environment for the browser child",
     "runtime/crates/jeeves-mcp/src/lib.rs": "JEEVES_MCP_CONFIG bundled packs; ${VAR} credentials by name",
     "runtime/crates/jeeves-memory/src/skills.rs": "JEEVES_SKILL_DIRS: bundled skill packs",
