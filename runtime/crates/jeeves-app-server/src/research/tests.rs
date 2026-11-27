@@ -389,3 +389,71 @@ fn both_prices_can_come_from_distinct_records_on_one_page_but_duplicate_json_fie
     );
     assert!(!malformed.render().1);
 }
+
+#[test]
+fn follow_ups_steer_gaps_without_deciding_completeness() {
+    let mut state = State::new(vec!["2025 output and its main driver?".into()], false);
+    assert_eq!(state.status()["coverage"], json!({"resolved":0,"total":1}));
+    assert_eq!(state.status()["openGaps"][0]["gap"], "no excerpt recorded");
+    let add = |state: &mut State, question: usize, text: &str| {
+        state.follow_up(json!({"action":"followup","question":question,"text":text}))
+    };
+    add(&mut state, 1, "What drove 2025 output growth?").unwrap();
+    // Duplicates, nesting, unknown ids and a third follow-up are refused.
+    assert!(add(&mut state, 1, "what drove 2025 output growth?").is_err());
+    assert!(add(&mut state, 2, "Nested sub-question?").is_err());
+    assert!(add(&mut state, 9, "Unknown parent?").is_err());
+    add(&mut state, 1, "Which agency publishes 2025 output?").unwrap();
+    assert!(add(&mut state, 1, "A third sub-question?").is_err());
+    let status = state.status();
+    assert_eq!(status["questions"][1]["followUpOf"], 1);
+    assert_eq!(status["openGaps"][0]["followUps"], json!([2, 3]));
+    assert_eq!(status["coverage"]["total"], 1);
+
+    let driver = "Output grew mainly because of new export demand.";
+    let output = "Total 2025 output was 31 million tonnes.";
+    source(
+        &mut state,
+        "https://example.test/report",
+        &format!("{output} {driver}"),
+    );
+    // Answering a follow-up alone does not complete the owner's question.
+    state
+        .record(json!({"action":"record","question":2,"citations":[{"source":1,"quote":driver}]}))
+        .unwrap();
+    let (text, complete) = state.render();
+    assert!(!complete);
+    assert!(text.contains("Follow-up · What drove 2025 output growth?"));
+    // The owner's question is complete even while one follow-up stays open.
+    state
+        .record(json!({"action":"record","question":1,"citations":[{"source":1,"quote":output},{"source":1,"quote":driver}]}))
+        .unwrap();
+    assert!(state.render().1);
+    assert_eq!(state.status()["coverage"], json!({"resolved":1,"total":1}));
+    assert!(add(&mut state, 1, "Too late now?").is_err());
+}
+
+#[test]
+fn restored_follow_up_lineage_is_checked() {
+    let mut state = State::new(vec!["A question?".into(), "B question?".into()], false);
+    state
+        .follow_up(json!({"action":"followup","question":1,"text":"Narrower A?"}))
+        .unwrap();
+    let mut data = serde_json::to_value(&state).unwrap();
+    // Stored indexes are zero-based: a forward parent becomes an owner question again.
+    data["parents"] = json!([null, 2, 0]);
+    let restored = serde_json::from_value::<State>(data.clone())
+        .unwrap()
+        .restore();
+    assert_eq!(restored.parent(1), None);
+    assert_eq!(restored.parent(2), Some(0));
+    // A follow-up of a follow-up is not kept.
+    data["parents"] = json!([null, 0, 1]);
+    let nested = serde_json::from_value::<State>(data).unwrap().restore();
+    assert_eq!(nested.parent(1), Some(0));
+    assert_eq!(nested.parent(2), None);
+    let legacy = json!({"questions":["Old?"],"observations":[],"bindings":[null],
+        "attempts":0,"limit":4,"dismissed":[]});
+    let legacy = serde_json::from_value::<State>(legacy).unwrap().restore();
+    assert_eq!(legacy.status()["coverage"]["total"], 1);
+}

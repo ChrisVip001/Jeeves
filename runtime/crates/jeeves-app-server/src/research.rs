@@ -17,6 +17,8 @@ mod price;
 mod sources;
 
 const MAX_QUESTIONS: usize = 8;
+const MAX_FOLLOW_UPS: usize = 2;
+const MAX_TOTAL_QUESTIONS: usize = 16;
 const MAX_OBSERVATIONS: usize = 16;
 const MAX_DISPLAY: usize = 16_000;
 const MAX_QUOTE: usize = 1_000;
@@ -34,6 +36,7 @@ pub(crate) const NOTE: &str = concat!(
     "Use research_evidence(record) only for exact quotes that directly give the requested answer with its material constraints. ",
     "An authentic excerpt can be background: when it gives a related fact but omits the requested result or a material constraint, ",
     "use research_evidence(context) with the exact excerpts and a short gap in the user's language. ",
+    "When a question stays unresolved, research_evidence(followup) may name up to two narrower sub-questions for the missing piece; search for those, then still record the owner's question. ",
     "Do not combine unrelated excerpts into an answer. Record conflicts as conflicting. The runtime renders the result; don't write a final report yourself. ",
     "For questions marked verificationRequested, record excerpts as context with any missing scope; the host keeps the conclusion unresolved without a structured check. ",
     "For priceQuery questions, the host evaluates observed records, so neither record nor context applies. ",
@@ -90,6 +93,9 @@ struct State {
     price_queries: BTreeMap<usize, price::Query>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     required_sources: Vec<String>,
+    /// Parent question index for model-proposed follow-ups; owner questions have none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    parents: Vec<Option<usize>>,
     observations: Vec<Observation>,
     bindings: Vec<Option<Binding>>,
     attempts: u32,
@@ -233,6 +239,7 @@ impl State {
             questions,
             price_queries: BTreeMap::new(),
             required_sources: Vec::new(),
+            parents: Vec::new(),
             observations: vec![],
             attempts: 0,
             limit,
@@ -275,7 +282,80 @@ impl State {
         .then_some(binding)
     }
 
+    fn parent(&self, index: usize) -> Option<usize> {
+        self.parents.get(index).copied().flatten()
+    }
+
+    fn follow_ups(&self, parent: usize) -> impl Iterator<Item = usize> + '_ {
+        (0..self.questions.len()).filter(move |&i| self.parent(i) == Some(parent))
+    }
+
+    /// Whether a non-price question lacks a settled, citable answer.
+    fn unresolved(&self, index: usize) -> bool {
+        match self.price_queries.get(&index) {
+            Some(query) => !query.assess(self.observations.iter()).supported(),
+            None => self.binding(index).is_none_or(|b| {
+                b.conflicting
+                    || b.unresolved_gap(sources::requests_verification(&self.questions[index]))
+                        .is_some()
+            }),
+        }
+    }
+
+    fn follow_up(&mut self, args: Value) -> Result<()> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Input {
+            #[allow(dead_code)]
+            action: String,
+            question: usize,
+            text: String,
+        }
+        let input: Input = serde_json::from_value(args)?;
+        let parent = input
+            .question
+            .checked_sub(1)
+            .filter(|&i| i < self.questions.len() && self.parent(i).is_none())
+            .context("Choose one of the owner's questions from status")?;
+        ensure!(
+            !self.price_queries.contains_key(&parent),
+            "The host evaluates price questions directly from the observed merchant records"
+        );
+        ensure!(
+            self.unresolved(parent),
+            "This question already has a recorded answer; no follow-up is needed"
+        );
+        let text = input.text.split_whitespace().collect::<Vec<_>>().join(" ");
+        ensure!(
+            (4..=240).contains(&text.chars().count()),
+            "A follow-up needs four to 240 characters"
+        );
+        ensure!(
+            !self.questions.iter().any(|q| q.eq_ignore_ascii_case(&text)),
+            "This follow-up repeats an existing question"
+        );
+        ensure!(
+            self.follow_ups(parent).count() < MAX_FOLLOW_UPS
+                && self.questions.len() < MAX_TOTAL_QUESTIONS,
+            "Follow-up limit reached; record what the evidence shows"
+        );
+        self.parents.resize(self.questions.len(), None);
+        self.parents.push(Some(parent));
+        self.questions.push(text);
+        self.bindings.push(None);
+        Ok(())
+    }
+
     fn restore(mut self) -> Self {
+        // A follow-up must point at an earlier owner question; drop malformed lineage.
+        let len = self.questions.len();
+        self.parents.resize(len, None);
+        for index in 0..len {
+            if self.parents[index].is_some_and(|p| p >= index || self.parents[p].is_some()) {
+                self.parents[index] = None;
+            }
+        }
+        self.bindings.resize(len, None);
         for observation in &mut self.observations {
             if !observation.intact() {
                 // Preserve existing slot numbers, including ids in resumed model messages.
@@ -297,18 +377,9 @@ impl State {
             "Research web budget exhausted; report unresolved questions"
         );
         let remaining = self.limit - self.attempts;
-        let unresolved = self
-            .bindings
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| match self.price_queries.get(i) {
-                Some(query) => !query.assess(self.observations.iter()).supported(),
-                None => self.binding(*i).is_none_or(|b| {
-                    b.conflicting
-                        || b.unresolved_gap(sources::requests_verification(&self.questions[*i]))
-                            .is_some()
-                }),
-            })
+        // Follow-ups steer searches; only the owner's questions reserve reads.
+        let unresolved = (0..self.questions.len())
+            .filter(|&i| self.parent(i).is_none() && self.unresolved(i))
             .count() as u32;
         let eligible = self.leads.iter().filter(|url| self.eligible(url)).count() as u32;
         let required = self
@@ -324,19 +395,41 @@ impl State {
         Ok(())
     }
     fn status(&self) -> Value {
+        let owners = (0..self.questions.len()).filter(|&i| self.parent(i).is_none());
+        let total = owners.clone().count();
+        let resolved = owners.filter(|&i| !self.unresolved(i)).count();
+        let open_gaps = (0..self.questions.len())
+            .filter(|&i| !self.price_queries.contains_key(&i) && self.unresolved(i))
+            .map(|i| {
+                let gap = match self.binding(i) {
+                    None => "no excerpt recorded",
+                    Some(b) if b.conflicting => "conflicting excerpts",
+                    Some(b) => b
+                        .unresolved_gap(sources::requests_verification(&self.questions[i]))
+                        .unwrap_or_default(),
+                };
+                json!({"question":i+1,"gap":gap,"followUps":self.follow_ups(i).map(|f| f+1).collect::<Vec<_>>()})
+            })
+            .collect::<Vec<_>>();
         json!({
             "remainingWebAttempts": self.limit.saturating_sub(self.attempts),
+            "coverage": {"resolved": resolved, "total": total},
+            "openGaps": open_gaps,
             "questions": self.questions.iter().enumerate().map(|(i,text)| {
                 if let Some(query) = self.price_queries.get(&i) {
                     return json!({"id":i+1,"priceQuery":query,"state":query.assess(self.observations.iter()).state()});
                 }
                 let verification_requested = sources::requests_verification(text);
-                json!({"id":i+1,"question":text,"verificationRequested":verification_requested,"state":match self.binding(i) {
+                let mut entry = json!({"id":i+1,"question":text,"verificationRequested":verification_requested,"state":match self.binding(i) {
                     None => "unresolved",
                     Some(b) if b.conflicting => "conflicting",
                     Some(b) if b.unresolved_gap(verification_requested).is_some() => "unresolved",
                     Some(_) => "excerpt-recorded",
-                }})
+                }});
+                if let Some(parent) = self.parent(i) {
+                    entry["followUpOf"] = json!(parent + 1);
+                }
+                entry
             }).collect::<Vec<_>>(),
             "unopenedLeads": self.leads.iter().filter(|url| self.eligible(url)).collect::<Vec<_>>(),
             "requiredSources": self.required_sources.iter().map(|url| {
@@ -418,7 +511,12 @@ impl State {
             "公开研究证据 · 商家报价记录与原文摘录"
         };
         let mut parts = vec![header.to_owned()];
-        for (index, question) in self.questions.iter().enumerate() {
+        let order = (0..self.questions.len())
+            .filter(|&i| self.parent(i).is_none())
+            .flat_map(|i| std::iter::once(i).chain(self.follow_ups(i)));
+        for index in order {
+            let question = &self.questions[index];
+            let follow_up = self.parent(index).is_some();
             if let Some(query) = self.price_queries.get(&index) {
                 parts.push(format!("**门店报价 · {}**", query.title()));
                 let assessment = query.assess(self.observations.iter());
@@ -426,19 +524,24 @@ impl State {
                 parts.extend(assessment.render());
                 continue;
             }
-            parts.push(format!("**{}**", literal(question)));
+            if follow_up {
+                // A model-proposed sub-question is shown but never decides completeness.
+                parts.push(format!("Follow-up · {}", literal(question)));
+            } else {
+                parts.push(format!("**{}**", literal(question)));
+            }
             let Some(binding) = self.binding(index) else {
-                complete = false;
+                complete &= follow_up;
                 parts.push("Unresolved: no supporting excerpt was recorded.".into());
                 continue;
             };
             if binding.conflicting {
-                complete = false;
+                complete &= follow_up;
                 parts.push("Unresolved: conflicting excerpts.".into());
             } else if let Some(gap) =
                 binding.unresolved_gap(sources::requests_verification(question))
             {
-                complete = false;
+                complete &= follow_up;
                 parts.push(format!("Unresolved: {}", literal(gap)));
                 parts.push("Background excerpts".into());
             }
@@ -560,9 +663,10 @@ impl Session {
         let session = self.clone();
         Tool {
             name: "research_evidence".into(),
-            description: "Use status for questions, required sources and source IDs. Use record for exact quotes giving the requested answer or a conflict. Use context for exact background excerpts and a gap explaining why the requested answer remains unresolved. Use dismiss only for an irrelevant candidate lead. Search snippets are not observations.".into(),
+            description: "Use status for questions, required sources and source IDs. Use record for exact quotes giving the requested answer or a conflict. Use context for exact background excerpts and a gap explaining why the requested answer remains unresolved. Use followup with a question id and text to name a narrower sub-question for an unresolved question's missing piece. Use dismiss only for an irrelevant candidate lead. Search snippets are not observations.".into(),
             input_schema: json!({"type":"object","required":["action"],"properties":{
-                "action":{"enum":["status","record","context","dismiss"]},
+                "action":{"enum":["status","record","context","followup","dismiss"]},
+                "text":{"type":"string","minLength":4,"maxLength":240},
                 "url":{"type":"string"},
                 "question":{"type":"integer","minimum":1},
                 "conflicting":{"type":"boolean"},
@@ -574,6 +678,7 @@ impl Session {
                 Box::pin(async move {
                     match args["action"].as_str() {
                         Some("record" | "context") => session.update(|state| state.record(args)).await?,
+                        Some("followup") => session.update(|state| state.follow_up(args)).await?,
                         Some("dismiss") => {
                             let url = source_url(&jeeves_tools::require_str(&args,"url")?)?;
                             session.update(|state| {
