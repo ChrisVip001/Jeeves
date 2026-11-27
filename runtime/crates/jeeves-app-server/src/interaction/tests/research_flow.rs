@@ -140,8 +140,12 @@ async fn quick_reports_observed_excerpts_and_keeps_unopened_and_invented_claims_
 }
 
 async fn settled(server: &Server, id: &str, wanted: TaskStatus) {
+    settled_with_timeout(server, id, wanted, Duration::from_secs(10)).await;
+}
+
+async fn settled_with_timeout(server: &Server, id: &str, wanted: TaskStatus, timeout: Duration) {
     let queue = jeeves_state::dispatch::TaskDispatch::new(server.pool.clone());
-    tokio::time::timeout(Duration::from_secs(10), async {
+    tokio::time::timeout(timeout, async {
         loop {
             let row = server.tasks.get(id).await.unwrap().unwrap();
             if row.status == wanted
@@ -540,3 +544,6 @@ async fn deep_research_does_not_deliver_a_conflicted_price() {
     assert_eq!(data["priceQueries"]["0"]["store"], "南山店");
     assert_eq!(data["observations"].as_array().unwrap().len(), 2);
 }
+
+#[path = "research_flow/merchant.rs"]
+mod merchant;

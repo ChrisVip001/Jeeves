@@ -111,6 +111,7 @@ impl Query {
             self.variant.as_str(),
         );
         let mut gaps = Vec::new();
+        let mut read_pages = Vec::<&Observation>::new();
         let mut read_feed = false;
         for source in observations.filter(|source| {
             self.authorizes(&source.url)
@@ -119,6 +120,9 @@ impl Query {
                     .is_some_and(|url| self.authorizes(url))
                 && source.intact()
         }) {
+            if read_pages.len() < 3 && !read_pages.iter().any(|page| page.url == source.url) {
+                read_pages.push(source);
+            }
             let Ok(Feed { offers }) = serde_json::from_str(&source.text) else {
                 continue;
             };
@@ -205,7 +209,11 @@ impl Query {
             |_| true,
         );
         match result {
-            Review::Insufficient => Assessment::Unresolved { read_feed, gaps },
+            Review::Insufficient => Assessment::Unresolved {
+                read_feed,
+                read_pages,
+                gaps,
+            },
             Review::Confirmed((claim, source)) => Assessment::Confirmed(claim.value, source),
             Review::Conflict(rows) => Assessment::Conflict(
                 rows.into_iter()
@@ -267,6 +275,7 @@ pub(super) enum Assessment<'a> {
     Conflict(Vec<(Amount, RowEvidence<'a>)>),
     Unresolved {
         read_feed: bool,
+        read_pages: Vec<&'a Observation>,
         gaps: Vec<(RowEvidence<'a>, String)>,
     },
 }
@@ -305,16 +314,31 @@ impl Assessment<'_> {
                 }
                 lines
             }
-            Self::Unresolved { read_feed, gaps } => {
-                let mut lines = vec![if *read_feed {
-                    "待核实：未找到符合门店、规格、日期和优惠条件的固定到手总价。".into()
+            Self::Unresolved {
+                read_feed,
+                read_pages,
+                gaps,
+            } => {
+                let reason = if *read_feed {
+                    "待核实：未找到符合门店、规格、日期和优惠条件的固定到手总价。"
+                } else if read_pages.is_empty() {
+                    "待核实：没有成功读取指定商家可用于核对的页面。"
                 } else {
-                    "待核实：没有读到所指定商家可用于核对的报价数据。".into()
-                }];
-                lines.extend(
-                    gaps.iter()
-                        .map(|(source, gap)| format!("{gap}。\n\n{}", source.citation())),
-                );
+                    "待核实：已读取指定商家页面，缺少可核对的结构化门店报价记录。"
+                };
+                let mut lines = vec![reason.to_owned()];
+                if gaps.is_empty() {
+                    lines.extend(
+                        read_pages
+                            .iter()
+                            .map(|page| format!("已读取 <{}> · {}", page.url, page.fetched_at)),
+                    );
+                } else {
+                    lines.extend(
+                        gaps.iter()
+                            .map(|(source, gap)| format!("{gap}。\n\n{}", source.citation())),
+                    );
+                }
                 lines
             }
         }
