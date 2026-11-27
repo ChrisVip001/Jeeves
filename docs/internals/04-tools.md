@@ -57,6 +57,12 @@ failed validation never reaches a handler. A schema that does not compile skips 
 When validation fails only because a top-level integer, number, boolean, array or object argument arrived as a JSON string (`"5"`, `"true"`, `"[…]"`), `execute` parses it, runs the call if the result validates, and logs the repaired keys on stderr; anything else keeps the error above.
 `require_str` trims and rejects missing, non-string and empty values; `opt_u32` rejects negatives.
 
+**Argument calibration.** A schema says a field is a string; it does not say the string must be `2026-11-27` and not `11/27/2026`, or that a list wants `a,b` and not `a, b`. `calibration.rs` watches which argument **shapes** each tool accepted and which it refused, and appends one line to a later rejection: `Earlier calls to {name} succeeded with date as YYYY-MM-DD, not date with / separators.` The model corrects the format instead of discovering it again by failing.
+
+What it records is a coarse pattern derived from character classes (`YYYY-MM-DD`, `<uuid>`, `<digits>`, `RFC 3339 timestamp`, `comma separated list`, `<integer>`, `<bool>`), never a value: an argument may hold a path, an account number or a person's name, and a string matching no known pattern records nothing. A shape counts as accepted only after a call carrying it succeeded, and refused only after the handler rejected it in terms that are about the arguments (`invalid`, `must match`, `could not parse`, …) — a timeout or a permission failure teaches nothing about formats, and a schema violation never reached the tool. The newer verdict wins, so a format that works now stops being reported as refused. The hint speaks only where this call's own shape is one the tool refused before and some other shape is known to work.
+
+It is a hint, never a gate: it cannot block a call, rewrite arguments, or turn a success into a failure. The table is per process, bounded (256 tools, 16 fields each, 8 shapes per field) and lost on restart — a cache that saves a round trip, not a store of record.
+
 Order inside `execute`: schema validation, then the host's `ExecutionPolicy::authorize` (see
 [Authorization](#authorization)), then a mutation permit from `ResourceCoordinator` for exclusive tools (except
 `delegate_task`, whose children acquire their own), then a re-check that the policy revision did not change while waiting,

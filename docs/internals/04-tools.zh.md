@@ -55,6 +55,12 @@
 `register` 用 `jsonschema` 预编译 `input_schema`；`execute` 先校验，校验失败绝不进入 handler。
 无法编译的 schema 跳过校验，并在 stderr 打一行日志。若校验失败仅因顶层的 integer、number、boolean、array 或 object 参数以 JSON 字符串传来（`"5"`、`"true"`、`"[…]"`），`execute` 会解析它，解析后通过校验就执行，并在 stderr 记下修复的键；其他情况仍返回上述错误。`require_str` 会去空白，并拒绝缺失、非字符串和空值；`opt_u32` 拒绝负数。
 
+**参数校准。** schema 只说某字段是字符串，不会说它必须是 `2026-11-27` 而不是 `11/27/2026`，也不会说列表要 `a,b` 而不是 `a, b`。`calibration.rs` 观察每个工具接受和拒绝过的参数**形状**，并在之后的拒绝后追加一句：`Earlier calls to {name} succeeded with date as YYYY-MM-DD, not date with / separators.` 模型据此改格式，而不是再靠失败把约束试出来。
+
+记录的是按字符类别归纳的粗粒度模式（`YYYY-MM-DD`、`<uuid>`、`<digits>`、`RFC 3339 timestamp`、`comma separated list`、`<integer>`、`<bool>`），从不记录取值：参数里可能是路径、账号或人名，匹配不上任何已知模式的字符串什么都不记。只有带该形状的调用成功过，这个形状才算「接受」；只有 handler 的拒绝措辞确实针对参数（`invalid`、`must match`、`could not parse` 等）才算「拒绝」——超时和权限失败说明不了格式问题，schema 校验失败更是没进到工具。新判定覆盖旧判定，所以现在能用的格式不会继续被报成被拒。只有当本次调用的形状正是该工具此前拒过的、且已知另有可用形状时，才会给出这句提示。
+
+它只是提示，不是闸门：不能阻止调用、不能改写参数、也不能把成功变成失败。表按进程保存、有上限（256 个工具，每个 16 个字段，每字段 8 个形状），重启即失——是省一次往返的缓存，不是记录来源。
+
 `execute` 内部顺序：schema 校验，然后宿主的 `ExecutionPolicy::authorize`（见[授权](#授权)），
 再对独占工具从 `ResourceCoordinator` 取变更许可（`delegate_task` 除外，它的子循环各自取），
 再检查等待期间策略版本是否变化，最后才是 handler。

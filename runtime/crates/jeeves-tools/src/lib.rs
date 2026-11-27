@@ -21,6 +21,7 @@ use serde_json::Value;
 pub mod approval;
 mod arg_coerce;
 pub mod browser;
+mod calibration;
 mod code_map;
 pub mod computer_use;
 pub mod edit_checks;
@@ -609,9 +610,21 @@ impl ToolRegistry {
         if let Err(reason) = self.admit_call(&mut ctx, name, &args).await {
             return ToolOutput::failure(format!("Error: {reason}"));
         }
-        match (tool.handler)(ctx, args).await {
+        let outcome = (tool.handler)(ctx, args.clone()).await;
+        // The tool's own verdict calibrates what it accepts; a hint is appended to a
+        // rejection, never used to block or rewrite a call.
+        let error = outcome
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        calibration::observe(name, &args, outcome.is_ok(), &error);
+        match outcome {
             Ok(text) => ToolOutput::success(text),
-            Err(e) => ToolOutput::failure(format!("Error: {name} failed: {e}")),
+            Err(_) => ToolOutput::failure(match calibration::hint(name, &args) {
+                Some(hint) => format!("Error: {name} failed: {error}. {hint}"),
+                None => format!("Error: {name} failed: {error}"),
+            }),
         }
     }
 }
