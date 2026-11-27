@@ -66,6 +66,8 @@ INTERNAL = {
     "JEEVES_MODEL": "the tests clear it to exercise the \"no model configured\" branch",
     "JEEVES_FAKE_KEY": "test fixture: a fake key",
     "JEEVES_TEST_MODELS_KEY": "test fixture: a fake multi-model catalog",
+    "JEEVES_TEST_MODEL_HOME": "opt-in research acceptance: home holding the operator-selected test model catalog",
+    "JEEVES_TEST_MODEL_PROFILE": "opt-in research acceptance: model profile selected from that test catalog",
     "JEEVES_FEISHU_SMOKE_SECRET": "the smoke script's own fixture credential",
     # Set and read by the smoke run itself: it feeds the path of the TS module under test to node.
     "JEEVES_BRIDGE_URL": "smoke-gateway points at the bridge module under test",
