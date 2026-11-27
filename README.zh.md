@@ -14,6 +14,8 @@
 
 可以按公钥配对设备、撤销设备授权，见[设备协议](docs/protocol.zh.md#设备配对与撤销)。驾驶舱的[全局急停](docs/protocol.zh.md#全局急停)可冻结受管任务浏览器，重启后仍然生效。可从手机或桌面接管任务浏览器，并[将下载保存为该任务的产物](docs/protocol.zh.md#远程浏览器操作与下载)。
 
+Mac 源码版可以[在已登录的 Chrome 中打开任务标签页](docs/configuration.zh.md#可选任务浏览器)。
+
 配对后的 iPhone 可通过[任务审批通知](docs/protocol.zh.md#任务审批通知)打开原任务，核对操作范围并决定是否允许。
 
 在 Mac 上，可为一个任务[选择一个窗口](docs/protocol.zh.md#macos-单窗口操作)，点击按钮、填写字段、滚动列表，或预览截图并决定是否发送给屏幕模型。
@@ -81,7 +83,7 @@ just desktop-open      # 已运行时回到原窗口
 | `run_command` | 沙箱 + 放行表的 shell 命令；`JEEVES_EXEC=1` 才开（见 [SECURITY.zh.md](SECURITY.zh.md)） |
 | `delegate_task` | 把自成一体的活交给子代理；`JEEVES_DELEGATE=1` 才开 |
 | `browser_observe` / `browser_act` / `browser_batch` | 可选任务浏览器，单次确认、人工接管与有界多步动作；需要安装浏览器组件 |
-| `computer_observe` / `computer_act` | 在人为此任务选定的桌面窗口里观察与操作；需要 macOS 助手 |
+| `computer_observe` / `computer_act` | 在人为此任务选定的桌面窗口里观察与操作（[Mac 窗口控制](docs/operations.zh.md#mac-桌面应用)） |
 | `find_tools` | 在延迟加载的工具里搜索，并在本会话里打开命中的工具；默认开 |
 | `schedule_job` | 新建或覆盖一个定时任务：名字、五段 cron、一句话；默认开 |
 | `list_schedules` | 列出已声明的任务及其 cron 与提示词；默认开 |

@@ -117,6 +117,15 @@ fn start_runtime(app: &tauri::AppHandle, binary: &Path, home: &Path) -> Result<C
         command.env("JEEVES_DESKTOP_HELPER", helper);
     }
     command.arg("runtime").stdout(Stdio::piped()).stderr(stderr);
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("JEEVES_BROWSER_CHROME_DATA_DIR").is_none()
+        && let Ok(directory) = app.path().home_dir()
+    {
+        command.env(
+            "JEEVES_BROWSER_CHROME_DATA_DIR",
+            directory.join("Library/Application Support/Google/Chrome"),
+        );
+    }
     if let Ok(dir) = app.path().resource_dir() {
         let browser = dir.join("browser-runtime");
         if std::env::var_os("JEEVES_BROWSER_RUNTIME").is_none()

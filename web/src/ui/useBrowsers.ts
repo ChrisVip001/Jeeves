@@ -17,6 +17,7 @@ export function useBrowsers(actions: BrowserActions) {
   const state = reactive({
     owner: "",
     available: false,
+    chromeAvailable: false,
     sessions: [] as V2.BrowserSessionView[],
     busy: {} as Record<string, boolean>,
     errors: {} as Record<string, string>,
@@ -33,6 +34,7 @@ export function useBrowsers(actions: BrowserActions) {
       ownerVersion++;
       state.owner = owner;
       state.available = false;
+      state.chromeAvailable = false;
       state.sessions = [];
       state.errors = {};
       state.frames = {};
@@ -47,6 +49,7 @@ export function useBrowsers(actions: BrowserActions) {
       const result = await actions.list(owner);
       if (owner === state.owner && epoch === version) {
         state.available = result.available;
+        state.chromeAvailable = result.chromeAvailable === true;
         for (const prior of state.sessions) {
           const next = result.sessions.find(
             (row) => row.taskId === prior.taskId,

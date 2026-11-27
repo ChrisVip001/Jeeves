@@ -52,6 +52,50 @@ struct CheckError: LocalizedError {
     print("PASS isolated preview of \(title)")
   }
 
+  static func verifyVisualWindow(_ app: AXUIElement, pid: pid_t) async throws {
+    let driver = try CuaDriver()
+    guard let window = try driver.windows(pid: pid).first(where: { $0.title == "Jeeves Fixture 2" }),
+      let focused = elementAttribute(app, kAXFocusedWindowAttribute)
+    else { throw CheckError("Fixture window missing") }
+    try require(
+      try driver.windowEntries(pid: pid).contains {
+        $0["window_id"] as? UInt32 == window.id && ($0["layer"] as? Int ?? 0) != 0
+      },
+      "Visual fixture did not exercise the foreground route")
+    let scope = Scope()
+    try scope.bindConfirmedWindow(focused, in: app, pid: pid)
+    func observeCheckbox() throws -> Object {
+      guard let read = try window.observe()["observation"] as? Object,
+        let source = read["observationId"] as? String,
+        let elements = read["elements"] as? [Object],
+        let checkbox = elements.first(where: { $0["label"] as? String == "Sample checkbox" }),
+        let id = checkbox["id"] as? Int
+      else { throw CheckError("The selected window did not expose its visible checkbox") }
+      return ["observationId": source, "elementId": id, "action": "click"]
+    }
+    let stale = try observeCheckbox()
+    try act("click", label: "Sample checkbox", scope: scope)
+    do {
+      _ = try window.act(stale)
+      throw CheckError("An action grounded in a changed image was accepted")
+    } catch Failure.denied("Window image changed; observe again") {}
+    let action = try observeCheckbox()
+    let preview = try window.frame(action)
+    try require(preview["kind"] as? String == "frame", "Missing visual preview")
+    let reply = try window.act(action)
+    try require(reply["kind"] as? String == "observed", "Click did not produce an updated observation")
+    _ = try scope.observe()
+    let selected = scope.controls.first(where: { $0.label == "Sample checkbox" })
+    try require(
+      selected.flatMap { attribute($0.element, kAXValueAttribute) as? NSNumber }?.intValue == 0,
+      "The fixture did not independently confirm the checkbox click")
+    do {
+      _ = try window.act(action)
+      throw CheckError("Replayed visual action was accepted")
+    } catch Failure.denied {}
+    print("PASS Cua Driver foreground window preview, click readback, changed image and stale reference rejection")
+  }
+
   static func run() async throws {
     guard AXIsProcessTrusted(), CGPreflightScreenCaptureAccess() else {
       throw CheckError(
@@ -59,6 +103,7 @@ struct CheckError: LocalizedError {
     }
     let fixture = Process()
     fixture.executableURL = URL(fileURLWithPath: CommandLine.arguments[1])
+    if CommandLine.arguments.contains("--cua") { fixture.arguments = ["--visual"] }
     try fixture.run()
     defer {
       fixture.terminate()
@@ -71,6 +116,11 @@ struct CheckError: LocalizedError {
       return first.map { string($0, kAXTitleAttribute) } == "Jeeves Fixture 2"
     }
     guard let first else { throw CheckError("Fixture 2 missing") }
+    if CommandLine.arguments.contains("--cua") {
+      try await Task.sleep(for: .seconds(1))
+      try await verifyVisualWindow(app, pid: fixture.processIdentifier)
+      return
+    }
     let scope = Scope()
     try scope.bindConfirmedWindow(first, in: app, pid: fixture.processIdentifier)
     // A separate app takes focus as the cockpit would; the helper itself stays in the background.

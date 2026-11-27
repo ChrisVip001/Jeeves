@@ -899,10 +899,13 @@ Hosted tools, native compaction and asynchronous API tools are still unsupported
 | `JEEVES_DESKTOP_HELPER` | unset | Absolute path to the trusted macOS window helper. The packaged Mac shell locates its bundled helper for its local Runtime. See [single-window operation](protocol.md#macos-single-window-operation) for development. |
 | `JEEVES_BROWSER_HEADLESS` | `0` | Tests only; no visible window exists and human takeover is explicitly refused |
 | `JEEVES_BROWSER_CDP_ATTACH` | `0` | Allow attaching to an already open browser through a literal loopback CDP endpoint (`http://127.0.0.1` / `ws://127.0.0.1` / `[::1]`) |
+| `JEEVES_BROWSER_CHROME_DATA_DIR` | unset | Local Chrome data directory for **Use my Chrome**. The source Mac app supplies the standard Chrome directory |
 | `JEEVES_BROWSER_VIEW_ONLY` | `0` | Observation, navigation and scrolling stay available, but clicks, fills and other browser writes are refused before the approval gate. Subagents inherit the restriction |
 
-The Web UI controls a browser on the Runtime machine. Remote interactive viewing is not included.
+The task browser runs on the Runtime machine.
+
+In the source Mac app, choose **Use my Chrome** for a site you are already signed into. Open `chrome://inspect/#remote-debugging` in Chrome 144 or newer, enable remote debugging, and approve the connection in Chrome. Jeeves opens a task tab in the connected browser's default context and uses its existing sign-in without copying the profile. Take over, sign in, and attach files in Chrome itself. Then return control in the task card. Downloads stay under Chrome's own settings. Closing the task browser closes its tab and disconnects from Chrome.
 
 A browser can be opened with a login profile name (letters, digits, `-` and `_`, at most 64 characters). The name adopts that profile's saved cookies and local storage into the new task context. Only the human operator may save or forget a profile while in control; the Runtime stores the state through the credential vault, never exposes it to the model, and keeps it scoped to that owner. Emergency stop and profile forgetting revoke the saved state for future browsers; an open browser still needs a fresh observation after control returns.
 
-With `JEEVES_BROWSER_CDP_ATTACH=1`, the cockpit can attach to an already open browser through a literal loopback CDP endpoint. The operator must start that browser with debugging enabled; Jeeves reserves it for one task, disconnects rather than closing it, and still enforces origin scope, generation and human takeover. Attached mode cannot use the Runtime's local DNS-pinning proxy, so only allow origins you trust and close the debug port when you are done.
+With `JEEVES_BROWSER_CDP_ATTACH=1`, the cockpit can also use a manually entered literal loopback CDP endpoint. Both attachment modes use the existing browser's network. **Use my Chrome** scopes agent actions and top-level navigation to approved origins, while Chrome handles page resources and downloads. Use the independent task browser for request-level isolation and DNS pinning. Turn off remote debugging in Chrome when you no longer need the connection.

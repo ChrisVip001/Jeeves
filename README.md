@@ -16,6 +16,8 @@ Pair a device by public key and revoke its grant through the [device protocol](d
 
 A paired iPhone can open [task approval notifications](docs/protocol.md#task-approval-notifications) to review the requested action before deciding.
 
+The Mac development app can [open a task tab in your signed-in Chrome](docs/configuration.md#optional-task-browser).
+
 On a Mac, [select one window for a task](docs/protocol.md#macos-single-window-operation) to press buttons, edit a field, scroll a list or preview a screenshot before sharing it with a screen model.
 
 Open a turn in the memory center to review its recorded tool calls and results. [Memory center](docs/internals/05-memory.md#510-memory-center)
@@ -81,7 +83,7 @@ Tell Jeeves what you need in your own words — even if the request is still vag
 | `run_command` | sandboxed, allowlisted shell commands; off unless `JEEVES_EXEC=1` ([SECURITY.md](SECURITY.md)) |
 | `delegate_task` | hand self-contained jobs to subagents; off unless `JEEVES_DELEGATE=1` |
 | `browser_observe` / `browser_act` / `browser_batch` | optional task browser with once-only approval, human takeover and bounded multi-step actions; needs the browser components installed |
-| `computer_observe` / `computer_act` | observe and act in the desktop window a person selected for this task; needs the macOS helper |
+| `computer_observe` / `computer_act` | observe and act in the desktop window a person selected for this task ([Mac window controls](docs/operations.md#mac-desktop-app)) |
 | `find_tools` | search the deferred tool shelf and open what it finds for this session; on by default |
 | `schedule_job` | create or replace a scheduled job: name, five-field cron, one prompt; on by default |
 | `list_schedules` | list declared jobs with cron and prompt; on by default |

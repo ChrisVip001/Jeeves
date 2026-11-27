@@ -21,6 +21,7 @@ export type BrowserWorkerCommand =
       generation: number;
       storageState: string | null;
       cdpEndpoint: string | null;
+      nativeChrome?: boolean;
     }
   | { kind: "observe" }
   | {

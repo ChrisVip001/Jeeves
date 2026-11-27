@@ -37,6 +37,8 @@ export class BrowserSession {
   private lastHeartbeat = Date.now();
   private watchdog: ReturnType<typeof setInterval> | undefined;
   private manual = false;
+  private attached = false;
+  private nativeChrome = false;
   state(): BrowserWorkerState {
     return {
       generation: this.generation,
@@ -51,6 +53,7 @@ export class BrowserSession {
     this.remote.clear();
     this.generation++;
     if (this.watchdog) clearInterval(this.watchdog);
+    if (this.attached) await this.page?.close().catch(() => {});
     await this.browser?.close().catch(() => {});
     this.context = undefined;
     await this.downloads?.close();
@@ -174,13 +177,21 @@ export class BrowserSession {
       this.generation = command.generation;
       this.scope = new NetworkScope(command.origins, command.allowLocalhost);
       this.scope.permit(command.url);
+      this.attached = !!command.cdpEndpoint;
+      this.nativeChrome = !!command.nativeChrome;
       this.network = command.cdpEndpoint ? undefined : await proxy(this.scope);
       this.lastHeartbeat = Date.now();
       this.watchdog = setInterval(() => {
         if (Date.now() - this.lastHeartbeat > 6000) void this.close();
       }, 1000);
       this.browser = command.cdpEndpoint
-        ? await chromium.connectOverCDP(command.cdpEndpoint)
+        ? await chromium.connectOverCDP(command.cdpEndpoint, {
+            noDefaults: true,
+            timeout: 16000,
+          }).catch((error: unknown) => {
+            if (!this.nativeChrome) throw error;
+            throw Error("Could not connect to Chrome. Open Chrome, enable remote debugging, and approve the connection prompt.");
+          })
         : await chromium.launch({
             headless: command.headless,
             chromiumSandbox: true,
@@ -208,33 +219,39 @@ export class BrowserSession {
           });
       if (!context) throw Error("Attached browser has no usable context");
       this.context = context;
-      await context.routeWebSocket("**/*", (route) => route.close());
-      await context.route("**/*", async (route) => {
+      const page = this.page = await context.newPage();
+      const routing = this.attached ? page : context;
+      if (!this.nativeChrome)
+        await routing.routeWebSocket("**/*", (route) => route.close());
+      await routing.route("**/*", async (route) => {
         try {
-          this.scope!.permit(route.request().url());
+          const request = route.request();
+          if (!this.nativeChrome ||
+              (request.isNavigationRequest() && request.frame() === page.mainFrame()))
+            this.scope!.permit(request.url());
           await route.continue();
         } catch {
           await route.abort("blockedbyclient");
         }
       });
-      this.page = await context.newPage();
       this.clock = await DocumentClock.create(this.page);
       this.page.on("popup", (popup) => {
+        if (this.nativeChrome && this.status === "human") return;
         this.scope?.blocked.add("popup blocked");
         void popup.close();
       });
-      this.page.on("filechooser", (chooser) => {
-        if (this.status === "human" && this.active && this.page) {
-          this.remote.offer(this.page, chooser);
-        } else {
-          this.scope?.blocked.add("take control to attach a file");
-          void chooser.setFiles([]).catch(() => {});
-        }
-      });
-      this.downloads = await BrowserDownloads.open(
-        this.browser,
-        this.page,
-        (url) => {
+      if (!this.nativeChrome) {
+        page.on("filechooser", (chooser) => {
+          if (this.status === "human" && this.active && this.page) {
+            this.remote.offer(this.page, chooser);
+          } else {
+            this.scope?.blocked.add("take control to attach a file");
+            void chooser.setFiles([]).catch(() => {});
+          }
+        });
+      }
+      if (!this.attached) {
+        this.downloads = await BrowserDownloads.open(this.browser, page, (url) => {
           if (this.status !== "human") return false;
           try {
             this.scope!.permit(url);
@@ -242,8 +259,8 @@ export class BrowserSession {
           } catch {
             return false;
           }
-        },
-      );
+        });
+      }
       this.page.on("dialog", (dialog) => {
         if (this.status !== "human") {
           this.scope?.blocked.add(
@@ -348,6 +365,8 @@ export class BrowserSession {
       const human = () =>
         this.status === "human" && generation === this.generation;
       if (command.kind === "humanInput") {
+        if (this.nativeChrome)
+          throw Error("Use the task tab in Chrome for human input");
         if (!human() || command.generation !== generation)
           throw Error("Take control before sending browser input");
         this.active = this.remote.apply(

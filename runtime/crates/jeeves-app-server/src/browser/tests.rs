@@ -1,4 +1,5 @@
 use super::*;
+use jeeves_protocol::BrowserProviderKind;
 use std::path::PathBuf;
 
 #[tokio::test]
@@ -36,6 +37,7 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         &["https://example.com".into()],
         "https://example.com",
         None,
+        BrowserProviderKind::Local,
     )
     .await
     .unwrap();
@@ -60,6 +62,7 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         &["https://example.com".into()],
         "https://example.com",
         None,
+        BrowserProviderKind::Local,
     )
     .await
     .unwrap();
@@ -72,10 +75,15 @@ async fn restart_requires_attention_and_old_instance_cannot_update_replacement()
         &["https://example.com".into()],
         "https://example.com",
         None,
+        BrowserProviderKind::Chrome,
     )
     .await
     .unwrap();
     assert_ne!(second.id, abandoned_id);
+    assert_eq!(
+        second.clone().view().unwrap().provider,
+        Some(BrowserProviderKind::Chrome)
+    );
 
     first.generation = second.generation + 100;
     first.status = "human".into();
@@ -113,6 +121,7 @@ async fn session_in(pool: &sqlx::SqlitePool, id: &str, status: &str) {
         &["https://example.com".into()],
         "https://example.com/inbox?token=secret",
         None,
+        BrowserProviderKind::Local,
     )
     .await
     .unwrap();
@@ -201,6 +210,7 @@ async fn a_hold_is_cleared_only_by_the_fresh_observation() {
         &["https://example.com".into()],
         "https://example.com",
         None,
+        BrowserProviderKind::Local,
     )
     .await
     .unwrap();

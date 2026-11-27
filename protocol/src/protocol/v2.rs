@@ -3290,6 +3290,9 @@ pub struct BrowserListParams {
 #[ts(rename_all = "camelCase", export_to = "v2/")]
 pub struct BrowserListResponse {
     pub available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub chrome_available: Option<bool>,
     pub sessions: Vec<BrowserSessionView>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -3298,6 +3301,7 @@ pub struct BrowserListResponse {
 pub enum BrowserProviderKind {
     Local,
     CdpAttach,
+    Chrome,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -3359,6 +3363,9 @@ pub struct BrowserSessionView {
     pub title: String,
     pub observed_at: Option<String>,
     pub error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub provider: Option<BrowserProviderKind>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub profile_id: Option<String>,
@@ -3479,6 +3486,9 @@ pub enum BrowserWorkerCommand {
         storage_state: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         cdp_endpoint: Option<String>,
+        #[serde(default)]
+        #[ts(optional)]
+        native_chrome: Option<bool>,
     },
     Observe,
     Act {

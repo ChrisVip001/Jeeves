@@ -1,5 +1,6 @@
 //! Runtime-owned browser scope and lifetime. No UI or model can expand it implicitly.
 mod api;
+mod chrome;
 pub(crate) mod downloads;
 mod emergency;
 mod process;

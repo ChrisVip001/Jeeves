@@ -322,14 +322,14 @@ desktop-window-fixture: desktop-window-helper build gateway-build
     {{ python }} scripts/manual-window.py
 
 # Opt-in regression with real AppKit windows. Requires Accessibility and Screen Recording.
-smoke-mac-window:
+smoke-mac-window *args:
     #!/usr/bin/env bash
     set -euo pipefail
     out="{{justfile_directory()}}/target/native-window-check"
     mkdir -p "$out"
     xcrun swiftc desktop/tests/WindowFixture.swift -o "$out/JeevesWindowFixture"
-    xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/Window.swift desktop/tests/NativeWindowCheck.swift -o "$out/native-window-check"
-    "$out/native-window-check" "$out/JeevesWindowFixture"
+    xcrun swiftc -swift-version 5 -target "$(uname -m)-apple-macos14.0" -parse-as-library desktop/src-tauri/window/{Window,CuaDriver}.swift desktop/tests/NativeWindowCheck.swift -o "$out/native-window-check"
+    "$out/native-window-check" "$out/JeevesWindowFixture" {{args}}
 
 # Bundle the local runtime with the desktop app, for the current Rust host target.
 [positional-arguments]

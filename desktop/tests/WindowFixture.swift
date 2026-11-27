@@ -56,6 +56,10 @@ for index in 1...2 {
   scroll.widthAnchor.constraint(equalToConstant: 300).isActive = true
   scroll.heightAnchor.constraint(equalToConstant: 115).isActive = true
   window.contentView = stack
+  if CommandLine.arguments.contains("--visual") {
+    window.initialFirstResponder = toggle
+    if index == 2 { window.level = .popUpMenu }
+  }
   window.makeKeyAndOrderFront(nil)
   switcher.windows.append(window)
 }

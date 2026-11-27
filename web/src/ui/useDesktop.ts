@@ -148,7 +148,7 @@ export function useDesktop(taskId: string, request: Request) {
           request<DesktopFrame>("/api/desktop/frame", {
             taskId,
             observationId,
-            localOnly,
+            ...(localOnly ? { localOnly: true } : {}),
             lease: state.observation?.lease ?? state.status?.lease,
           } satisfies DesktopFrameParams),
         (frame) => {

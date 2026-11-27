@@ -78,6 +78,11 @@ impl BrowserHost {
         }
         Ok(BrowserListResponse {
             available: self.available(),
+            chrome_available: self
+                .config
+                .as_ref()
+                .and_then(|config| config.chrome_data_dir.as_ref())
+                .map(|_| self.available()),
             sessions: store::list(&self.pool, owner)
                 .await
                 .map_err(invalid)?
@@ -106,26 +111,18 @@ impl BrowserHost {
             self.available(),
             "Browser components are not installed; install the optional browser-enabled Jeeves package"
         );
-        let (kind, cdp_endpoint) = match params.provider.clone() {
-            Some(provider) => (provider.kind, cdp_endpoint(provider.endpoint)?),
+        let (kind, endpoint) = match params.provider {
+            Some(provider) => (provider.kind, provider.endpoint),
             None => (BrowserProviderKind::Local, None),
         };
-        if kind == BrowserProviderKind::CdpAttach {
-            ensure!(
-                self.config.as_ref().is_some_and(|c| c.cdp_attach),
-                "Loopback CDP attach is disabled; set JEEVES_BROWSER_CDP_ATTACH=1"
-            );
-            ensure!(cdp_endpoint.is_some(), "CDP attach requires an endpoint");
-            ensure!(
-                params.profile_id.is_none(),
-                "An attached browser owns its login state; do not pass a profile id"
-            );
-        } else {
-            ensure!(
-                cdp_endpoint.is_none(),
-                "Only a CDP attach provider accepts an endpoint"
-            );
-        }
+        ensure!(
+            kind == BrowserProviderKind::Local || params.profile_id.is_none(),
+            "An attached browser owns its login state; do not pass a profile id"
+        );
+        ensure!(
+            kind == BrowserProviderKind::CdpAttach || endpoint.is_none(),
+            "Only a CDP attach provider accepts an endpoint"
+        );
         let task = server
             .tasks
             .get(&params.task_id)
@@ -150,6 +147,30 @@ impl BrowserHost {
                 origins.push(entry);
             }
         }
+        let chrome = kind == BrowserProviderKind::Chrome;
+        let cdp_endpoint = match kind {
+            BrowserProviderKind::Local => None,
+            BrowserProviderKind::CdpAttach => {
+                ensure!(
+                    self.config.as_ref().is_some_and(|config| config.cdp_attach),
+                    "Loopback CDP attach is disabled; set JEEVES_BROWSER_CDP_ATTACH=1"
+                );
+                Some(
+                    cdp_endpoint(endpoint)?
+                        .ok_or_else(|| anyhow!("CDP attach requires an endpoint"))?,
+                )
+            }
+            BrowserProviderKind::Chrome => {
+                let directory = self
+                    .config
+                    .as_ref()
+                    .and_then(|config| config.chrome_data_dir.as_ref())
+                    .ok_or_else(|| {
+                        anyhow!("The Runtime is not configured to connect to your Chrome")
+                    })?;
+                Some(super::chrome::endpoint(directory).await?)
+            }
+        };
         {
             let mut sessions = self
                 .sessions
@@ -172,6 +193,7 @@ impl BrowserHost {
             &origins,
             &params.url,
             profile_id.as_deref(),
+            kind,
         )
         .await?;
         drop(admission);
@@ -211,6 +233,7 @@ impl BrowserHost {
                     generation: row.generation,
                     storage_state,
                     cdp_endpoint,
+                    native_chrome: chrome.then_some(true),
                 },
             )
             .await?;
@@ -443,6 +466,7 @@ mod tests {
         );
         assert!(profile_account("owner-a", "work").contains("owner-a"));
     }
+
     #[test]
     fn scope_rejects_credentials_protocols_and_paths() {
         assert_eq!(

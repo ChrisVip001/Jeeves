@@ -15,7 +15,7 @@ const url = ref("");
 const origins = ref("");
 const local = ref(false);
 const profile = ref("");
-const attach = ref<"local" | "cdp">("local");
+const attach = ref<"local" | "chrome" | "cdp">("local");
 const endpoint = ref("http://127.0.0.1:9222");
 const extra = ref("");
 const remote = ref(false);
@@ -27,11 +27,12 @@ const active = computed(
 );
 const busy = computed(() => !!props.center.state.busy[props.taskId]);
 const frame = computed(() => props.center.state.frames[props.taskId]);
+const nativeChrome = computed(() => row.value?.provider === "chrome");
 watch(() => row.value?.status, status => { if (status !== "human") remote.value = false; });
 async function takeover() {
   if (!row.value) return;
   await props.center.control(row.value, "takeover");
-  if (row.value?.status === "human") remote.value = true;
+  if (row.value?.status === "human" && !nativeChrome.value) remote.value = true;
 }
 function label(status: string) {
   const labels: Record<string, string> = {
@@ -54,12 +55,12 @@ async function start() {
       .split(/\n/)
       .map((value) => value.trim())
       .filter(Boolean),
-    allowLocalhost: local.value,
+    allowLocalhost: attach.value !== "chrome" && local.value,
     profileId: attach.value === "local" ? profile.value.trim() || undefined : undefined,
     provider:
       attach.value === "cdp"
         ? { kind: "cdpAttach", endpoint: endpoint.value.trim() }
-        : { kind: "local" },
+        : { kind: attach.value },
   });
 }
 </script>
@@ -83,6 +84,9 @@ async function start() {
         {{ t("登录档案") }}: <code>{{ row.profileId }}</code>
       </p>
       <p v-if="row.handoffReason" class="meta">{{ row.handoffReason }}</p>
+      <p v-if="nativeChrome && row.status === 'human'" class="meta">
+        {{ t("请在 Chrome 的任务标签页登录或操作，完成后回到这里交还控制。") }}
+      </p>
       <div class="browser-buttons">
         <button
           v-if="row.status !== 'human'"
@@ -91,7 +95,7 @@ async function start() {
           :disabled="busy"
           @click="takeover"
         >
-          {{ t("接管浏览器") }}
+          {{ nativeChrome ? t("在 Chrome 中接管") : t("接管浏览器") }}
         </button>
         <button
           v-if="['human', 'paused'].includes(row.status)"
@@ -130,6 +134,7 @@ async function start() {
           {{ t("暂停浏览器") }}
         </button>
         <button
+          v-if="!nativeChrome || row.status !== 'human'"
           type="button"
           class="quiet-button"
           :disabled="busy"
@@ -146,9 +151,9 @@ async function start() {
           {{ t("关闭浏览器") }}
         </button>
       </div>
-      <BrowserDownloads :center="center" :row="row" />
+      <BrowserDownloads v-if="!row.provider" :center="center" :row="row" />
       <Teleport to="body">
-        <RemoteBrowser v-if="remote && row.status === 'human'" :center="center" :row="row" @close="remote = false">
+        <RemoteBrowser v-if="remote && row.status === 'human' && !nativeChrome" :center="center" :row="row" @close="remote = false">
           <template #executor><slot name="executor" /></template>
         </RemoteBrowser>
       </Teleport>
@@ -191,13 +196,6 @@ async function start() {
         {{ t("浏览器组件尚未安装，安装含浏览器的 Jeeves 版本后可用。") }}
       </p>
       <form v-else-if="!cancelled" @submit.prevent="start">
-        <p class="task-empty">
-          {{
-            t(
-              "为此任务打开独立浏览器，仅允许访问你选择的网站。登录信息不会沿用日常浏览器；如需保留登录态，请填写登录档案名称。",
-            )
-          }}
-        </p>
         <label
           >{{ t("起始网址")
           }}<input
@@ -212,9 +210,16 @@ async function start() {
           >{{ t("浏览器来源")
           }}<select v-model="attach" :disabled="busy">
             <option value="local">{{ t("为此任务新开浏览器") }}</option>
+            <option v-if="center.state.chromeAvailable" value="chrome">{{ t("使用我的 Chrome") }}</option>
             <option value="cdp">{{ t("接管本机已打开的浏览器") }}</option>
           </select>
         </label>
+        <p v-if="attach === 'chrome'" class="task-empty">
+          {{ t("在运行中的 Chrome 打开 chrome://inspect/#remote-debugging 启用远程调试，然后在 Chrome 中批准连接。任务会在新标签页使用当前登录状态。") }}
+        </p>
+        <p v-else-if="attach === 'local'" class="task-empty">
+          {{ t("为此任务打开独立浏览器，仅允许访问你选择的网站。登录信息不会沿用日常浏览器；如需保留登录态，请填写登录档案名称。") }}
+        </p>
         <label v-if="attach === 'cdp'"
           >{{ t("回环 CDP 地址")
           }}<input

@@ -1192,6 +1192,12 @@
         "available": {
           "type": "boolean"
         },
+        "chromeAvailable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "sessions": {
           "items": {
             "$ref": "#/definitions/BrowserSessionView"
@@ -1255,9 +1261,9 @@
     "BrowserProviderKind": {
       "enum": [
         "local",
-        "cdpAttach"
+        "cdpAttach",
+        "chrome"
       ],
-      "title": "BrowserProviderKind",
       "type": "string"
     },
     "BrowserProviderSpec": {
@@ -1360,6 +1366,16 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BrowserProviderKind"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "status": {
@@ -1513,6 +1529,13 @@
                 "launch"
               ],
               "type": "string"
+            },
+            "native_chrome": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
             },
             "origins": {
               "items": {

@@ -1,5 +1,5 @@
 use anyhow::{Result, ensure};
-use jeeves_protocol::{BrowserSessionView, ControlLeaseRef};
+use jeeves_protocol::{BrowserProviderKind, BrowserSessionView, ControlLeaseRef};
 use sqlx::{FromRow, SqlitePool};
 #[derive(Clone, FromRow)]
 pub(super) struct Row {
@@ -13,6 +13,7 @@ pub(super) struct Row {
     pub observed_at: Option<String>,
     pub error: Option<String>,
     pub profile_id: Option<String>,
+    pub provider: String,
 }
 impl Row {
     pub fn view(self) -> Result<BrowserSessionView> {
@@ -33,6 +34,11 @@ impl Row {
             title: self.title,
             observed_at: self.observed_at,
             error: self.error,
+            provider: match self.provider.as_str() {
+                "chrome" => Some(BrowserProviderKind::Chrome),
+                "cdpAttach" => Some(BrowserProviderKind::CdpAttach),
+                _ => None,
+            },
             profile_id: self.profile_id,
             lease: Some(ControlLeaseRef {
                 lease_id,
@@ -60,8 +66,14 @@ pub(super) async fn create(
     origins: &[String],
     url: &str,
     profile_id: Option<&str>,
+    provider: BrowserProviderKind,
 ) -> Result<Row> {
-    sqlx::query("INSERT INTO browser_sessions(id,task_id,owner_session_id,status,origins_json,url,profile_id) VALUES(lower(hex(randomblob(16))),?,?,'starting',?,?,?) ON CONFLICT(task_id) DO UPDATE SET id=lower(hex(randomblob(16))),generation=generation+1,status='starting',origins_json=excluded.origins_json,url=excluded.url,profile_id=excluded.profile_id,title='',observed_at=NULL,error=NULL,updated_at=datetime('now') WHERE browser_sessions.status IN ('closed','needsAttention','starting')").bind(task).bind(owner).bind(serde_json::to_string(origins)?).bind(url).bind(profile_id).execute(pool).await?;
+    let provider = match provider {
+        BrowserProviderKind::Local => "local",
+        BrowserProviderKind::CdpAttach => "cdpAttach",
+        BrowserProviderKind::Chrome => "chrome",
+    };
+    sqlx::query("INSERT INTO browser_sessions(id,task_id,owner_session_id,status,origins_json,url,profile_id,provider) VALUES(lower(hex(randomblob(16))),?,?,'starting',?,?,?,?) ON CONFLICT(task_id) DO UPDATE SET id=lower(hex(randomblob(16))),generation=generation+1,status='starting',origins_json=excluded.origins_json,url=excluded.url,profile_id=excluded.profile_id,provider=excluded.provider,title='',observed_at=NULL,error=NULL,updated_at=datetime('now') WHERE browser_sessions.status IN ('closed','needsAttention','starting')").bind(task).bind(owner).bind(serde_json::to_string(origins)?).bind(url).bind(profile_id).bind(provider).execute(pool).await?;
     let row = get(pool, task)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Browser session missing"))?;

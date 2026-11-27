@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import http from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { chromium, type Page } from "playwright";
 import { BrowserSession } from "../src/session.ts";
 import type {
@@ -11,6 +14,71 @@ import type {
 const installed = existsSync(chromium.executablePath());
 if (process.env.JEEVES_BROWSER_REQUIRED && !installed)
   throw Error("Install the optional browser runtime before smoke-browser");
+
+test("attached Chrome shares sign-in and leaves existing tabs untouched", {
+  skip: !installed ? "Optional Chromium not installed" : false,
+  timeout: 30000,
+}, async () => {
+  const data = await mkdtemp(join(tmpdir(), "jeeves-chrome-test-"));
+  const fixture = http.createServer((request, response) => {
+    response.setHeader("Content-Type", "text/html");
+    response.end(request.headers.cookie === "signed=in"
+      ? "<h1>Signed-in workspace</h1><input type=file>"
+      : "<h1>Sign in</h1>");
+  });
+  const other = http.createServer((_request, response) => response.end("Unrelated tab"));
+  await Promise.all([fixture, other].map(server => new Promise<void>(resolve =>
+    server.listen(0, "127.0.0.1", resolve))));
+  const address = (server: http.Server) => {
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    return `http://127.0.0.1:${address.port}`;
+  };
+  const context = await chromium.launchPersistentContext(data, {
+    headless: true,
+    args: ["--remote-debugging-port=0"],
+  });
+  const session = new BrowserSession();
+  const heartbeat = setInterval(() => void session.command({ kind: "heartbeat" }), 1000);
+  try {
+    const url = address(fixture);
+    const prior = context.pages()[0];
+    await context.addCookies([{ url, name: "signed", value: "in" }]);
+    await prior.goto(address(other));
+    const [port, path] = (await readFile(join(data, "DevToolsActivePort"), "utf8")).trim().split("\n");
+    const start = await session.command({
+      kind: "launch", url, origins: [url], allowLocalhost: true,
+      headless: true, generation: 1, storageState: null,
+      cdpEndpoint: `ws://127.0.0.1:${port}${path}`, nativeChrome: true,
+    });
+    assert.match(start.state.observation!.text, /Signed-in workspace/);
+    await prior.reload();
+    assert.equal(await prior.locator("body").innerText(), "Unrelated tab");
+    assert.equal(context.pages().length, 2);
+    const takeover = await session.command({ kind: "control", generation: 2, action: "takeover", origin: null });
+    assert.equal(takeover.state.status, "human");
+    const returned = await session.command({ kind: "control", generation: 3, action: "return", origin: null });
+    assert.equal(returned.state.status, "agent");
+    assert.match(returned.state.observation!.text, /Signed-in workspace/);
+    await assert.rejects(session.command({
+      kind: "act", generation: 3, expiresAt: new Date(Date.now() + 5000).toISOString(),
+      input: {
+        kind: "navigate", observationId: returned.state.observation!.id, url: address(other),
+        reference: null, expectedName: null, text: null,
+      },
+    }), /outside|allow|scope/i);
+    await session.close();
+    assert.equal(context.pages().length, 1);
+    await prior.reload();
+    assert.equal(await prior.locator("body").innerText(), "Unrelated tab");
+  } finally {
+    clearInterval(heartbeat);
+    await session.close();
+    await context.close();
+    await Promise.all([fixture, other].map(server => new Promise<void>(resolve => server.close(() => resolve()))));
+    await rm(data, { recursive: true, force: true });
+  }
+});
 
 test(
   "real browser: scope, references, verification, takeover fences and human preview",

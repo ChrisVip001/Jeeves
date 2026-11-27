@@ -3,5 +3,6 @@ import type { BrowserSessionView } from "./BrowserSessionView";
 
 export type BrowserListResponse = {
   available: boolean;
+  chromeAvailable?: boolean | null;
   sessions: Array<BrowserSessionView>;
 };

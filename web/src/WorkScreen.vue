@@ -11,6 +11,7 @@ const row = computed(() => browser.value?.state.sessions.find(item => item.taskI
 /** Whether the interactive remote-control dialog is open (only meaningful while you hold control). */
 const remote = ref(false);
 const live = computed(() => !!row.value && !["starting", "closed", "needsAttention"].includes(row.value.status));
+const nativeChrome = computed(() => row.value?.provider === "chrome");
 const frame = computed(() => browser.value?.state.frames[props.task.id]);
 const busy = computed(() => !!browser.value?.state.busy[props.task.id]);
 const controlError = computed(() => browser.value?.state.errors[props.task.id]);
@@ -19,7 +20,7 @@ const controlError = computed(() => browser.value?.state.errors[props.task.id]);
 const FRAME_MS = 3000;
 let timer: number | undefined;
 function pull() {
-  if (!browser.value || !live.value || busy.value || document.visibilityState !== "visible") return;
+  if (!browser.value || !live.value || (nativeChrome.value && row.value?.status === "human") || busy.value || document.visibilityState !== "visible") return;
   void browser.value.frame(props.task.id).catch((error: unknown) => console.debug("Frame refresh failed", error));
 }
 // Watch each value on its own: a single getter that builds an array fires on every refresh (a
@@ -45,7 +46,7 @@ watch(() => row.value?.status, status => { if (status !== "human") remote.value 
 async function takeover() {
   if (!row.value) return;
   await browser.value?.control(row.value, "takeover");
-  if (row.value?.status === "human") remote.value = true;
+  if (row.value?.status === "human" && !nativeChrome.value) remote.value = true;
 }
 function label(status: string) {
   switch (status) {
@@ -64,19 +65,20 @@ function label(status: string) {
         <img :src="frame.dataUrl" :alt="t('浏览器当前画面')" />
         <figcaption>{{ t("画面更新于 {time}", { time: new Date(frame.observedAt).toLocaleTimeString() }) }}</figcaption>
       </figure>
+      <p v-else-if="nativeChrome && row.status === 'human'">{{ t("请在 Chrome 的任务标签页登录或操作，完成后回到这里交还控制。") }}</p>
       <div v-else class="work-screen-frame work-screen-frame-loading" role="status">{{ t("正在取得画面…") }}</div>
       <div class="work-screen-actions">
         <button v-if="row.status !== 'human'" type="button" class="primary-button" :disabled="busy"
-          @click="takeover">{{ t("接管") }}</button>
-        <button v-if="row.status === 'human'" type="button" class="primary-button" :disabled="busy"
+          @click="takeover">{{ nativeChrome ? t("在 Chrome 中接管") : t("接管") }}</button>
+        <button v-if="row.status === 'human' && !nativeChrome" type="button" class="primary-button" :disabled="busy"
           @click="remote = true">{{ t("继续操作") }}</button>
         <button v-if="['human', 'paused'].includes(row.status)" type="button" class="quiet-button"
           :disabled="busy || task.status === 'cancelled'" @click="browser?.control(row, 'return')">{{ t("交还给 Jeeves") }}</button>
-        <button v-if="row.status !== 'agent'" type="button" class="quiet-button" :disabled="busy" @click="pull">{{ t("刷新画面") }}</button>
+        <button v-if="row.status !== 'agent' && !(nativeChrome && row.status === 'human')" type="button" class="quiet-button" :disabled="busy" @click="pull">{{ t("刷新画面") }}</button>
       </div>
       <p v-if="controlError" class="task-error" role="status">{{ controlError }}</p>
       <Teleport to="body">
-        <RemoteBrowser v-if="browser && remote && row.status === 'human'" :center="browser" :row="row"
+        <RemoteBrowser v-if="browser && remote && row.status === 'human' && !nativeChrome" :center="browser" :row="row"
           @close="remote = false" />
       </Teleport>
   </aside>

@@ -81,6 +81,7 @@ struct Control {
   var observation = ""
   var controls: [Control] = []
   var captureID: CGWindowID?
+  private var visualWindow: CuaWindow?
 
   func select() throws {
     guard AXIsProcessTrusted() else {
@@ -97,15 +98,29 @@ struct Control {
     let target = apps[idx]
     let application = AXUIElementCreateApplication(target.processIdentifier)
     AXUIElementSetMessagingTimeout(application, 1)
-    guard let focused = elementAttribute(application, kAXFocusedWindowAttribute),
+    if let focused = elementAttribute(application, kAXFocusedWindowAttribute),
       string(focused, kAXSubroleAttribute) == kAXStandardWindowSubrole
-    else { throw Failure.denied("Focus a standard window in the chosen application and try again") }
-    let title = string(focused, kAXTitleAttribute)
-    _ = try alert(
+    {
+      let title = string(focused, kAXTitleAttribute)
+      var choices = ["\(target.localizedName ?? "") — \(title)"]
+      if CuaDriver.installed { choices.append("Choose a window by image / 按画面选窗") }
+      let choice = try alert(
+        "Authorize one window / 授权一个窗口",
+        "Choose the focused Accessibility window, or use Cua Driver to select a window by image.",
+        choices: choices)
+      if choice == 0 {
+        try bindConfirmedWindow(focused, in: application, pid: target.processIdentifier)
+        return
+      }
+    } else if !CuaDriver.installed {
+      throw Failure.denied("Focus a standard window in the chosen application and try again")
+    }
+    let windows = try CuaDriver().windows(pid: target.processIdentifier)
+    let choice = try alert(
       "Authorize one window / 授权一个窗口",
-      "Only this task can use the displayed window. Switching windows in the selected application ends the selection.",
-      choices: ["\(target.localizedName ?? "") — \(title)"])
-    try bindConfirmedWindow(focused, in: application, pid: target.processIdentifier)
+      "Jeeves can see and click visible text in this window for this task. Clicks may bring this window to the front.",
+      choices: windows.map { "\(target.localizedName ?? "") — \($0.title) (#\($0.id))" })
+    visualWindow = windows[choice]
   }
 
   // Production reaches this point only after the operator confirms the actual AX window.
@@ -248,6 +263,7 @@ struct Control {
     return (result, result.count >= 128 || offset < queue.count)
   }
   func observe() throws -> Object {
+    if let visualWindow { return try visualWindow.observe() }
     let root = try checked()
     let (found, truncated) = scan(root)
     controls = found
@@ -277,6 +293,7 @@ struct Control {
     ]
   }
   func act(_ command: Object) throws -> Object {
+    if let visualWindow { return try visualWindow.act(command) }
     let root = try checked()
     guard command["observationId"] as? String == observation, let id = command["elementId"] as? Int,
       controls.indices.contains(id),
@@ -356,11 +373,12 @@ struct Control {
   }
   @available(macOS 14.0, *)
   func frame(_ command: Object) async throws -> Object {
+    if let visualWindow { return try visualWindow.frame(command) }
     let root = try checked()
     guard command["observationId"] as? String == observation else {
       throw Failure.denied("Preview requires a fresh observation")
     }
-    guard CGPreflightScreenCaptureAccess() else {
+    guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
       throw Failure.denied(
         "Allow Screen Recording for the Jeeves window helper in System Settings, then preview again"
       )
