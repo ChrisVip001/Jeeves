@@ -432,6 +432,20 @@ pub async fn run_with_schedule_search(
     turn: Turn<'_>,
     schedule: Option<ScheduleSearch>,
 ) -> Result<LoopResult> {
+    run_inner(turn, schedule, false).await
+}
+
+/// A read-only research mode can still deliver observed, host-rendered excerpts when the
+/// provider stops. Preserve tool results, counters and usage instead of discarding the round.
+pub async fn run_research(turn: Turn<'_>) -> Result<LoopResult> {
+    run_inner(turn, None, true).await
+}
+
+async fn run_inner(
+    turn: Turn<'_>,
+    schedule: Option<ScheduleSearch>,
+    retain_reads_on_provider_error: bool,
+) -> Result<LoopResult> {
     let schedule = schedule.filter(|schedule| {
         turn.resume.is_none()
             && turn.run_limits.is_none()
@@ -549,7 +563,7 @@ pub async fn run_with_schedule_search(
     let mut continuations = 0u32;
     let mut continued_reply = String::new();
     let mut empty_nudged = false;
-    let stop_detail = loop {
+    let stop_detail = 'research_round: loop {
         let iteration = iterations.saturating_add(1);
         if turn
             .interrupt
@@ -697,6 +711,10 @@ pub async fn run_with_schedule_search(
                     context_budget = Some(budget);
                     request_messages = compacted;
                     recovered_overflow = true;
+                }
+                Some(Err(_)) if retain_reads_on_provider_error => {
+                    break 'research_round "The research model stopped before the round finished"
+                        .into();
                 }
                 Some(Err(error)) => return Err(error.into()),
                 None => {

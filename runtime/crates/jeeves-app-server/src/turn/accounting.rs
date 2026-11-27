@@ -114,6 +114,7 @@ pub(crate) struct RoundCtx<'a> {
     pub(crate) acceptance: &'a [jeeves_agent::verify::Acceptance],
     /// Where acceptance paths resolve (the task's own directory, else this turn's).
     pub(crate) verify_root: Option<std::path::PathBuf>,
+    pub(crate) research_complete: Option<bool>,
     /// When this round started, for the wall-clock spend.
     pub(crate) started: std::time::Instant,
     pub(crate) wall_offset_ms: i64,
@@ -173,7 +174,7 @@ pub(crate) async fn account_round(
     )
     })?;
 
-    let checks = if ctx.acceptance.is_empty() {
+    let mut checks = if ctx.acceptance.is_empty() {
         Vec::new()
     } else {
         let commands = server.check_runner(
@@ -193,6 +194,23 @@ pub(crate) async fn account_round(
         .await
     };
 
+    for (condition, check) in ctx.acceptance.iter().zip(&mut checks) {
+        if matches!(
+            condition,
+            jeeves_agent::verify::Acceptance::ResearchEvidence
+        ) && let Some(complete) = ctx.research_complete
+        {
+            check.passed = complete;
+            check.detail = if complete {
+                format!(
+                    "All required excerpts recorded; rendered report SHA-256 {}",
+                    jeeves_state::ledger::digest_of(result.reply.as_bytes())
+                )
+            } else {
+                crate::research::INCOMPLETE.into()
+            };
+        }
+    }
     if !checks.is_empty() {
         let views: Vec<_> = checks.iter().map(|check| check.view()).collect();
         let json = serde_json::to_string(&views)

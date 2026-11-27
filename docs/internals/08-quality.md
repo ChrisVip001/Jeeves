@@ -163,6 +163,31 @@ The [November 14 archive manifest](../../evals/archive/2026-11-14/sources.json) 
 validation report and source commit for each of the four originals. To verify their SHA-256 values in a fresh
 clone, run `(cd evals/archive/2026-11-14 && shasum -a 256 -c SHA256SUMS)` from the repository root.
 
+
+The offline research replay runs through the main chat and the task runtime:
+`cargo test --locked -p jeeves-app-server --lib interaction::tests::research_replay`.
+It swaps a traffic-only summary and a terminal-throughput record at the top of a fixed
+search pool, withholds the throughput record in a third arm, and reopens a task after
+the initial read. The case checks same-clause source attribution, explicit unresolved
+status, no early report, and no repeated successful fetch after reopen. Duplicate
+summaries do not stand in for the missing metric. The source scenario is based on the
+[October 2024 Maryland Port Commission minutes](https://mpa.maryland.gov/Documents/port-commission/MPCMeetingMinutes10012024FINALApproved.pdf#page=4)
+and the [USACE channel restoration statement](https://www.nab.usace.army.mil/Media/News-Releases/Article/3802402/us-army-corps-of-engineers-announces-full-restoration-of-baltimores-fort-mchenr/).
+The test uses translated fixture excerpts and scripted model decisions. It validates
+the runtime traces and expected acceptance criteria, not autonomous selection,
+semantic review, or live-web accuracy.
+
+
+An opt-in companion runs the same controlled corpus through real DeepSeek Flash with
+`cargo test --locked -p jeeves-app-server --lib deepseek_research_replay -- --ignored --nocapture`.
+Supply the approved `DEEPSEEK_API_KEY` in the environment (never on the command line).
+The three chat arms cap fixture web calls at four and allow up to eight model requests
+each; the restart arm uses a scripted initial checkpoint and the real model only after it
+reopens. Unknown URLs cannot be fetched. The test prints successful reads, reply or
+report, and model usage for review. A completed run is not a passing quality score,
+and model traffic does not make this a live-web test. See the
+[November 26 controlled run](../../evals/results/deepseek-flash-research-ranking-replay-2026-11-26.json).
+
 ## 8.8 Smoke Scripts
 
 Smokes use the real `jeeves` binary, because they test the process boundary that in-process evals skip.

@@ -3,6 +3,8 @@ mod dependencies;
 mod lookup;
 mod mail;
 mod recurring;
+mod research_flow;
+mod research_replay;
 mod scope;
 mod web_lookup;
 use super::*;

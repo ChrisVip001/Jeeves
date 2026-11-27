@@ -51,6 +51,7 @@ mod pending_approvals;
 mod permissions;
 #[cfg(test)]
 mod permissions_tests;
+mod research;
 mod resources;
 mod responsibility;
 mod resume;

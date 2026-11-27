@@ -178,6 +178,29 @@ async fn execute(
     if let Some(reply) = decision::answer(server, p, may_dispatch).await? {
         return receipt::acknowledge(server, p, id, sink, reply, Instant::now()).await;
     }
+    let quick = crate::research::command(&p.message, crate::research::QUICK);
+    let deep = crate::research::command(&p.message, crate::research::DEEP);
+    if quick.is_some() || deep.is_some() {
+        if p.source.is_some() || p.task_id.is_some() || p.attachments.is_some() {
+            return Err(invalid(
+                "Start a new public-source research request from private main chat",
+            ));
+        }
+        if let Some(questions) = quick {
+            questions.map_err(invalid)?;
+        }
+        if let Some(questions) = deep {
+            questions.map_err(invalid)?;
+            if server.resolved().is_none() {
+                return Err(invalid("Configure a model before starting research"));
+            }
+            let started = Instant::now();
+            let reply = task_tool::start_research(server, p, sink)
+                .await
+                .map_err(invalid)?;
+            return receipt::acknowledge(server, p, id, sink, reply, started).await;
+        }
+    }
     if p.task_id.is_some() && !may_dispatch {
         return Err(invalid("Sender may not dispatch task work"));
     }

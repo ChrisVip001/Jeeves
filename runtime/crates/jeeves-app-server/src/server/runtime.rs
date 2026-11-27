@@ -43,13 +43,24 @@ impl Server {
     /// Isolated embedding: the caller must exclusively own the supplied store.
     /// Production entry points use `open` to acquire ownership before recovery.
     pub async fn boot(pool: SqlitePool, settings: Settings) -> Self {
-        Self::boot_owned(pool, settings, None).await
+        Self::boot_owned(pool, settings, None, |_| {}).await
+    }
+
+    /// Configure test doubles before recovered workers clone the server.
+    #[cfg(test)]
+    pub(crate) async fn boot_fixture(
+        pool: SqlitePool,
+        settings: Settings,
+        configure: impl FnOnce(&mut Self),
+    ) -> Self {
+        Self::boot_owned(pool, settings, None, configure).await
     }
 
     async fn boot_owned(
         pool: SqlitePool,
         mut settings: Settings,
         execution_owner: Option<Arc<lock::DaemonLock>>,
+        configure: impl FnOnce(&mut Self),
     ) -> Self {
         if let Err(error) = sqlx::query(
             "UPDATE model_requests SET termination='interrupted' WHERE termination='in_flight'",
@@ -236,7 +247,7 @@ impl Server {
             )));
         }
 
-        let server = Self {
+        let mut server = Self {
             boot_settings,
             browser,
             permissions,
@@ -283,6 +294,7 @@ impl Server {
             restored_approvals: Arc::new(Mutex::new(restored_approvals)),
             resume_yes: Default::default(),
         };
+        configure(&mut server);
         server.restore_tasks().await;
         crate::completion_delivery::start(
             &server.completions,
@@ -469,5 +481,5 @@ pub async fn open(settings: &Settings) -> Result<Server> {
     settings.ensure_home()?;
     let ownership = Arc::new(lock::acquire(&settings.home).map_err(anyhow::Error::msg)?);
     let pool = jeeves_state::open(&settings.home.join("state.db")).await?;
-    Ok(Server::boot_owned(pool, settings, Some(ownership)).await)
+    Ok(Server::boot_owned(pool, settings, Some(ownership), |_| {}).await)
 }

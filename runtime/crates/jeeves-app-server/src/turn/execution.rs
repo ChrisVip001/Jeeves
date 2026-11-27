@@ -16,6 +16,7 @@ use jeeves_provider::{Resolved, TextSink};
 /// The output of one full loop.
 pub(crate) struct FullTurn {
     pub(crate) result: LoopResult,
+    pub(crate) research_complete: Option<bool>,
     /// What history/compaction looked like for this turn — straight into the trace.
     pub(crate) history: HistoryStats,
 }
@@ -82,6 +83,14 @@ pub(crate) async fn full_turn(
     };
     let channel_chat = turn_id.starts_with(jeeves_protocol::CHANNEL_TURN_PREFIX);
     let shared = channel_chat || scoped_task;
+    let research = if !shared && (run.is_some() || session_id == crate::interaction::MAIN_SESSION) {
+        crate::research::Session::open(server, run.as_ref().map(|r| r.task_id.as_str()), message)
+            .await
+            .map_err(crate::rpc_error::internal)?
+    } else {
+        None
+    };
+
     let chat_operations = if channel_chat {
         crate::turn::operations::ChatContext {
             unresolved: false,
@@ -92,17 +101,18 @@ pub(crate) async fn full_turn(
     };
     let task_handoff = crate::task::handoff::load(server, turn_id, session_id).await?;
 
-    let memory_context = if shared {
+    let memory_context = if shared || research.is_some() {
         String::new()
     } else {
         retrieve_memory(server, message, &settings, &frame).await
     };
 
-    let mut skill_loader = jeeves_memory::skills::SkillLoader::new(if shared {
-        Vec::new()
-    } else {
-        jeeves_memory::skills::SkillLoader::dirs_for(&settings.home)
-    });
+    let mut skill_loader =
+        jeeves_memory::skills::SkillLoader::new(if shared || research.is_some() {
+            Vec::new()
+        } else {
+            jeeves_memory::skills::SkillLoader::dirs_for(&settings.home)
+        });
     let skill_hits = skill_loader.hits_capped(message, settings.skill_body_tokens.max(1) as usize);
     let skills = skill_hits.section;
     let skill_index = skill_loader.index_text(settings.skill_index_tokens.max(1) as usize);
@@ -203,6 +213,9 @@ pub(crate) async fn full_turn(
         }
         turn_tools.register_exclusive(tool);
     }
+    if let Some(research) = &research {
+        turn_tools = research.restrict(turn_tools);
+    }
     let reserve = jeeves_provider::tokens::estimate_text(&soul)
         + jeeves_provider::tokens::estimate_text(&memory_context)
         + jeeves_provider::tokens::estimate_text(&skills)
@@ -250,7 +263,7 @@ pub(crate) async fn full_turn(
             }
         }
     };
-    let memory_index = if shared {
+    let memory_index = if shared || research.is_some() {
         String::new()
     } else {
         jeeves_memory::mirror::recall_catalog(
@@ -264,7 +277,11 @@ pub(crate) async fn full_turn(
         })
     };
 
-    let instructions = turn_cwd.as_deref().and_then(crate::agents_md::discover);
+    let instructions = if research.is_none() {
+        turn_cwd.as_deref().and_then(crate::agents_md::discover)
+    } else {
+        None
+    };
     let tools_available = !turn_tools.schemas().is_empty();
     let capabilities = if channel_chat {
         Some(if frame.interaction_tool.is_some() {
@@ -298,6 +315,7 @@ pub(crate) async fn full_turn(
         capability_note(&settings, tools_available)
     };
     let schedule_lookup = (main_chat
+        && research.is_none()
         && !shared
         && !chat_operations.unresolved
         && owner_run.is_none()
@@ -332,6 +350,9 @@ pub(crate) async fn full_turn(
         }
         if scheduled_search {
             prompt.tail.push_str(super::schedule_lookup::EVIDENCE_NOTE);
+        }
+        if research.is_some() {
+            prompt.tail.push_str(crate::research::NOTE);
         }
         prompt.tail.push_str(&chat_operations.prompt);
         prompt.tail.push_str(server.permission_note(session_id));
@@ -489,35 +510,36 @@ pub(crate) async fn full_turn(
                     + jeeves_provider::tokens::estimate_tools(&turn_tools.schemas()),
             )
             .max(1024);
-        let attempt = jeeves_loop::run_with_schedule_search(
-            jeeves_loop::Turn {
-                system_prefix: Some(prompt.stable.clone()),
-                client: execution.client.as_ref(),
-                model: &resolved.model,
-                system: prompt.tail.clone(),
-                history: history.clone(),
-                user_message: prompt_message.clone(),
-                user_images: user_images.clone(),
-                tools: &turn_tools,
-                ctx: ctx.clone(),
-                run_limits: limits.clone(),
-                context_budget: Some(context_budget),
-                context_window: Some(context_window),
-                max_tokens: output_ceiling,
-                token_budget: Some(settings.turn_token_budget)
-                    .filter(|budget| *budget > 0)
-                    .map(|budget| budget as usize),
-                tool_result_budget: crate::tool_result_budget(&settings),
-                observer: observer.clone(),
-                on_text: (!guarded_flight).then(|| on_text.clone()),
-                interrupt: interrupt.clone(),
-                checkpoint: checkpoint.clone(),
-                steering: steering.clone(),
-                resume: resume.clone(),
-            },
-            initial_search.take(),
-        )
-        .await;
+        let turn = jeeves_loop::Turn {
+            system_prefix: Some(prompt.stable.clone()),
+            client: execution.client.as_ref(),
+            model: &resolved.model,
+            system: prompt.tail.clone(),
+            history: history.clone(),
+            user_message: prompt_message.clone(),
+            user_images: user_images.clone(),
+            tools: &turn_tools,
+            ctx: ctx.clone(),
+            run_limits: limits.clone(),
+            context_budget: Some(context_budget),
+            context_window: Some(context_window),
+            max_tokens: output_ceiling,
+            token_budget: Some(settings.turn_token_budget)
+                .filter(|budget| *budget > 0)
+                .map(|budget| budget as usize),
+            tool_result_budget: crate::tool_result_budget(&settings),
+            observer: observer.clone(),
+            on_text: (!guarded_flight && research.is_none()).then(|| on_text.clone()),
+            interrupt: interrupt.clone(),
+            checkpoint: checkpoint.clone(),
+            steering: steering.clone(),
+            resume: resume.clone(),
+        };
+        let attempt = if research.is_some() {
+            jeeves_loop::run_research(turn).await
+        } else {
+            jeeves_loop::run_with_schedule_search(turn, initial_search.take()).await
+        };
 
         match attempt {
             Ok(result) => break result,
@@ -558,8 +580,26 @@ pub(crate) async fn full_turn(
             lookup.evidence_reply(&result.tool_calls)
         };
     }
+    let research_complete = if let Some(research) = research {
+        if result.interrupted {
+            result.reply.clear();
+            Some(false)
+        } else {
+            let (mut reply, complete) = research.render().await;
+            if result.stop_detail.is_some() {
+                reply.push_str(
+                    "\n\nThe research run stopped early; the excerpts above are all it recorded.",
+                );
+            }
+            result.reply = reply;
+            Some(complete && result.stop_detail.is_none())
+        }
+    } else {
+        None
+    };
     Ok(FullTurn {
         result,
+        research_complete,
         history: history_stats,
     })
 }
