@@ -392,3 +392,151 @@ async fn quick_research_cites_only_bound_complete_fetches_and_uses_the_final_url
         assert!(!reply.contains(invalid), "{reply}");
     }
 }
+
+const STORE_FEED: &str = "https://shop.example/quotes";
+const STORE_FEED_UPDATED: &str = "https://shop.example/updated";
+const STORE_QUERY: &str = r#"price {"host":"shop.example","store":"南山店","sku":"A250","variant":"250ml","date":"2026-11-27","conditions":"无优惠","url":"https://shop.example/quotes"}"#;
+
+fn store_offer(amount: &str) -> serde_json::Value {
+    json!({
+        "store":"南山店","sku":"A250","variant":"250ml","date":"2026-11-27",
+        "conditions":"无优惠","currency":"CNY","priceKind":"checkout_total","amount":amount
+    })
+}
+
+fn install_store_feeds(
+    server: &mut Server,
+    responses: Vec<CreateResponse>,
+    feeds: Vec<(&'static str, String)>,
+) -> Arc<Mutex<Vec<String>>> {
+    let calls = install(server, responses);
+    let recorded = calls.clone();
+    let handler: jeeves_tools::Handler = Arc::new(move |_, args| {
+        let url = args["url"].as_str().unwrap().to_owned();
+        let body = feeds.iter().find(|(key, _)| *key == url).unwrap().1.clone();
+        let recorded = recorded.clone();
+        Box::pin(async move {
+            recorded.lock().unwrap().push(url);
+            Ok(body)
+        })
+    });
+    let mut tools = server.tools.without("fetch_url");
+    tools.register(bound_fetch_fixture(handler));
+    server.tools = Arc::new(tools);
+    calls
+}
+
+#[tokio::test]
+async fn quick_research_prices_come_from_the_scoped_record_and_the_host_renders_conflicts() {
+    for conflict in [false, true] {
+        let (_home, mut server, _) = setup().await;
+        let mut wrong_store = store_offer("199");
+        wrong_store["store"] = json!("福田店");
+        let mut wrong_date = store_offer("209");
+        wrong_date["date"] = json!("2026-11-26");
+        let mut starting = store_offer("219");
+        starting["priceKind"] = json!("starting_at");
+        let mut other_terms = store_offer("179");
+        other_terms["conditions"] = json!("仅新客");
+        let mut responses = vec![
+            fetch("store-feed", STORE_FEED),
+            cite("model-cannot-bind-price", 1, 1, "199"),
+        ];
+        if conflict {
+            responses.push(fetch("conflict", STORE_FEED_UPDATED));
+        }
+        responses.push(Mock::text("最终价格为 999 元。"));
+        install_store_feeds(
+            &mut server,
+            responses,
+            vec![
+                (STORE_FEED, json!({"offers":[wrong_store,wrong_date,starting,other_terms,store_offer("299")]}).to_string()),
+                (STORE_FEED_UPDATED, json!({"offers":[store_offer("309")]}).to_string()),
+            ],
+        );
+        let events = send(
+            &server,
+            &format!("/web_research\n{STORE_QUERY}"),
+            "price",
+            None,
+        )
+        .await
+        .unwrap();
+        let reply = events
+            .iter()
+            .find_map(|event| match event {
+                ServerNotification::TurnCompleted(done) => Some(&done.reply),
+                _ => None,
+            })
+            .unwrap();
+        assert!(
+            reply.contains("CNY 299.00") && reply.contains(STORE_FEED),
+            "{reply}"
+        );
+        assert_eq!(reply.contains("同一口径出现不同报价"), conflict, "{reply}");
+        assert_eq!(reply.contains("CNY 309.00"), conflict, "{reply}");
+        for absent in ["CNY 199", "CNY 209", "CNY 219", "CNY 179", "999 元"] {
+            assert!(!reply.contains(absent), "{reply}");
+        }
+        assert!(events.iter().any(|event| matches!(event,
+            ServerNotification::ToolCompleted(call) if call.tool_use_id == "model-cannot-bind-price"
+                && call.status == ToolStatus::Error
+        )));
+    }
+}
+
+#[tokio::test]
+async fn deep_research_does_not_deliver_a_conflicted_price() {
+    let (_home, mut server, _) = setup().await;
+    install_store_feeds(
+        &mut server,
+        vec![
+            fetch("store-feed", STORE_FEED),
+            fetch("second-price", STORE_FEED_UPDATED),
+            Mock::text("价格已经核实。"),
+        ],
+        vec![
+            (
+                STORE_FEED,
+                json!({"offers":[store_offer("299")]}).to_string(),
+            ),
+            (
+                STORE_FEED_UPDATED,
+                json!({"offers":[store_offer("309")]}).to_string(),
+            ),
+        ],
+    );
+    send(
+        &server,
+        &format!("/deep_research\n{STORE_QUERY}"),
+        "deep-price",
+        None,
+    )
+    .await
+    .unwrap();
+    let jobs = server
+        .tasks
+        .list_for_session(MAIN_SESSION, 10)
+        .await
+        .unwrap();
+    assert_eq!(jobs.len(), 1);
+    let id = &jobs[0].id;
+    settled(&server, id, TaskStatus::NeedsAttention).await;
+    assert!(
+        server
+            .completions
+            .latest_delivery(id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let saved: String =
+        sqlx::query_scalar("SELECT state_json FROM research_evidence WHERE task_id=?")
+            .bind(id)
+            .fetch_one(&server.pool)
+            .await
+            .unwrap();
+    let data: serde_json::Value = serde_json::from_str(&saved).unwrap();
+    assert_eq!(data["priceQueries"]["0"]["store"], "南山店");
+    assert_eq!(data["observations"].as_array().unwrap().len(), 2);
+}

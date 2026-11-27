@@ -98,16 +98,53 @@ where
     V: PartialEq,
     C: IntoIterator<Item = Claim<E, T, I, V>>,
 {
-    let mut claims = Vec::new();
-    for call in calls {
+    let claims = calls.iter().flat_map(|call| {
         let SourceRead::Read {
             requested,
             effective,
         } = call.source_read()
         else {
-            continue;
+            return Vec::new();
         };
-        for claim in extract(requested, effective, &call.output) {
+        extract(requested, effective, &call.output)
+            .into_iter()
+            .map(|claim| (claim, effective))
+            .collect()
+    });
+    match adjudicate(claims, entity, freshness, qualifies) {
+        Review::Insufficient => Decision::Insufficient,
+        Review::Conflict(_) => Decision::Conflict,
+        Review::Confirmed((claim, source)) => Decision::Confirmed {
+            identity: claim.identity,
+            value: claim.value,
+            source: source.to_string(),
+        },
+    }
+}
+
+/// Review of scoped claims supplied by a host that has already verified the reads.
+/// The conflict carries the observations needed to explain the disagreement.
+pub enum Review<C> {
+    Insufficient,
+    Confirmed(C),
+    Conflict(Vec<C>),
+}
+
+pub fn adjudicate<E, T, I, V, S>(
+    claims: impl IntoIterator<Item = (Claim<E, T, I, V>, S)>,
+    entity: &E,
+    freshness: Freshness<T>,
+    qualifies: impl Fn(&V) -> bool,
+) -> Review<(Claim<E, T, I, V>, S)>
+where
+    E: PartialEq,
+    T: PartialOrd,
+    I: PartialEq,
+    V: PartialEq,
+{
+    let mut claims: Vec<_> = claims
+        .into_iter()
+        .filter(|(claim, _)| {
             let fresh = match &freshness {
                 Freshness::Any => true,
                 Freshness::Within(window) => claim
@@ -115,28 +152,35 @@ where
                     .as_ref()
                     .is_some_and(|time| window.contains(time)),
             };
-            if &claim.entity == entity && fresh {
-                claims.push((claim, effective));
-            }
-        }
-    }
+            &claim.entity == entity && fresh
+        })
+        .collect();
     let Some(index) = claims.iter().position(|(claim, _)| qualifies(&claim.value)) else {
-        return Decision::Insufficient;
+        return Review::Insufficient;
     };
-    let (chosen, source) = claims.swap_remove(index);
-    if claims.iter().any(|(other, _)| {
-        if other.identity == chosen.identity {
-            other.value != chosen.value
+    let chosen = claims.remove(index);
+    let mut conflicting = Vec::new();
+    for other in claims {
+        let disagrees = if other.0.identity == chosen.0.identity {
+            other.0.value != chosen.0.value
         } else {
-            qualifies(&other.value)
+            qualifies(&other.0.value)
+        };
+        if disagrees
+            && !conflicting
+                .iter()
+                .any(|(claim, _): &(Claim<E, T, I, V>, S)| {
+                    claim.identity == other.0.identity && claim.value == other.0.value
+                })
+        {
+            conflicting.push(other);
         }
-    }) {
-        return Decision::Conflict;
     }
-    Decision::Confirmed {
-        identity: chosen.identity,
-        value: chosen.value,
-        source: source.to_string(),
+    if conflicting.is_empty() {
+        Review::Confirmed(chosen)
+    } else {
+        conflicting.insert(0, chosen);
+        Review::Conflict(conflicting)
     }
 }
 

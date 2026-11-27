@@ -1420,7 +1420,14 @@ pub(crate) async fn read_page(
             body.extend_from_slice(&chunk);
         }
         let raw = String::from_utf8_lossy(&body);
-        let text = if content_type.contains("html") || raw.contains('<') {
+        let media_type = content_type
+            .split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        let json = media_type == "application/json" || media_type.ends_with("+json");
+        let text = if !json && (media_type.contains("html") || raw.contains('<')) {
             render_html(&raw, Some(&url))
         } else {
             raw.into_owned()

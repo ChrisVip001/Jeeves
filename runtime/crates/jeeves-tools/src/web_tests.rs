@@ -692,3 +692,18 @@ async fn an_http_partial_response_cannot_produce_a_complete_page() {
     assert!(!page.complete);
     assert!(page.text.contains("partial response"));
 }
+
+#[tokio::test]
+async fn a_json_feed_can_include_html_descriptions_without_losing_the_record_fields() {
+    let body = r#"{"offers":[{"sku":"A250","description":"<p>250ml</p>","amount":"299.00"}]}"#;
+    let base = spawn_server(vec![(
+        "/quotes",
+        200,
+        "application/vnd.merchant+json; charset=utf-8",
+        body.into(),
+        "",
+    )]);
+    let (page, _) = read_page(&format!("{base}/quotes"), true).await.unwrap();
+    assert!(page.complete);
+    assert!(page.text.contains(body), "{}", page.text);
+}

@@ -10,8 +10,10 @@ use jeeves_tools::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::Mutex;
+
+mod price;
 
 const MAX_QUESTIONS: usize = 8;
 const MAX_OBSERVATIONS: usize = 16;
@@ -23,9 +25,14 @@ pub(crate) const INCOMPLETE: &str =
     "Research has unresolved or conflicting evidence; the partial findings are not final";
 pub(crate) const QUICK: &str = "/web_research";
 pub(crate) const DEEP: &str = "/deep_research";
-pub(crate) const NOTE: &str = "\nResearch mode: research_evidence(status) lists the immutable questions, prior observations and gaps. Use public, non-sensitive search terms. Search gives leads only. Fetch the candidate page to obtain its final URL and citable body. Failed and incomplete reads cannot be cited. When reads reserve the remaining budget, dismiss only irrelevant or redundant displayed leads via research_evidence(dismiss) before trying a focused new search. Prefer a read for a still-open question over repeating a search that did not add sources. Call research_evidence(record) with exact quotes from a fetched body; a quote must directly address that question in context. Do not conflate evidence for distinct questions. Record conflicting observations as conflicted; leave unsupported questions unbound. The runtime, not your prose, renders the result from recorded excerpts. Do not write a final report yourself.";
+pub(crate) const NOTE: &str = "\nResearch mode: research_evidence(status) lists the immutable questions, prior observations and gaps. Use public, non-sensitive search terms. Search gives leads only. Fetch the candidate page to obtain its final URL and citable body. Failed and incomplete reads cannot be cited. When reads reserve the remaining budget, dismiss only irrelevant or redundant displayed leads via research_evidence(dismiss) before trying a focused new search. Prefer a read for a still-open question over repeating a search that did not add sources. Call research_evidence(record) with exact quotes from a fetched body; a quote must directly address that question in context. Do not conflate evidence for distinct questions. Record conflicting observations as conflicted; leave unsupported questions unbound. The runtime, not your prose, renders the result from recorded excerpts. Do not write a final report yourself. If a question has priceQuery in status, read its supplied feed URL if present. Otherwise look for a public merchant JSON feed on its exact host. Read other relevant matching feeds while budget permits. Each offers entry needs store, sku, variant, date, conditions, currency, priceKind and amount. Supported prices have currency CNY, priceKind checkout_total, and a decimal amount string. The host evaluates every matching observed record, so do not call record for these questions.";
 
-pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Vec<String>>> {
+pub(crate) struct Request {
+    questions: Vec<String>,
+    price_queries: BTreeMap<usize, price::Query>,
+}
+
+pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Request>> {
     let rest = message.trim_start().strip_prefix(prefix)?;
     if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
         return None;
@@ -45,7 +52,17 @@ pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Vec<String>>
             questions.iter().all(|q| q.chars().count() <= 500),
             "Each research question must have at most 500 characters"
         );
-        Ok(questions)
+        let price_queries = questions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, line)| {
+                price::Query::parse(line).map(|query| query.map(|query| (i, query)))
+            })
+            .collect::<Result<_>>()?;
+        Ok(Request {
+            questions,
+            price_queries,
+        })
     })())
 }
 
@@ -53,6 +70,8 @@ pub(crate) fn command(message: &str, prefix: &str) -> Option<Result<Vec<String>>
 #[serde(rename_all = "camelCase")]
 struct State {
     questions: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    price_queries: BTreeMap<usize, price::Query>,
     observations: Vec<Observation>,
     bindings: Vec<Option<Binding>>,
     attempts: u32,
@@ -123,6 +142,17 @@ impl Observation {
         source_url(requested).is_ok() && source_url(effective).is_ok_and(|url| url == self.url)
     }
 
+    fn requested_url(&self) -> Option<&str> {
+        match SourceRead::fetched(self.receipt.as_ref()) {
+            SourceRead::Read { requested, .. } => Some(requested),
+            _ => None,
+        }
+    }
+
+    fn intact(&self) -> bool {
+        self.valid_receipt() && self.digest == jeeves_state::ledger::digest_of(self.text.as_bytes())
+    }
+
     fn matches_url(&self, url: &str) -> bool {
         if !self.valid_receipt() {
             return false;
@@ -173,6 +203,7 @@ impl State {
         Self {
             bindings: vec![None; questions.len()],
             questions,
+            price_queries: BTreeMap::new(),
             observations: vec![],
             attempts: 0,
             limit,
@@ -210,10 +241,7 @@ impl State {
 
     fn restore(mut self) -> Self {
         for observation in &mut self.observations {
-            if !observation.valid_receipt()
-                || observation.digest
-                    != jeeves_state::ledger::digest_of(observation.text.as_bytes())
-            {
+            if !observation.intact() {
                 // Preserve existing slot numbers, including ids in resumed model messages.
                 observation.receipt = None;
                 observation.text.clear();
@@ -237,7 +265,10 @@ impl State {
             .bindings
             .iter()
             .enumerate()
-            .filter(|(i, _)| self.binding(*i).is_none_or(|b| b.conflicting))
+            .filter(|(i, _)| match self.price_queries.get(i) {
+                Some(query) => !query.assess(self.observations.iter()).supported(),
+                None => self.binding(*i).is_none_or(|b| b.conflicting),
+            })
             .count() as u32;
         let eligible = self.leads.iter().filter(|url| self.eligible(url)).count() as u32;
         ensure!(
@@ -251,6 +282,9 @@ impl State {
         json!({
             "remainingWebAttempts": self.limit.saturating_sub(self.attempts),
             "questions": self.questions.iter().enumerate().map(|(i,text)| {
+                if let Some(query) = self.price_queries.get(&i) {
+                    return json!({"id":i+1,"priceQuery":query,"state":query.assess(self.observations.iter()).state()});
+                }
                 json!({"id":i+1,"question":text,"state":match self.binding(i) {
                     None => "unresolved",
                     Some(b) if b.conflicting => "conflicting",
@@ -279,6 +313,11 @@ impl State {
             input.action == "record" && (1..=self.questions.len()).contains(&input.question),
             "Choose a question from status"
         );
+        let index = input.question - 1;
+        ensure!(
+            !self.price_queries.contains_key(&index),
+            "The host evaluates price questions directly from the observed merchant records"
+        );
         ensure!(
             (1..=3).contains(&input.citations.len()),
             "Supply one to three exact quotes"
@@ -299,7 +338,6 @@ impl State {
             !input.conflicting || bodies.len() >= 2,
             "A conflict requires at least two distinct observed bodies"
         );
-        let index = input.question - 1;
         // Do not let a later model attempt silently turn a recorded conflict into agreement.
         ensure!(
             input.conflicting || !self.bindings[index].as_ref().is_some_and(|b| b.conflicting),
@@ -314,11 +352,20 @@ impl State {
 
     fn render(&self) -> (String, bool) {
         let mut complete = true;
-        let mut parts = vec![
+        let header = if self.price_queries.is_empty() {
             "Research evidence · quoted excerpts, not an independent verification of the source"
-                .to_owned(),
-        ];
+        } else {
+            "公开研究证据 · 商家报价记录与原文摘录"
+        };
+        let mut parts = vec![header.to_owned()];
         for (index, question) in self.questions.iter().enumerate() {
+            if let Some(query) = self.price_queries.get(&index) {
+                parts.push(format!("**门店报价 · {}**", query.title()));
+                let assessment = query.assess(self.observations.iter());
+                complete &= assessment.supported();
+                parts.extend(assessment.render());
+                continue;
+            }
             parts.push(format!("**{}**", literal(question)));
             let Some(binding) = self.binding(index) else {
                 complete = false;
@@ -401,7 +448,9 @@ impl Session {
         let Some(questions) = questions else {
             return Ok(None);
         };
-        let state = State::new(questions?, durable.is_some());
+        let request = questions?;
+        let mut state = State::new(request.questions, durable.is_some());
+        state.price_queries = request.price_queries;
         let session = Self {
             state: Arc::new(Mutex::new(state.clone())),
             durable,

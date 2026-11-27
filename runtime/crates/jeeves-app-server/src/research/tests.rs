@@ -65,7 +65,10 @@ fn user_scope_and_source_identity_are_bounded() {
     assert!(command("/web_research_not_a_command", QUICK).is_none());
     assert!(command(QUICK, QUICK).unwrap().is_err());
     assert_eq!(
-        command("/web_research\n A?\n B?", QUICK).unwrap().unwrap(),
+        command("/web_research\n A?\n B?", QUICK)
+            .unwrap()
+            .unwrap()
+            .questions,
         ["A?", "B?"]
     );
     assert!(source_url("https://user:password@example.test/").is_err());
@@ -166,4 +169,170 @@ fn projection_cuts_view_without_changing_the_receipt_body_or_digest() {
     assert_eq!(observation.display().chars().count(), MAX_DISPLAY);
     assert_eq!(observation.text, body);
     assert!(observation.matches_quote("Capacity was 68 percent."));
+}
+
+const PRICE_QUERY: &str = r#"price {"host":"shop.example","store":"南山店","sku":"A250","variant":"250ml","date":"2026-11-27","conditions":"无优惠"}"#;
+const PRICE_SOURCE: &str = "https://shop.example/quotes";
+const PRICE_UPDATE: &str = "https://shop.example/quotes/revision";
+
+fn price_state() -> State {
+    let request = command(&format!("{QUICK}\n{PRICE_QUERY}"), QUICK)
+        .unwrap()
+        .unwrap();
+    let mut state = State::new(request.questions, false);
+    state.price_queries = request.price_queries;
+    state
+}
+
+fn price_row(amount: &str) -> Value {
+    json!({
+        "store":"南山店","sku":"A250","variant":"250ml","date":"2026-11-27",
+        "conditions":"无优惠","currency":"CNY","priceKind":"checkout_total","amount":amount
+    })
+}
+
+#[test]
+fn closed_price_scope_refuses_wrong_fields_starting_price_and_fields_spliced_across_rows() {
+    for (field, mismatch) in [
+        ("store", "福田店"),
+        ("sku", "B250"),
+        ("variant", "500ml"),
+        ("date", "2026-11-26"),
+        ("conditions", "仅新客券"),
+        ("currency", "USD"),
+        ("priceKind", "starting_at"),
+        ("amount", "299–399"),
+    ] {
+        let mut row = price_row("299");
+        row[field] = json!(mismatch);
+        let mut state = price_state();
+        source(
+            &mut state,
+            PRICE_SOURCE,
+            &json!({"offers":[row]}).to_string(),
+        );
+        let (reply, complete) = state.render();
+        assert!(!complete, "{field}: {reply}");
+        assert_eq!(state.status()["questions"][0]["state"], "unresolved");
+        assert!(!reply.contains("商家列出的固定到手总价"), "{reply}");
+        if field == "priceKind" {
+            assert!(reply.contains("页面列出 CNY 299.00") && reply.contains("未标明固定到手总价"));
+        }
+    }
+    let mut missing_date = price_row("299");
+    missing_date.as_object_mut().unwrap().remove("date");
+    let mut missing_amount = price_row("299");
+    missing_amount.as_object_mut().unwrap().remove("amount");
+    let mut state = price_state();
+    source(
+        &mut state,
+        PRICE_SOURCE,
+        &json!({"offers":[missing_date,missing_amount]}).to_string(),
+    );
+    let (reply, complete) = state.render();
+    assert!(
+        !complete && reply.contains("适用日期") && reply.contains("缺少有效金额"),
+        "{reply}"
+    );
+    assert!(!reply.contains("商家列出的固定到手总价"));
+}
+
+#[test]
+fn conflicting_same_scope_prices_are_exposed_and_identical_prices_do_not_vote() {
+    let mut state = price_state();
+    for (url, amount) in [
+        (PRICE_SOURCE, "299"),
+        ("https://shop.example/copy", "299.00"),
+    ] {
+        source(
+            &mut state,
+            url,
+            &json!({"offers":[price_row(amount)]}).to_string(),
+        );
+    }
+    assert!(state.render().1);
+    assert_eq!(state.status()["questions"][0]["state"], "price-supported");
+    source(
+        &mut state,
+        PRICE_UPDATE,
+        &json!({"offers":[price_row("309.50")]}).to_string(),
+    );
+    let restored = serde_json::from_str::<State>(&serde_json::to_string(&state).unwrap())
+        .unwrap()
+        .restore();
+    let (reply, complete) = restored.render();
+    assert!(
+        !complete && reply.contains("同一口径出现不同报价"),
+        "{reply}"
+    );
+    for proof in ["CNY 299.00", "CNY 309.50", PRICE_SOURCE, PRICE_UPDATE] {
+        assert!(reply.contains(proof), "{reply}");
+    }
+    assert_eq!(restored.status()["questions"][0]["state"], "conflicting");
+    assert!(!reply.contains("/copy"));
+}
+
+#[test]
+fn price_requires_an_intact_bound_feed_and_enforces_the_owners_host() {
+    let text = json!({"offers":[price_row("299")]}).to_string();
+    let mut state = price_state();
+    source(&mut state, "https://other.example/quotes", &text);
+    source(&mut state, PRICE_SOURCE, &text);
+    state.observations[1].receipt = Some(WebReceipt::Page {
+        requested: "https://other.example/redirect".into(),
+        effective: Some(PRICE_SOURCE.into()),
+        complete: true,
+    });
+    source(&mut state, PRICE_UPDATE, &text);
+    state.observations[2].receipt = None;
+    source(&mut state, "https://shop.example/bad", &text);
+    state.observations[3].digest = "tampered".into();
+    assert!(!state.render().1);
+    assert!(!state.render().0.contains("CNY 299"));
+    let exact = "299";
+    let err = state
+        .record(json!({
+            "action":"record","question":1,"citations":[{"source":1,"quote":exact}]
+        }))
+        .unwrap_err();
+    assert!(err.to_string().contains("host evaluates price questions"));
+    let ordinary = command("/web_research\nprice trends for this SKU?", QUICK)
+        .unwrap()
+        .unwrap();
+    assert!(ordinary.price_queries.is_empty());
+    for invalid in [
+        PRICE_QUERY.replace("shop.example", "shop.example/path"),
+        PRICE_QUERY.replace("2026-11-27", "今天"),
+        PRICE_QUERY.replace("无优惠", ""),
+    ] {
+        assert!(
+            command(&format!("{QUICK}\n{invalid}"), QUICK)
+                .unwrap()
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn both_prices_can_come_from_distinct_records_on_one_page_but_duplicate_json_fields_are_invalid() {
+    let mut state = price_state();
+    source(
+        &mut state,
+        PRICE_SOURCE,
+        &json!({"offers":[price_row("299"),price_row("309")]}).to_string(),
+    );
+    let (reply, complete) = state.render();
+    assert!(!complete && reply.contains("报价记录 1") && reply.contains("报价记录 2"));
+    let mut malformed = price_state();
+    let row = price_row("299").to_string().replacen(
+        r#""amount":"299""#,
+        r#""amount":"299","amount":"309""#,
+        1,
+    );
+    source(
+        &mut malformed,
+        PRICE_SOURCE,
+        &format!(r#"{{"offers":[{row}]}}"#),
+    );
+    assert!(!malformed.render().1);
 }
