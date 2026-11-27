@@ -258,8 +258,8 @@ impl State {
                 }})
             }).collect::<Vec<_>>(),
             "unopenedLeads": self.leads.iter().filter(|url| self.eligible(url)).collect::<Vec<_>>(),
-            "sources": self.observations.iter().enumerate().filter_map(|(i,o)| {
-                o.valid_receipt().then(|| json!({"id":i+1,"url":o.url,"fetchedAt":o.fetched_at,"contentDigest":o.digest}))
+            "sources": self.observations.iter().enumerate().filter(|(_,o)| o.valid_receipt()).map(|(i,o)| {
+                json!({"id":i+1,"url":o.url,"fetchedAt":o.fetched_at,"contentDigest":o.digest})
             }).collect::<Vec<_>>()
         })
     }

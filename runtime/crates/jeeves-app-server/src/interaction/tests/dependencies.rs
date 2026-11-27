@@ -51,7 +51,7 @@ async fn a_chat_assignment_waits_for_an_existing_tasks_verified_delivery() {
     );
     assert_eq!(
         queue.unresolved_dependencies(&dependent.id).await.unwrap(),
-        [prerequisite.id.clone()]
+        std::slice::from_ref(&prerequisite.id)
     );
     assert_eq!(server.runs.count_by_task(&dependent.id).await.unwrap(), 0);
     assert_eq!(
