@@ -193,3 +193,157 @@ async fn live_merchant_catalog_stays_unresolved_in_both_research_modes() {
     assert_read_links(&quick_reply);
     assert_read_links(&deep_reply);
 }
+
+fn install_live_model_pages(server: &mut Server) -> Arc<Mutex<Vec<String>>> {
+    let reads = Arc::new(Mutex::new(Vec::new()));
+    let trace = reads.clone();
+    let handler: jeeves_tools::Handler = Arc::new(move |_, args| {
+        let trace = trace.clone();
+        Box::pin(async move {
+            let url = jeeves_tools::require_str(&args, "url")?;
+            let body = match url.as_str() {
+                PRODUCT => {
+                    "RÅSKOG 拉斯克\n货号205.867.88\n手推车，白色，35x45x77 厘米\n网站标价 ¥179.00"
+                }
+                STORE => "深圳商场\n商场活动仅在该实体门店适用。",
+                _ => anyhow::bail!("The URL is outside the recorded public merchant pages"),
+            };
+            trace.lock().unwrap().push(url);
+            Ok(body.into())
+        })
+    });
+    let search: jeeves_tools::Handler = Arc::new(|_, _| {
+        Box::pin(async {
+            Ok(format!(
+                "Source 1: 宜家白色 RÅSKOG 商品详情\nURL: {PRODUCT}\nSource 2: 宜家深圳商场\nURL: {STORE}"
+            ))
+        })
+    });
+    let mut tools = server.tools.without("fetch_url").without("search_web");
+    tools.register(bound_fetch_fixture(handler));
+    tools.register(search_web_with_primary(Some(search)));
+    server.tools = Arc::new(tools);
+    reads
+}
+
+fn assert_model_completed(accounting: &serde_json::Value, reads: &[String]) {
+    let requests = accounting["requests"].as_u64().unwrap();
+    let responses = accounting["responses"].as_u64().unwrap();
+    assert!(
+        requests > 0 && responses == requests,
+        "Provider did not complete its calls: {accounting}"
+    );
+    for source in [PRODUCT, STORE] {
+        assert!(
+            reads.iter().any(|url| url == source),
+            "Model did not read {source}: {reads:?}"
+        );
+    }
+}
+
+#[tokio::test]
+#[ignore = "Opt-in: real DeepSeek calls with publicly observed merchant evidence replay"]
+async fn deepseek_merchant_acceptance_with_public_page_replay() {
+    use crate::interaction::tests::research_replay::live::live_provider;
+
+    let date = "2026-11-27";
+    let (resolved, provider) = live_provider();
+    let (_home, mut server, _) = setup().await;
+    let reads = install_live_model_pages(&mut server);
+    server.install_provider(resolved);
+
+    let ask = request("/web_research", date);
+    let events = send(&server, &ask, "merchant-deepseek-quick", None)
+        .await
+        .unwrap();
+    let reply = events
+        .iter()
+        .find_map(|event| match event {
+            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
+            _ => None,
+        })
+        .unwrap();
+    let accounting = provider.accounting();
+    let opened = reads.lock().unwrap().clone();
+    eprintln!("Merchant real-model quick {accounting} reads={opened:?}");
+    assert_read_links(reply);
+    assert_model_completed(&accounting, &opened);
+
+    let (resolved, provider) = live_provider();
+    let reads = install_live_model_pages(&mut server);
+    server.install_provider(resolved);
+    let ask = request("/deep_research", date);
+    send(&server, &ask, "merchant-deepseek-deep", None)
+        .await
+        .unwrap();
+    let jobs = server
+        .tasks
+        .list_for_session(MAIN_SESSION, 10)
+        .await
+        .unwrap();
+    assert_eq!(jobs.len(), 1);
+    let id = &jobs[0].id;
+    settled_with_timeout(
+        &server,
+        id,
+        TaskStatus::NeedsAttention,
+        Duration::from_secs(90),
+    )
+    .await;
+    let session = crate::research::Session::open(&server, Some(id), "Continue")
+        .await
+        .unwrap()
+        .unwrap();
+    let (reply, complete) = session.render().await;
+    let accounting = provider.accounting();
+    let opened = reads.lock().unwrap().clone();
+    eprintln!("Merchant real-model deep {accounting} reads={opened:?}");
+    assert!(!complete);
+    assert!(
+        server
+            .completions
+            .latest_delivery(id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_read_links(&reply);
+    assert_model_completed(&accounting, &opened);
+}
+
+#[tokio::test]
+#[ignore = "Opt-in: real DeepSeek with a natural-language merchant question"]
+async fn deepseek_natural_merchant_question_leaves_checkout_unresolved() {
+    use crate::interaction::tests::research_replay::live::live_provider;
+
+    let (resolved, provider) = live_provider();
+    let (_home, mut server, _) = setup().await;
+    let reads = install_live_model_pages(&mut server);
+    server.install_provider(resolved);
+
+    let ask = format!(
+        "/web_research\n请打开商品页 {PRODUCT} 和深圳商场页 {STORE}，确认 2026 年 11 月 27 日宜家深圳商场的白色 RÅSKOG 手推车（205.867.88，35 × 45 × 77 厘米）在没有优惠时的固定到手价。"
+    );
+    let events = send(&server, &ask, "merchant-deepseek-natural", None)
+        .await
+        .unwrap();
+    let reply = events
+        .iter()
+        .find_map(|event| match event {
+            ServerNotification::TurnCompleted(done) => Some(done.reply.as_str()),
+            _ => None,
+        })
+        .unwrap();
+    let accounting = provider.accounting();
+    let opened = reads.lock().unwrap().clone();
+    eprintln!("Merchant real-model natural {accounting} reads={opened:?}");
+    assert_model_completed(&accounting, &opened);
+    assert!(
+        reply.contains("Unresolved:"),
+        "Free-form research bound an unsupported checkout claim: {reply}"
+    );
+    assert!(
+        !reply.contains("¥179") && !reply.contains("179 元"),
+        "{reply}"
+    );
+}

@@ -8,7 +8,7 @@ const REQUEST_CAP: usize = 8;
 const MAX_OUTPUT: i32 = 1_024;
 const MAX_INPUT_ESTIMATE: usize = 12_000;
 
-struct Bounded {
+pub(in crate::interaction::tests) struct Bounded {
     inner: Arc<dyn Provider>,
     sent: AtomicUsize,
     usage: Mutex<Vec<jeeves_provider::Usage>>,
@@ -66,7 +66,7 @@ impl Bounded {
         })
     }
 
-    fn accounting(&self) -> Value {
+    pub(in crate::interaction::tests) fn accounting(&self) -> Value {
         let usage = self.usage.lock().unwrap();
         json!({
             "requests":self.sent.load(Ordering::Relaxed).min(REQUEST_CAP),
@@ -77,16 +77,65 @@ impl Bounded {
     }
 }
 
-fn live_provider() -> (Resolved, Arc<Bounded>) {
+fn live_credential() -> Result<(String, String), &'static str> {
+    use jeeves_config::models::{SecretStore, SecretVault, read_models};
+
+    const OFFICIAL: &str = "https://api.deepseek.com";
+    let configured_home = std::env::var_os("JEEVES_TEST_MODEL_HOME");
+    let configured_profile = std::env::var("JEEVES_TEST_MODEL_PROFILE").ok();
+    let (Some(path), Some(profile_id)) = (configured_home.as_ref(), configured_profile.as_ref())
+    else {
+        if configured_home.is_some() || configured_profile.is_some() {
+            return Err("Set both JEEVES_TEST_MODEL_HOME and JEEVES_TEST_MODEL_PROFILE");
+        }
+        return std::env::var("DEEPSEEK_API_KEY")
+            .ok()
+            .filter(|key| !key.trim().is_empty())
+            .map(|key| (key, OFFICIAL.into()))
+            .ok_or("No configured DeepSeek credential is accessible; 0 API requests");
+    };
+    let path = std::path::Path::new(path);
+    let models =
+        read_models(path).map_err(|_| "Cannot read the configured Jeeves model profiles")?;
+    let profile = models
+        .profiles
+        .iter()
+        .find(|profile| {
+            profile.id == *profile_id
+                && profile.provider == "deepseek"
+                && profile.model.as_deref() == Some(MODEL)
+        })
+        .ok_or("No matching configured DeepSeek Flash profile")?;
+    let base = profile
+        .base_url
+        .as_deref()
+        .unwrap_or(OFFICIAL)
+        .trim_end_matches('/');
+    if !matches!(base, OFFICIAL | "https://api.deepseek.com/v1") {
+        return Err("The configured profile must use the official DeepSeek endpoint");
+    }
+    let key = match profile.key_source.as_deref() {
+        Some("keychain" | "file") => SecretStore::auto()
+            .versioned_credential(path, &profile.credential_slot.account(profile_id))
+            .map(|(key, _)| key),
+        Some(source) => source
+            .strip_prefix("env:")
+            .and_then(|name| std::env::var(name).ok()),
+        None => None,
+    };
+    key.filter(|key| !key.trim().is_empty())
+        .map(|key| (key, base.to_owned()))
+        .ok_or("The configured DeepSeek credential is unavailable; 0 API requests")
+}
+
+pub(in crate::interaction::tests) fn live_provider() -> (Resolved, Arc<Bounded>) {
+    let (key, base_url) = live_credential().unwrap_or_else(|error| panic!("{error}"));
     let settings = jeeves_config::Settings {
         provider: "deepseek".into(),
         model: Some(MODEL.into()),
         small_model: Some(MODEL.into()),
-        base_url: Some("https://api.deepseek.com".into()),
-        api_key: Some(
-            std::env::var("DEEPSEEK_API_KEY")
-                .expect("Set the approved DeepSeek key in the environment"),
-        ),
+        base_url: Some(base_url),
+        api_key: Some(key),
         llm_retries: 0,
         llm_timeout_secs: 40,
         ..Default::default()

@@ -369,4 +369,4 @@ async fn task_reopen_preserves_unresolved_throughput_and_the_original_fetch() {
     assert!(score(&final_report, &opened, true));
 }
 
-mod live;
+pub(super) mod live;

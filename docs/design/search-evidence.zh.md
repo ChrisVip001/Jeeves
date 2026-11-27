@@ -76,3 +76,17 @@ cargo test --locked -p jeeves-app-server --lib \
 ```
 
 正向验收需要商家公开提供包含实体店、SKU、规格、有效日期、优惠条件和固定到手总价的报价记录。宜家案例用于验证网站标价与门店活动的边界。
+
+#### 真实模型验收
+
+使用环境中已配置的 `DEEPSEEK_API_KEY` 运行这两项。已有 Jeeves 模型配置时，也可通过 `JEEVES_TEST_MODEL_HOME` 和 `JEEVES_TEST_MODEL_PROFILE` 指定配置目录及模型配置 ID，复用其中已保存的凭据。两项都调用 Jeeves 的真实 DeepSeek provider。网页内容固定为上述公开商品页和商场页的摘录，以便单独检查模型的阅读、工具选择和证据判断，公网直读由上一节的测试覆盖。
+
+```sh
+cargo test --locked -p jeeves-app-server --lib \
+  deepseek_merchant_acceptance_with_public_page_replay -- --ignored --nocapture
+
+cargo test --locked -p jeeves-app-server --lib \
+  deepseek_natural_merchant_question_leaves_checkout_unresolved -- --ignored --nocapture
+```
+
+结构化用例覆盖快速与深度研究，另一个用例走普通自然语言研究入口。验收要求模型实际收到 API 响应、自主读取两个来源，并保持到手价待核实。深度研究同时检查完成交付状态。日志输出请求响应数量、用量和读取的公开 URL。
