@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use super::guard::{GuardVerdict, StallGuard, for_model, reminder};
+use super::guard::{FailureKind, GuardVerdict, StallGuard, for_model, reminder};
 
 fn feed(guard: &mut StallGuard, name: &str, args: serde_json::Value, output: &str) -> GuardVerdict {
     guard.observe(name, &args, output, true)
@@ -126,7 +126,8 @@ fn one_tool_failing_with_different_arguments_is_flagged_but_not_a_stall() {
         verdict,
         GuardVerdict::Failing {
             name: "read_file".into(),
-            times: 3
+            times: 3,
+            kind: FailureKind::Missing
         }
     );
     assert!(
@@ -141,6 +142,108 @@ fn one_tool_failing_with_different_arguments_is_flagged_but_not_a_stall() {
     );
     assert!(text.starts_with("Error: c not found"), "{text}");
     assert!(text.contains("failed 3 times in a row"), "{text}");
+    assert!(text.contains("Stop guessing names or paths"), "{text}");
+}
+
+#[test]
+fn the_guard_advises_for_the_failure_cause_not_a_generic_detour() {
+    let streak = |outputs: [&str; 3]| {
+        let mut guard = StallGuard::new();
+        let mut verdict = GuardVerdict::Ok;
+        for (index, output) in outputs.iter().enumerate() {
+            verdict = guard.observe("fetch_url", &json!({"url": index}), output, false);
+        }
+        match verdict {
+            GuardVerdict::Failing { kind, .. } => kind,
+            other => panic!("expected a failure streak, got {other:?}"),
+        }
+    };
+    assert_eq!(
+        streak([
+            "Error: fetch_url failed: timed out",
+            "Error: fetch_url failed: 503 from host",
+            "Error: fetch_url failed: connection reset",
+        ]),
+        FailureKind::Transient
+    );
+    assert_eq!(
+        streak([
+            "Error: 403 Forbidden",
+            "Error: unauthorized",
+            "Error: permission denied",
+        ]),
+        FailureKind::Permission
+    );
+    // A 403 is a permission problem even though it is also an HTTP status.
+    assert_eq!(
+        streak(["Error: 403", "Error: 403", "Error: 403"]),
+        FailureKind::Permission
+    );
+    assert_eq!(
+        streak([
+            "Error: the arguments do not match the fetch_url schema",
+            "Error: missing field `url`",
+            "Error: failed to parse input",
+        ]),
+        FailureKind::Arguments
+    );
+    assert_eq!(
+        streak([
+            "Error: conflict: the file was modified since it was read",
+            "Error: 409 from host",
+            "Error: the path is locked",
+        ]),
+        FailureKind::State
+    );
+    // Mixed causes must not advise for whichever error came last.
+    assert_eq!(
+        streak([
+            "Error: timed out",
+            "Error: permission denied",
+            "Error: no such file",
+        ]),
+        FailureKind::Unclassified
+    );
+    assert_eq!(
+        streak([
+            "Error: the build broke",
+            "Error: it broke again",
+            "Error: still broken"
+        ]),
+        FailureKind::Unclassified
+    );
+}
+
+#[test]
+fn a_success_clears_the_recorded_failure_cause() {
+    let mut guard = StallGuard::new();
+    for path in ["a", "b"] {
+        guard.observe(
+            "read_file",
+            &json!({"path": path}),
+            "Error: no such file",
+            false,
+        );
+    }
+    guard.observe("read_file", &json!({"path": "c"}), "contents", true);
+    // The streak restarts, so a later unrelated cause is reported on its own terms.
+    let mut verdict = GuardVerdict::Ok;
+    for path in ["d", "e", "f"] {
+        verdict = guard.observe(
+            "read_file",
+            &json!({"path": path}),
+            "Error: permission denied",
+            false,
+        );
+    }
+    assert_eq!(
+        verdict,
+        GuardVerdict::Failing {
+            name: "read_file".into(),
+            times: 3,
+            kind: FailureKind::Permission
+        }
+    );
 }
 
 #[test]

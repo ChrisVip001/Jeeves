@@ -45,6 +45,135 @@ const STUB_MIN_CHARS: usize = 512;
 /// Args preview kept in the stub: with the original compacted away, the call stays identifiable.
 const STUB_ARGS_PREVIEW_CHARS: usize = 120;
 
+/// Why a streak of calls failed, decided from the error text alone. Three failures of one
+/// tool are not one situation: a timeout wants another attempt, a rejected argument wants a
+/// corrected call, and a missing permission wants the user. Telling the model to "take
+/// another route" in every case sends it guessing against a wall it cannot move.
+///
+/// Classification is a deterministic read of the tool's own error text, never the model's
+/// account of it. Anything unrecognized stays `Unclassified`, which keeps the existing
+/// generic advice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FailureKind {
+    /// A timeout, a dropped connection, a 429 or a 5xx: the same call may yet work.
+    Transient,
+    /// The target does not exist. Another guessed name or path is not a new attempt.
+    Missing,
+    /// Permission, auth or an unapproved effect: the user has to open the door.
+    Permission,
+    /// The arguments were rejected on their own terms (schema, parse, format, encoding).
+    Arguments,
+    /// The call was refused because of state it did not expect (a conflict, a lock, a
+    /// precondition): the environment has to be re-read before trying again.
+    State,
+    Unclassified,
+}
+
+impl FailureKind {
+    /// Read the tool's error text. Ordered so that the narrower reading wins: a 403 is a
+    /// permission problem even though "403" also reads as an HTTP status.
+    fn of(output: &str) -> Self {
+        let text = output.to_lowercase();
+        let has = |needles: &[&str]| needles.iter().any(|needle| text.contains(needle));
+        if has(&[
+            "permission denied",
+            "not permitted",
+            "unauthorized",
+            "forbidden",
+            "access denied",
+            "403",
+            "401",
+            "requires approval",
+            "not approved",
+            "api key",
+            "credential",
+        ]) {
+            return Self::Permission;
+        }
+        if has(&[
+            "no such file",
+            "not found",
+            "does not exist",
+            "unknown tool",
+            "no tool named",
+            "404",
+            "nonexistent",
+        ]) {
+            return Self::Missing;
+        }
+        if has(&[
+            "schema",
+            "invalid argument",
+            "invalid input",
+            "invalid json",
+            "parse error",
+            "failed to parse",
+            "missing field",
+            "unknown field",
+            "malformed",
+            "expected",
+        ]) {
+            return Self::Arguments;
+        }
+        if has(&[
+            "conflict",
+            "409",
+            "precondition",
+            "already exists",
+            "locked",
+            "stale",
+            "modified since",
+            "out of date",
+            "dirty",
+        ]) {
+            return Self::State;
+        }
+        if has(&[
+            "timed out",
+            "timeout",
+            "connection reset",
+            "connection refused",
+            "temporarily unavailable",
+            "rate limit",
+            "too many requests",
+            "429",
+            "500",
+            "502",
+            "503",
+            "504",
+            "network",
+            "unreachable",
+        ]) {
+            return Self::Transient;
+        }
+        Self::Unclassified
+    }
+
+    /// The move this failure actually calls for. One line, no menu of options.
+    fn advice(self) -> &'static str {
+        match self {
+            Self::Transient => {
+                "The errors read as transient (timeout, rate limit or a 5xx). One more attempt is reasonable; if it fails again, say so instead of continuing to retry."
+            }
+            Self::Missing => {
+                "Every attempt says the target does not exist. Stop guessing names or paths: list or search the containing location once to find the real one, or tell the user it is missing."
+            }
+            Self::Permission => {
+                "These are permission, credential or approval failures, which another attempt cannot fix. Tell the user exactly what access is needed."
+            }
+            Self::Arguments => {
+                "The arguments themselves were rejected. Re-read the tool's schema and the error text, then send one corrected call — do not vary the values at random."
+            }
+            Self::State => {
+                "The environment is not in the state the call assumed (a conflict, a lock or a stale precondition). Re-read the current state before calling again."
+            }
+            Self::Unclassified => {
+                "Read the error text, check the assumption behind it (a path, a name, a permission) with one small read, or tell the user what blocks you."
+            }
+        }
+    }
+}
+
 /// Fingerprint of one call. Store hashes, not text: this path runs every turn, keep it light.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Call {
@@ -69,6 +198,7 @@ pub enum GuardVerdict {
     Failing {
         name: String,
         times: u32,
+        kind: FailureKind,
     },
 }
 
@@ -93,6 +223,9 @@ impl GuardVerdict {
 pub struct StallGuard {
     recent: VecDeque<Call>,
     failures: std::collections::HashMap<String, u32>,
+    /// The failure kind seen across the current streak, per tool. Mixed causes fall back to
+    /// `Unclassified` rather than advising for whichever error happened to come last.
+    kinds: std::collections::HashMap<String, FailureKind>,
     hits: i32,
     last_note: Option<String>,
 }
@@ -123,6 +256,21 @@ impl StallGuard {
         let failures = self.failures.entry(name.to_string()).or_default();
         *failures = if success { 0 } else { *failures + 1 };
         let failures = *failures;
+        let kind = match (success, FailureKind::of(output)) {
+            (true, _) => {
+                self.kinds.remove(name);
+                FailureKind::Unclassified
+            }
+            (false, observed) => *self
+                .kinds
+                .entry(name.to_string())
+                .and_modify(|known| {
+                    if *known != observed {
+                        *known = FailureKind::Unclassified;
+                    }
+                })
+                .or_insert(observed),
+        };
         if success && is_poll(name, args) {
             return GuardVerdict::Ok;
         }
@@ -144,6 +292,7 @@ impl StallGuard {
             verdict = GuardVerdict::Failing {
                 name: name.to_string(),
                 times: failures,
+                kind,
             };
         }
         if !verdict.is_ok() {
@@ -210,8 +359,9 @@ pub fn reminder(verdict: &GuardVerdict) -> Option<String> {
         GuardVerdict::Cyclic { period } => Some(format!(
             "\n[guard] you are repeating the same group of calls on a {period}-step cycle.\n             Stop repeating it — take another route, or tell the user where you are stuck."
         )),
-        GuardVerdict::Failing { name, times } => Some(format!(
-            "\n[guard] {name} has now failed {times} times in a row with different arguments.\n             Read the error text, check the assumption behind it (a path, a name, a permission) with one small read, or tell the user what blocks you."
+        GuardVerdict::Failing { name, times, kind } => Some(format!(
+            "\n[guard] {name} has now failed {times} times in a row with different arguments.\n             {}",
+            kind.advice()
         )),
     }
 }

@@ -179,7 +179,20 @@ When the context estimate crosses its threshold, the request keeps the current i
 
 Two kinds of call are left out of the repeat and cycle rows. A successful poll (`job` with `action=output`, `job_output`, or a tool named `…_poll` or `…_get_result`) is not counted, because waiting on a running job returns the same text until it moves. A successful `write_file`, `edit` or `apply_patch` clears the window, so rerunning the same test after a change starts counting again.
 
-On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard`. Three successive batches with exclusively repeated or cyclic calls stop for review. A failing streak only adds a reminder to check the assumption behind the error; it never counts toward that stop, because a failing test command is ordinary output.
+On a hit, only the text fed back to the model changes: a `[guard]` reminder is appended (take another route or tell the user where you are stuck), and for a repeated call whose result is long enough, the body is replaced by a short reference stub. `LoopResult.tool_calls` and `Tool` events keep the real result. Hit count and the last note go to `LoopResult.guard`. Three successive batches with exclusively repeated or cyclic calls stop for review. A failing streak only adds a reminder; it never counts toward that stop, because a failing test command is ordinary output.
+
+That reminder states the move the failure actually calls for, not a generic "take another route". `FailureKind` classifies the streak deterministically from the tool's own error text, never from the model's account of it:
+
+| Kind | Read from | What the reminder asks for |
+|---|---|---|
+| `Transient` | timeout, connection reset, 429, 5xx | One more attempt is reasonable; if it fails again, say so instead of retrying |
+| `Missing` | no such file, not found, 404 | Stop guessing names or paths; list or search the containing location once |
+| `Permission` | 403, 401, unauthorized, missing credential or approval | Retrying cannot fix it — tell the user what access is needed |
+| `Arguments` | schema mismatch, missing field, parse failure | Re-read the schema and the error, send one corrected call |
+| `State` | conflict, 409, precondition, already exists, locked | Re-read the current state before calling again |
+| `Unclassified` | unrecognized, or a streak whose causes disagree | Keeps the existing generic reminder |
+
+The kind is held over the streak: the causes within one tool's run of failures must agree, and a mixed streak degrades to `Unclassified` rather than advising for whichever error came last. A success of that tool clears the recorded cause.
 
 ## 3.16 Tool-result budget
 
