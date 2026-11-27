@@ -139,15 +139,14 @@ fn tools(server: &mut Server, pool: &[Record], deep: bool) -> Trace {
         })
         .collect::<Vec<_>>()
         .join("\n\n");
-    // Keep the real tool wrappers (including task snapshot handling), but refuse unknown
-    // URLs before the production handler could resolve or fetch them.
+    // The replay corpus supplies bound bodies and writes task snapshots without external reads.
     let search = search_web_with_primary(Some(Arc::new(move |_, _| {
         let result = ordered_results.clone();
         Box::pin(async move { Ok(result) })
     })));
     let corpus = pool.iter().map(|r| (r.url(), r.text())).collect::<Vec<_>>();
     let pages = corpus.clone();
-    let fetch = fetch_url_with_primary(Some(Arc::new(move |_, args| {
+    let fetch = super::super::research_flow::bound_fetch_fixture(Arc::new(move |_, args| {
         let body = pages
             .iter()
             .find(|(url, _)| args["url"].as_str() == Some(url.as_str()))
@@ -155,7 +154,7 @@ fn tools(server: &mut Server, pool: &[Record], deep: bool) -> Trace {
             .1
             .to_owned();
         Box::pin(async move { Ok(body) })
-    })));
+    }));
     for (mut tool, kind) in [(search, "search"), (fetch, "fetch")] {
         let actual = tool.handler;
         let trace = trace.clone();

@@ -162,7 +162,7 @@ pub struct ToolCtx {
     /// Invocation-local receipt slot, installed by the registry for observed web calls.
     /// Not sent to the model or reconstructed from tool output text.
     #[doc(hidden)]
-    pub web_receipt: Option<Arc<std::sync::OnceLock<web::WebReceipt>>>,
+    pub web_receipt: Option<Arc<web::WebReadCapture>>,
 }
 
 /// One chunk of live tool output. `Fn` and not a stream: the consumer is a notification sink
@@ -552,7 +552,7 @@ impl ToolRegistry {
         if !matches!(name, "search_web" | "fetch_url") {
             return (self.execute_result(ctx, name, args).await, None);
         }
-        let slot = Arc::new(std::sync::OnceLock::new());
+        let slot = Arc::new(web::WebReadCapture::default());
         ctx.web_receipt = Some(slot.clone());
         let output = self.execute_result(ctx, name, args).await;
         let receipt = output.success.then(|| slot.get().cloned()).flatten();

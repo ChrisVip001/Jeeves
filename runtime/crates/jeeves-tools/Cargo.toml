@@ -22,6 +22,7 @@ jsonschema = { workspace = true }
 jeeves-provider = { workspace = true }
 jeeves-state = { workspace = true }
 sqlx = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 #   Every search_web backend speaks HTTP: Tavily and Brave are JSON APIs, DuckDuckGo and Bing
 #   mean fetching a page of HTML and picking it apart. One reqwest, no second client.

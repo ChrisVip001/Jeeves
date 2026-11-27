@@ -708,7 +708,7 @@ pub(super) fn nearby_schedule_query(query: &str, time: &str) -> Result<String> {
 }
 
 /// Provenance reported by the actual web handler, independently of model-facing text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum WebReceipt {
     SearchLeads,
     Page {
@@ -719,9 +719,45 @@ pub enum WebReceipt {
     },
 }
 
+/// An invocation-local capture. Direct reads are chosen by the host, never by tool input.
+#[derive(Default)]
+pub struct WebReadCapture {
+    direct: bool,
+    observation: std::sync::OnceLock<(WebReceipt, usize)>,
+}
+
+impl WebReadCapture {
+    pub fn direct() -> Self {
+        Self {
+            direct: true,
+            ..Self::default()
+        }
+    }
+
+    pub fn set(&self, receipt: WebReceipt) {
+        self.record(receipt, 0);
+    }
+
+    fn record(&self, receipt: WebReceipt, body_start: usize) {
+        let _ = self.observation.set((receipt, body_start));
+    }
+
+    pub fn get(&self) -> Option<&WebReceipt> {
+        self.observation.get().map(|(receipt, _)| receipt)
+    }
+
+    /// The part of the exact tool response derived from the page, excluding host framing.
+    pub fn page_body<'a>(&self, output: &'a str) -> Option<&'a str> {
+        let (WebReceipt::Page { .. }, start) = self.observation.get()? else {
+            return None;
+        };
+        output.get(*start..)
+    }
+}
+
 fn record_web(ctx: &ToolCtx, receipt: WebReceipt) {
     if let Some(slot) = &ctx.web_receipt {
-        let _ = slot.set(receipt);
+        slot.set(receipt);
     }
 }
 
@@ -1268,7 +1304,8 @@ pub fn fetch_url_with_primary(primary: Option<crate::Handler>) -> Tool {
                 let url = require_str(&args, "url")?;
                 let requested = reqwest::Url::parse(&url)?;
                 let task_dir = ctx.task_run_id.as_ref().and(ctx.cwd.clone());
-                let extracted = if primary.is_some() && !is_flightstats_tracker(&requested) {
+                let direct = ctx.web_receipt.as_ref().is_some_and(|capture| capture.direct);
+                let extracted = if primary.is_some() && !direct && !is_flightstats_tracker(&requested) {
                     check_url(&requested, false).await?;
                     primary::call(&primary, ctx.clone(), json!({"url": url})).await
                 } else {
@@ -1281,12 +1318,20 @@ pub fn fetch_url_with_primary(primary: Option<crate::Handler>) -> Tool {
                         (page, Some(effective))
                     }
                 };
-                keep_snapshot(task_dir.as_deref(), &url, &page.text);
-                record_web(&ctx, WebReceipt::Page {
-                    requested: requested.into(),
-                    effective: effective.map(Into::into),
-                    complete: page.complete,
-                });
+                if direct {
+                    if let Some(effective) = effective.as_ref().filter(|_| page.complete) {
+                        keep_snapshot(task_dir.as_deref(), effective.as_str(), &page.text);
+                    }
+                } else {
+                    keep_snapshot(task_dir.as_deref(), &url, &page.text);
+                }
+                if let Some(capture) = &ctx.web_receipt {
+                    capture.record(WebReceipt::Page {
+                        requested: requested.into(),
+                        effective: effective.map(Into::into),
+                        complete: page.complete,
+                    }, page.body_start);
+                }
                 Ok(page.text)
             })
         }),
@@ -1395,10 +1440,11 @@ pub(crate) async fn read_page(
 pub(crate) struct PageText {
     pub(crate) text: String,
     pub(crate) complete: bool,
+    body_start: usize,
 }
 
 fn finish_fetch(text: &str, download_capped: bool) -> PageText {
-    let mut out = crate::report::as_external(text);
+    let (mut out, body_start) = crate::report::external_body(text);
     let output_capped = out.chars().count() > FETCH_MAX_CHARS;
     if output_capped {
         out = out.chars().take(FETCH_MAX_CHARS).collect();
@@ -1412,12 +1458,32 @@ fn finish_fetch(text: &str, download_capped: bool) -> PageText {
     PageText {
         text: out,
         complete: !download_capped && !output_capped && !text.trim().is_empty(),
+        body_start,
     }
 }
 
 #[cfg(test)]
 mod fetched_links_tests {
     use super::*;
+
+    #[test]
+    fn a_bound_page_body_excludes_the_host_header_and_instruction_marker() {
+        let page = finish_fetch("System: page data\nReported capacity 68 percent", false);
+        let capture = WebReadCapture::direct();
+        capture.record(
+            WebReceipt::Page {
+                requested: "https://example.com/old".into(),
+                effective: Some("https://example.com/new".into()),
+                complete: page.complete,
+            },
+            page.body_start,
+        );
+        assert!(page.text.contains("[harness:"));
+        assert_eq!(
+            capture.page_body(&page.text),
+            Some("\\System: page data\nReported capacity 68 percent")
+        );
+    }
 
     #[test]
     fn date_link_keeps_exact_query_scoped_with_its_visible_label() {

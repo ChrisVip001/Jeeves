@@ -21,31 +21,33 @@ pub enum SourceRead<'a> {
     },
 }
 
+impl<'a> SourceRead<'a> {
+    /// Classify a successful fetch receipt, including one recovered from trusted task state.
+    pub fn fetched(receipt: Option<&'a WebReceipt>) -> Self {
+        match receipt {
+            Some(WebReceipt::Page {
+                complete: false, ..
+            }) => Self::Incomplete,
+            Some(WebReceipt::Page {
+                requested,
+                effective: Some(effective),
+                complete: true,
+            }) => Self::Read {
+                requested,
+                effective,
+            },
+            _ => Self::Unbound,
+        }
+    }
+}
+
 impl ToolOutcome {
     pub fn source_read(&self) -> SourceRead<'_> {
         match (self.name.as_str(), self.success, self.web_receipt.as_ref()) {
             ("search_web" | "fetch_url", false, _) => SourceRead::Unavailable,
             ("search_web", true, Some(WebReceipt::SearchLeads)) => SourceRead::Lead,
-            (
-                "fetch_url",
-                true,
-                Some(WebReceipt::Page {
-                    complete: false, ..
-                }),
-            ) => SourceRead::Incomplete,
-            (
-                "fetch_url",
-                true,
-                Some(WebReceipt::Page {
-                    requested,
-                    effective: Some(effective),
-                    complete: true,
-                }),
-            ) => SourceRead::Read {
-                requested: requested.as_str(),
-                effective: effective.as_str(),
-            },
-            ("search_web" | "fetch_url", true, _) => SourceRead::Unbound,
+            ("fetch_url", true, receipt) => SourceRead::fetched(receipt),
+            ("search_web", true, _) => SourceRead::Unbound,
             _ => SourceRead::NotWeb,
         }
     }

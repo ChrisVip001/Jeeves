@@ -43,8 +43,7 @@ async fn go(
                 assert_eq!(url, expected);
                 result.map_err(anyhow::Error::msg)?
             };
-            let _ = ctx
-                .web_receipt
+            ctx.web_receipt
                 .unwrap()
                 .set(jeeves_tools::web::WebReceipt::Page {
                     requested: url.into(),

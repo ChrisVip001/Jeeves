@@ -1618,6 +1618,7 @@ dependencies = [
  "jeeves-state",
  "jsonschema",
  "reqwest",
+ "serde",
  "serde_json",
  "sqlx",
  "tempfile",

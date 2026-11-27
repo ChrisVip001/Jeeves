@@ -1,7 +1,7 @@
 use super::*;
 use jeeves_provider::mock::Mock;
 use jeeves_state::TaskStatus;
-use jeeves_tools::web::{fetch_url_with_primary, search_web_with_primary};
+use jeeves_tools::web::{WebReceipt, fetch_url, search_web_with_primary};
 
 const RESERVOIR: &str = "https://93.184.216.34/fixture/reservoir";
 const TRANSIT: &str = "https://93.184.216.34/fixture/transit";
@@ -38,7 +38,7 @@ fn install(server: &mut Server, responses: Vec<CreateResponse>) -> Arc<Mutex<Vec
     });
     let mut tools = server.tools.without("search_web").without("fetch_url");
     tools.register(search_web_with_primary(Some(handler.clone())));
-    tools.register(fetch_url_with_primary(Some(handler)));
+    tools.register(bound_fetch_fixture(handler));
     server.tools = Arc::new(tools);
     server.install_provider(Resolved {
         client: Arc::new(Mock::streaming(responses)),
@@ -49,6 +49,30 @@ fn install(server: &mut Server, responses: Vec<CreateResponse>) -> Arc<Mutex<Vec
         context_window: 32_000,
     });
     calls
+}
+
+/// The test corpus is the direct HTTP response. Keep DNS and external I/O out of replay.
+pub(super) fn bound_fetch_fixture(handler: jeeves_tools::Handler) -> jeeves_tools::Tool {
+    let mut tool = fetch_url();
+    tool.handler = Arc::new(move |ctx, args| {
+        let handler = handler.clone();
+        Box::pin(async move {
+            let url = jeeves_tools::require_str(&args, "url")?;
+            let body = handler(ctx.clone(), args).await?;
+            if let Some(capture) = ctx.web_receipt {
+                capture.set(WebReceipt::Page {
+                    requested: url.clone(),
+                    effective: Some(url.clone()),
+                    complete: true,
+                });
+            }
+            if let Some(cwd) = ctx.task_run_id.and(ctx.cwd) {
+                jeeves_tools::snapshot::save(&cwd, &url, &body)?;
+            }
+            Ok(body)
+        })
+    });
+    tool
 }
 
 fn fetch(id: &str, url: &str) -> CreateResponse {
@@ -239,6 +263,23 @@ async fn deep_research_reuses_observations_after_restart_and_publishes_only_the_
     let hash = jeeves_state::ledger::digest_of(text.as_bytes());
     assert!(verification.checks_json.contains(&hash));
     assert!(!text.contains(MODEL_ONLY) && !text.contains("Unresolved:"));
+    let saved: String =
+        sqlx::query_scalar("SELECT state_json FROM research_evidence WHERE task_id=?")
+            .bind(&id)
+            .fetch_one(&server.pool)
+            .await
+            .unwrap();
+    let saved: serde_json::Value = serde_json::from_str(&saved).unwrap();
+    for (i, (url, quote)) in [(RESERVOIR, WATER), (TRANSIT, TRAINS)].iter().enumerate() {
+        let observation = &saved["observations"][i];
+        assert_eq!(observation["receipt"]["Page"]["requested"], *url);
+        assert_eq!(observation["receipt"]["Page"]["effective"], *url);
+        assert_eq!(observation["receipt"]["Page"]["complete"], true);
+        assert_eq!(
+            observation["digest"],
+            jeeves_state::ledger::digest_of(quote.as_bytes())
+        );
+    }
     assert_eq!(*calls.unwrap().lock().unwrap(), [TRANSIT]);
 }
 
@@ -280,4 +321,74 @@ async fn a_provider_failure_still_returns_observed_partial_evidence() {
     );
     assert!(!reply.contains("private provider error") && !reply.contains(TRAINS));
     assert_eq!(*calls.lock().unwrap(), [RESERVOIR]);
+}
+
+#[tokio::test]
+async fn quick_research_cites_only_bound_complete_fetches_and_uses_the_final_url() {
+    const BEFORE: &str = "https://93.184.216.34/old-report?date=4";
+    const FINAL: &str = "https://93.184.216.34/final-report?date=4";
+    const UNBOUND: &str = "https://93.184.216.34/unbound";
+    const PARTIAL: &str = "https://93.184.216.34/partial";
+    let (_home, mut server, _) = setup().await;
+    install(
+        &mut server,
+        vec![
+            fetch("unbound", UNBOUND),
+            fetch("partial", PARTIAL),
+            cite("attempt-to-bind", 1, 1, WATER),
+            fetch("redirected", BEFORE),
+            cite("valid", 1, 1, WATER),
+            Mock::text(MODEL_ONLY),
+        ],
+    );
+    let mut tools = server.tools.without("fetch_url");
+    let mut tool = fetch_url();
+    tool.handler = Arc::new(|ctx, args| {
+        Box::pin(async move {
+            let url = jeeves_tools::require_str(&args, "url")?;
+            let (effective, complete) = match url.as_str() {
+                UNBOUND => (None, true),
+                PARTIAL => (Some(PARTIAL), false),
+                BEFORE => (Some(FINAL), true),
+                _ => panic!("unexpected fixture URL"),
+            };
+            ctx.web_receipt.unwrap().set(WebReceipt::Page {
+                requested: url,
+                effective: effective.map(str::to_owned),
+                complete,
+            });
+            Ok(WATER.into())
+        })
+    });
+    tools.register(tool);
+    server.tools = Arc::new(tools);
+
+    let events = send(
+        &server,
+        "/web_research\nHow full was the reservoir on May 4?",
+        "quick-bound-read",
+        None,
+    )
+    .await
+    .unwrap();
+    for id in ["unbound", "partial", "attempt-to-bind"] {
+        assert!(
+            events.iter().any(|event| matches!(event,
+                ServerNotification::ToolCompleted(call)
+                    if call.tool_use_id == id && call.status == ToolStatus::Error
+            )),
+            "{id}: {events:?}"
+        );
+    }
+    let reply = events
+        .iter()
+        .find_map(|event| match event {
+            ServerNotification::TurnCompleted(done) => Some(&done.reply),
+            _ => None,
+        })
+        .unwrap();
+    assert!(reply.contains(WATER) && reply.contains(FINAL), "{reply}");
+    for invalid in [BEFORE, UNBOUND, PARTIAL, MODEL_ONLY] {
+        assert!(!reply.contains(invalid), "{reply}");
+    }
 }

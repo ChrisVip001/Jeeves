@@ -1549,7 +1549,7 @@ async fn evidence_gate_uses_model_selected_reads_and_never_streams_the_proposed_
         input_schema: json!({"type":"object","properties":{"url":{"type":"string"}},"required":["url"]}),
         handler: Arc::new(move |ctx, _| {
             Box::pin(async move {
-                let _ = ctx.web_receipt.unwrap().set(WebReceipt::Page {
+                ctx.web_receipt.unwrap().set(WebReceipt::Page {
                     requested: source.into(),
                     effective: Some(source.into()),
                     complete: true,
